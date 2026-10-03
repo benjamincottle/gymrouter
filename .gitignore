@@ -1,0 +1,13 @@
+# Secrets and local data: never commit
+.env
+.env.*
+!.env.example
+
+# Downloaded feeds / generated data
+/data/
+*.pmtiles
+
+# Build output
+/bin/
+/dist/
+node_modules/
