@@ -24,6 +24,7 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/lines"
 	"github.com/benjamincottle/gymrouter/internal/raptor"
 	"github.com/benjamincottle/gymrouter/internal/tfnsw"
+	"github.com/benjamincottle/gymrouter/internal/walk"
 )
 
 // Engine is what the API needs from the data engine.
@@ -41,6 +42,9 @@ type Engine interface {
 	MapFile() (string, bool)
 	Ensure(set lines.Set) error
 	Catalog() *engine.Catalog
+	Approach(net *raptor.Network, p geo.Point, maxWalkM float64, o raptor.Options) engine.Approach
+	NearbyStops(c *engine.Catalog, p geo.Point, radiusM float64, o raptor.Options) ([]engine.NearStop, bool)
+	Walker() *walk.Graph
 	Suggest(ctx context.Context, from engine.SuggestPlace, targets []engine.SuggestPlace, radiusM float64) ([]*engine.SuggestResult, error)
 }
 

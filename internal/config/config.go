@@ -18,6 +18,7 @@ import (
 type Config struct {
 	Server   Server   `toml:"server"`
 	Realtime Realtime `toml:"realtime"`
+	Data     Data     `toml:"data"`
 
 	// Compiled-in defaults, not settable from the file. Devices override the personal ones per request.
 	Routing Routing `toml:"-"`
@@ -33,6 +34,16 @@ type Server struct {
 	TrustProxy bool `toml:"trust_proxy"`
 	// StaticRefreshH is the local hour for the daily timetable download.
 	StaticRefreshH int `toml:"static_refresh_hour"`
+}
+
+// Data controls the files the server fetches for itself (street network, basemap). Timetables always download.
+type Data struct {
+	// AutoDownload fetches and refreshes the street network and the basemap in the background.
+	AutoDownload bool `toml:"auto_download"`
+	// WalkSource is an OpenStreetMap extract (.osm.pbf) covering the area, e.g. BBBike's Sydney extract.
+	WalkSource string `toml:"walk_source"`
+	// PMTilesBin is the pmtiles tool used to cut the basemap from the Protomaps build ("" disables the basemap download).
+	PMTilesBin string `toml:"pmtiles_bin"`
 }
 
 // Routing defaults, compiled in. Devices override walking speed, change buffer, longest walk, risk and transfers per request.
@@ -78,6 +89,7 @@ func Defaults() Config {
 		Routing: Routing{MaxTransferM: 400, WalkSpeedMps: 1.3, DetourFactor: 1.3, MinChangeS: 60, MaxRides: 4,
 			MaxWalkM: 1000, AlternativesS: 600, MaxWindowS: 3 * 3600},
 		Risk: Risk{SafeS: 180, TightS: 60},
+		Data: Data{AutoDownload: true, WalkSource: "https://download.bbbike.org/osm/bbbike/Sydney/Sydney.osm.pbf", PMTilesBin: "pmtiles"},
 		Realtime: Realtime{TripUpdatesEvery: Duration{30 * time.Second}, VehiclesEvery: Duration{15 * time.Second},
 			ActiveFor: Duration{10 * time.Minute}, DailyBudget: 40000},
 	}
@@ -122,6 +134,9 @@ func (c *Config) validate() error {
 	}
 	if c.Server.StaticRefreshH < 0 || c.Server.StaticRefreshH > 23 {
 		errs = append(errs, errors.New("server.static_refresh_hour must be 0..23"))
+	}
+	if u, err := url.Parse(c.Data.WalkSource); c.Data.WalkSource != "" && (err != nil || u.Scheme != "https" || u.Host == "") {
+		errs = append(errs, fmt.Errorf("data.walk_source %q must be an https URL", c.Data.WalkSource))
 	}
 	if c.Realtime.TripUpdatesEvery.Duration < 10*time.Second || c.Realtime.VehiclesEvery.Duration < 10*time.Second {
 		errs = append(errs, errors.New("realtime: polling intervals must be at least 10s"))

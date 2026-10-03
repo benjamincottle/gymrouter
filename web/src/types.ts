@@ -51,6 +51,7 @@ export interface Leg {
   status?: 'scheduled' | 'predicted' | 'added'
   delay_s?: number
   sched_dep?: string
+  path?: [number, number][] // a walk along the streets, [lon, lat]
 }
 
 export type Risk = 'safe' | 'tight' | 'at-risk' | 'missed'
@@ -80,6 +81,7 @@ export interface PlanResponse {
   service_date: string
   realtime: boolean
   realtime_at?: string
+  walking: 'streets' | 'estimate' // how walks to and from stops were timed
   options: Option[]
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/geo"
 	"github.com/benjamincottle/gymrouter/internal/lines"
 	"github.com/benjamincottle/gymrouter/internal/tfnsw"
+	"github.com/benjamincottle/gymrouter/internal/walk/walktest"
 )
 
 var ctx = context.Background()
@@ -285,5 +286,50 @@ func TestSuggestRunsOneAtATimeAndNeedsStops(t *testing.T) {
 		[]engine.SuggestPlace{{Pos: geo.Point{Lat: -33.8, Lon: 151.15}}}, 1200)
 	if !errors.Is(err, engine.ErrNoStops) {
 		t.Errorf("want ErrNoStops, got %v", err)
+	}
+}
+
+func TestApproachFollowsStreetsWhenTheyAreKnown(t *testing.T) {
+	env := enginetest.New(t, "", nil)
+	e := env.Engine
+	snap, _ := e.SnapshotFor(env.Clock.Now())
+	epping := geo.Point{Lat: -33.7727, Lon: 151.0821}
+	o := e.RoutingOptions()
+
+	est := e.Approach(snap.Net, epping, 400, o)
+	if est.Streets || len(est.Access) == 0 {
+		t.Fatalf("without a street network: streets=%v stops=%d", est.Streets, len(est.Access))
+	}
+	e.SetWalker(walktest.Grid(t, epping))
+	st := e.Approach(snap.Net, epping, 400, o)
+	if !st.Streets || len(st.Access) == 0 {
+		t.Fatalf("with streets: streets=%v stops=%d", st.Streets, len(st.Access))
+	}
+	secs := func(a engine.Approach) map[int32]int32 {
+		m := map[int32]int32{}
+		for _, x := range a.Access {
+			m[x.Stop] = x.Secs
+		}
+		return m
+	}
+	differs := false
+	for stop, s := range secs(st) {
+		if s != secs(est)[stop] {
+			differs = true
+		}
+		if pts, ok := st.Path(stop); !ok || len(pts) < 2 {
+			t.Errorf("no walking path to stop %d", stop)
+		}
+	}
+	if !differs {
+		t.Error("street times should differ from the straight-line estimate")
+	}
+	// A place off the map falls back to the estimate rather than failing.
+	far := e.Approach(snap.Net, geo.Point{Lat: -33.80, Lon: 151.20}, 400, o)
+	if far.Streets {
+		t.Error("a place outside the street network must fall back to estimates")
+	}
+	if near, streets := e.NearbyStops(e.Catalog(), epping, 300, o); !streets || len(near) == 0 {
+		t.Errorf("nearby stops with streets: %v %d", streets, len(near))
 	}
 }

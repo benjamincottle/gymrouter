@@ -139,7 +139,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
           <h2 class="results-title">
             {direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`}
           </h2>
-          <DataStatus realtime={plan.data?.realtime} loading={plan.loading} updatedAt={plan.updatedAt} />
+          <DataStatus realtime={plan.data?.realtime} loading={plan.loading} updatedAt={plan.updatedAt} walking={plan.data?.walking} />
           {plan.error !== null && !(plan.error instanceof AuthError) && (
             <p class="error">{(plan.error as Error).message}</p>
           )}
@@ -186,7 +186,9 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   )
 }
 
-function DataStatus({ realtime, loading, updatedAt }: { realtime?: boolean; loading: boolean; updatedAt: number }) {
+function DataStatus({
+  realtime, loading, updatedAt, walking,
+}: { realtime?: boolean; loading: boolean; updatedAt: number; walking?: 'streets' | 'estimate' }) {
   if (!updatedAt) return <p class="muted small">{loading ? 'Planning…' : ''}</p>
   const t = new Date(updatedAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' })
   return (
@@ -194,6 +196,12 @@ function DataStatus({ realtime, loading, updatedAt }: { realtime?: boolean; load
       <span class={realtime ? 'dot live' : 'dot'} aria-hidden="true" />
       {realtime ? 'Live data' : 'Timetable only'}, updated {t}
       {loading && ', refreshing…'}
+      {walking === 'estimate' && (
+        <>
+          <br />
+          Walks are rough estimates until the server has prepared the street map.
+        </>
+      )}
     </p>
   )
 }

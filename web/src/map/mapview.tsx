@@ -192,7 +192,8 @@ export function MapView({ token, lines, option, serviceDate, origin, destination
         if (!a || !b) continue
         bounds.extend(a).extend(b)
         if (l.kind === 'walk') {
-          features.push({ type: 'Feature', properties: { kind: 'walk' }, geometry: { type: 'LineString', coordinates: [a, b] } })
+          const coords = l.path && l.path.length > 1 ? l.path : [a, b]
+          features.push({ type: 'Feature', properties: { kind: 'walk' }, geometry: { type: 'LineString', coordinates: coords } })
           continue
         }
         const color = hex(l.line?.color)

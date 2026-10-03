@@ -124,6 +124,11 @@ func checkConfig(args []string) error {
 		return err
 	}
 	fmt.Printf("listen %s, data %s, public url %q\n", cfg.Server.Listen, cfg.Server.DataDir, cfg.Server.PublicURL)
+	if cfg.Data.AutoDownload {
+		fmt.Printf("fetches itself: street network from %s; basemap with %q\n", cfg.Data.WalkSource, cfg.Data.PMTilesBin)
+	} else {
+		fmt.Println("automatic downloads of the street network and basemap are off")
+	}
 	fmt.Println("known gyms:")
 	for _, g := range gyms.Known() {
 		fmt.Printf("  %-12s %-28s %s\n", g.ID, g.Name, strings.Join(g.LineSet.Strings(), ", "))

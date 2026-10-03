@@ -101,6 +101,8 @@ type legResp struct {
 	Status   string     `json:"status,omitempty"` // scheduled | predicted | added
 	DelayS   *int32     `json:"delay_s,omitempty"`
 	SchedDep *time.Time `json:"sched_dep,omitempty"`
+	// Path is the walk along the streets, [lon, lat] pairs, for the first and last legs when known.
+	Path [][2]float64 `json:"path,omitempty"`
 }
 
 type transferResp struct {
@@ -125,10 +127,13 @@ type optionResp struct {
 }
 
 type planResp struct {
-	ServiceDate string       `json:"service_date"`
-	Realtime    bool         `json:"realtime"`
-	RealtimeAt  *time.Time   `json:"realtime_at,omitempty"`
-	Options     []optionResp `json:"options"`
+	ServiceDate string     `json:"service_date"`
+	Realtime    bool       `json:"realtime"`
+	RealtimeAt  *time.Time `json:"realtime_at,omitempty"`
+	// Walking says how walks to and from stops were timed: "streets" (along real streets and paths) or
+	// "estimate" (straight line, while the street network is still being prepared). Curated walks apply either way.
+	Walking string       `json:"walking"`
+	Options []optionResp `json:"options"`
 }
 
 type badRequest struct{ msg string }
@@ -210,6 +215,7 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	}
 	var ob *plan.Onboard
 	var access []raptor.Access
+	var fromAp, toAp engine.Approach
 	if onboard {
 		ob, err = boarded(snap, req.From.OnTrip, snap.Secs(leave))
 		if err != nil {
@@ -220,10 +226,10 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 			return nil, badf("that trip has already finished")
 		}
 		window = 0
-	} else if access, err = s.access(snap, req.From, maxWalk, opts); err != nil {
+	} else if access, fromAp, err = s.access(snap, req.From, maxWalk, opts); err != nil {
 		return nil, err
 	}
-	egress, err := s.access(snap, req.To, maxWalk, opts)
+	egress, toAp, err := s.access(snap, req.To, maxWalk, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +264,10 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 		options = plan.Plan(snap.Net, preq)
 	}
 
-	resp := &planResp{ServiceDate: snap.Date.Format("2006-01-02"), Realtime: snap.Realtime, Options: []optionResp{}}
+	resp := &planResp{ServiceDate: snap.Date.Format("2006-01-02"), Realtime: snap.Realtime, Options: []optionResp{}, Walking: "estimate"}
+	if s.eng.Walker() != nil {
+		resp.Walking = "streets"
+	}
 	if snap.Realtime {
 		at := snap.RealtimeAt
 		resp.RealtimeAt = &at
@@ -268,7 +277,7 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 		buffer = 0 // already on the way
 	}
 	for _, o := range options {
-		resp.Options = append(resp.Options, optionJSON(snap, o, buffer))
+		resp.Options = append(resp.Options, optionJSON(snap, o, buffer, fromAp, toAp))
 	}
 	return resp, nil
 }
@@ -376,8 +385,9 @@ func validatePrefs(p prefsReq) error {
 	return nil
 }
 
-// access resolves a place to stops with walking times: curated stops if given, otherwise nearby stops.
-func (s *Server) access(snap *engine.Snapshot, p placeReq, maxWalk float64, o raptor.Options) ([]raptor.Access, error) {
+// access resolves a place to stops with walking times: curated stops if given, otherwise nearby stops
+// reached along the streets (or by a straight-line estimate until the street network exists).
+func (s *Server) access(snap *engine.Snapshot, p placeReq, maxWalk float64, o raptor.Options) ([]raptor.Access, engine.Approach, error) {
 	if len(p.Access) > 0 {
 		var out []raptor.Access
 		for _, a := range p.Access {
@@ -386,15 +396,15 @@ func (s *Server) access(snap *engine.Snapshot, p placeReq, maxWalk float64, o ra
 			}
 		}
 		if len(out) == 0 {
-			return nil, badf("none of the access stops exist in the timetable")
+			return nil, engine.Approach{}, badf("none of the access stops exist in the timetable")
 		}
-		return out, nil
+		return out, engine.Approach{}, nil
 	}
-	out := snap.Net.StopsNear(geo.Point{Lat: *p.Lat, Lon: *p.Lon}, maxWalk, o)
-	if len(out) == 0 {
-		return nil, badf("no stops on those lines within %.0f m", maxWalk)
+	ap := s.eng.Approach(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, maxWalk, o)
+	if len(ap.Access) == 0 {
+		return nil, ap, badf("no stops on those lines within %.0f m", maxWalk)
 	}
-	return out, nil
+	return ap.Access, ap, nil
 }
 
 func stopJSON(d *gtfs.Day, s int32) *stopResp {
@@ -411,7 +421,7 @@ func stopJSON(d *gtfs.Day, s int32) *stopResp {
 	return out
 }
 
-func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32) optionResp {
+func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32, fromAp, toAp engine.Approach) optionResp {
 	d := snap.Day
 	leave := o.LeaveAt - buffer
 	out := optionResp{
@@ -430,6 +440,19 @@ func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32) optionResp {
 		lr := legResp{From: stopJSON(d, l.From), To: stopJSON(d, l.To), Dep: snap.Clock(dep), Arr: snap.Clock(l.Arr)}
 		if l.Kind == raptor.Walk {
 			lr.Kind = "walk"
+			switch {
+			case l.From < 0 && l.To >= 0:
+				if pts, ok := fromAp.Path(l.To); ok {
+					lr.Path = coords(pts)
+				}
+			case l.To < 0 && l.From >= 0:
+				if pts, ok := toAp.Path(l.From); ok {
+					for i, j := 0, len(pts)-1; i < j; i, j = i+1, j-1 { // the path runs from the place to the stop
+						pts[i], pts[j] = pts[j], pts[i]
+					}
+					lr.Path = coords(pts)
+				}
+			}
 		} else {
 			lr.Kind = "ride"
 			r := d.Routes[l.Route]
@@ -496,7 +519,7 @@ func (s *Server) stopsNear(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "still reading the timetable; try again in a few seconds")
 		return
 	}
-	near := cat.Near(geo.Point{Lat: req.Lat, Lon: req.Lon}, req.RadiusM, s.eng.RoutingOptions())
+	near, streets := s.eng.NearbyStops(cat, geo.Point{Lat: req.Lat, Lon: req.Lon}, req.RadiusM, s.eng.RoutingOptions())
 	out := make([]nearStopResp, 0, len(near))
 	for _, n := range near {
 		ls := make([]string, len(n.Lines))
@@ -508,7 +531,11 @@ func (s *Server) stopsNear(w http.ResponseWriter, r *http.Request) {
 			WalkS:    n.WalkS, Lines: ls,
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"stops": out})
+	walking := "estimate"
+	if streets {
+		walking = "streets"
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"stops": out, "walking": walking})
 }
 
 type suggestPlaceReq struct {

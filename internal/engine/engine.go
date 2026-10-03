@@ -22,6 +22,7 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/realtime"
 	"github.com/benjamincottle/gymrouter/internal/tfnsw"
 	"github.com/benjamincottle/gymrouter/internal/timetable"
+	"github.com/benjamincottle/gymrouter/internal/walk"
 )
 
 // Fetcher is the subset of the TfNSW client the engine uses (faked in tests).
@@ -97,6 +98,7 @@ type Engine struct {
 	growMu  sync.Mutex    // serialises growing the line set
 	heavy   chan struct{} // held while a whole-network pass runs (one at a time bounds memory)
 	catalog atomic.Pointer[Catalog]
+	walker  atomic.Pointer[walk.Graph]
 
 	today      atomic.Pointer[Snapshot]
 	shapes     atomic.Pointer[map[string][]geo.Point]
@@ -116,6 +118,8 @@ type Engine struct {
 	staticAt     time.Time
 	staticErr    string
 	missing      []lines.Key
+	walkErr      string
+	mapErr       string
 	lastGeocode  time.Time
 }
 
@@ -233,6 +237,9 @@ func (e *Engine) Start(ctx context.Context) error {
 	}
 	go e.LoadShapes()
 	go e.BuildCatalog(ctx)
+	if e.cfg.Data.AutoDownload {
+		go e.provisionLoop(ctx)
+	}
 	go e.staticLoop(ctx)
 	go e.pollLoop(ctx)
 	return nil
@@ -240,6 +247,7 @@ func (e *Engine) Start(ctx context.Context) error {
 
 // Init makes sure the static feeds are present and loads today's timetable.
 func (e *Engine) Init(ctx context.Context) error {
+	e.loadWalkCache()
 	if err := e.ensureStatic(ctx); err != nil {
 		return err
 	}
@@ -652,6 +660,7 @@ type Health struct {
 	Feeds         []FeedHealth    `json:"feeds"`
 	MissingLines  []string        `json:"missing_lines,omitempty"`
 	RealtimeStats *realtime.Stats `json:"realtime,omitempty"`
+	Data          DataStatus      `json:"data"`
 }
 
 // FeedHealth is one realtime feed's state.
@@ -665,7 +674,7 @@ type FeedHealth struct {
 // Health reports the engine's state.
 func (e *Engine) Health() Health {
 	now := e.now()
-	h := Health{PollingActive: e.active()}
+	h := Health{PollingActive: e.active(), Data: e.dataStatus()}
 	s := e.today.Load()
 	if s != nil {
 		h.ServiceDate = s.Date.Format("2006-01-02")

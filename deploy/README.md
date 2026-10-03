@@ -37,20 +37,15 @@ docker compose up -d
 docker compose logs -f gymrouter     # "timetable loaded", then "listening"
 ```
 
-## 4. Map (optional, recommended)
+## 4. Street map and basemap (automatic)
 
-The basemap is a PMTiles extract of Greater Sydney (~63 MB) in the data volume as `map.pmtiles`.
-Without it, the map shows routes and vehicles on a blank background. Create or refresh it (every month
-or two) with the PMTiles CLI image, writing as the app's user:
-
-```
-docker run --rm --user 65532:65532 -v <project>_gymrouter_data:/data ghcr.io/protomaps/go-pmtiles:latest \
-  extract https://build.protomaps.com/$(date -d yesterday +%Y%m%d).pmtiles /data/map.pmtiles \
-  --bbox=150.55,-34.15,151.35,-33.45
-```
-
-(`<project>` is the compose project name, usually the directory name.) The app picks up the new file
-on the next request; the browser revalidates it daily.
+Nothing to do. After the timetables, the server downloads an OpenStreetMap extract of Sydney (~60 MB, from BBBike,
+rebuilt weekly) and builds the walking network from it (a few seconds, ~40 MB cached in the data volume), and cuts the
+basemap (~63 MB) from the Protomaps daily build with the `pmtiles` tool shipped in the image. Both refresh themselves
+every month or two. The container needs outbound HTTPS to `download.bbbike.org` and `build.protomaps.com`. Until they
+arrive (a minute or two) walks are straight-line estimates and the map is blank; if a download fails the app keeps
+working and retries every few hours. `GET /api/status` shows `data` with their state and any error. To use other
+sources or turn this off, see `[data]` in `config.example.toml`.
 
 ## 5. Set up a device
 
@@ -64,7 +59,7 @@ timetable; you can review them. "Set up another device" in Settings shares a lin
 
 ## Operations
 
-- Memory: idle ~90 MB. Asking for line suggestions (and the stop catalogue built after each timetable
+- Memory: idle ~150 MB live (the street network is ~50 MB of it). Asking for line suggestions (and the stop catalogue built after each timetable
   download) reads the whole network for a few seconds, one at a time, peaking near 310 MB.
 - Health: `GET /healthz` (public, minimal). Detail (feed ages, errors, upstream requests today, realtime
   match rates, configured lines with no trips): `GET /api/status` with the token.

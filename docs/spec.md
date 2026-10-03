@@ -58,10 +58,14 @@ Non-goals (v1)
 - Walking transfers between stops on those lines: GTFS transfers/pathways where present, otherwise
   distance × walking factor; **personal overrides win**.
 - Access/egress: device-supplied home access stops + walk times; gym access stops from config.
-- **Walk times at each end are measured, not modelled.** General planners walk through places you can't
+- **Walks follow real streets, and measured walks win.** General planners walk through places you can't
   (e.g. through the Johnson factory at Lane Cove) and miss shortcuts that exist (e.g. cutting through the
-  plumbing-supply site). We never route over a street network: every gym access stop has a curated walk time,
-  and optionally a hand-drawn walking path (GeoJSON line in config) that the map draws instead of a straight line.
+  plumbing-supply site). Walks to and from stops are routed over a pedestrian network built from OpenStreetMap
+  (footpaths, steps, streets; private and no-foot ways excluded). A curated access stop with a measured walk time
+  overrides the routed one, which is how the OSM data's mistakes get corrected. Until the network has been built
+  (first start), walks fall back to straight line × detour and the app says so.
+- The server provisions its own data: timetables (daily), the pedestrian network and the basemap are downloaded on
+  first start and refreshed on a schedule, in the background, so a fresh deploy needs nothing but the config and secrets.
 - Leg model is mode-generic so bike/scooter legs can be added later.
 - Safety net: on every GTFS refresh, report config lines or stops that no longer exist (health + logs).
 
@@ -277,3 +281,10 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   per day searched, not once per gym). Custom gyms still work through the editor. Server config shrinks to infrastructure
   (`[server]`, `[realtime]`); `[routing]`, `[risk]` and `[[gym]]` are gone and rejected as unknown keys. The server preloads
   the known gyms' lines at startup.
+- 2026-10-03: Walking over real streets (supersedes "never route over a street network"). Why: straight line × 1.3 skews the
+  walk to the first stop and from the last one, which dominates short trips, and it is wrong in both directions around rivers,
+  rail lines and cul-de-sacs. How: a pedestrian graph built in-process from an OpenStreetMap extract (BBBike's weekly Sydney
+  extract, ~57 MB; the Australia-wide file is ~1 GB), with a minimal PBF reader on the existing protobuf dependency, cached as a
+  compact file in the data volume and routed with a bounded Dijkstra. Curated walks still win. The server now fetches everything
+  it needs itself (the pedestrian network, and the basemap via the pinned `pmtiles` tool shipped in the image) instead of these
+  being deploy steps; failures leave the app working on fallbacks and are retried, and `/api/status` reports them.

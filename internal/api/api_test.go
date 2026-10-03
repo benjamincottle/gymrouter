@@ -20,6 +20,8 @@ import (
 
 	"github.com/benjamincottle/gymrouter/internal/api"
 	"github.com/benjamincottle/gymrouter/internal/engine/enginetest"
+	"github.com/benjamincottle/gymrouter/internal/geo"
+	"github.com/benjamincottle/gymrouter/internal/walk/walktest"
 )
 
 // laneCoveQuery is laneCoveLines as a ?lines= value.
@@ -690,5 +692,44 @@ func TestStopsNearWorksBeforeAnyLinesAreChosen(t *testing.T) {
 	}
 	if n := len(h.env.Engine.Lines()); n != 0 {
 		t.Errorf("stops/near loaded %d lines", n)
+	}
+}
+
+func TestPlanReportsHowWalksWereTimed(t *testing.T) {
+	h := newHarness(t)
+	var p struct {
+		Walking string
+		Options []struct {
+			Legs []struct {
+				Kind string
+				Path [][2]float64
+			}
+		}
+	}
+	_ = json.Unmarshal(h.do(t, "POST", "/api/plan", token, eppingToLaneCove).Body.Bytes(), &p)
+	if p.Walking != "estimate" || len(p.Options) == 0 {
+		t.Fatalf("without a street network: %+v", p.Walking)
+	}
+	for _, l := range p.Options[0].Legs {
+		if l.Path != nil {
+			t.Error("estimated walks have no street path")
+		}
+	}
+
+	// With a street network around both ends, walks follow streets and the legs carry their paths.
+	h.env.Engine.SetWalker(walktest.Grid(t, geo.Point{Lat: -33.7727, Lon: 151.0821}, geo.Point{Lat: -33.807948, Lon: 151.150629}))
+	p.Options = nil
+	_ = json.Unmarshal(h.do(t, "POST", "/api/plan", token, eppingToLaneCove).Body.Bytes(), &p)
+	if p.Walking != "streets" || len(p.Options) == 0 {
+		t.Fatalf("with a street network: walking=%q options=%d", p.Walking, len(p.Options))
+	}
+	legs := p.Options[0].Legs
+	first, last := legs[0], legs[len(legs)-1]
+	if first.Kind != "walk" || len(first.Path) < 2 || last.Kind != "walk" || len(last.Path) < 2 {
+		t.Errorf("first and last walks should carry street paths: %d and %d points", len(first.Path), len(last.Path))
+	}
+	// The last walk's path must end at the gym (it was computed from the gym outwards and reversed).
+	if end := last.Path[len(last.Path)-1]; end[0] < 151.15 || end[0] > 151.151 {
+		t.Errorf("last path ends at %v, want the gym", end)
 	}
 }

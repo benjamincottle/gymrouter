@@ -20,3 +20,11 @@ trip_updates_every = "30s"
 vehicles_every = "15s"
 active_for = "10m"        # poll only while the app was used in the last 10 minutes
 daily_budget = 40000      # hard cap on upstream requests (free plan quota is 60,000/day)
+
+# The server fetches what it needs itself, in the background, and keeps it fresh: timetables (always), the
+# pedestrian street network (so walks follow real streets) and the basemap. The app works without the last two
+# (walks fall back to estimates, the map to a blank background) while they download or if a download fails.
+[data]
+auto_download = true
+walk_source = "https://download.bbbike.org/osm/bbbike/Sydney/Sydney.osm.pbf"   # OpenStreetMap extract, ~60 MB, weekly
+pmtiles_bin = "pmtiles"   # tool that cuts the basemap from the Protomaps build ("" = don't download a basemap)

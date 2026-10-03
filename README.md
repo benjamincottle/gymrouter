@@ -30,13 +30,10 @@ gymrouter make-fixture   build the trimmed real-data test fixture
    gymrouter serve --config config.toml
    ```
    On first start it downloads the timetables (~300 MB) into `server.data_dir`.
-4. Install the map (optional, ~63 MB): extract Greater Sydney from the daily Protomaps build into the
-   data directory as `map.pmtiles`, e.g. with the [`pmtiles` CLI](https://github.com/protomaps/go-pmtiles):
-   ```
-   pmtiles extract https://build.protomaps.com/$(date -d yesterday +%Y%m%d).pmtiles /data/map.pmtiles \
-     --bbox=150.55,-34.15,151.35,-33.45
-   ```
-   Refresh it every month or two. Without it, the map still shows routes and vehicles on a blank background.
+4. That's all: the server downloads the rest itself in the background. After the timetables (the first start waits for
+   these) it fetches an OpenStreetMap extract for walking (~60 MB, built into a street network) and cuts the Sydney basemap
+   from the Protomaps build with the `pmtiles` tool (~63 MB; in the Docker image, or install it and put it on `PATH`). Both
+   refresh themselves every month or two. Until they arrive, walks are straight-line estimates and the map is blank.
 5. Run `gymrouter setup-link` and open the link on your phone. In Settings, add your home and tick
    your gyms; the app finds the lines near home for each. Other gyms can be added by address. To change the built-in gyms,
    edit `internal/gyms/gyms.toml`.
@@ -48,6 +45,8 @@ API: [docs/api.md](docs/api.md).
   never send to servers. The server keeps only the token's SHA-256 digest.
 - Home locations and personal walking times stay on the device and arrive only in request bodies,
   which are never logged or stored. This repository contains no personal data.
+- Walks follow real streets (OpenStreetMap), routed on the server from a graph built from a public extract; your
+  home location is only ever used in memory for that.
 - Only the server talks to TfNSW, on its own schedule, and only while the app is in use. A daily request
   budget caps upstream calls, so public traffic can't exhaust the API key's quota.
 

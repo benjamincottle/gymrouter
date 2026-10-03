@@ -47,7 +47,7 @@ measured walks from the gym door.
 
 Response:
 ```json
-{"service_date": "2026-10-08", "realtime": true, "realtime_at": "…",
+{"service_date": "2026-10-08", "realtime": true, "realtime_at": "…", "walking": "streets",
  "options": [{
    "leave_at": "…", "arrive": "…", "duration_s": 3180, "rides": 3, "risk": "tight", "alternative": false,
    "lines": ["train T9", "metro M1", "bus 288"],
@@ -60,13 +60,19 @@ Response:
    "transfers": [{"from_leg": 1, "to_leg": 3, "walk_s": 120, "slack_s": 95, "risk": "tight", "fallback_dep": "…"}]
  }]}
 ```
+`walking` is `streets` when walks to and from stops follow real streets and paths (the server's OpenStreetMap-based
+network), or `estimate` (straight line × a detour factor) while that network is still being prepared. Curated `access`
+walks apply either way. The first and last walk legs of an option carry a `path` (`[[lon, lat], …]`) along the streets
+when it is known. `max_walk_m` limits the straight-line distance to candidate stops; the walk along the streets may be longer.
+
 `status` is `scheduled`, `predicted` (live data) or `added` (a realtime-only trip). `risk` is `safe`, `tight`,
 `at-risk` or `missed`. `fallback_dep` is the next service of the onward line from the same stop.
 
 ## `POST /api/stops/near`
 `{"lat": …, "lon": …, "radius_m": 800}` → stops near the point with every line that serves them, nearest first:
 `{"stops": [{"id", "name", "station", "lat", "lon", "walk_s", "lines": ["bus 999"]}]}`. Used to set up a home or gym,
-before any lines are chosen. 503 (with `Retry-After`) for a few seconds after the server starts, while it reads the timetable.
+before any lines are chosen. Also returns `"walking": "streets"|"estimate"`: with street data, `walk_s` follows the streets
+and stops that can't be reached on foot are left out. 503 (with `Retry-After`) for a few seconds after the server starts, while it reads the timetable.
 
 ## `POST /api/suggest-lines`
 `{"from": {"lat", "lon", "access"?}, "to": [{"lat", "lon", "access"?}, …], "radius_m"?: 1200}` (1 to 6 destinations)
@@ -107,7 +113,8 @@ through the TfNSW Trip Planner; used once when setting up a home. Limited to one
 counted against the daily upstream budget; the query is never logged.
 
 ## `GET /api/status`
-Detailed health: feed ages and errors, upstream requests today, realtime match stats, configured lines missing today.
+Detailed health: feed ages and errors, upstream requests today, realtime match stats, configured lines missing today, and
+`data`: whether the street network and basemap are ready, their age and any error from the last attempt to fetch them.
 
 Any authenticated API request counts as activity: realtime polling runs while the app was used in the last
 `realtime.active_for` (default 10 min).
