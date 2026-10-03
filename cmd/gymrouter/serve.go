@@ -55,7 +55,7 @@ func serve(args []string) error {
 	defer stop()
 
 	eng := engine.New(cfg, sydney, tfnsw.NewClient(key), log)
-	log.Info("starting", "gyms", len(cfg.Gyms), "lines", len(cfg.AllLines()))
+	log.Info("starting", "preset_gyms", len(cfg.Gyms), "preloaded_lines", len(cfg.AllLines()))
 	if err := eng.Start(ctx); err != nil {
 		return err
 	}
@@ -122,10 +122,13 @@ func checkConfig(args []string) error {
 	if err != nil {
 		return err
 	}
+	if len(cfg.Gyms) == 0 {
+		fmt.Println("no preset gyms: devices supply their own gyms and lines")
+	}
 	for _, g := range cfg.Gyms {
 		fmt.Printf("%-12s %-28s %s\n", g.ID, g.Name, strings.Join(g.LineSet.Strings(), ", "))
 	}
-	fmt.Printf("realtime feeds: ")
+	fmt.Printf("preloaded realtime feeds: ")
 	for _, f := range tfnsw.FeedsFor(cfg.AllLines()) {
 		fmt.Printf("%s ", f.Name)
 	}

@@ -45,6 +45,16 @@ func TestDefaultsApply(t *testing.T) {
 	}
 }
 
+func TestGymsAreOptional(t *testing.T) {
+	c, err := Parse("[server]\nlisten = \":1\"\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Gyms) != 0 || len(c.AllLines()) != 0 {
+		t.Errorf("unexpected presets: %+v", c.Gyms)
+	}
+}
+
 func TestValidation(t *testing.T) {
 	for name, tc := range map[string]struct{ text, want string }{
 		"unknown key":  {minimal + "\n[server]\nlisten_addr = \":1\"\n", "unknown keys: server.listen_addr"},
@@ -52,7 +62,6 @@ func TestValidation(t *testing.T) {
 		"no lines":     {strings.Replace(minimal, `["bus 288"]`, `[]`, 1), "lines required"},
 		"bad id":       {strings.Replace(minimal, `id = "g"`, `id = "G!"`, 1), "id"},
 		"duplicate id": {minimal + minimal, "duplicate id"},
-		"no gyms":      {"[server]\nlisten = \":1\"\n", "at least one"},
 		"budget":       {minimal + "[realtime]\ndaily_budget = 100000\n", "daily_budget"},
 		"fast polling": {minimal + "[realtime]\nvehicles_every = \"1s\"\n", "at least 10s"},
 		"risk order":   {minimal + "[risk]\nsafe_s = 30\ntight_s = 60\n", "tight_s <= safe_s"},

@@ -7,11 +7,11 @@ Personal data (home coordinates, walk times) is only sent in request bodies and 
 ## `GET /healthz` (public)
 `{"ok": true, "service_date": "2026-10-03"}`; returns 503 when the timetable is missing or more than 3 days old.
 
-## `GET /api/gyms`
-Gyms with their lines, plus default preferences:
+## `GET /api/defaults`
+Default preferences, plus any preset gyms the server offers for import (from its optional config):
 ```json
-{"gyms": [{"id": "lanecove", "name": "9 Degrees Lane Cove", "address": "…", "lat": -33.8, "lon": 151.15,
-           "lines": ["bus 288", "metro M1", "train T9"]}],
+{"presets": [{"name": "9 Degrees Lane Cove", "address": "…", "lat": -33.8, "lon": 151.15,
+              "lines": ["bus 288", "metro M1", "train T9"], "access": [{"stop": "206638", "walk_s": 300}]}],
  "defaults": {"walk_speed_mps": 1.3, "min_change_s": 60, "max_walk_m": 1000, "risk": {"safe_s": 180, "tight_s": 60}}}
 ```
 
@@ -19,7 +19,8 @@ Gyms with their lines, plus default preferences:
 ```json
 {
   "from": {"lat": -33.7, "lon": 151.08, "access": [{"stop": "207720", "walk_s": 540}]},
-  "to":   {"gym": "lanecove"},
+  "to":   {"lat": -33.808, "lon": 151.151},
+  "lines": ["train T9", "metro M1", "bus 288"],
   "time": "2026-10-08T16:00:00+11:00",
   "window_min": 30,
   "prefs": {
@@ -29,9 +30,11 @@ Gyms with their lines, plus default preferences:
   }
 }
 ```
-- At least one end must be a gym. Routing uses only that gym's lines (both gyms' lines for gym → gym).
-- A private place is `lat`/`lon`, optionally with curated `access` stops and measured walk times. Without
-  them, stops within `max_walk_m` are used.
+- `lines` (1–60, each `"<mode> <name>"`) is the set to route on, normally the gym's. The server loads timetable
+  data for any line it hasn't seen yet, so the first request naming new lines takes a few seconds. There is a cap on
+  the total the server will hold (400 Bad Request beyond it).
+- A place is `lat`/`lon`, optionally with curated `access` stops and measured walk times. Without
+  them, stops within `max_walk_m` are used. Either end can be home or gym.
 - `time` is the earliest time to leave (default: now). Options leaving within `window_min` are returned.
 - `transfers` override walking/changing time between stops. A station ID covers all its platforms.
 - `"arrive_by": true` treats `time` as the latest arrival: options arriving by then, latest departure first.
@@ -58,11 +61,25 @@ Response:
 `at-risk` or `missed`. `fallback_dep` is the next service of the onward line from the same stop.
 
 ## `POST /api/stops/near`
-`{"lat": …, "lon": …, "radius_m": 800}` → stops served by configured lines, nearest first:
-`{"stops": [{"id", "name", "station", "lat", "lon", "walk_s", "lines": ["bus 999"]}]}`. Used to set up a home.
+`{"lat": …, "lon": …, "radius_m": 800}` → stops near the point with every line that serves them, nearest first:
+`{"stops": [{"id", "name", "station", "lat", "lon", "walk_s", "lines": ["bus 999"]}]}`. Used to set up a home or gym,
+before any lines are chosen. 503 (with `Retry-After`) for a few seconds after the server starts, while it reads the timetable.
 
-## `GET /api/vehicles?gym=<id>`
-Live vehicles on the gym's lines (only fresh data):
+## `POST /api/suggest-lines`
+`{"from": {"lat", "lon", "access"?}, "to": {…}, "radius_m"?: 1200}` → the lines that appear in the best options
+from `from` to `to` over the whole network, searched at 10-minute steps on a typical weekday afternoon and a Sunday morning:
+```json
+{"windows": [{"label": "Weekday afternoon", "date": "2026-10-06", "departures": 19, "typical_s": 1490}],
+ "lines": [{"line": "metro M1", "color": "168388", "share": 1.0, "recommended": true}],
+ "itineraries": [{"desc": "metro M1 → […] → bus 533", "lines": ["metro M1", "bus 533"], "median_s": 1860,
+                  "best_s": 1800, "seen": 13, "of": 19, "window": "Weekday afternoon"}]}
+```
+`share` is the fraction of departure times at which the line appeared in an option; `recommended` means at least 30%.
+It reads the whole timetable (about 15 s, ~300 MB briefly), so only one runs at a time (429 with `Retry-After` otherwise).
+400 if either end has no stops nearby. Coordinates are used in memory only.
+
+## `GET /api/vehicles?lines=<list>`
+Live vehicles on the given lines, comma-separated (e.g. `lines=bus 288,train T9`; only fresh data):
 `{"vehicles": [{"id", "label", "line": "metro M1", "color", "trip_id", "lat", "lon", "bearing", "status", "ts"}]}`.
 Match `trip_id` against a ride leg's `trip_id` to highlight the vehicle you'd catch.
 
@@ -71,9 +88,9 @@ Path of one ride leg (use a plan's `service_date` and the leg's `trip_id` and st
 `{"coordinates": [[lon, lat], …]}`. Follows the route shape once shapes have loaded (a few seconds after
 startup); until then, straight lines between the trip's stops.
 
-## `GET /api/shapes?gym=<id>`
-GeoJSON `FeatureCollection` of the gym's lines (`MultiLineString` per line, properties `line`, `mode`,
-`name`, `color`), for drawing the network faintly under a trip.
+## `GET /api/shapes?lines=<list>`
+GeoJSON `FeatureCollection` of the given lines (`MultiLineString` per line, properties `line`, `mode`,
+`name`, `color`), for drawing the network faintly under a trip. Like `plan`, these load lines the server hasn't seen.
 
 ## `GET /api/map.pmtiles`
 The self-hosted basemap (PMTiles), served with HTTP range requests. 404 if not installed (see README).

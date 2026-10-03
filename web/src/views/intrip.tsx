@@ -13,7 +13,7 @@ export interface ActiveTrip {
   option: Option // the option as currently committed (updated with live times)
   plannedArrive: string
   request: PlanRequest // the original request (from/to/prefs)
-  gymId: string
+  lines: string[] // the gym's lines: what the map draws
   title: string
   origin: [number, number]
   destination: [number, number]
@@ -79,7 +79,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
       const from = replanOrigin(trip.option, ph, posRef.current, trip.request.from)
       if (!from || (ph.kind !== 'before' && ph.kind !== 'riding')) return
       try {
-        const res = await api.plan(token, { from, to: trip.request.to, window_min: 45, prefs: trip.request.prefs })
+        const res = await api.plan(token, { from, to: trip.request.to, lines: trip.request.lines, window_min: 45, prefs: trip.request.prefs })
         if (!live) return
         const a = assess(tripsFrom(trip.option, ph.ride), res.options, trip.plannedArrive)
         setCheck(a)
@@ -233,7 +233,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
           live
           serviceDate={trip.serviceDate}
           token={token}
-          gymId={trip.gymId}
+          lines={trip.lines}
           origin={trip.origin}
           destination={trip.destination}
           title={trip.title}

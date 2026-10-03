@@ -134,7 +134,13 @@ func fixtureDir() string {
 // New returns an initialised engine at SnapshotTime. extraConfig is appended to Config.
 func New(t testing.TB, extraConfig string, log io.Writer) *Env {
 	t.Helper()
-	cfg, err := config.Parse(Config + extraConfig)
+	return NewWith(t, Config+extraConfig, log)
+}
+
+// NewWith is New with the whole config text given (e.g. no preset gyms, so no lines are loaded at first).
+func NewWith(t testing.TB, configText string, log io.Writer) *Env {
+	t.Helper()
+	cfg, err := config.Parse(configText)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,6 +165,7 @@ func New(t testing.TB, extraConfig string, log io.Writer) *Env {
 	if err := e.Init(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	e.BuildCatalog(context.Background())
 	return &Env{Engine: e, Fetcher: f, Clock: clk, Config: cfg}
 }
 

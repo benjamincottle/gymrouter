@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,6 +21,9 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/api"
 	"github.com/benjamincottle/gymrouter/internal/engine/enginetest"
 )
+
+// laneCoveQuery is laneCoveLines as a ?lines= value.
+var laneCoveQuery = url.QueryEscape(strings.Join(laneCoveLines, ","))
 
 const token = "test-token-0123456789abcdefghijklmnopqrstuvwxyz"
 
@@ -48,8 +52,21 @@ func newHarness(t *testing.T) *harness {
 
 func newHarnessWeb(t *testing.T, web fs.FS) *harness {
 	t.Helper()
+	return newHarnessWith(t, web, func(logs *syncBuffer) *enginetest.Env { return enginetest.New(t, "", logs) })
+}
+
+// newHarnessEmpty has no preset gyms, so the server starts without any lines loaded.
+func newHarnessEmpty(t *testing.T) *harness {
+	t.Helper()
+	return newHarnessWith(t, nil, func(logs *syncBuffer) *enginetest.Env {
+		return enginetest.NewWith(t, "[server]\npublic_url = \"https://gym.example.com\"\n", logs)
+	})
+}
+
+func newHarnessWith(t *testing.T, web fs.FS, mk func(*syncBuffer) *enginetest.Env) *harness {
+	t.Helper()
 	logs := &syncBuffer{}
-	env := enginetest.New(t, "", logs)
+	env := mk(logs)
 	auth, err := api.NewAuth(token)
 	if err != nil {
 		t.Fatal(err)
@@ -81,18 +98,18 @@ func (h *harness) do(t *testing.T, method, path, auth string, body any) *httptes
 
 func TestAuth(t *testing.T) {
 	h := newHarness(t)
-	if rec := h.do(t, "GET", "/api/gyms", "", nil); rec.Code != 401 {
+	if rec := h.do(t, "GET", "/api/defaults", "", nil); rec.Code != 401 {
 		t.Errorf("no token: %d", rec.Code)
 	}
-	if rec := h.do(t, "GET", "/api/gyms", token+"x", nil); rec.Code != 401 {
+	if rec := h.do(t, "GET", "/api/defaults", token+"x", nil); rec.Code != 401 {
 		t.Errorf("wrong token: %d", rec.Code)
 	}
 	if rec := h.do(t, "GET", "/api/nonexistent", "", nil); rec.Code != 401 {
 		t.Errorf("unknown API paths must also need the token: %d", rec.Code)
 	}
-	rec := h.do(t, "GET", "/api/gyms", token, nil)
-	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"lanecove"`) {
-		t.Fatalf("gyms: %d %s", rec.Code, rec.Body)
+	rec := h.do(t, "GET", "/api/defaults", token, nil)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"9 Degrees Lane Cove"`) || !strings.Contains(rec.Body.String(), `"walk_speed_mps"`) {
+		t.Fatalf("defaults: %d %s", rec.Code, rec.Body)
 	}
 	if _, err := api.NewAuth("short"); err == nil {
 		t.Error("short tokens must be rejected")
@@ -117,7 +134,7 @@ func TestHealthzIsPublicAndMinimal(t *testing.T) {
 
 func TestSecurityHeaders(t *testing.T) {
 	h := newHarness(t)
-	rec := h.do(t, "GET", "/api/gyms", token, nil)
+	rec := h.do(t, "GET", "/api/defaults", token, nil)
 	for k, want := range map[string]string{
 		"Content-Security-Policy": "default-src 'self'",
 		"X-Content-Type-Options":  "nosniff",
@@ -130,10 +147,17 @@ func TestSecurityHeaders(t *testing.T) {
 	}
 }
 
+// Lane Cove gym and its lines, as a device would send them.
+var (
+	laneCove      = map[string]any{"lat": -33.807948, "lon": 151.150629}
+	laneCoveLines = []string{"train T1", "train T9", "metro M1", "bus 288", "bus 291", "bus 292", "bus 533", "bus 287"}
+)
+
 // Epping Station (public), 2026-10-08 16:30 Sydney (+11:00).
 var eppingToLaneCove = map[string]any{
 	"from":       map[string]any{"lat": -33.7727, "lon": 151.0821},
-	"to":         map[string]any{"gym": "lanecove"},
+	"to":         laneCove,
+	"lines":      laneCoveLines,
 	"time":       "2026-10-08T16:30:00+11:00",
 	"window_min": 20,
 	"prefs":      map[string]any{"max_walk_m": 400, "risk": map[string]any{"safe_s": 120, "tight_s": 30}},
@@ -186,7 +210,7 @@ func TestPlan(t *testing.T) {
 func TestPlanWithRealtimeToday(t *testing.T) {
 	h := newHarness(t)
 	h.env.Engine.PollOnce(context.Background())
-	req := map[string]any{"from": eppingToLaneCove["from"], "to": eppingToLaneCove["to"]}
+	req := map[string]any{"from": eppingToLaneCove["from"], "to": laneCove, "lines": laneCoveLines}
 	rec := h.do(t, "POST", "/api/plan", token, req)
 	var p planResp
 	_ = json.Unmarshal(rec.Body.Bytes(), &p)
@@ -217,9 +241,10 @@ func TestPlanCuratedAccessAndGymToHome(t *testing.T) {
 		t.Fatalf("stops near: %d %s", rec.Code, rec.Body)
 	}
 	req := map[string]any{
-		"from": map[string]any{"gym": "lanecove"},
-		"to":   map[string]any{"lat": -33.7727, "lon": 151.0821, "access": access},
-		"time": "2026-10-08T19:30:00+11:00",
+		"from":  laneCove,
+		"to":    map[string]any{"lat": -33.7727, "lon": 151.0821, "access": access},
+		"lines": laneCoveLines,
+		"time":  "2026-10-08T19:30:00+11:00",
 	}
 	rec = h.do(t, "POST", "/api/plan", token, req)
 	var p planResp
@@ -236,21 +261,37 @@ func TestPlanCuratedAccessAndGymToHome(t *testing.T) {
 func TestPlanValidation(t *testing.T) {
 	h := newHarness(t)
 	place := map[string]any{"lat": -33.77, "lon": 151.08}
-	gym := map[string]any{"gym": "lanecove"}
+	ok := map[string]any{"from": place, "to": laneCove, "lines": laneCoveLines}
+	with := func(k string, v any) map[string]any {
+		m := map[string]any{}
+		for kk, vv := range ok {
+			m[kk] = vv
+		}
+		m[k] = v
+		return m
+	}
+	many := make([]string, 61)
+	for i := range many {
+		many[i] = "bus " + strings.Repeat("9", 1+i%3)
+	}
 	for name, body := range map[string]any{
-		"no gym":          map[string]any{"from": place, "to": place},
-		"unknown gym":     map[string]any{"from": place, "to": map[string]any{"gym": "nope"}},
-		"unknown field":   map[string]any{"from": place, "to": gym, "extra": 1},
-		"bad lat":         map[string]any{"from": map[string]any{"lat": 200, "lon": 1}, "to": gym},
-		"missing coords":  map[string]any{"from": map[string]any{}, "to": gym},
-		"window":          map[string]any{"from": place, "to": gym, "window_min": 100000},
-		"far future":      map[string]any{"from": place, "to": gym, "time": "2027-01-01T10:00:00+11:00"},
-		"walk speed":      map[string]any{"from": place, "to": gym, "prefs": map[string]any{"walk_speed_mps": 50}},
-		"risk order":      map[string]any{"from": place, "to": gym, "prefs": map[string]any{"risk": map[string]any{"safe_s": 10, "tight_s": 60}}},
-		"bad access stop": map[string]any{"from": map[string]any{"lat": -33.77, "lon": 151.08, "access": []any{map[string]any{"stop": "nope", "walk_s": 60}}}, "to": gym},
+		"no lines":        map[string]any{"from": place, "to": laneCove},
+		"empty lines":     with("lines", []string{}),
+		"bad line":        with("lines", []string{"tram 1"}),
+		"too many lines":  with("lines", many),
+		"long line":       with("lines", []string{"bus " + strings.Repeat("x", 60)}),
+		"unknown field":   with("extra", 1),
+		"gym id":          with("to", map[string]any{"gym": "lanecove"}),
+		"bad lat":         with("from", map[string]any{"lat": 200, "lon": 1}),
+		"missing coords":  with("from", map[string]any{}),
+		"window":          with("window_min", 100000),
+		"far future":      with("time", "2027-01-01T10:00:00+11:00"),
+		"walk speed":      with("prefs", map[string]any{"walk_speed_mps": 50}),
+		"risk order":      with("prefs", map[string]any{"risk": map[string]any{"safe_s": 10, "tight_s": 60}}),
+		"bad access stop": with("from", map[string]any{"lat": -33.77, "lon": 151.08, "access": []any{map[string]any{"stop": "nope", "walk_s": 60}}}),
 		"not json":        "{not json",
-		"trailing":        `{"from":{"gym":"lanecove"},"to":{"lat":1,"lon":1}} {}`,
-		"too big":         `{"from":{"gym":"lanecove","x":"` + strings.Repeat("a", 70<<10) + `"}}`,
+		"trailing":        `{"from":{"lat":1,"lon":1},"to":{"lat":1,"lon":1}} {}`,
+		"too big":         `{"from":{"lat":1,"lon":1,"x":"` + strings.Repeat("a", 70<<10) + `"}}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if rec := h.do(t, "POST", "/api/plan", token, body); rec.Code != 400 {
@@ -272,14 +313,17 @@ func TestVehiclesAndActivity(t *testing.T) {
 	if h.env.Engine.Health().PollingActive {
 		t.Fatal("should be idle before any request")
 	}
-	if rec := h.do(t, "GET", "/api/vehicles?gym=nope", token, nil); rec.Code != 400 {
-		t.Errorf("unknown gym: %d", rec.Code)
+	if rec := h.do(t, "GET", "/api/vehicles?lines=tram%201", token, nil); rec.Code != 400 {
+		t.Errorf("bad line: %d", rec.Code)
+	}
+	if rec := h.do(t, "GET", "/api/vehicles", token, nil); rec.Code != 400 {
+		t.Errorf("no lines: %d", rec.Code)
 	}
 	if !h.env.Engine.Health().PollingActive {
 		t.Fatal("an API request should activate polling")
 	}
 	h.env.Engine.PollOnce(context.Background())
-	rec := h.do(t, "GET", "/api/vehicles?gym=lanecove", token, nil)
+	rec := h.do(t, "GET", "/api/vehicles?lines="+laneCoveQuery, token, nil)
 	var v struct {
 		Vehicles []struct {
 			Line     string
@@ -292,7 +336,7 @@ func TestVehiclesAndActivity(t *testing.T) {
 	}
 	// Unauthenticated requests must not keep polling alive.
 	h.env.Clock.Advance(11 * 60e9)
-	h.do(t, "GET", "/api/gyms", "", nil)
+	h.do(t, "GET", "/api/defaults", "", nil)
 	if h.env.Engine.Health().PollingActive {
 		t.Error("unauthenticated request activated polling")
 	}
@@ -301,14 +345,15 @@ func TestVehiclesAndActivity(t *testing.T) {
 func TestPrivateDataNeverLogged(t *testing.T) {
 	h := newHarness(t)
 	req := map[string]any{
-		"from": map[string]any{"lat": -33.7731234, "lon": 151.0824321},
-		"to":   map[string]any{"gym": "lanecove"},
-		"time": "2026-10-08T16:30:00+11:00",
+		"from":  map[string]any{"lat": -33.7731234, "lon": 151.0824321},
+		"to":    laneCove,
+		"lines": laneCoveLines,
+		"time":  "2026-10-08T16:30:00+11:00",
 	}
 	if rec := h.do(t, "POST", "/api/plan", token, req); rec.Code != 200 {
 		t.Fatalf("plan: %d %s", rec.Code, rec.Body)
 	}
-	h.do(t, "GET", "/api/vehicles?gym=lanecove&secret=-33.7731234", token, nil)
+	h.do(t, "GET", "/api/vehicles?lines="+laneCoveQuery+"&secret=-33.7731234", token, nil)
 	logs := h.log.String()
 	if !strings.Contains(logs, `"path":"/api/plan"`) {
 		t.Fatalf("expected request logs, got %s", logs)
@@ -357,10 +402,10 @@ func TestServesFrontendAlongsideAPI(t *testing.T) {
 	if rec := h.do(t, "POST", "/", "", "{}"); rec.Code != 405 {
 		t.Errorf("POST /: %d", rec.Code)
 	}
-	if rec := h.do(t, "GET", "/api/gyms", "", nil); rec.Code != 401 {
+	if rec := h.do(t, "GET", "/api/defaults", "", nil); rec.Code != 401 {
 		t.Errorf("API still needs the token next to the frontend: %d", rec.Code)
 	}
-	if rec := h.do(t, "GET", "/api/gyms", token, nil); rec.Code != 200 {
+	if rec := h.do(t, "GET", "/api/defaults", token, nil); rec.Code != 200 {
 		t.Errorf("API with token: %d", rec.Code)
 	}
 }
@@ -397,14 +442,14 @@ func TestLegShapeLineShapesAndMap(t *testing.T) {
 		return len(s.Coordinates)
 	}
 	before := shape() // straight lines between stops until shapes load
-	if rec := h.do(t, "GET", "/api/shapes?gym=lanecove", token, nil); !strings.Contains(rec.Body.String(), `"features":[]`) {
+	if rec := h.do(t, "GET", "/api/shapes?lines="+laneCoveQuery, token, nil); !strings.Contains(rec.Body.String(), `"features":[]`) {
 		t.Errorf("line shapes before loading: %s", rec.Body)
 	}
 	h.env.Engine.LoadShapes()
 	if after := shape(); after <= before {
 		t.Errorf("route shape should have more detail than stops: %d vs %d points", after, before)
 	}
-	rec = h.do(t, "GET", "/api/shapes?gym=lanecove", token, nil)
+	rec = h.do(t, "GET", "/api/shapes?lines="+laneCoveQuery, token, nil)
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"line":"metro M1"`) || !strings.Contains(rec.Body.String(), "MultiLineString") {
 		t.Errorf("line shapes: %d %.300s", rec.Code, rec.Body)
 	}
@@ -454,7 +499,7 @@ type simplePlan struct {
 
 func TestPlanFromOnboard(t *testing.T) {
 	h := newHarness(t)
-	req := map[string]any{"from": eppingToLaneCove["from"], "to": eppingToLaneCove["to"]}
+	req := map[string]any{"from": eppingToLaneCove["from"], "to": laneCove, "lines": laneCoveLines}
 	var before simplePlan
 	_ = json.Unmarshal(h.do(t, "POST", "/api/plan", token, req).Body.Bytes(), &before)
 	if len(before.Options) == 0 {
@@ -472,8 +517,9 @@ func TestPlanFromOnboard(t *testing.T) {
 	h.env.Clock.Advance(dep.Sub(h.env.Clock.Now()) + 2*time.Minute) // two minutes after boarding
 
 	onboard := map[string]any{
-		"from": map[string]any{"on_trip": map[string]any{"trip_id": ride.TripID, "from_stop": ride.From.ID}},
-		"to":   map[string]any{"gym": "lanecove"},
+		"from":  map[string]any{"on_trip": map[string]any{"trip_id": ride.TripID, "from_stop": ride.From.ID}},
+		"to":    laneCove,
+		"lines": laneCoveLines,
 	}
 	rec := h.do(t, "POST", "/api/plan", token, onboard)
 	var after simplePlan
@@ -488,11 +534,11 @@ func TestPlanFromOnboard(t *testing.T) {
 	if after.Options[0].Arrive > o.Arrive {
 		t.Errorf("staying on the planned trip should arrive no later: %s vs %s", after.Options[0].Arrive, o.Arrive)
 	}
-	bad := map[string]any{"from": map[string]any{"on_trip": map[string]any{"trip_id": "nope", "from_stop": "x"}}, "to": map[string]any{"gym": "lanecove"}}
+	bad := map[string]any{"from": map[string]any{"on_trip": map[string]any{"trip_id": "nope", "from_stop": "x"}}, "to": laneCove, "lines": laneCoveLines}
 	if rec := h.do(t, "POST", "/api/plan", token, bad); rec.Code != 400 {
 		t.Errorf("unknown trip: %d", rec.Code)
 	}
-	withTime := map[string]any{"from": onboard["from"], "to": onboard["to"], "time": "2026-10-03T15:00:00+10:00"}
+	withTime := map[string]any{"from": onboard["from"], "to": onboard["to"], "lines": laneCoveLines, "time": "2026-10-03T15:00:00+10:00"}
 	if rec := h.do(t, "POST", "/api/plan", token, withTime); rec.Code != 400 {
 		t.Errorf("on_trip with a time: %d", rec.Code)
 	}
@@ -501,7 +547,7 @@ func TestPlanFromOnboard(t *testing.T) {
 func TestPlanArriveBy(t *testing.T) {
 	h := newHarness(t)
 	req := map[string]any{
-		"from": eppingToLaneCove["from"], "to": eppingToLaneCove["to"],
+		"from": eppingToLaneCove["from"], "to": laneCove, "lines": laneCoveLines,
 		"time": "2026-10-08T17:30:00+11:00", "arrive_by": true,
 		"prefs": eppingToLaneCove["prefs"],
 	}
@@ -522,8 +568,108 @@ func TestPlanArriveBy(t *testing.T) {
 	if p.Options[0].LeaveAt < "2026-10-08T16:45" {
 		t.Errorf("latest departure %s is suspiciously early for a 17:30 deadline", p.Options[0].LeaveAt)
 	}
-	noTime := map[string]any{"from": req["from"], "to": req["to"], "arrive_by": true}
+	noTime := map[string]any{"from": req["from"], "to": req["to"], "lines": laneCoveLines, "arrive_by": true}
 	if rec := h.do(t, "POST", "/api/plan", token, noTime); rec.Code != 400 {
 		t.Errorf("arrive_by without time: %d", rec.Code)
+	}
+}
+
+func TestPlanLoadsLinesTheServerHasNotSeen(t *testing.T) {
+	h := newHarnessEmpty(t)
+	rec := h.do(t, "POST", "/api/plan", token, eppingToLaneCove)
+	var p planResp
+	_ = json.Unmarshal(rec.Body.Bytes(), &p)
+	if rec.Code != 200 || len(p.Options) == 0 {
+		t.Fatalf("first plan with unseen lines: %d %s", rec.Code, rec.Body)
+	}
+	if got := len(h.env.Engine.Lines()); got != len(laneCoveLines) {
+		t.Errorf("server should now cover %d lines, has %d", len(laneCoveLines), got)
+	}
+	// The map endpoints load lines the same way.
+	rec = h.do(t, "GET", "/api/vehicles?lines=bus%20271", token, nil)
+	if rec.Code != 200 || len(h.env.Engine.Lines()) != len(laneCoveLines)+1 {
+		t.Errorf("vehicles for a new line: %d, lines %d", rec.Code, len(h.env.Engine.Lines()))
+	}
+}
+
+func TestSuggestLines(t *testing.T) {
+	h := newHarnessEmpty(t)
+	body := map[string]any{
+		"from": map[string]any{"lat": -33.7727, "lon": 151.0821},
+		"to":   laneCove,
+	}
+	rec := h.do(t, "POST", "/api/suggest-lines", token, body)
+	var r struct {
+		Windows []struct {
+			Label      string
+			Departures int
+		}
+		Lines []struct {
+			Line        string
+			Share       float64
+			Recommended bool
+		}
+		Itineraries []struct {
+			Desc  string
+			Lines []string
+			Seen  int
+		}
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &r)
+	if rec.Code != 200 || len(r.Windows) == 0 || len(r.Lines) == 0 || len(r.Itineraries) == 0 {
+		t.Fatalf("suggest: %d %.400s", rec.Code, rec.Body)
+	}
+	rec1 := false
+	for _, l := range r.Lines {
+		if l.Line == "metro M1" && l.Recommended && l.Share > 0 {
+			rec1 = true
+		}
+	}
+	if !rec1 {
+		t.Errorf("metro M1 should be recommended: %+v", r.Lines)
+	}
+	if n := len(h.env.Engine.Lines()); n != 0 {
+		t.Errorf("suggesting loaded %d lines into the timetable", n)
+	}
+
+	// Curated stops are honoured, and bad input is rejected.
+	nowhere := map[string]any{"from": map[string]any{"lat": -20, "lon": 130}, "to": laneCove}
+	if rec := h.do(t, "POST", "/api/suggest-lines", token, nowhere); rec.Code != 400 {
+		t.Errorf("no stops nearby: %d %s", rec.Code, rec.Body)
+	}
+	if rec := h.do(t, "POST", "/api/suggest-lines", token, map[string]any{"from": laneCove}); rec.Code != 400 {
+		t.Errorf("missing destination: %d", rec.Code)
+	}
+	if rec := h.do(t, "POST", "/api/suggest-lines", token, map[string]any{"from": laneCove, "to": laneCove, "radius_m": 99999}); rec.Code != 400 {
+		t.Errorf("huge radius: %d", rec.Code)
+	}
+	if rec := h.do(t, "POST", "/api/suggest-lines", "", body); rec.Code != 401 {
+		t.Errorf("suggest without a token: %d", rec.Code)
+	}
+}
+
+func TestStopsNearWorksBeforeAnyLinesAreChosen(t *testing.T) {
+	h := newHarnessEmpty(t)
+	rec := h.do(t, "POST", "/api/stops/near", token, map[string]any{"lat": -33.7727, "lon": 151.0821, "radius_m": 400})
+	var near struct {
+		Stops []struct {
+			Name  string
+			WalkS int      `json:"walk_s"`
+			Lines []string `json:"lines"`
+		}
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &near)
+	if rec.Code != 200 || len(near.Stops) == 0 {
+		t.Fatalf("stops near: %d %.300s", rec.Code, rec.Body)
+	}
+	all := strings.Join(near.Stops[0].Lines, ",")
+	for _, s := range near.Stops {
+		all += "," + strings.Join(s.Lines, ",")
+	}
+	if !strings.Contains(all, "metro M1") || !strings.Contains(all, "train T9") {
+		t.Errorf("lines near Epping: %s", all)
+	}
+	if n := len(h.env.Engine.Lines()); n != 0 {
+		t.Errorf("stops/near loaded %d lines", n)
 	}
 }

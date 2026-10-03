@@ -28,24 +28,30 @@ Non-goals (v1)
 ## 4. Places, users, privacy split
 - Single user, no accounts; publicly reachable (see §10).
 - **Places** are symmetric (name, coordinates, access stops with walk times); any place can be
-  origin or destination.
-- **Server config (public data)**: gyms, each gym's **set of lines**, default connection-risk thresholds.
-  Deployed as a mounted file from the private deploy repo (Ansible/compose); the app repo ships only an example.
+  origin or destination. Homes and gyms are both places held on the device; a gym also carries its
+  **set of lines**.
+- **Server config (infrastructure only)**: listen address, data directory, routing and risk defaults, polling
+  budget. Deployed as a mounted file from the private deploy repo (Ansible/compose); the app repo ships only an
+  example. Optional `[[gym]]` entries are *presets* a device can import in one tap; the server does not need them.
 - **App repo is public-safe**: no secrets, no real config, no home locations, no recorded data that
   could reveal a home (test fixtures use gym-side or synthetic origins). Secret scanning in CI.
-- **Device storage (private data)**: home place(s), home access stops + walk times, walking speed,
-  personal transfer-time overrides, **connection-risk thresholds** (start from server defaults; user-tunable),
-  access token. Sent in POST bodies; never stored on the server.
+- **Device storage (private data)**: home place(s), **gyms with their line sets and curated access stops**, home
+  access stops + walk times, walking speed, personal transfer-time overrides, **connection-risk thresholds**
+  (start from server defaults; user-tunable), access token. Sent in POST bodies; never stored on the server.
 - Multiple homes = more entries in device storage; no code change.
 - Initial gyms (9 Degrees): **Lane Cove, Parramatta (Rydalmere), Chatswood** for v1;
-  Waterloo and Alexandria later. Exact coordinates, access stops and line sets are config to fill in.
+  Waterloo and Alexandria later. They are added in the app (address search, then suggested lines), not in config.
 
 ## 5. Route model: dynamic routing within each gym's lines
 - Each gym has a set of lines that could matter for reaching it (from home, incl. home-side lines),
-  e.g. `["370", "T4", "M1"]`. The router finds the best options within that set, so timetable
-  changes need no config edits.
-- GTFS static is filtered at ingest to the union of all gyms' line sets → small in-memory timetable.
-  All stops (not just those lines) stay indexed for the "nearby stops" setup flow.
+  e.g. `["bus 370", "train T4", "metro M1"]`. The router finds the best options within that set, so timetable
+  changes need no edits. The set lives on the device and is sent with every request.
+- GTFS static is filtered at ingest to the union of the line sets the server has been asked about → small
+  in-memory timetable. The server starts with only the preset lines (none by default); a request naming lines it
+  hasn't loaded makes it reload with the union (a few seconds, once per new line). The union only grows until restart
+  and is capped. The union is never written to disk.
+- A **stop catalogue** (every stop with the lines that serve it) is built from a full-network pass after each timetable
+  download. It powers "nearby stops" in setup, which has to work before any lines are chosen.
 - Walking transfers between stops on those lines: GTFS transfers/pathways where present, otherwise
   distance × walking factor; **personal overrides win**.
 - Access/egress: device-supplied home access stops + walk times; gym access stops from config.
@@ -107,11 +113,12 @@ Non-goals (v1)
 - Frontend: TypeScript + MapLibre GL JS, built by Vite, embedded via `go:embed`. Minimal deps; no UI framework
   unless needed (decide during build).
 - API (JSON; all `/api/*` require the token header except `/healthz`):
-  - `GET  /api/gyms` — gyms + their lines.
-  - `POST /api/plan` — {origin/destination: place or gym id, access stops+walk times, mode, time, prefs} → options.
-  - `POST /api/stops/near` — {lat, lon} → nearby stops with estimated walk times (settings flow).
-  - `GET  /api/vehicles?gym=<id>` — live vehicles on that gym's lines (+ trip ids for highlighting).
-  - `GET  /api/shapes?gym=<id>` — line shapes for drawing (milestone 5).
+  - `GET  /api/defaults` — routing/risk defaults and any preset gyms.
+  - `POST /api/plan` — {from, to: place (lat/lon + optional access stops), lines, mode, time, prefs} → options.
+  - `POST /api/stops/near` — {lat, lon} → nearby stops (all lines serving them) with estimated walk times.
+  - `POST /api/suggest-lines` — {from, to} → candidate lines with how often they appear in the best options.
+  - `GET  /api/vehicles?lines=<list>` — live vehicles on those lines (+ trip ids for highlighting).
+  - `GET  /api/shapes?lines=<list>` — line shapes for drawing.
   - `GET  /api/status` — detailed health (auth). Implemented API: see `docs/api.md`.
   - `GET  /healthz` — liveness, feed ages, config warnings (no sensitive detail).
 
@@ -166,9 +173,11 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - PMTiles extract size/refresh process for the Sydney area.
 
 ## 14. Line-set curation
-- `gymrouter suggest-lines` CLI (run locally, not on the server): given a gym and an origin coordinate
-  passed as arguments (never written to disk), lists lines serving stops within walking radius of each end and
-  common interchanges between them, with frequency stats. You prune or add; the result goes into the private deploy config.
+- `POST /api/suggest-lines` (and the `gymrouter suggest-lines` CLI, which shares the code): given two places, loads the
+  whole network for a typical weekday and a Sunday, searches home → gym at many departure times, and reports which
+  lines appear in the best options and how often, plus the most common itineraries. The app pre-ticks lines that
+  appear in the best options for at least 30% of departure times; the user adds or removes lines and saves them on the gym. Coordinates are used in memory only.
+- The full network is loaded for the duration of one request (about 5 s and 150 MB live per day), one request at a time.
 
 ## 15. Milestones
 1. ✅ **Spike**: fetch GTFS + realtime with the key; check §13 risks; build `suggest-lines`; curate
@@ -179,7 +188,9 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 5. ✅ **Map**: PMTiles serving, MapLibre, shapes, live vehicles with highlighting.
 6. ✅ **In-trip mode** and **Arrive by**.
 7. ✅ **Deploy**: Dockerfile (distroless), compose example, Traefik labels, CI build/scan/publish.
-8. **Field validation**: ~2 weeks of trips compared against Opal/Google.
+8. **Self-service setup**: gyms and their lines move to the device; stop catalogue; suggest-lines endpoint and
+   review screen; the server needs no gym config.
+9. **Field validation**: ~2 weeks of trips compared against Opal/Google.
 
 ## Prerequisites (before milestone 1)
 - From the user: a TfNSW Open Data Hub account + API key with the GTFS static (complete timetables) and
@@ -248,3 +259,11 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   publish `linux/arm64` to GHCR with a daily base-image digest check, daily govulncheck and npm audit,
   grouped weekly Dependabot. Verified: container healthy ~22 s after first start (timetable download
   included), ~117 MB in use.
+- 2026-10-03: Gyms and their line sets move from server config to the device (supersedes "Gyms are config data" and
+  "Line sets: the tool suggests, the user curates" as a deploy-time step). Why: a line set depends on gym *and* home,
+  so it is as personal as the home; the private deploy config existed only to hold it; and adding a gym or moving house
+  should not need a redeploy. Consequences: plan/vehicles/shapes take the line list in the request; the server loads
+  timetable data for the union of lines it has been asked about (grows on demand, capped, in memory only); a stop
+  catalogue lets setup list nearby stops before any lines exist; `suggest-lines` becomes a one-at-a-time endpoint that
+  loads the full network per request (not kept resident); `[[gym]]` in server config is optional presets. Gym-end
+  walking stays measured by hand (curated access stops with walk times), now also on the device.

@@ -1,12 +1,13 @@
 // API types (see docs/api.md).
 
-export interface Gym {
-  id: string
+/** A gym the server offers to import (from its optional config). */
+export interface Preset {
   name: string
   address?: string
   lat: number
   lon: number
   lines: string[]
+  access?: { stop: string; walk_s: number }[]
 }
 
 export interface Defaults {
@@ -16,8 +17,8 @@ export interface Defaults {
   risk: { safe_s: number; tight_s: number }
 }
 
-export interface GymsResponse {
-  gyms: Gym[]
+export interface DefaultsResponse {
+  presets: Preset[]
   defaults: Defaults
 }
 
@@ -94,7 +95,6 @@ export interface GeocodeResult {
 }
 
 export interface PlaceRequest {
-  gym?: string
   lat?: number
   lon?: number
   access?: { stop: string; walk_s: number }[]
@@ -104,6 +104,7 @@ export interface PlaceRequest {
 export interface PlanRequest {
   from: PlaceRequest
   to: PlaceRequest
+  lines: string[] // the lines to route on (a gym's set)
   time?: string
   arrive_by?: boolean
   window_min?: number
@@ -128,4 +129,27 @@ export interface Vehicle {
   bearing?: number
   status?: string
   ts: string
+}
+
+export interface SuggestedLine {
+  line: string
+  color?: string
+  share: number // fraction of departure times at which the line shows up in the best options
+  recommended: boolean
+}
+
+export interface SuggestedItinerary {
+  desc: string
+  lines: string[]
+  median_s: number
+  best_s: number
+  seen: number
+  of: number
+  window: string
+}
+
+export interface SuggestResponse {
+  windows: { label: string; date: string; departures: number; typical_s?: number }[]
+  lines: SuggestedLine[]
+  itineraries: SuggestedItinerary[]
 }

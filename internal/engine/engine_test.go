@@ -2,10 +2,14 @@ package engine_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/benjamincottle/gymrouter/internal/engine"
 	"github.com/benjamincottle/gymrouter/internal/engine/enginetest"
+	"github.com/benjamincottle/gymrouter/internal/geo"
 	"github.com/benjamincottle/gymrouter/internal/lines"
 	"github.com/benjamincottle/gymrouter/internal/tfnsw"
 )
@@ -157,5 +161,128 @@ func TestOtherDatesLoadOnDemand(t *testing.T) {
 	}
 	if !s1.Clock(16 * 3600).Equal(thu) {
 		t.Errorf("Clock = %v", s1.Clock(16*3600))
+	}
+}
+
+const noPresets = `
+[server]
+public_url = "https://gym.example.com"
+`
+
+func TestStartsEmptyAndLoadsLinesOnDemand(t *testing.T) {
+	env := enginetest.NewWith(t, noPresets, nil)
+	e := env.Engine
+	if len(e.Lines()) != 0 {
+		t.Fatalf("lines before any request: %v", e.Lines())
+	}
+	if s, _ := e.SnapshotFor(env.Clock.Now()); len(s.Day.Trips) != 0 || len(e.Health().Feeds) != 0 {
+		t.Fatalf("nothing should be loaded or polled yet: %d trips, %d feeds", len(s.Day.Trips), len(e.Health().Feeds))
+	}
+
+	metro := lines.MustSet("metro M1")
+	if err := e.Ensure(metro); err != nil {
+		t.Fatal(err)
+	}
+	s1, _ := e.SnapshotFor(env.Clock.Now())
+	if len(s1.Day.Trips) == 0 || len(e.Health().Feeds) != 1 {
+		t.Fatalf("after M1: %d trips, %d feeds", len(s1.Day.Trips), len(e.Health().Feeds))
+	}
+	// Already covered: no reload.
+	if err := e.Ensure(metro); err != nil {
+		t.Fatal(err)
+	}
+	if s2, _ := e.SnapshotFor(env.Clock.Now()); s2 != s1 {
+		t.Error("a covered request must not reload the timetable")
+	}
+
+	if err := e.Ensure(lines.MustSet("train T9", "bus 288")); err != nil {
+		t.Fatal(err)
+	}
+	s3, _ := e.SnapshotFor(env.Clock.Now())
+	if len(s3.Day.Trips) <= len(s1.Day.Trips) || len(e.Lines()) != 3 || len(e.Health().Feeds) != 3 {
+		t.Errorf("after growing: %d trips, lines %v, %d feeds", len(s3.Day.Trips), e.Lines(), len(e.Health().Feeds))
+	}
+	// Other dates reflect the grown set too.
+	thu := time.Date(2026, 10, 8, 16, 0, 0, 0, enginetest.Sydney)
+	if s, _ := e.SnapshotFor(thu); len(s.Day.TripIndex) == 0 {
+		t.Error("other dates should load the grown set")
+	}
+}
+
+func TestLoadedLinesAreCapped(t *testing.T) {
+	env := enginetest.NewWith(t, noPresets, nil)
+	set := lines.Set{}
+	for i := 0; i <= engine.MaxLoadedLines; i++ {
+		set[lines.Key{Mode: lines.Bus, Name: fmt.Sprint(i)}] = true
+	}
+	if err := env.Engine.Ensure(set); !errors.Is(err, engine.ErrTooManyLines) {
+		t.Errorf("want ErrTooManyLines, got %v", err)
+	}
+	if len(env.Engine.Lines()) != 0 {
+		t.Error("a rejected request must not change the loaded lines")
+	}
+}
+
+func TestCatalogListsEveryLineAtAStop(t *testing.T) {
+	env := enginetest.NewWith(t, noPresets, nil) // no lines loaded: the catalogue still knows the network
+	cat := env.Engine.Catalog()
+	if cat == nil {
+		t.Fatal("catalogue not built")
+	}
+	near := cat.Near(geo.Point{Lat: -33.7727, Lon: 151.0821}, 300, env.Engine.RoutingOptions())
+	if len(near) == 0 {
+		t.Fatal("no stops near Epping")
+	}
+	seen := map[string]bool{}
+	for _, n := range near {
+		for _, k := range n.Lines {
+			seen[k.String()] = true
+		}
+	}
+	if !seen["metro M1"] || !seen["train T9"] {
+		t.Errorf("lines near Epping: %v", seen)
+	}
+	for i := 1; i < len(near); i++ {
+		if near[i].WalkS < near[i-1].WalkS {
+			t.Fatal("not nearest first")
+		}
+	}
+}
+
+func TestSuggestFindsTheLinesBetweenTwoPlaces(t *testing.T) {
+	env := enginetest.NewWith(t, noPresets, nil)
+	res, err := env.Engine.Suggest(ctx,
+		engine.SuggestPlace{Pos: geo.Point{Lat: -33.7727, Lon: 151.0821}},     // Epping
+		engine.SuggestPlace{Pos: geo.Point{Lat: -33.807948, Lon: 151.150629}}, // Lane Cove
+		1200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Windows) == 0 || len(res.Lines) == 0 || len(res.Itineraries) == 0 {
+		t.Fatalf("suggest: %+v", res)
+	}
+	have := map[string]suggestLine{}
+	for _, l := range res.Lines {
+		have[l.Line.String()] = suggestLine{l.Share, l.Recommended}
+	}
+	if m := have["metro M1"]; !m.rec {
+		t.Errorf("metro M1 should be recommended Epping → Lane Cove: %v", have)
+	}
+	if len(env.Engine.Lines()) != 0 {
+		t.Error("suggesting must not load lines into the routable timetable")
+	}
+}
+
+type suggestLine struct {
+	share float64
+	rec   bool
+}
+
+func TestSuggestRunsOneAtATimeAndNeedsStops(t *testing.T) {
+	env := enginetest.NewWith(t, noPresets, nil)
+	_, err := env.Engine.Suggest(ctx, engine.SuggestPlace{Pos: geo.Point{Lat: -20, Lon: 130}},
+		engine.SuggestPlace{Pos: geo.Point{Lat: -33.8, Lon: 151.15}}, 1200)
+	if !errors.Is(err, engine.ErrNoStops) {
+		t.Errorf("want ErrNoStops, got %v", err)
 	}
 }

@@ -925,3 +925,38 @@ label.walk input {
 .details-head .actions {
   flex-wrap: nowrap;
 }
+
+/* ---- gyms and line suggestions ---- */
+
+.stack.tight > * + * {
+  margin-top: 8px;
+}
+
+.inline-pair {
+  display: flex;
+  gap: 8px;
+}
+
+.inline-pair select {
+  flex: none;
+  width: auto;
+}
+
+.inline-pair input {
+  flex: 1;
+  min-width: 0;
+}
+
+.list.lines li {
+  justify-content: flex-start;
+}
+
+.list.itins li {
+  display: block;
+}
+
+details > summary {
+  cursor: pointer;
+  margin: 4px 0 8px;
+  font-weight: 600;
+}

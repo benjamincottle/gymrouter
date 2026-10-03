@@ -1,6 +1,6 @@
 // Device-side settings: everything personal lives here, never on the server.
 
-import type { PlaceRequest, PlanRequest } from './types.ts'
+import type { PlaceRequest, PlanRequest, Preset } from './types.ts'
 
 export interface AccessStop {
   stop: string
@@ -8,12 +8,21 @@ export interface AccessStop {
   walk_s: number
 }
 
-export interface Home {
+/** A place on the map: curated stops with measured walk times (empty = every stop within the walking limit). */
+export interface Place {
   id: string
   name: string
   lat: number
   lon: number
-  access: AccessStop[] // curated stops with measured walk times; empty = server picks nearby stops
+  access: AccessStop[]
+}
+
+export type Home = Place
+
+/** A destination, with the lines that could matter for getting there from home. */
+export interface Gym extends Place {
+  address?: string
+  lines: string[] // e.g. "bus 288", "train T9"
 }
 
 export interface TransferTime {
@@ -27,6 +36,7 @@ export interface Settings {
   version: 1
   token?: string
   homes: Home[]
+  gyms: Gym[]
   activeHome?: string
   walkSpeedMps?: number
   minChangeS?: number
@@ -39,12 +49,40 @@ export interface Settings {
 export const STORAGE_KEY = 'gymrouter.settings'
 
 export function emptySettings(): Settings {
-  return { version: 1, homes: [], transfers: [] }
+  return { version: 1, homes: [], gyms: [], transfers: [] }
 }
 
 const isNum = (v: unknown, min: number, max: number): v is number =>
   typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max
 const isStr = (v: unknown, max = 200): v is string => typeof v === 'string' && v.length <= max
+
+export const MAX_GYMS = 12
+export const MAX_LINES = 60
+
+export const LINE_MODES = ['train', 'metro', 'light-rail', 'bus', 'ferry', 'regional-train', 'coach', 'replacement-bus'] as const
+
+/** A line key as the server writes it: "<mode> <name>", e.g. "bus 288". */
+export function isLine(v: unknown): v is string {
+  if (typeof v !== 'string' || v.length > 40) return false
+  const i = v.indexOf(' ')
+  return i > 0 && v.slice(i + 1).trim() !== '' && (LINE_MODES as readonly string[]).includes(v.slice(0, i))
+}
+
+function sanitizePlace(input: unknown): Place | null {
+  if (typeof input !== 'object' || input === null) return null
+  const r = input as Record<string, unknown>
+  if (!isStr(r.id, 40) || !isStr(r.name, 60) || !isNum(r.lat, -90, 90) || !isNum(r.lon, -180, 180)) return null
+  const access: AccessStop[] = []
+  if (Array.isArray(r.access)) {
+    for (const a of r.access.slice(0, 20)) {
+      const x = a as Record<string, unknown>
+      if (x && isStr(x.stop, 40) && isStr(x.name, 120) && isNum(x.walk_s, 0, 3600)) {
+        access.push({ stop: x.stop, name: x.name, walk_s: Math.round(x.walk_s) })
+      }
+    }
+  }
+  return { id: r.id, name: r.name, lat: r.lat, lon: r.lon, access }
+}
 
 /** Validates untrusted settings (from storage, an import file or a link), dropping anything malformed. */
 export function sanitize(input: unknown): Settings {
@@ -54,19 +92,17 @@ export function sanitize(input: unknown): Settings {
   if (isStr(s.token, 200) && /^[A-Za-z0-9_-]{32,}$/.test(s.token)) out.token = s.token
   if (Array.isArray(s.homes)) {
     for (const h of s.homes.slice(0, 10)) {
-      if (typeof h !== 'object' || h === null) continue
-      const r = h as Record<string, unknown>
-      if (!isStr(r.id, 40) || !isStr(r.name, 60) || !isNum(r.lat, -90, 90) || !isNum(r.lon, -180, 180)) continue
-      const access: AccessStop[] = []
-      if (Array.isArray(r.access)) {
-        for (const a of r.access.slice(0, 20)) {
-          const x = a as Record<string, unknown>
-          if (x && isStr(x.stop, 40) && isStr(x.name, 120) && isNum(x.walk_s, 0, 3600)) {
-            access.push({ stop: x.stop, name: x.name, walk_s: Math.round(x.walk_s) })
-          }
-        }
-      }
-      out.homes.push({ id: r.id, name: r.name, lat: r.lat, lon: r.lon, access })
+      const p = sanitizePlace(h)
+      if (p) out.homes.push(p)
+    }
+  }
+  if (Array.isArray(s.gyms)) {
+    for (const g of s.gyms.slice(0, MAX_GYMS)) {
+      const p = sanitizePlace(g)
+      if (!p) continue
+      const r = g as Record<string, unknown>
+      const ls = Array.isArray(r.lines) ? r.lines.filter(isLine).slice(0, MAX_LINES) : []
+      out.gyms.push({ ...p, ...(isStr(r.address, 200) && r.address ? { address: r.address } : {}), lines: [...new Set(ls)] })
     }
   }
   if (isStr(s.activeHome, 40) && out.homes.some((h) => h.id === s.activeHome)) out.activeHome = s.activeHome
@@ -173,7 +209,7 @@ export function applyFragment(cur: Settings, f: FragmentData): Settings {
 
 // --- Requests ---
 
-export function homePlace(h: Home): PlaceRequest {
+export function placeRequest(h: Place): PlaceRequest {
   const p: PlaceRequest = { lat: h.lat, lon: h.lon }
   if (h.access.length > 0) p.access = h.access.map((a) => ({ stop: a.stop, walk_s: a.walk_s }))
   return p
@@ -198,4 +234,12 @@ export function setTransfer(s: Settings, t: TransferTime): Settings {
 
 export function newId(): string {
   return Math.random().toString(36).slice(2, 10)
+}
+
+/** Turns a server preset into a gym on this device. Curated stops keep their IDs (names aren't known). */
+export function gymFromPreset(p: Preset): Gym {
+  return {
+    id: newId(), name: p.name, address: p.address, lat: p.lat, lon: p.lon, lines: [...p.lines],
+    access: (p.access ?? []).map((a) => ({ stop: a.stop, name: `Stop ${a.stop}`, walk_s: a.walk_s })),
+  }
 }

@@ -21,8 +21,8 @@ Start from `config.example.toml` in the app repo and keep the real file in the d
 - `server.public_url = "https://gymrouter.example.com"` (used by `setup-link`)
 - `server.data_dir = "/data"`, `server.listen = ":8080"`, `server.trust_proxy = true` (Traefik sets
   `X-Forwarded-For`)
-- Each gym's `lines` should include the lines near home, e.g. `"bus 999"`, `"train T4"`, as well as
-  the gym-side ones. Validate with:
+- No gyms are needed here: gyms, homes and their lines are set up in the app and live on the device.
+  Optional `[[gym]]` entries are presets a device can import, and the server preloads their lines. Validate with:
   ```
   docker run --rm -v ./config.toml:/c.toml:ro ghcr.io/benjamincottle/gymrouter check-config --config /c.toml
   ```
@@ -59,10 +59,13 @@ docker compose exec gymrouter /app/gymrouter setup-link
 ```
 
 Open the printed link on the phone (it carries the token in the URL fragment, which never reaches a
-server log), then add home in Settings. "Set up another device" in Settings shares a link or QR code.
+server log), then add your home and each gym in Settings. The app suggests the lines for each gym from the
+timetable; you review them. "Set up another device" in Settings shares a link or QR code.
 
 ## Operations
 
+- Memory: idle ~90 MB. Asking for line suggestions (and the stop catalogue built after each timetable
+  download) reads the whole network for a few seconds, one at a time, peaking near 310 MB.
 - Health: `GET /healthz` (public, minimal). Detail (feed ages, errors, upstream requests today, realtime
   match rates, configured lines with no trips): `GET /api/status` with the token.
 - Upstream budget: realtime feeds are polled only while the app was used in the last 10 minutes, and

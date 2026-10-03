@@ -1,0 +1,161 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"runtime/debug"
+	"time"
+
+	"github.com/benjamincottle/gymrouter/internal/geo"
+	"github.com/benjamincottle/gymrouter/internal/raptor"
+	"github.com/benjamincottle/gymrouter/internal/suggest"
+	"github.com/benjamincottle/gymrouter/internal/timetable"
+)
+
+// ErrNoStops is returned (wrapped) when a place has no stops to start or end a trip.
+var ErrNoStops = errors.New("no stops")
+
+// SuggestPlace is one end of a suggestion search: a position, and optionally the stops (with measured
+// walk times) to use instead of everything within the radius.
+type SuggestPlace struct {
+	Pos    geo.Point
+	Access []StopWalk
+}
+
+// StopWalk is a stop and the time to walk to it.
+type StopWalk struct {
+	Stop  string
+	WalkS int32
+}
+
+// SuggestWindow summarises one searched window.
+type SuggestWindow struct {
+	Label      string
+	Date       time.Time
+	Departures int
+	BestS      int32 // median door-to-door time of the quickest itinerary; 0 if none
+}
+
+// SuggestResult is the outcome of Suggest.
+type SuggestResult struct {
+	Windows     []SuggestWindow
+	Lines       []suggest.LineScore
+	Itineraries []suggest.Itinerary
+}
+
+// suggestWindows are the usual times people travel: a weekday afternoon and a Sunday morning.
+var suggestWindows = []struct {
+	label      string
+	weekday    time.Weekday
+	start, end int32
+}{
+	{"Weekday afternoon", time.Tuesday, 16 * 3600, 19 * 3600},
+	{"Sunday morning", time.Sunday, 8 * 3600, 11 * 3600},
+}
+
+const suggestStep = 10 * 60
+
+// frugalGC makes the collector run eagerly while a whole-network pass is in progress. That pass is mostly
+// short-lived garbage, and collecting it promptly keeps the peak well under the container's limit. The
+// returned function restores the previous setting.
+func frugalGC() func() {
+	prev := debug.SetGCPercent(20)
+	return func() { debug.SetGCPercent(prev) }
+}
+
+// Suggest searches the whole network from one place to another and reports which lines appear in the
+// best options. It loads the full timetable for each window's day for the duration of the call and
+// runs one at a time (ErrBusy if another is running), so the server's memory stays bounded.
+func (e *Engine) Suggest(ctx context.Context, from, to SuggestPlace, radiusM float64) (*SuggestResult, error) {
+	select {
+	case e.heavy <- struct{}{}:
+	default:
+		return nil, ErrBusy
+	}
+	restore := frugalGC()
+	defer func() {
+		restore()
+		<-e.heavy
+		debug.FreeOSMemory()
+	}()
+
+	opts := e.routingOptions()
+	today := e.LocalDate(e.now())
+	res := &SuggestResult{}
+	var all []suggest.WindowResult
+	for _, w := range suggestWindows {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		date := today
+		for {
+			date = date.AddDate(0, 0, 1)
+			if date.Weekday() == w.weekday {
+				break
+			}
+		}
+		wr, sw, err := e.suggestWindow(date, w.label, w.start, w.end, from, to, radiusM, opts)
+		if err != nil {
+			return nil, err
+		}
+		if sw == nil {
+			continue // the feed doesn't reach that date
+		}
+		debug.FreeOSMemory() // drop this day's network before loading the next
+		res.Windows = append(res.Windows, *sw)
+		res.Itineraries = append(res.Itineraries, wr.Itineraries...)
+		all = append(all, *wr)
+	}
+	res.Lines = suggest.Scores(all)
+	return res, nil
+}
+
+// suggestWindow searches one window on one day's whole network. It returns a nil window if the feed has
+// no trips that day.
+func (e *Engine) suggestWindow(date time.Time, label string, start, end int32, from, to SuggestPlace, radiusM float64,
+	opts raptor.Options) (*suggest.WindowResult, *SuggestWindow, error) {
+	day, err := timetable.LoadAll(date, e.paths)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(day.Trips) == 0 {
+		return nil, nil, nil
+	}
+	net := raptor.Build(day, opts)
+	access, err := suggestAccess(net, from, radiusM, opts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("the start: %w", err)
+	}
+	egress, err := suggestAccess(net, to, radiusM, opts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("the destination: %w", err)
+	}
+	wr := suggest.Run(net, access, egress, suggest.Window{Label: label, Start: start, End: end, Step: suggestStep},
+		suggest.DefaultParams())
+	sw := &SuggestWindow{Label: label, Date: date, Departures: wr.Departures}
+	if len(wr.Itineraries) > 0 {
+		sw.BestS = wr.Itineraries[0].MedianS
+	}
+	return &wr, sw, nil
+}
+
+func suggestAccess(net *raptor.Network, p SuggestPlace, radiusM float64, o raptor.Options) ([]raptor.Access, error) {
+	if len(p.Access) > 0 {
+		var out []raptor.Access
+		for _, a := range p.Access {
+			if si, ok := net.Day.StopIndex[a.Stop]; ok {
+				out = append(out, raptor.Access{Stop: si, Secs: a.WalkS})
+			}
+		}
+		if len(out) == 0 {
+			return nil, fmt.Errorf("%w: none of the chosen stops run on that day", ErrNoStops)
+		}
+		return out, nil
+	}
+	out := net.StopsNear(p.Pos, radiusM, o)
+	if len(out) == 0 {
+		return nil, fmt.Errorf("%w within %.0f m", ErrNoStops, radiusM)
+	}
+	return out, nil
+}

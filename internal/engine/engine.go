@@ -91,7 +91,12 @@ type Engine struct {
 	log   *slog.Logger
 	now   func() time.Time
 	paths timetable.Paths
-	all   lines.Set
+
+	linesMu sync.RWMutex
+	all     lines.Set     // lines the timetable covers (only grows; changed under growMu)
+	growMu  sync.Mutex    // serialises growing the line set
+	heavy   chan struct{} // held while a whole-network pass runs (one at a time bounds memory)
+	catalog atomic.Pointer[Catalog]
 
 	today      atomic.Pointer[Snapshot]
 	shapes     atomic.Pointer[map[string][]geo.Point]
@@ -123,13 +128,89 @@ func New(cfg *config.Config, loc *time.Location, f Fetcher, log *slog.Logger) *E
 			Trains:   filepath.Join(cfg.Server.DataDir, "sydneytrains.zip"),
 		},
 		all:   cfg.AllLines(),
+		heavy: make(chan struct{}, 1),
 		wake:  make(chan struct{}, 1),
 		cache: map[string]*Snapshot{},
 	}
-	for _, f := range tfnsw.FeedsFor(e.all) {
-		e.feeds = append(e.feeds, &feedState{feed: f})
-	}
+	e.addFeeds(e.all)
 	return e
+}
+
+// Lines returns a copy of the lines the timetable currently covers.
+func (e *Engine) Lines() lines.Set {
+	e.linesMu.RLock()
+	defer e.linesMu.RUnlock()
+	return lines.Union(e.all)
+}
+
+func (e *Engine) covers(set lines.Set) bool {
+	e.linesMu.RLock()
+	defer e.linesMu.RUnlock()
+	for k := range set {
+		if !e.all[k] {
+			return false
+		}
+	}
+	return true
+}
+
+// addFeeds starts polling the realtime feeds the given lines need (if not already).
+func (e *Engine) addFeeds(set lines.Set) {
+	e.rtMu.Lock()
+	defer e.rtMu.Unlock()
+	for _, f := range tfnsw.FeedsFor(set) {
+		have := false
+		for _, fs := range e.feeds {
+			if fs.feed.Name == f.Name {
+				have = true
+				break
+			}
+		}
+		if !have {
+			e.feeds = append(e.feeds, &feedState{feed: f})
+		}
+	}
+}
+
+// MaxLoadedLines caps how many lines the server will hold timetable data for (the whole network is
+// several hundred; a few gyms need a few dozen).
+const MaxLoadedLines = 150
+
+// ErrTooManyLines is returned when a request would push the loaded set over MaxLoadedLines.
+var ErrTooManyLines = errors.New("too many lines for this server")
+
+// Ensure makes the timetable and realtime polling cover set, loading the union of everything asked for
+// so far if it doesn't already. Loading takes a few seconds, so callers may wait; the line set only grows.
+func (e *Engine) Ensure(set lines.Set) error {
+	if e.covers(set) {
+		return nil
+	}
+	e.growMu.Lock()
+	defer e.growMu.Unlock()
+	if e.covers(set) { // someone else just did it
+		return nil
+	}
+	grown := lines.Union(e.Lines(), set)
+	if len(grown) > MaxLoadedLines {
+		return ErrTooManyLines
+	}
+	if err := e.reloadTodayFor(grown); err != nil {
+		return err
+	}
+	e.linesMu.Lock()
+	e.all = grown
+	e.linesMu.Unlock()
+	e.cacheMu.Lock()
+	e.cache = map[string]*Snapshot{}
+	e.generation++
+	e.cacheMu.Unlock()
+	e.addFeeds(grown)
+	select { // poll the new feeds right away
+	case e.wake <- struct{}{}:
+	default:
+	}
+	go e.LoadShapes()
+	return nil
 }
 
 // SetClock replaces the time source (tests).
@@ -150,6 +231,7 @@ func (e *Engine) Start(ctx context.Context) error {
 		go e.refreshStatic(ctx) // stale after downtime; don't wait for the daily refresh
 	}
 	go e.LoadShapes()
+	go e.BuildCatalog(ctx)
 	go e.staticLoop(ctx)
 	go e.pollLoop(ctx)
 	return nil
@@ -202,7 +284,7 @@ func (e *Engine) SnapshotFor(t time.Time) (*Snapshot, error) {
 	if ok {
 		return s, nil
 	}
-	s, err := e.load(date)
+	s, err := e.load(date, e.Lines())
 	if err != nil {
 		return nil, err
 	}
@@ -217,11 +299,11 @@ func (e *Engine) SnapshotFor(t time.Time) (*Snapshot, error) {
 	return s, nil
 }
 
-func (e *Engine) load(date time.Time) (*Snapshot, error) {
+func (e *Engine) load(date time.Time, set lines.Set) (*Snapshot, error) {
 	e.loadMu.Lock()
 	defer e.loadMu.Unlock()
 	start := e.now()
-	d, err := timetable.Load(date, e.paths, e.all)
+	d, err := timetable.Load(date, e.paths, set)
 	if err != nil {
 		return nil, err
 	}
@@ -242,14 +324,17 @@ func (e *Engine) routingOptions() raptor.Options {
 // RoutingOptions returns the configured walking model.
 func (e *Engine) RoutingOptions() raptor.Options { return e.routingOptions() }
 
-func (e *Engine) reloadToday() error {
+func (e *Engine) reloadToday() error { return e.reloadTodayFor(e.Lines()) }
+
+// reloadTodayFor loads today's timetable for set and makes it current.
+func (e *Engine) reloadTodayFor(set lines.Set) error {
 	date := e.LocalDate(e.now())
-	s, err := e.load(date)
+	s, err := e.load(date, set)
 	if err != nil {
 		return err
 	}
 	s.Static = s
-	missing := timetable.Missing(s.Day, e.all)
+	missing := timetable.Missing(s.Day, set)
 	sort.Slice(missing, func(a, b int) bool { return missing[a].String() < missing[b].String() })
 	e.rtMu.Lock()
 	e.missing = missing
@@ -319,6 +404,7 @@ func (e *Engine) refreshStatic(ctx context.Context) {
 			e.log.Error("reload after refresh failed", "err", err)
 		}
 		e.LoadShapes()
+		e.BuildCatalog(ctx)
 	}
 }
 
@@ -370,7 +456,10 @@ func (e *Engine) pollLoop(ctx context.Context) {
 func (e *Engine) PollOnce(ctx context.Context) {
 	now := e.now()
 	tripsChanged := false
-	for _, fs := range e.feeds {
+	e.rtMu.Lock()
+	feeds := append([]*feedState(nil), e.feeds...)
+	e.rtMu.Unlock()
+	for _, fs := range feeds {
 		if now.Sub(fs.tripsAt) >= e.cfg.Realtime.TripUpdatesEvery.Duration && e.allowRequest() {
 			if b, err := e.get(ctx, fs, fs.feed.TripUpdates); err == nil {
 				if f, err := realtime.Decode(b); err != nil {

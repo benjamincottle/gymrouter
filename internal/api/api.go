@@ -38,6 +38,9 @@ type Engine interface {
 	LegGeometry(s *engine.Snapshot, tripID, fromStop, toStop string) ([]geo.Point, bool)
 	LineShapes(set lines.Set) []engine.LineShape
 	MapFile() (string, bool)
+	Ensure(set lines.Set) error
+	Catalog() *engine.Catalog
+	Suggest(ctx context.Context, from, to engine.SuggestPlace, radiusM float64) (*engine.SuggestResult, error)
 }
 
 // maxBody bounds request bodies.
@@ -60,9 +63,10 @@ func New(eng Engine, auth *Auth, log *slog.Logger, web fs.FS) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	api := http.NewServeMux()
-	api.HandleFunc("GET /api/gyms", s.gyms)
+	api.HandleFunc("GET /api/defaults", s.defaults)
 	api.HandleFunc("POST /api/plan", s.plan)
 	api.HandleFunc("POST /api/stops/near", s.stopsNear)
+	api.HandleFunc("POST /api/suggest-lines", s.suggestLines)
 	api.HandleFunc("GET /api/vehicles", s.vehicles)
 	api.HandleFunc("GET /api/status", s.status)
 	api.HandleFunc("POST /api/geocode", s.geocode)
@@ -235,23 +239,28 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.eng.Health())
 }
 
-type gymResp struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	Address string   `json:"address,omitempty"`
-	Lat     float64  `json:"lat"`
-	Lon     float64  `json:"lon"`
-	Lines   []string `json:"lines"`
+type presetResp struct {
+	Name    string      `json:"name"`
+	Address string      `json:"address,omitempty"`
+	Lat     float64     `json:"lat"`
+	Lon     float64     `json:"lon"`
+	Lines   []string    `json:"lines"`
+	Access  []accessReq `json:"access,omitempty"`
 }
 
-func (s *Server) gyms(w http.ResponseWriter, r *http.Request) {
+// defaults returns the routing defaults and any preset gyms a device can import.
+func (s *Server) defaults(w http.ResponseWriter, r *http.Request) {
 	cfg := s.eng.Config()
-	out := make([]gymResp, 0, len(cfg.Gyms))
+	presets := make([]presetResp, 0, len(cfg.Gyms))
 	for _, g := range cfg.Gyms {
-		out = append(out, gymResp{ID: g.ID, Name: g.Name, Address: g.Address, Lat: g.Lat, Lon: g.Lon, Lines: g.LineSet.Strings()})
+		p := presetResp{Name: g.Name, Address: g.Address, Lat: g.Lat, Lon: g.Lon, Lines: g.LineSet.Strings()}
+		for _, a := range g.Access {
+			p.Access = append(p.Access, accessReq{Stop: a.Stop, WalkS: a.WalkS})
+		}
+		presets = append(presets, p)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"gyms": out,
+		"presets": presets,
 		"defaults": map[string]any{
 			"walk_speed_mps": cfg.Routing.WalkSpeedMps, "min_change_s": cfg.Routing.MinChangeS,
 			"max_walk_m": cfg.Routing.MaxWalkM, "risk": map[string]int32{"safe_s": cfg.Risk.SafeS, "tight_s": cfg.Risk.TightS},
@@ -272,13 +281,35 @@ type vehicleResp struct {
 	Timestamp time.Time `json:"ts"`
 }
 
+// linesParam reads the comma-separated ?lines= list shared by the map endpoints and loads them.
+func (s *Server) linesParam(w http.ResponseWriter, r *http.Request) (lines.Set, bool) {
+	var ss []string
+	if v := r.URL.Query().Get("lines"); v != "" {
+		ss = strings.Split(v, ",")
+	}
+	set, err := parseLines(ss)
+	if err == nil {
+		err = s.ensure(set)
+	}
+	if err != nil {
+		var br badRequest
+		if errors.As(err, &br) {
+			writeError(w, http.StatusBadRequest, br.msg)
+		} else {
+			s.log.Error("loading lines failed", "err", err)
+			writeError(w, http.StatusInternalServerError, "timetable unavailable")
+		}
+		return nil, false
+	}
+	return set, true
+}
+
 func (s *Server) vehicles(w http.ResponseWriter, r *http.Request) {
-	g, ok := s.eng.Config().Gym(r.URL.Query().Get("gym"))
+	set, ok := s.linesParam(w, r)
 	if !ok {
-		writeError(w, http.StatusBadRequest, "unknown gym")
 		return
 	}
-	vs := s.eng.Vehicles(g.LineSet)
+	vs := s.eng.Vehicles(set)
 	out := make([]vehicleResp, 0, len(vs))
 	for _, v := range vs {
 		out = append(out, vehicleResp{ID: v.ID, Label: v.Label, Line: v.Line.String(), Color: v.Color, TripID: v.TripID,

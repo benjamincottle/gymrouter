@@ -1,5 +1,5 @@
-// Package config loads the server configuration file (public data only: gyms, their lines, tuning).
-// Secrets come from the environment, never from this file.
+// Package config loads the server configuration file (infrastructure and tuning only; optional preset gyms).
+// Gyms and their lines normally live on the device. Secrets come from the environment, never from this file.
 package config
 
 import (
@@ -61,7 +61,8 @@ type Realtime struct {
 	DailyBudget      int      `toml:"daily_budget"` // hard cap on upstream requests per day
 }
 
-// Gym is a destination with its set of lines.
+// Gym is an optional preset: a destination with its set of lines that a device can import. The server
+// preloads these lines at startup, but works without any.
 type Gym struct {
 	ID      string   `toml:"id"`
 	Name    string   `toml:"name"`
@@ -157,9 +158,6 @@ func (c *Config) validate() error {
 	if c.Realtime.DailyBudget <= 0 || c.Realtime.DailyBudget > 60000 {
 		errs = append(errs, errors.New("realtime.daily_budget must be 1..60000 (TfNSW free plan quota)"))
 	}
-	if len(c.Gyms) == 0 {
-		errs = append(errs, errors.New("at least one [[gym]] is required"))
-	}
 	seen := map[string]bool{}
 	for i := range c.Gyms {
 		g := &c.Gyms[i]
@@ -202,7 +200,8 @@ func (c *Config) Gym(id string) (*Gym, bool) {
 	return nil, false
 }
 
-// AllLines is the union of every gym's lines: what the server loads and polls for.
+// AllLines is the union of every preset gym's lines: what the server loads at startup. Devices ask for
+// more at run time.
 func (c *Config) AllLines() lines.Set {
 	sets := make([]lines.Set, len(c.Gyms))
 	for i, g := range c.Gyms {

@@ -50,7 +50,7 @@ const fc = (features: Feature[]) => ({ type: 'FeatureCollection' as const, featu
 
 export interface MapViewProps {
   token: string
-  gymId: string
+  lines: string[]
   option: Option
   serviceDate: string
   origin: [number, number] // [lon, lat] of where the trip starts (home or gym)
@@ -58,7 +58,8 @@ export interface MapViewProps {
 }
 
 /** Draws the option's legs, the gym's lines, and live vehicles (the option's own highlighted). */
-export function MapView({ token, gymId, option, serviceDate, origin, destination }: MapViewProps) {
+export function MapView({ token, lines, option, serviceDate, origin, destination }: MapViewProps) {
+  const linesKey = lines.join(',')
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const [error, setError] = useState('')
@@ -160,7 +161,7 @@ export function MapView({ token, gymId, option, serviceDate, origin, destination
   useEffect(() => {
     let live = true
     const draw = (m: maplibregl.Map) =>
-      fetch(`/api/shapes?gym=${encodeURIComponent(gymId)}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
+      fetch(`/api/shapes?lines=${encodeURIComponent(lines.join(','))}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
           if (!live || !data) return
@@ -172,7 +173,7 @@ export function MapView({ token, gymId, option, serviceDate, origin, destination
     return () => {
       live = false
     }
-  }, [gymId, token])
+  }, [linesKey, token])
 
   // The option's legs, then fit the view to them.
   useEffect(() => {
@@ -227,7 +228,7 @@ export function MapView({ token, gymId, option, serviceDate, origin, destination
       const m = map.current
       if (!m || (!force && document.visibilityState !== 'visible')) return
       api
-        .vehicles(token, gymId)
+        .vehicles(token, lines)
         .then((r) => {
           if (!live) return
           const myVehicles = r.vehicles.filter((v) => mine.has(v.trip_id ?? ''))
@@ -258,7 +259,7 @@ export function MapView({ token, gymId, option, serviceDate, origin, destination
       live = false
       clearInterval(id)
     }
-  }, [gymId, token, myTrips.join(',')])
+  }, [linesKey, token, myTrips.join(',')])
 
   return (
     <div class="map-wrap">

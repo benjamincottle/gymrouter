@@ -1,37 +1,59 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { encode } from 'uqr'
-import { api, AuthError } from '../api.ts'
-import { emptySettings, newId, sanitize, settingsLink, type Home, type Settings } from '../settings.ts'
-import type { GeocodeResult, GymsResponse, NearStop } from '../types.ts'
-import { groupStops, relevantGroups, type StopGroup } from '../stops.ts'
+import { emptySettings, gymFromPreset, MAX_GYMS, sanitize, settingsLink, type Gym, type Home, type Settings } from '../settings.ts'
+import type { DefaultsResponse } from '../types.ts'
+import { newGym, newHome, PlaceEditor, type EditorKind } from './places.tsx'
 
 interface Props {
   settings: Settings
   setSettings: (s: Settings) => void
-  gyms: GymsResponse | null
+  server: DefaultsResponse | null
   onAuthError: () => void
 }
 
-export function SettingsView({ settings, setSettings, gyms, onAuthError }: Props) {
-  const [editing, setEditing] = useState<Home | null>(settings.homes.length === 0 ? newHome() : null)
-  const d = gyms?.defaults
+interface Editing {
+  kind: EditorKind
+  place: Gym
+  isNew: boolean
+}
+
+const editNew = (kind: EditorKind): Editing => ({ kind, place: kind === 'home' ? { ...newHome(), lines: [] } : newGym(), isNew: true })
+
+export function SettingsView({ settings, setSettings, server, onAuthError }: Props) {
+  // First run: add a home, then a gym.
+  const [editing, setEditing] = useState<Editing | null>(
+    settings.homes.length === 0 ? editNew('home') : settings.gyms.length === 0 ? editNew('gym') : null,
+  )
+  const d = server?.defaults
 
   if (editing) {
     return (
-      <HomeEditor
-        home={editing}
+      <PlaceEditor
+        key={editing.place.id}
+        kind={editing.kind}
+        place={editing.place}
+        isNew={editing.isNew}
         token={settings.token!}
+        homes={settings.homes}
         onAuthError={onAuthError}
         onCancel={() => setEditing(null)}
-        onSave={(h) => {
-          const exists = settings.homes.some((x) => x.id === h.id)
-          const homes = exists ? settings.homes.map((x) => (x.id === h.id ? h : x)) : [...settings.homes, h]
-          setSettings({ ...settings, homes, activeHome: settings.activeHome ?? h.id })
-          setEditing(null)
+        onSave={(g) => {
+          if (editing.kind === 'home') {
+            const h: Home = { id: g.id, name: g.name, lat: g.lat, lon: g.lon, access: g.access }
+            const homes = settings.homes.some((x) => x.id === h.id) ? settings.homes.map((x) => (x.id === h.id ? h : x)) : [...settings.homes, h]
+            setSettings({ ...settings, homes, activeHome: settings.activeHome ?? h.id })
+            setEditing(settings.gyms.length === 0 ? editNew('gym') : null)
+          } else {
+            const gyms = settings.gyms.some((x) => x.id === g.id) ? settings.gyms.map((x) => (x.id === g.id ? g : x)) : [...settings.gyms, g]
+            setSettings({ ...settings, gyms })
+            setEditing(null)
+          }
         }}
       />
     )
   }
+
+  const importable = (server?.presets ?? []).filter((p) => !settings.gyms.some((g) => g.name === p.name))
 
   return (
     <div class="stack">
@@ -49,7 +71,7 @@ export function SettingsView({ settings, setSettings, gyms, onAuthError }: Props
                 </span>
               </span>
               <span>
-                <button class="link" onClick={() => setEditing(h)}>
+                <button class="link" onClick={() => setEditing({ kind: 'home', place: { ...h, lines: [] }, isNew: false })}>
                   Edit
                 </button>
                 <button
@@ -66,7 +88,65 @@ export function SettingsView({ settings, setSettings, gyms, onAuthError }: Props
             </li>
           ))}
         </ul>
-        <button onClick={() => setEditing(newHome())}>Add home</button>
+        <button onClick={() => setEditing(editNew('home'))}>Add home</button>
+      </section>
+
+      <section class="card">
+        <h2>Gyms</h2>
+        <p class="muted small">Stored only on this device, with the lines used to get to each one.</p>
+        <ul class="list">
+          {settings.gyms.map((g) => (
+            <li>
+              <span>
+                {g.name}
+                <span class="muted small">
+                  {' '}
+                  · {g.lines.length} line{g.lines.length === 1 ? '' : 's'}
+                </span>
+              </span>
+              <span>
+                <button class="link" onClick={() => setEditing({ kind: 'gym', place: g, isNew: false })}>
+                  Edit
+                </button>
+                <button
+                  class="link danger"
+                  onClick={() => {
+                    if (confirm(`Remove ${g.name}?`)) setSettings({ ...settings, gyms: settings.gyms.filter((x) => x.id !== g.id) })
+                  }}
+                >
+                  Remove
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div class="actions">
+          <button disabled={settings.gyms.length >= MAX_GYMS} onClick={() => setEditing(editNew('gym'))}>
+            Add gym
+          </button>
+        </div>
+        {importable.length > 0 && (
+          <div class="stack tight">
+            <p class="muted small">This server offers {importable.length === 1 ? 'a gym' : `${importable.length} gyms`} ready-made:</p>
+            <ul class="list">
+              {importable.map((p) => (
+                <li>
+                  <span>
+                    {p.name}
+                    <span class="muted small"> · {p.lines.length} lines</span>
+                  </span>
+                  <button
+                    class="link"
+                    onClick={() => setSettings({ ...settings, gyms: [...settings.gyms, gymFromPreset(p)] })}
+                  >
+                    Import
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p class="muted small">Imported gyms only have the lines near the gym. Edit one and suggest lines from your home to add the rest.</p>
+          </div>
+        )}
       </section>
 
       <section class="card">
@@ -182,10 +262,6 @@ function round1(v: number) {
   return Math.round(v * 10) / 10
 }
 
-function newHome(): Home {
-  return { id: newId(), name: 'Home', lat: NaN, lon: NaN, access: [] }
-}
-
 function NumberField(props: {
   label: string
   value: number | undefined
@@ -212,168 +288,6 @@ function NumberField(props: {
       />
       {props.hint && <span class="muted small">{props.hint}</span>}
     </label>
-  )
-}
-
-function HomeEditor({
-  home, token, onAuthError, onSave, onCancel,
-}: { home: Home; token: string; onAuthError: () => void; onSave: (h: Home) => void; onCancel: () => void }) {
-  const [h, setH] = useState<Home>(home)
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<GeocodeResult[]>([])
-  const [stops, setStops] = useState<NearStop[] | null>(null)
-  const [busy, setBusy] = useState('')
-  const [error, setError] = useState('')
-  const hasLocation = Number.isFinite(h.lat) && Number.isFinite(h.lon)
-
-  const fail = (e: unknown) => {
-    setBusy('')
-    if (e instanceof AuthError) onAuthError()
-    else setError(e instanceof Error ? e.message : String(e))
-  }
-
-  const setLocation = async (lat: number, lon: number) => {
-    setError('')
-    setResults([])
-    setH((cur) => ({ ...cur, lat, lon }))
-    setBusy('Finding nearby stops…')
-    try {
-      const r = await api.stopsNear(token, lat, lon, 1500)
-      setStops(r.stops)
-      setBusy('')
-    } catch (e) {
-      fail(e)
-    }
-  }
-
-  const search = async (e: Event) => {
-    e.preventDefault()
-    setError('')
-    setBusy('Searching…')
-    try {
-      const r = await api.geocode(token, query)
-      setResults(r.results)
-      setBusy('')
-      if (r.results.length === 0) setError('No matches.')
-    } catch (err) {
-      fail(err)
-    }
-  }
-
-  const useMyLocation = () => {
-    if (!navigator.geolocation) return setError('Location is not available in this browser.')
-    setBusy('Getting your location…')
-    navigator.geolocation.getCurrentPosition(
-      (p) => setLocation(p.coords.latitude, p.coords.longitude),
-      (err) => fail(new Error(err.message || 'Location unavailable')),
-      { enableHighAccuracy: true, timeout: 15000 },
-    )
-  }
-
-  // One row per station (all its platforms) or standalone stop.
-  const groups = useMemo(() => groupStops(stops ?? []), [stops])
-  const [showAll, setShowAll] = useState(false)
-  const selectedIds = useMemo(() => new Set(h.access.map((a) => a.stop)), [h.access])
-  const groupWalk = (g: StopGroup) => h.access.find((a) => g.ids.includes(a.stop))?.walk_s
-  const toggle = (g: StopGroup) => {
-    const on = g.ids.some((id) => selectedIds.has(id))
-    const rest = h.access.filter((a) => !g.ids.includes(a.stop))
-    setH({ ...h, access: on ? rest : [...rest, ...g.ids.map((stop) => ({ stop, name: g.name, walk_s: g.walk_s }))] })
-  }
-  const setWalk = (g: StopGroup, mins: number) =>
-    setH({ ...h, access: h.access.map((a) => (g.ids.includes(a.stop) ? { ...a, walk_s: Math.round(mins * 60) } : a)) })
-  const visibleGroups = showAll ? groups : relevantGroups(groups)
-
-  return (
-    <div class="stack">
-      <section class="card">
-        <h2>{Number.isFinite(home.lat) ? 'Edit home' : 'Add home'}</h2>
-        <label>
-          Name
-          <input value={h.name} maxLength={60} onInput={(e) => setH({ ...h, name: (e.target as HTMLInputElement).value })} />
-        </label>
-        <form onSubmit={search} class="row-form">
-          <label>
-            Address
-            <input type="search" value={query} placeholder="Street address or place" onInput={(e) => setQuery((e.target as HTMLInputElement).value)} />
-          </label>
-          <button type="submit" disabled={query.trim().length < 3}>
-            Search
-          </button>
-        </form>
-        <p class="muted small">Searches go through your server to the Transport for NSW trip planner; nothing is stored.</p>
-        {results.length > 0 && (
-          <ul class="list pick">
-            {results.map((r) => (
-              <li>
-                <button class="link" onClick={() => setLocation(r.lat, r.lon)}>
-                  {r.name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <button onClick={useMyLocation}>Use my current location</button>
-        {hasLocation && <p class="muted small">Location set ({h.lat.toFixed(5)}, {h.lon.toFixed(5)}).</p>}
-        {busy && <p class="muted small">{busy}</p>}
-        {error && <p class="error">{error}</p>}
-      </section>
-
-      {stops && (
-        <section class="card">
-          <h2>Your stops</h2>
-          <p class="muted small">
-            Pick the stops you'd actually walk to and set your real walking time. If you pick none, every stop within your
-            walking limit is considered.
-          </p>
-          {stops.length === 0 && <p class="muted">No stops on the gyms' lines within 1.5 km.</p>}
-          <ul class="list stops">
-            {visibleGroups.map((g) => {
-              const walk = groupWalk(g)
-              return (
-                <li>
-                  <label class="check">
-                    <input type="checkbox" checked={walk !== undefined} onChange={() => toggle(g)} />
-                    <span>
-                      {g.name}
-                      <span class="muted small"> · {g.lines.join(', ')}</span>
-                    </span>
-                  </label>
-                  {walk !== undefined ? (
-                    <label class="walk">
-                      <input
-                        type="number"
-                        min="0"
-                        max="60"
-                        step="0.5"
-                        value={walk / 60}
-                        onChange={(e) => setWalk(g, Number((e.target as HTMLInputElement).value) || 0)}
-                        aria-label={`Walking time to ${g.name} in minutes`}
-                      />
-                      min
-                    </label>
-                  ) : (
-                    <span class="muted small">~{Math.round(g.walk_s / 60)} min</span>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-          {groups.length > visibleGroups.length && (
-            <button class="link" onClick={() => setShowAll(true)}>
-              Show {groups.length - visibleGroups.length} more
-            </button>
-          )}
-        </section>
-      )}
-
-      <div class="actions">
-        <button class="primary" disabled={!hasLocation || h.name.trim() === ''} onClick={() => onSave({ ...h, name: h.name.trim() })}>
-          Save home
-        </button>
-        <button onClick={onCancel}>Cancel</button>
-      </div>
-    </div>
   )
 }
 

@@ -28,6 +28,21 @@ func Load(date time.Time, p Paths, set lines.Set) (*gtfs.Day, error) {
 	)
 }
 
+// LoadAll returns every public route running on date (school buses excluded), for building the stop
+// catalogue and suggesting lines. It's big (tens of thousands of trips): don't keep it around.
+func LoadAll(date time.Time, p Paths) (*gtfs.Day, error) {
+	isTrain := func(r gtfs.Route) bool { return lines.ModeOf(r.Type) == lines.Train }
+	// Unnamed routes are the trains' "Out of Service" and "Non Revenue" movements: nobody can ride them.
+	public := func(r gtfs.Route) bool { return lines.ModeOf(r.Type) != lines.SchoolBus && r.ShortName != "" }
+	if p.Trains == "" {
+		return gtfs.LoadService(date, gtfs.Source{Path: p.Complete, Include: public})
+	}
+	return gtfs.LoadService(date,
+		gtfs.Source{Path: p.Complete, Include: func(r gtfs.Route) bool { return public(r) && !isTrain(r) }},
+		gtfs.Source{Path: p.Trains, Include: func(r gtfs.Route) bool { return public(r) && isTrain(r) }},
+	)
+}
+
 // Missing reports configured lines with no trips on the loaded day (renamed, withdrawn, or not
 // running that day) so they can be flagged on refresh.
 func Missing(d *gtfs.Day, set lines.Set) []lines.Key {

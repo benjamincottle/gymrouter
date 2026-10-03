@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
 import { fromLocalInput, toLocalInput } from '../format.ts'
 import { usePolling, useVisible } from '../hooks.ts'
-import { homePlace, prefs, setTransfer, type Settings, type TransferTime } from '../settings.ts'
-import type { GymsResponse, PlanRequest } from '../types.ts'
+import { placeRequest, prefs, setTransfer, type Settings, type TransferTime } from '../settings.ts'
+import type { DefaultsResponse, PlanRequest } from '../types.ts'
 import { Board } from './board.tsx'
 import type { ActiveTrip } from './intrip.tsx'
 
@@ -15,7 +15,7 @@ const WINDOW_MIN = 45
 interface Props {
   settings: Settings
   setSettings: (s: Settings) => void
-  gyms: GymsResponse | null
+  server: DefaultsResponse | null
   onAuthError: () => void
   goToSettings: () => void
   onStartTrip: (t: ActiveTrip) => void
@@ -23,7 +23,7 @@ interface Props {
 
 type When = 'now' | 'leave' | 'arrive'
 
-export function Trip({ settings, setSettings, gyms, onAuthError, goToSettings, onStartTrip }: Props) {
+export function Trip({ settings, setSettings, server, onAuthError, goToSettings, onStartTrip }: Props) {
   const [direction, setDirection] = useState<Direction>('to-gym')
   const [gymId, setGymId] = useState<string | null>(null)
   const [when, setWhen] = useState<When>('now')
@@ -33,12 +33,14 @@ export function Trip({ settings, setSettings, gyms, onAuthError, goToSettings, o
   const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
 
   const request: PlanRequest | null = useMemo(() => {
-    if (!gymId || !home) return null
-    const gym = { gym: gymId }
-    const place = homePlace(home)
+    const g = settings.gyms.find((x) => x.id === gymId)
+    if (!g || !home) return null
+    const gym = placeRequest(g)
+    const place = placeRequest(home)
     return {
       from: direction === 'to-gym' ? place : gym,
       to: direction === 'to-gym' ? gym : place,
+      lines: g.lines,
       time: leaveAt ? fromLocalInput(leaveAt) : undefined,
       arrive_by: when === 'arrive' || undefined,
       window_min: WINDOW_MIN,
@@ -59,19 +61,19 @@ export function Trip({ settings, setSettings, gyms, onAuthError, goToSettings, o
 
   const saveTransfer = (t: TransferTime) => setSettings(setTransfer(settings, t))
 
-  if (!gyms) return <p class="muted">Loading gyms…</p>
-  if (!home) {
+  if (!server) return <p class="muted">Loading…</p>
+  if (!home || settings.gyms.length === 0) {
     return (
       <div class="empty">
-        <p>Add your home first, so trips can start (or end) there.</p>
+        <p>{home ? 'Add a gym to plan trips to.' : 'Add your home and a gym, so trips can start (or end) there.'}</p>
         <button class="primary" onClick={goToSettings}>
-          Add home
+          {home ? 'Add a gym' : 'Get started'}
         </button>
       </div>
     )
   }
 
-  const gym = gyms.gyms.find((g) => g.id === gymId)
+  const gym = settings.gyms.find((g) => g.id === gymId)
 
   return (
     <div class="stack">
@@ -99,7 +101,7 @@ export function Trip({ settings, setSettings, gyms, onAuthError, goToSettings, o
       )}
 
       <div class="gyms">
-        {gyms.gyms.map((g) => (
+        {settings.gyms.map((g) => (
           <button class={g.id === gymId ? 'gym selected' : 'gym'} aria-pressed={g.id === gymId} onClick={() => setGymId(g.id)}>
             <span class="gym-name">{g.name}</span>
             {g.address && <span class="gym-address">{g.address}</span>}
@@ -154,7 +156,7 @@ export function Trip({ settings, setSettings, gyms, onAuthError, goToSettings, o
               live={leaveAt === null}
               serviceDate={plan.data.service_date}
               token={settings.token!}
-              gymId={gym.id}
+              lines={gym.lines}
               origin={direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat]}
               destination={direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat]}
               title={direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`}
@@ -167,12 +169,12 @@ export function Trip({ settings, setSettings, gyms, onAuthError, goToSettings, o
                         option: o,
                         plannedArrive: o.arrive,
                         request: request!,
-                        gymId: gym.id,
+                        lines: gym.lines,
                         title: direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`,
                         origin: direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat],
                         destination: direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat],
                         serviceDate: plan.data!.service_date,
-                        walkSpeedMps: settings.walkSpeedMps ?? gyms.defaults.walk_speed_mps,
+                        walkSpeedMps: settings.walkSpeedMps ?? server.defaults.walk_speed_mps,
                       })
                   : undefined
               }

@@ -1,12 +1,13 @@
 # Gym Router configuration (example).
 #
-# Public data only: gyms, the lines that matter for each, and tuning. The real config lives in the
-# private deploy repo and is mounted into the container. Secrets come from the environment:
+# Infrastructure and tuning only. Gyms, homes and the lines that matter for each live on the device and are
+# set up in the app (it suggests lines from the timetable). The real config lives in the private deploy repo and
+# is mounted into the container. Secrets come from the environment:
 #   TFNSW_API_KEY    Transport for NSW Open Data API key
 #   GYMROUTER_TOKEN  access token (generate with `gymrouter new-token`)
 #
-# Each gym's lines should include the lines near *your* home too (e.g. the bus to your station).
-# Those are left out here so this file stays safe to publish. `gymrouter suggest-lines` helps find them.
+# The [[gym]] sections below are optional presets: a device can import them in one tap, and the server preloads
+# their lines at startup (a faster first request). Delete them to start from nothing.
 
 [server]
 listen = ":8080"
@@ -34,7 +35,7 @@ vehicles_every = "15s"
 active_for = "10m"        # poll only while the app was used in the last 10 minutes
 daily_budget = 40000      # hard cap on upstream requests (free plan quota is 60,000/day)
 
-# Addresses: 9degrees.com.au/locations
+# Presets. Addresses: 9degrees.com.au/locations. Lines here are only the gym end; the app adds the lines near home.
 [[gym]]
 id = "lanecove"
 name = "9 Degrees Lane Cove"

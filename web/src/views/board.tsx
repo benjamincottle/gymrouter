@@ -17,7 +17,7 @@ interface Props {
   live: boolean
   serviceDate: string
   token: string
-  gymId: string
+  lines: string[]
   origin: [number, number]
   destination: [number, number]
   title: string
@@ -153,7 +153,7 @@ export function Strip({ option: o, start, end, now }: { option: Option; start: n
 
 type MapSheetProps = Omit<Props, 'onStart'> & { option: Option; now: number; onClose: () => void }
 
-export function MapSheet({ option, now, onClose, token, gymId, serviceDate, origin, destination, title, live }: MapSheetProps) {
+export function MapSheet({ option, now, onClose, token, lines, serviceDate, origin, destination, title, live }: MapSheetProps) {
   const [View, setView] = useState<ComponentType<MapViewProps> | null>(null)
   const [failed, setFailed] = useState(false)
   useEffect(() => {
@@ -177,7 +177,7 @@ export function MapSheet({ option, now, onClose, token, gymId, serviceDate, orig
       {failed ? (
         <p class="map-note">Couldn't load the map. Check your connection and try again.</p>
       ) : View ? (
-        <View token={token} gymId={gymId} option={option} serviceDate={serviceDate} origin={origin} destination={destination} />
+        <View token={token} lines={lines} option={option} serviceDate={serviceDate} origin={origin} destination={destination} />
       ) : (
         <p class="map-note subtle">Loading map…</p>
       )}

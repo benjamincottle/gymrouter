@@ -49,11 +49,10 @@ func (s *Server) legShape(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"coordinates": coords(pts)})
 }
 
-// lineShapes returns the gym's lines as GeoJSON for drawing: GET /api/shapes?gym=
+// lineShapes returns the given lines as GeoJSON for drawing: GET /api/shapes?lines=bus 288,train T9
 func (s *Server) lineShapes(w http.ResponseWriter, r *http.Request) {
-	g, ok := s.eng.Config().Gym(r.URL.Query().Get("gym"))
+	set, ok := s.linesParam(w, r)
 	if !ok {
-		writeError(w, http.StatusBadRequest, "unknown gym")
 		return
 	}
 	type feature struct {
@@ -65,7 +64,7 @@ func (s *Server) lineShapes(w http.ResponseWriter, r *http.Request) {
 		Type     string    `json:"type"`
 		Features []feature `json:"features"`
 	}{Type: "FeatureCollection", Features: []feature{}}
-	for _, ls := range s.eng.LineShapes(g.LineSet) {
+	for _, ls := range s.eng.LineShapes(set) {
 		multi := make([][][2]float64, len(ls.Coords))
 		for i, c := range ls.Coords {
 			multi[i] = coords(c)

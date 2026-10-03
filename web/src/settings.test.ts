@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  applyFragment, emptySettings, homePlace, load, parseFragment, prefs, sanitize, save, setTransfer, settingsLink,
+  applyFragment, emptySettings, gymFromPreset, isLine, load, parseFragment, placeRequest, prefs, sanitize, save, setTransfer, settingsLink,
   type Settings,
 } from './settings.ts'
 import { countdown, delay, duration, fromLocalInput, platform, toLocalInput } from './format.ts'
@@ -12,6 +12,12 @@ const sample: Settings = {
   version: 1,
   token: TOKEN,
   homes: [{ id: 'h1', name: 'Home', lat: -33.8, lon: 151.1, access: [{ stop: '2077', name: 'Some Station', walk_s: 600 }] }],
+  gyms: [
+    {
+      id: 'g1', name: '9 Degrees Lane Cove', address: '1a/21 Mars Rd, Lane Cove West', lat: -33.80795, lon: 151.15063,
+      access: [{ stop: '206638', name: 'Mars Rd Stop', walk_s: 300 }], lines: ['train T9', 'metro M1', 'bus 288'],
+    },
+  ],
   activeHome: 'h1',
   walkSpeedMps: 1.4,
   risk: { safe_s: 120, tight_s: 30 },
@@ -37,6 +43,33 @@ test('sanitize keeps valid data and drops malformed entries', () => {
   assert.equal('extra' in s, false)
   assert.deepEqual(sanitize(null), emptySettings())
   assert.deepEqual(sanitize(sample), sample)
+})
+
+test('gyms keep their lines and drop malformed ones', () => {
+  const s = sanitize({
+    ...sample,
+    gyms: [
+      { ...sample.gyms[0], lines: ['bus 288', 'bus 288', 'tram 1', 'bus', 'bus ', 42, 'light-rail L4', 'x'.repeat(50)] },
+      { id: 'bad', name: 'No place' },
+      'nope',
+    ],
+  })
+  assert.equal(s.gyms.length, 1)
+  assert.deepEqual(s.gyms[0].lines, ['bus 288', 'light-rail L4'])
+  assert.equal(sanitize({ ...sample, gyms: undefined }).gyms.length, 0, 'old backups have no gyms')
+  assert.equal(sanitize({ ...sample, gyms: Array.from({ length: 30 }, (_, i) => ({ ...sample.gyms[0], id: `g${i}` })) }).gyms.length, 12)
+})
+
+test('isLine accepts what the server writes', () => {
+  for (const ok of ['bus 288', 'train T9', 'metro M1', 'light-rail L4', 'bus 160X']) assert.equal(isLine(ok), true, ok)
+  for (const bad of ['', 'bus', 'tram 1', 'bus  ', 'Bus 288', 5]) assert.equal(isLine(bad), false, String(bad))
+})
+
+test('a server preset becomes a gym with its own id', () => {
+  const g = gymFromPreset({ name: 'Gym', lat: -33.8, lon: 151.1, lines: ['bus 288'], access: [{ stop: '1', walk_s: 90 }] })
+  assert.deepEqual(g.lines, ['bus 288'])
+  assert.equal(g.access[0].walk_s, 90)
+  assert.ok(g.id.length > 0)
 })
 
 test('activeHome falls back to the first home', () => {
@@ -81,8 +114,8 @@ test('load/save survive broken storage', () => {
 })
 
 test('requests carry curated access and preferences', () => {
-  assert.deepEqual(homePlace(sample.homes[0]), { lat: -33.8, lon: 151.1, access: [{ stop: '2077', walk_s: 600 }] })
-  assert.deepEqual(homePlace({ ...sample.homes[0], access: [] }), { lat: -33.8, lon: 151.1 })
+  assert.deepEqual(placeRequest(sample.homes[0]), { lat: -33.8, lon: 151.1, access: [{ stop: '2077', walk_s: 600 }] })
+  assert.deepEqual(placeRequest({ ...sample.homes[0], access: [] }), { lat: -33.8, lon: 151.1 })
   assert.deepEqual(prefs(sample), {
     walk_speed_mps: 1.4, risk: { safe_s: 120, tight_s: 30 }, transfers: [{ from: '2121', to: '2121', secs: 150 }],
   })

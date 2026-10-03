@@ -3,7 +3,8 @@
 Public transport routing for a handful of destinations (bouldering gyms), using Transport for NSW
 open data. Instead of searching the whole network like a general planner, it checks every
 option within each gym's own set of lines against live data, using your own walking and transfer
-times. See [docs/spec.md](docs/spec.md).
+times. Homes, gyms and their lines are set up in the app (it suggests the lines from the timetable) and
+stay on your device. See [docs/spec.md](docs/spec.md).
 
 Status: all milestones built (router, server, web app, live map, in-trip mode, deployment). Field
 validation against Opal/Google is next. Deploying: [deploy/README.md](deploy/README.md).
@@ -15,14 +16,14 @@ gymrouter setup-link     print the link that sets up a device
 gymrouter new-token      generate an access token
 gymrouter check-config   validate a config file
 gymrouter healthcheck    probe the local server (the container's HEALTHCHECK)
-gymrouter suggest-lines  find candidate lines between two places (run locally)
+gymrouter suggest-lines  find candidate lines between two places (the app does this too)
 gymrouter plan           plan a trip from the command line, optionally with live data
 gymrouter make-fixture   build the trimmed real-data test fixture
 ```
 
 ## Running
 1. Get a free API key from the [TfNSW Open Data Hub](https://opendata.transport.nsw.gov.au).
-2. Copy `config.example.toml` and add the lines near your home to each gym (keep this file private).
+2. Copy `config.example.toml` and adjust it (listen address, data directory, public URL). Gyms are optional presets.
 3. Set the secrets in the environment and start the server:
    ```
    export TFNSW_API_KEY=…  GYMROUTER_TOKEN=$(gymrouter new-token)
@@ -36,7 +37,8 @@ gymrouter make-fixture   build the trimmed real-data test fixture
      --bbox=150.55,-34.15,151.35,-33.45
    ```
    Refresh it every month or two. Without it, the map still shows routes and vehicles on a blank background.
-5. Run `gymrouter setup-link` and open the link on your phone.
+5. Run `gymrouter setup-link` and open the link on your phone. In Settings, add your home, then each gym:
+   search its address, pick the stops you'd walk to, and let the app suggest the lines.
 
 API: [docs/api.md](docs/api.md).
 

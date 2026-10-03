@@ -23,14 +23,14 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    # Measured peak ~115 MB; headroom for planning on other dates and the daily refresh.
-    mem_limit: 512m
+    # Idle ~90 MB. Suggesting lines reads the whole network for a moment: measured peak ~310 MB.
+    mem_limit: 640m
     pids_limit: 64
     environment:
       - TFNSW_API_KEY=${TFNSW_API_KEY}
       - GYMROUTER_TOKEN=${GYMROUTER_TOKEN}
       # Keep the Go heap well under the container limit.
-      - GOMEMLIMIT=400MiB
+      - GOMEMLIMIT=500MiB
     volumes:
       - ./config.toml:/etc/gymrouter/config.toml:ro
       - gymrouter_data:/data

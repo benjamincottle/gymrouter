@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'preact/hooks'
 import { api, AuthError } from './api.ts'
 import { save, type Settings } from './settings.ts'
-import type { GymsResponse } from './types.ts'
+import type { DefaultsResponse } from './types.ts'
 import { Setup } from './views/setup.tsx'
 import { Trip } from './views/trip.tsx'
 import { SettingsView } from './views/settings.tsx'
@@ -13,7 +13,7 @@ function loadTrip(storage: Storage | undefined): ActiveTrip | null {
     if (!raw) return null
     const t = JSON.parse(raw) as ActiveTrip
     // Drop trips that ended more than an hour ago.
-    return t?.option?.arrive && Date.parse(t.option.arrive) > Date.now() - 3600_000 ? t : null
+    return t?.option?.arrive && Array.isArray(t.lines) && Date.parse(t.option.arrive) > Date.now() - 3600_000 ? t : null
   } catch {
     return null
   }
@@ -29,8 +29,10 @@ export interface AppProps {
 
 export function App({ initial, imported, storage }: AppProps) {
   const [settings, setSettingsState] = useState(initial)
-  const [view, setView] = useState<View>(initial.homes.length === 0 && initial.token ? 'settings' : 'trip')
-  const [gyms, setGyms] = useState<GymsResponse | null>(null)
+  const [view, setView] = useState<View>(
+    (initial.homes.length === 0 || initial.gyms.length === 0) && initial.token ? 'settings' : 'trip',
+  )
+  const [server, setServer] = useState<DefaultsResponse | null>(null)
   const [authFailed, setAuthFailed] = useState(false)
   const [notice, setNotice] = useState(imported ? 'Settings saved on this device.' : '')
   const [storageOk, setStorageOk] = useState(true)
@@ -62,10 +64,10 @@ export function App({ initial, imported, storage }: AppProps) {
     if (!settings.token) return
     let live = true
     api
-      .gyms(settings.token)
-      .then((g) => {
+      .defaults(settings.token)
+      .then((d) => {
         if (!live) return
-        setGyms(g)
+        setServer(d)
         setAuthFailed(false)
       })
       .catch((e) => {
@@ -125,13 +127,13 @@ export function App({ initial, imported, storage }: AppProps) {
           <Trip
             settings={settings}
             setSettings={setSettings}
-            gyms={gyms}
+            server={server}
             onAuthError={onAuthError}
             goToSettings={() => setView('settings')}
             onStartTrip={setTrip}
           />
         ) : (
-          <SettingsView settings={settings} setSettings={setSettings} gyms={gyms} onAuthError={onAuthError} />
+          <SettingsView settings={settings} setSettings={setSettings} server={server} onAuthError={onAuthError} />
         )}
       </main>
       <footer class="footer">

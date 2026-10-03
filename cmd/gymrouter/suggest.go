@@ -12,8 +12,8 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/geo"
 	"github.com/benjamincottle/gymrouter/internal/gtfs"
 	"github.com/benjamincottle/gymrouter/internal/lines"
-	"github.com/benjamincottle/gymrouter/internal/plan"
 	"github.com/benjamincottle/gymrouter/internal/raptor"
+	"github.com/benjamincottle/gymrouter/internal/suggest"
 )
 
 // Gym locations are public business addresses (9degrees.com.au/locations), geocoded.
@@ -22,8 +22,6 @@ var knownGyms = map[string]geo.Point{
 	"chatswood": {Lat: -33.7856633, Lon: 151.2003558}, // 7/372 Eastern Valley Way, Chatswood
 	"rydalmere": {Lat: -33.816213, Lon: 151.039465},   // Unit 11, 38-46 South St, Rydalmere
 }
-
-func lineKey(r gtfs.Route) string { return lines.Of(r.Type, r.ShortName).String() }
 
 func parsePlace(s string) (geo.Point, error) {
 	if p, ok := knownGyms[strings.ToLower(s)]; ok {
@@ -55,14 +53,6 @@ func parseClock(s string) (int32, error) {
 		return 0, fmt.Errorf("time %q: want HH:MM", s)
 	}
 	return int32(t.Hour()*3600 + t.Minute()*60), nil
-}
-
-type itinStats struct {
-	desc      string
-	lines     []string
-	durations []int32
-	rides     int
-	ends      map[string]int // first boarding / last alighting stop → count
 }
 
 func suggestLines(args []string) error {
@@ -130,154 +120,24 @@ func suggestLines(args []string) error {
 		return fmt.Errorf("no stops within %.0fm of origin (%d) or destination (%d)", *radius, len(acc), len(egr))
 	}
 
-	stats := map[string]*itinStats{}
-	queries := 0
-	for dep := t0; dep <= t1; dep += int32(step.Seconds()) {
-		found := plan.Alternatives(net, raptor.Query{
-			Depart: dep, Access: acc, Egress: egr, MaxRides: 4, MinChange: int32(minChange.Seconds()),
-		}, int32(slack.Seconds()), 40)
-		queries++
-		for _, j := range found {
-			desc, lines := describe(net, j)
-			st := stats[desc]
-			if st == nil {
-				st = &itinStats{desc: desc, lines: lines, rides: j.Rides, ends: map[string]int{}}
-				stats[desc] = st
-			}
-			st.durations = append(st.durations, doorToDoor(j))
-			st.ends[endpoints(net, j)]++
-		}
-	}
-
-	var list []*itinStats
-	for _, s := range stats {
-		list = append(list, s)
-	}
-	sort.Slice(list, func(a, b int) bool {
-		ma, mb := median(list[a].durations), median(list[b].durations)
-		if ma != mb {
-			return ma < mb
-		}
-		return len(list[a].durations) > len(list[b].durations)
-	})
-	nDeps := int((t1-t0)/int32(step.Seconds())) + 1
-	fmt.Printf("%s %s–%s, every %s (%d departure times, %d searches)\n\n",
-		date.Format("Mon 2006-01-02"), *start, *end, *step, nDeps, queries)
+	res := suggest.Run(net, acc, egr, suggest.Window{
+		Label: date.Format("Mon 2006-01-02"), Start: t0, End: t1, Step: int32(step.Seconds()),
+	}, suggest.Params{MaxRides: 4, MinChange: int32(minChange.Seconds()), Slack: int32(slack.Seconds()), MaxAlts: 40})
+	fmt.Printf("%s %s–%s, every %s (%d departure times)\n\n", date.Format("Mon 2006-01-02"), *start, *end, *step, res.Departures)
 	fmt.Printf("%-6s %-5s %-6s  %s\n", "median", "best", "seen", "itinerary")
-	lineCount := map[string]int{}
-	for _, s := range list {
-		fmt.Printf("%4dm  %4dm  %2d/%-2d  %s\n", median(s.durations)/60, minOf(s.durations)/60,
-			len(s.durations), nDeps, s.desc)
-		fmt.Printf("%22s via %s\n", "", topKey(s.ends))
-		for _, l := range s.lines {
-			lineCount[l] += len(s.durations)
+	for _, it := range res.Itineraries {
+		fmt.Printf("%4dm  %4dm  %2d/%-2d  %s\n", it.MedianS/60, it.BestS/60, it.Seen, it.Of, it.Desc)
+		fmt.Printf("%22s via %s\n", "", it.Via)
+	}
+	fmt.Println("\nsuggested lines (share of departure times at which each appears):")
+	for _, l := range suggest.Scores([]suggest.WindowResult{res}) {
+		mark := " "
+		if l.Recommended {
+			mark = "*"
 		}
-	}
-	var lines []string
-	for l := range lineCount {
-		lines = append(lines, l)
-	}
-	sort.Slice(lines, func(a, b int) bool { return lineCount[lines[a]] > lineCount[lines[b]] })
-	fmt.Println("\nsuggested lines (by how often they appear):")
-	for _, l := range lines {
-		fmt.Printf("  %-22s %d\n", l, lineCount[l])
+		fmt.Printf("  %s %-22s %3.0f%%\n", mark, l.Line, l.Share*100)
 	}
 	return nil
-}
-
-func stationName(net *raptor.Network, s int32) string {
-	st := net.Day.Stops[s]
-	if st.Parent != "" {
-		if pi, ok := net.Day.StopIndex[st.Parent]; ok {
-			return net.Day.Stops[pi].Name
-		}
-	}
-	return st.Name
-}
-
-// describe groups a journey by its lines and interchange stations, ignoring which
-// exact stop is used at either end (those differ only by a few minutes of walking).
-func describe(net *raptor.Network, j raptor.Journey) (string, []string) {
-	var rides []raptor.Leg
-	for _, l := range j.Legs {
-		if l.Kind == raptor.Ride {
-			rides = append(rides, l)
-		}
-	}
-	var b strings.Builder
-	var lines []string
-	for i, l := range rides {
-		k := lineKey(net.Day.Routes[l.Route])
-		lines = append(lines, k)
-		if i == 0 {
-			b.WriteString(k)
-		} else {
-			fmt.Fprintf(&b, " → %s", k)
-		}
-		if i < len(rides)-1 {
-			fmt.Fprintf(&b, " → [%s", stationName(net, l.To))
-			if next := stationName(net, rides[i+1].From); next != stationName(net, l.To) {
-				fmt.Fprintf(&b, " ~ %s", next)
-			}
-			b.WriteString("]")
-		}
-	}
-	return b.String(), lines
-}
-
-func endpoints(net *raptor.Network, j raptor.Journey) string {
-	var first, last raptor.Leg
-	n := 0
-	for _, l := range j.Legs {
-		if l.Kind == raptor.Ride {
-			if n == 0 {
-				first = l
-			}
-			last = l
-			n++
-		}
-	}
-	return fmt.Sprintf("board %s (walk %dm), alight %s (walk %dm)",
-		net.Day.Stops[first.From].Name, (j.Legs[0].Arr-j.Legs[0].Dep)/60,
-		net.Day.Stops[last.To].Name, (j.Legs[len(j.Legs)-1].Arr-j.Legs[len(j.Legs)-1].Dep)/60)
-}
-
-func topKey(m map[string]int) string {
-	best, bn := "", -1
-	for k, n := range m {
-		if n > bn || (n == bn && k < best) {
-			best, bn = k, n
-		}
-	}
-	return best
-}
-
-// doorToDoor measures from leaving the origin just in time for the first vehicle.
-func doorToDoor(j raptor.Journey) int32 {
-	first := j.Legs[0]
-	walk := first.Arr - first.Dep
-	for _, l := range j.Legs {
-		if l.Kind == raptor.Ride {
-			return j.Arr - (l.Dep - walk)
-		}
-	}
-	return j.Arr - j.Dep
-}
-
-func median(v []int32) int32 {
-	c := append([]int32{}, v...)
-	sort.Slice(c, func(a, b int) bool { return c[a] < c[b] })
-	return c[len(c)/2]
-}
-
-func minOf(v []int32) int32 {
-	m := v[0]
-	for _, x := range v {
-		if x < m {
-			m = x
-		}
-	}
-	return m
 }
 
 func nextWeekday(now time.Time, wd time.Weekday) time.Time {
