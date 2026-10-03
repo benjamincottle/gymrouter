@@ -467,3 +467,16 @@ func (n *Network) DeparturesFrom(s, from, to int32, ban func(route int32) bool, 
 		}
 	}
 }
+
+// RoutesAt returns the routes (Day.Routes indexes) with a departure or arrival at stop s.
+func (n *Network) RoutesAt(s int32) []int32 {
+	seen := map[int32]bool{}
+	var out []int32
+	for _, pr := range n.stopPatterns[s] {
+		if r := n.Patterns[pr.pat].Route; !seen[r] {
+			seen[r] = true
+			out = append(out, r)
+		}
+	}
+	return out
+}

@@ -28,6 +28,7 @@ type Stop struct {
 type Route struct {
 	ID, AgencyID, ShortName, LongName, Desc string
 	Type                                    int
+	Color, TextColor                        string // hex without '#', may be empty
 }
 
 // StopTime is one call of a trip at a stop. Times are seconds after midnight of the loaded day
@@ -137,6 +138,7 @@ func (d *Day) load(src Source) error {
 		rt := Route{
 			ID: r.get("route_id"), AgencyID: r.get("agency_id"), ShortName: r.get("route_short_name"),
 			LongName: r.get("route_long_name"), Desc: r.get("route_desc"), Type: t,
+			Color: r.get("route_color"), TextColor: r.get("route_text_color"),
 		}
 		if src.Include != nil && !src.Include(rt) {
 			return nil

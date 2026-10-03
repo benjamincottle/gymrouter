@@ -2,11 +2,15 @@
 package tfnsw
 
 import (
+	"archive/zip"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/benjamincottle/gymrouter/internal/lines"
@@ -97,4 +101,65 @@ func (c *Client) Get(ctx context.Context, path string, maxBytes int64) ([]byte, 
 		return nil, fmt.Errorf("tfnsw %s: response larger than %d bytes", path, maxBytes)
 	}
 	return b, nil
+}
+
+// Download fetches a zip at path into dest, replacing it atomically once the download is complete
+// and opens as a zip. It sends the previous ETag (kept in dest+".etag") and returns changed=false when
+// the server reports the file is unchanged.
+func (c *Client) Download(ctx context.Context, path, dest string, maxBytes int64) (changed bool, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.Base+path, nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Authorization", "apikey "+c.Key)
+	etagFile := dest + ".etag"
+	if _, statErr := os.Stat(dest); statErr == nil {
+		if etag, err := os.ReadFile(etagFile); err == nil && len(etag) > 0 {
+			req.Header.Set("If-None-Match", strings.TrimSpace(string(etag)))
+		}
+	}
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+	switch {
+	case resp.StatusCode == http.StatusNotModified:
+		now := time.Now()
+		_ = os.Chtimes(dest, now, now) // mtime records when the copy was last confirmed current
+		return false, nil
+	case resp.StatusCode == http.StatusForbidden:
+		return false, fmt.Errorf("%w: %s", ErrLimited, resp.Header.Get("X-Error-Detail"))
+	case resp.StatusCode != http.StatusOK:
+		return false, fmt.Errorf("tfnsw %s: HTTP %d", path, resp.StatusCode)
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(dest), ".download-*")
+	if err != nil {
+		return false, err
+	}
+	defer os.Remove(tmp.Name()) // no-op after a successful rename
+	n, err := io.Copy(tmp, io.LimitReader(resp.Body, maxBytes+1))
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return false, err
+	}
+	if n > maxBytes {
+		return false, fmt.Errorf("tfnsw %s: larger than %d bytes", path, maxBytes)
+	}
+	zr, err := zip.OpenReader(tmp.Name())
+	if err != nil {
+		return false, fmt.Errorf("tfnsw %s: not a valid zip: %w", path, err)
+	}
+	zr.Close()
+	if err := os.Rename(tmp.Name(), dest); err != nil {
+		return false, err
+	}
+	if etag := resp.Header.Get("ETag"); etag != "" {
+		_ = os.WriteFile(etagFile, []byte(etag), 0o644)
+	} else {
+		_ = os.Remove(etagFile)
+	}
+	return true, nil
 }

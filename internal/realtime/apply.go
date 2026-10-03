@@ -10,15 +10,15 @@ import (
 
 // Stats summarises how a set of trip updates matched the timetable.
 type Stats struct {
-	Updates      int // trip updates for routes in the loaded day
-	Matched      int // by trip_id
-	MatchedByRun int // trains matched by run number + time
-	Added        int // realtime-only trips added
-	Cancelled    int
-	Empty        int // unmatched updates with no predictions (TfNSW sends these for other timetable versions)
-	Unmatched    int
+	Updates      int `json:"updates"`        // trip updates for routes in the loaded day
+	Matched      int `json:"matched"`        // by trip_id
+	MatchedByRun int `json:"matched_by_run"` // trains matched by run number + time
+	Added        int `json:"added"`          // realtime-only trips added
+	Cancelled    int `json:"cancelled"`
+	Empty        int `json:"empty"` // unmatched updates without predictions (TfNSW sends these for other timetable versions)
+	Unmatched    int `json:"unmatched"`
 	// UnmatchedSample lists a few unmatched trip IDs for diagnostics.
-	UnmatchedSample []string
+	UnmatchedSample []string `json:"unmatched_sample,omitempty"`
 }
 
 // ServiceMidnight is the GTFS service-day reference time: noon minus 12h, local time

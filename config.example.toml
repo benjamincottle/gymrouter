@@ -1,0 +1,65 @@
+# Gym Router configuration (example).
+#
+# Public data only: gyms, the lines that matter for each, and tuning. The real config lives in the
+# private deploy repo and is mounted into the container. Secrets come from the environment:
+#   TFNSW_API_KEY    Transport for NSW Open Data API key
+#   GYMROUTER_TOKEN  access token (generate with `gymrouter new-token`)
+#
+# Each gym's lines should include the lines near *your* home too (e.g. the bus to your station).
+# Those are left out here so this file stays safe to publish. `gymrouter suggest-lines` helps find them.
+
+[server]
+listen = ":8080"
+data_dir = "/data"
+public_url = "https://gym.example.com"
+trust_proxy = true
+
+[routing]
+max_transfer_m = 400      # longest walking change between stops
+walk_speed_mps = 1.3      # default; devices can set their own
+detour_factor = 1.3       # straight line → walking distance
+min_change_s = 60         # buffer when changing at the same stop
+max_rides = 4
+max_walk_m = 1000         # to/from the first/last stop when not curated
+alternatives_s = 600      # also show different routes arriving within 10 min of the best
+static_refresh_hour = 5   # local time for the daily timetable download
+
+[risk]                    # defaults; devices can tune these
+safe_s = 180
+tight_s = 60
+
+[realtime]
+trip_updates_every = "30s"
+vehicles_every = "15s"
+active_for = "10m"        # poll only while the app was used in the last 10 minutes
+daily_budget = 40000      # hard cap on upstream requests (free plan quota is 60,000/day)
+
+# Addresses: 9degrees.com.au/locations
+[[gym]]
+id = "lanecove"
+name = "9 Degrees Lane Cove"
+address = "1a/21 Mars Rd, Lane Cove West"
+lat = -33.807948
+lon = 151.150629
+lines = ["train T1", "train T9", "metro M1", "bus 288", "bus 291", "bus 292", "bus 533", "bus 287"]
+# Curated access stops with measured walk times (optional; otherwise stops within max_walk_m are used).
+# [[gym.access]]
+# stop = "206638"
+# walk_s = 300
+# path = [[-33.8075, 151.1510], [-33.8079, 151.1506]]
+
+[[gym]]
+id = "chatswood"
+name = "9 Degrees Chatswood"
+address = "7/372 Eastern Valley Way, Chatswood"
+lat = -33.7856633
+lon = 151.2003558
+lines = ["train T1", "train T9", "metro M1", "bus 160X", "bus 283", "bus 281", "bus 280", "bus 271", "bus 207", "bus 194"]
+
+[[gym]]
+id = "rydalmere"
+name = "9 Degrees Parramatta"
+address = "Unit 11, 38-46 South St, Rydalmere"
+lat = -33.816213
+lon = 151.039465
+lines = ["train T9", "bus 52", "bus 521", "bus 523", "bus 524", "bus 525", "light-rail L4", "bus 546", "bus 550"]

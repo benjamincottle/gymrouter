@@ -111,7 +111,8 @@ Non-goals (v1)
   - `POST /api/plan` — {origin/destination: place or gym id, access stops+walk times, mode, time, prefs} → options.
   - `POST /api/stops/near` — {lat, lon} → nearby stops with estimated walk times (settings flow).
   - `GET  /api/vehicles?gym=<id>` — live vehicles on that gym's lines (+ trip ids for highlighting).
-  - `GET  /api/shapes?gym=<id>` — line shapes for drawing.
+  - `GET  /api/shapes?gym=<id>` — line shapes for drawing (milestone 5).
+  - `GET  /api/status` — detailed health (auth). Implemented API: see `docs/api.md`.
   - `GET  /healthz` — liveness, feed ages, config warnings (no sensitive detail).
 
 ## 10. Access, security & privacy (public, no login)
@@ -173,7 +174,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 1. ✅ **Spike**: fetch GTFS + realtime with the key; check §13 risks; build `suggest-lines`; curate
    line sets for Lane Cove, Rydalmere, Chatswood. Log the 3–5 seed cases where Opal/Google got it wrong.
 2. ✅ **Router core**: filtered GTFS model, Range RAPTOR, realtime overlay, connection risk; unit + fixture tests.
-3. **Server**: config, token auth, demand-driven poller, API, `/healthz`, `setup-link` CLI.
+3. ✅ **Server**: config, token auth, demand-driven poller, API, `/healthz`, `setup-link` CLI.
 4. **UI**: PWA shell, settings + export/import/share, gym buttons, option cards, countdown.
 5. **Map**: PMTiles serving, MapLibre, shapes, live vehicles with highlighting.
 6. **In-trip mode** and **Arrive by**.
@@ -214,3 +215,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - 2026-10-03: M2 done: router core with realtime overlay (delay propagation, skips, cancellations,
   run-number matching for trains, realtime-only trips), window search, alternatives, connection risk + fallback,
   golden tests on a trimmed real-data fixture (CC BY 4.0, attributed). Shapes loading moved to M5 (map).
+- 2026-10-03: M3 done. Config is TOML (public data only; unknown keys rejected). Secrets come from env only
+  (`TFNSW_API_KEY`, `GYMROUTER_TOKEN`); `new-token` generates the token and the server keeps only its SHA-256 digest.
+  Static feeds use conditional download with atomic replace. Live predictions older than 3 min are ignored
+  (timetable used instead). Default daily upstream budget is 40k. `/healthz` is minimal; `/api/status` has the detail.

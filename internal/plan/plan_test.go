@@ -144,3 +144,15 @@ func TestRealtimeCancellationIsAvoided(t *testing.T) {
 		}
 	}
 }
+
+func TestAllowRestrictsRoutes(t *testing.T) {
+	n := testNet(t)
+	r := req(n, 800, 0)
+	r.AltSlack = 900
+	r.Allow = func(route int32) bool { return route != 2 } // no bus 9, even as an alternative
+	for _, o := range Plan(n, r) {
+		if o.Rides == 1 {
+			t.Fatal("bus 9 used despite Allow")
+		}
+	}
+}

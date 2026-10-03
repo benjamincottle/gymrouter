@@ -63,6 +63,8 @@ type Request struct {
 	MaxRides       int
 	MaxOptions     int
 	AltSlack       int32 // also return different routes arriving within this of the best (0: none)
+	// Allow restricts routing to some routes (Day.Routes indexes), e.g. one gym's lines. nil allows all.
+	Allow func(route int32) bool
 }
 
 // Transfer describes the connection between ride legs Legs[FromLeg] and Legs[ToLeg].
@@ -121,6 +123,9 @@ func Plan(n *raptor.Network, req Request) []Option {
 	transfer := overrideFunc(n.Day, req.Overrides)
 	base := raptor.Query{Access: req.Access, Egress: req.Egress, MaxRides: req.MaxRides,
 		MinChange: req.MinChange, Transfer: transfer}
+	if req.Allow != nil {
+		base.BanRoute = func(r int32) bool { return !req.Allow(r) }
+	}
 
 	var all []Option
 	seen := map[string]bool{}
@@ -132,7 +137,7 @@ func Plan(n *raptor.Network, req Request) []Option {
 			all = append(all, o)
 		}
 	}
-	for _, leave := range leaveTimes(n, req) {
+	for _, leave := range leaveTimes(n, req, base.BanRoute) {
 		q := base
 		q.Depart = leave
 		for _, j := range n.Run(q) {
@@ -170,10 +175,10 @@ func withDepart(q raptor.Query, t int32) raptor.Query { q.Depart = t; return q }
 
 // leaveTimes lists the distinct times to leave the origin that just catch a departure from an
 // access stop within the window, plus the window start itself.
-func leaveTimes(n *raptor.Network, req Request) []int32 {
+func leaveTimes(n *raptor.Network, req Request, ban func(int32) bool) []int32 {
 	set := map[int32]bool{req.Depart: true}
 	for _, a := range req.Access {
-		n.DeparturesFrom(a.Stop, req.Depart+a.Secs, req.Depart+req.Window+a.Secs, nil, func(dep int32) {
+		n.DeparturesFrom(a.Stop, req.Depart+a.Secs, req.Depart+req.Window+a.Secs, ban, func(dep int32) {
 			set[dep-a.Secs] = true
 		})
 	}
@@ -202,6 +207,7 @@ func Alternatives(n *raptor.Network, q raptor.Query, slack int32, maxRuns int) [
 	tried := map[string]bool{}
 	best := gtfs.NoTime
 	queue := [][]lines.Key{nil}
+	baseBan := q.BanRoute
 	for runs := 0; len(queue) > 0 && runs < maxRuns; {
 		ban := queue[0]
 		queue = queue[1:]
@@ -220,7 +226,7 @@ func Alternatives(n *raptor.Network, q raptor.Query, slack int32, maxRuns int) [
 		for _, k := range ban {
 			banned[k] = true
 		}
-		q.BanRoute = func(r int32) bool { return banned[keyOf(r)] }
+		q.BanRoute = func(r int32) bool { return (baseBan != nil && baseBan(r)) || banned[keyOf(r)] }
 		for _, j := range n.Run(q) {
 			if j.Arr < best {
 				best = j.Arr

@@ -99,7 +99,7 @@ func WriteZip(path string, days ...*Day) error {
 	}
 	var routeRows, calRows [][]string
 	for _, r := range routes {
-		routeRows = append(routeRows, []string{r.ID, r.AgencyID, r.ShortName, r.LongName, r.Desc, strconv.Itoa(r.Type)})
+		routeRows = append(routeRows, []string{r.ID, r.AgencyID, r.ShortName, r.LongName, r.Desc, strconv.Itoa(r.Type), r.Color, r.TextColor})
 	}
 	sortRows(routeRows)
 	for svc, ds := range services {
@@ -115,7 +115,7 @@ func WriteZip(path string, days ...*Day) error {
 		rows   [][]string
 	}{
 		{"stops.txt", []string{"stop_id", "stop_name", "stop_lat", "stop_lon", "location_type", "parent_station"}, stopRows},
-		{"routes.txt", []string{"route_id", "agency_id", "route_short_name", "route_long_name", "route_desc", "route_type"}, routeRows},
+		{"routes.txt", []string{"route_id", "agency_id", "route_short_name", "route_long_name", "route_desc", "route_type", "route_color", "route_text_color"}, routeRows},
 		{"trips.txt", []string{"route_id", "service_id", "trip_id", "trip_headsign", "shape_id"}, tripRows},
 		{"stop_times.txt", []string{"trip_id", "arrival_time", "departure_time", "stop_id", "stop_sequence"}, timeRows},
 		{"calendar_dates.txt", []string{"service_id", "date", "exception_type"}, calRows},
