@@ -9,8 +9,14 @@ import (
 
 func TestBuiltInGymsAreValid(t *testing.T) {
 	g := Known()
-	if len(g) < 3 {
-		t.Fatalf("expected the 9 Degrees gyms, got %d", len(g))
+	have := map[string]bool{}
+	for _, x := range g {
+		have[x.ID] = true
+	}
+	for _, id := range []string{"lanecove", "chatswood", "rydalmere", "waterloo", "alexandria"} {
+		if !have[id] {
+			t.Errorf("missing gym %q", id)
+		}
 	}
 	if !AllLines()[lines.Key{Mode: lines.LightRail, Name: "L4"}] || !AllLines()[lines.Key{Mode: lines.Metro, Name: "M1"}] {
 		t.Error("AllLines is missing expected lines")

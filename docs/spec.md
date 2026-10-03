@@ -43,7 +43,7 @@ Non-goals (v1)
   (start from server defaults; user-tunable), access token. Sent in POST bodies; never stored on the server.
 - Multiple homes = more entries in device storage; no code change.
 - Initial gyms (9 Degrees): **Lane Cove, Parramatta (Rydalmere), Chatswood** for v1;
-  Waterloo and Alexandria later. They are built in; others are added in the app (address search, then suggested lines).
+  Waterloo and Alexandria were added after the first three. They are built in; others are added in the app (address search, then suggested lines).
 
 ## 5. Route model: dynamic routing within each gym's lines
 - Each gym has a set of lines that could matter for reaching it (from home, incl. home-side lines),

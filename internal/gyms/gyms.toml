@@ -35,3 +35,24 @@ address = "Unit 11, 38-46 South St, Rydalmere"
 lat = -33.816213
 lon = 151.039465
 lines = ["train T9", "bus 52", "bus 521", "bus 523", "bus 524", "bus 525", "light-rail L4", "bus 546", "bus 550"]
+
+# Waterloo and Alexandria: addresses from 9degrees.com.au, coordinates from the Transport for NSW address
+# lookup. Lines are those that kept showing up in the best options to the gym from six varied starting points
+# (Central, Town Hall, Sydenham, Bondi Junction, Burwood, Epping) on a weekday afternoon and a Sunday morning, via
+# the app's own line search. A starting point, not hand-checked like the first three: refine with measured walks.
+
+[[gym]]
+id = "waterloo"
+name = "9 Degrees Waterloo"
+address = "21 Danks St, Waterloo"
+lat = -33.897869
+lon = 151.211832
+lines = ["train T1", "train T2", "train T4", "train T9", "metro M1", "light-rail L2", "bus 304", "bus 320", "bus 343", "bus 392"]
+
+[[gym]]
+id = "alexandria"
+name = "9 Degrees Alexandria"
+address = "3/85 O'Riordan St, Alexandria"
+lat = -33.918443
+lon = 151.192464
+lines = ["train T1", "train T2", "train T4", "train T8", "train T9", "metro M1", "bus 309", "bus 310", "bus 343", "bus 358"]
