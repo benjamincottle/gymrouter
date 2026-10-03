@@ -451,9 +451,8 @@ func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32, fromAp, toAp
 				if pts, ok := fromAp.Path(l.To); ok {
 					lr.Path = coords(pts)
 				}
-			case l.From >= 0 && l.To >= 0 && (d.Stops[l.From].Parent == "" || d.Stops[l.From].Parent != d.Stops[l.To].Parent):
-				// A change between stops (not platforms of one station, which have their own pathways).
-				if pts, ok := walkPath(d.Stops[l.From].Pos, d.Stops[l.To].Pos); ok {
+			case l.From >= 0 && l.To >= 0:
+				if pts, ok := changePath(d.Stops[l.From], d.Stops[l.To], walkPath); ok {
 					lr.Path = coords(pts)
 				}
 			case l.To < 0 && l.From >= 0:
@@ -681,3 +680,31 @@ func (s *Server) suggestLines(w http.ResponseWriter, r *http.Request) {
 
 // suggestRadiusM is how far (straight line) a suggestion search looks for stops at each end.
 const suggestRadiusM = 1200
+
+// Hops shorter than this (platform to platform) aren't worth a route: a straight line is the walk.
+const minChangePathM = 40
+
+// changePath is the street route to draw for a change between two stops, if there is a sensible one. Within one
+// station the walk is timed by the station's own pathways, so a street route is only used when it is about as long
+// as the stops are far apart (a platform to a bus stand outside); a route that loops far round is not the walk.
+func changePath(a, b gtfs.Stop, walkPath func(a, b geo.Point) ([]geo.Point, bool)) ([]geo.Point, bool) {
+	dist := geo.DistanceM(a.Pos, b.Pos)
+	same := a.Parent != "" && a.Parent == b.Parent
+	if dist < minChangePathM && same {
+		return nil, false
+	}
+	pts, ok := walkPath(a.Pos, b.Pos)
+	if !ok {
+		return nil, false
+	}
+	if same {
+		var n float64
+		for i := 1; i < len(pts); i++ {
+			n += geo.DistanceM(pts[i-1], pts[i])
+		}
+		if n > 2*dist+50 {
+			return nil, false
+		}
+	}
+	return pts, true
+}
