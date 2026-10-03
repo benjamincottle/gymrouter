@@ -733,3 +733,96 @@ func TestPlanReportsHowWalksWereTimed(t *testing.T) {
 		t.Errorf("last path ends at %v, want the gym", end)
 	}
 }
+
+// Walks you timed yourself, and the changes between stops, are drawn along the streets too, not as straight lines.
+func TestCuratedWalksAndChangesAreDrawnAlongStreets(t *testing.T) {
+	h := newHarness(t)
+	type leg struct {
+		Kind string
+		From *struct{ ID string }
+		To   *struct{ ID string }
+		Path [][2]float64
+	}
+	type plan struct {
+		Options []struct{ Legs []leg }
+	}
+	// Curated access stops for the start (as the app sends them for a home with timed walks).
+	rec := h.do(t, "POST", "/api/stops/near", token, map[string]any{"lat": -33.7727, "lon": 151.0821, "radius_m": 300})
+	var near struct {
+		Stops []struct {
+			ID, Station string
+			Lat, Lon    float64
+		}
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &near)
+	var access []map[string]any
+	for _, s := range near.Stops {
+		if s.Station == "Epping Station" {
+			access = append(access, map[string]any{"stop": s.ID, "walk_s": 240})
+		}
+	}
+	req := map[string]any{"from": map[string]any{"lat": -33.7727, "lon": 151.0821, "access": access}, "to": laneCove,
+		"lines": laneCoveLines, "time": "2026-10-08T16:30:00+11:00", "window_min": 20}
+
+	// Find where the plan's changes happen, then lay streets over those places.
+	var p plan
+	_ = json.Unmarshal(h.do(t, "POST", "/api/plan", token, req).Body.Bytes(), &p)
+	if len(p.Options) == 0 {
+		t.Fatal("no options")
+	}
+	centres := []geo.Point{{Lat: -33.7727, Lon: 151.0821}, {Lat: -33.807948, Lon: 151.150629}}
+	stopPos := func(id string) geo.Point {
+		snap, _ := h.env.Engine.SnapshotFor(h.env.Clock.Now().Add(7 * 24 * time.Hour))
+		return snap.Day.Stops[snap.Day.StopIndex[id]].Pos
+	}
+	snapDay, _ := h.env.Engine.SnapshotFor(h.env.Clock.Now().Add(7 * 24 * time.Hour))
+	// Platforms of one station are timed by the station's own pathways, so only changes between stations count.
+	betweenStops := func(l leg) bool {
+		if l.Kind != "walk" || l.From == nil || l.To == nil {
+			return false
+		}
+		a, b := snapDay.Day.Stops[snapDay.Day.StopIndex[l.From.ID]], snapDay.Day.Stops[snapDay.Day.StopIndex[l.To.ID]]
+		return a.Parent == "" || a.Parent != b.Parent
+	}
+	// Which changes the planner picks depends on the streets, so lay streets over the changes found, and repeat
+	// until every change it picks is covered.
+	for round := 0; round < 4; round++ {
+		grew := false
+		for _, o := range p.Options {
+			for _, l := range o.Legs {
+				if betweenStops(l) && len(l.Path) < 2 {
+					centres = append(centres, stopPos(l.From.ID), stopPos(l.To.ID))
+					grew = true
+				}
+			}
+		}
+		if round > 0 && !grew {
+			break
+		}
+		h.env.Engine.SetWalker(walktest.Grid(t, centres...))
+		p = plan{}
+		_ = json.Unmarshal(h.do(t, "POST", "/api/plan", token, req).Body.Bytes(), &p)
+	}
+
+	changes, withPath := 0, 0
+	for _, o := range p.Options {
+		first := o.Legs[0]
+		if first.Kind != "walk" || len(first.Path) < 2 {
+			t.Errorf("a curated start walk should still be drawn along the streets: %d points", len(first.Path))
+		}
+		for _, l := range o.Legs[1:] {
+			if betweenStops(l) {
+				changes++
+				if len(l.Path) >= 2 {
+					withPath++
+				}
+			}
+		}
+	}
+	if changes == 0 {
+		t.Skip("no change between stops in these options")
+	}
+	if withPath == 0 {
+		t.Errorf("none of the %d changes between stops carries a street path", changes)
+	}
+}
