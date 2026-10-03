@@ -20,15 +20,27 @@ const walkFile = "walk.graph"
 // Walker returns the pedestrian street network, or nil until it has been built (first start).
 func (e *Engine) Walker() *walk.Graph { return e.walker.Load() }
 
-// SetWalker installs a street network (tests, and after a rebuild).
-func (e *Engine) SetWalker(g *walk.Graph) { e.walker.Store(g) }
+// SetWalker starts using a street network and rebuilds the timetable so transfers between stops use it too.
+func (e *Engine) SetWalker(g *walk.Graph) {
+	e.walker.Store(g)
+	e.foot.reset()
+	e.cacheMu.Lock()
+	e.cache = map[string]*Snapshot{}
+	e.generation++
+	e.cacheMu.Unlock()
+	if e.today.Load() != nil {
+		if err := e.reloadToday(); err != nil {
+			e.log.Error("rebuilding the timetable with the street network failed", "err", err)
+		}
+	}
+}
 
 // loadWalkCache reads a previously built street network from the data directory, if there is one.
 func (e *Engine) loadWalkCache() {
 	g, err := walk.Load(filepath.Join(e.cfg.Server.DataDir, walkFile))
 	switch {
 	case err == nil:
-		e.walker.Store(g)
+		e.walker.Store(g) // before the first timetable load, which then uses it for transfers
 		e.log.Info("street network loaded", "nodes", g.Nodes(), "edges", g.Edges())
 	case !os.IsNotExist(err):
 		e.log.Warn("street network cache unusable; will rebuild", "err", err)

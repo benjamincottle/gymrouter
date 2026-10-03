@@ -60,7 +60,7 @@ Response:
    "transfers": [{"from_leg": 1, "to_leg": 3, "walk_s": 120, "slack_s": 95, "risk": "tight", "fallback_dep": "…"}]
  }]}
 ```
-`walking` is `streets` when walks to and from stops follow real streets and paths (the server's OpenStreetMap-based
+`walking` is `streets` when walks to and from stops, and changes between stops, follow real streets and paths (the server's OpenStreetMap-based
 network), or `estimate` (straight line × a detour factor) while that network is still being prepared. Curated `access`
 walks apply either way. The first and last walk legs of an option carry a `path` (`[[lon, lat], …]`) along the streets
 when it is known. `max_walk_m` limits the straight-line distance to candidate stops; the walk along the streets may be longer.

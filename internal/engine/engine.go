@@ -99,6 +99,7 @@ type Engine struct {
 	heavy   chan struct{} // held while a whole-network pass runs (one at a time bounds memory)
 	catalog atomic.Pointer[Catalog]
 	walker  atomic.Pointer[walk.Graph]
+	foot    footCache
 
 	today      atomic.Pointer[Snapshot]
 	shapes     atomic.Pointer[map[string][]geo.Point]
@@ -316,7 +317,7 @@ func (e *Engine) load(date time.Time, set lines.Set) (*Snapshot, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Snapshot{Date: date, Midnight: realtime.ServiceMidnight(date, e.loc), Day: d, Net: raptor.Build(d, e.routingOptions())}
+	s := &Snapshot{Date: date, Midnight: realtime.ServiceMidnight(date, e.loc), Day: d, Net: raptor.Build(d, e.snapshotOptions())}
 	e.log.Info("timetable loaded", "date", date.Format("2006-01-02"), "trips", len(d.Trips),
 		"took", e.now().Sub(start).Round(time.Millisecond).String())
 	return s, nil
@@ -572,7 +573,7 @@ func (e *Engine) applyRealtime() {
 	}
 	static := cur.Static
 	day, st := realtime.Apply(static.Day, e.loc, updates)
-	s := &Snapshot{Date: static.Date, Midnight: static.Midnight, Day: day, Net: raptor.Build(day, e.routingOptions()),
+	s := &Snapshot{Date: static.Date, Midnight: static.Midnight, Day: day, Net: raptor.Build(day, e.snapshotOptions()),
 		Realtime: true, RealtimeAt: oldest, Stats: st, Static: static}
 	// Only publish if today hasn't been replaced meanwhile.
 	e.today.CompareAndSwap(cur, s)

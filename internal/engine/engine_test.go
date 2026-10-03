@@ -11,7 +11,9 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/engine/enginetest"
 	"github.com/benjamincottle/gymrouter/internal/geo"
 	"github.com/benjamincottle/gymrouter/internal/lines"
+	"github.com/benjamincottle/gymrouter/internal/raptor"
 	"github.com/benjamincottle/gymrouter/internal/tfnsw"
+	"github.com/benjamincottle/gymrouter/internal/walk"
 	"github.com/benjamincottle/gymrouter/internal/walk/walktest"
 )
 
@@ -331,5 +333,65 @@ func TestApproachFollowsStreetsWhenTheyAreKnown(t *testing.T) {
 	}
 	if near, streets := e.NearbyStops(e.Catalog(), epping, 300, o); !streets || len(near) == 0 {
 		t.Errorf("nearby stops with streets: %v %d", streets, len(near))
+	}
+}
+
+func footpathTotals(n *raptor.Network) (pairs int, secs int64) {
+	for _, fps := range n.Footpaths {
+		for _, f := range fps {
+			pairs++
+			secs += int64(f.Secs)
+		}
+	}
+	return
+}
+
+func TestTransfersBetweenStopsFollowTheStreetsToo(t *testing.T) {
+	env := enginetest.New(t, "", nil)
+	e := env.Engine
+	epping := geo.Point{Lat: -33.7727, Lon: 151.0821}
+	before, _ := e.SnapshotFor(env.Clock.Now())
+	pairs0, secs0 := footpathTotals(before.Net)
+	if pairs0 == 0 {
+		t.Fatal("the fixture should have walking transfers")
+	}
+
+	// Streets all around: transfers are retimed along them, none dropped.
+	e.SetWalker(walktest.Grid(t, epping))
+	after, _ := e.SnapshotFor(env.Clock.Now())
+	pairs1, secs1 := footpathTotals(after.Net)
+	if secs1 == secs0 {
+		t.Error("transfer times should follow the streets, not the straight line")
+	}
+	if pairs1 == 0 || pairs1 > pairs0 {
+		t.Errorf("transfers before %d, with streets %d", pairs0, pairs1)
+	}
+
+	// Streets only right at the station: stops beyond them can't be walked to, so those transfers disappear
+	// (it wasn't real to walk there), and the station's own stay.
+	b := &walk.Builder{MinComponent: 1}
+	id := func(i, j int) int64 { return int64(1 + i*100 + j) }
+	for i := 0; i < 5; i++ {
+		var row, col []int64
+		for j := 0; j < 5; j++ {
+			row, col = append(row, id(i, j)), append(col, id(j, i))
+		}
+		b.AddWay(map[string]string{"highway": "footway"}, row)
+		b.AddWay(map[string]string{"highway": "footway"}, col)
+	}
+	b.Prepare()
+	for i := 0; i < 5; i++ {
+		for j := 0; j < 5; j++ {
+			b.AddNode(id(i, j), epping.Lat+float64(i-2)*0.0004, epping.Lon+float64(j-2)*0.0004)
+		}
+	}
+	small, err := b.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.SetWalker(small)
+	last, _ := e.SnapshotFor(env.Clock.Now())
+	if pairs2, _ := footpathTotals(last.Net); pairs2 >= pairs1 {
+		t.Errorf("transfers with a tiny street network (%d) should be fewer than with a full one (%d)", pairs2, pairs1)
 	}
 }

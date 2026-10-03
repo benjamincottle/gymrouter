@@ -52,6 +52,10 @@ type Options struct {
 	// PlatformAllowance is added to in-station transfers derived from GTFS pathways, which only
 	// time the stairs/escalators/corridors, not walking along the platform.
 	PlatformAllowance int32
+	// Footpaths, if set, replaces the straight-line walking transfers between stops (the candidates within
+	// MaxTransferM) with better ones, e.g. timed along real streets, dropping pairs that can't be walked.
+	// It gets, for each stop, the straight-line candidates (nil for stops no trip uses) and returns the final list.
+	Footpaths func(d *gtfs.Day, used []bool, straight [][]Footpath) [][]Footpath
 }
 
 // DefaultOptions are conservative generic defaults; personal values replace them later.
@@ -132,6 +136,9 @@ func Build(d *gtfs.Day, o Options) *Network {
 				n.Footpaths[s] = append(n.Footpaths[s], Footpath{To: j, Secs: o.WalkSecs(dist)})
 			}
 		})
+	}
+	if o.Footpaths != nil {
+		n.Footpaths = o.Footpaths(d, used, n.Footpaths)
 	}
 	n.applyPathways(used, o)
 	return n

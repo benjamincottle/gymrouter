@@ -60,10 +60,12 @@ Non-goals (v1)
 - Access/egress: device-supplied home access stops + walk times; gym access stops from config.
 - **Walks follow real streets, and measured walks win.** General planners walk through places you can't
   (e.g. through the Johnson factory at Lane Cove) and miss shortcuts that exist (e.g. cutting through the
-  plumbing-supply site). Walks to and from stops are routed over a pedestrian network built from OpenStreetMap
+  plumbing-supply site). Walks to and from stops, and between stops when changing, are routed over a pedestrian network built from OpenStreetMap
   (footpaths, steps, streets; private and no-foot ways excluded). A curated access stop with a measured walk time
   overrides the routed one, which is how the OSM data's mistakes get corrected. Until the network has been built
-  (first start), walks fall back to straight line × detour and the app says so.
+  (first start), walks fall back to straight line × detour and the app says so. Transfers between stops are timed along the
+  streets too (cached per stop; pairs that can't be walked within a sensible detour, e.g. across a river, are dropped);
+  GTFS pathways inside stations still win, and a personal transfer time wins over both.
 - The server provisions its own data: timetables (daily), the pedestrian network and the basemap are downloaded on
   first start and refreshed on a schedule, in the background, so a fresh deploy needs nothing but the config and secrets.
 - Leg model is mode-generic so bike/scooter legs can be added later.
@@ -288,3 +290,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   compact file in the data volume and routed with a bounded Dijkstra. Curated walks still win. The server now fetches everything
   it needs itself (the pedestrian network, and the basemap via the pinned `pmtiles` tool shipped in the image) instead of these
   being deploy steps; failures leave the app working on fallbacks and are retried, and `/api/status` reports them.
+- 2026-10-03: Transfers between stops use the street network too (not just trip ends). The router takes an optional footpath
+  hook; the engine fills it with street walks per stop, in parallel and cached by stop ID so live-data rebuilds don't redo them
+  (timetable load went from ~3 s to ~4 s with the full Sydney graph). Whole-network passes (stop catalogue, line suggestions)
+  keep straight-line transfers: tens of thousands of stops, and only roughly right is needed there.

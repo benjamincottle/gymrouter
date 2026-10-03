@@ -100,10 +100,19 @@ func (e *Engine) walkDue() bool {
 
 // RefreshWalk downloads the OSM extract, builds the street network, saves it and starts using it.
 func (e *Engine) RefreshWalk(ctx context.Context) error {
+	g, err := e.buildWalk(ctx)
+	if err != nil {
+		return err
+	}
+	e.SetWalker(g) // after the big job's memory is released: this reloads the timetable
+	return nil
+}
+
+func (e *Engine) buildWalk(ctx context.Context) (*walk.Graph, error) {
 	select { // one big job at a time keeps the memory peak bounded
 	case e.heavy <- struct{}{}:
 	case <-ctx.Done():
-		return ctx.Err()
+		return nil, ctx.Err()
 	}
 	restore := frugalGC()
 	defer func() {
@@ -117,19 +126,18 @@ func (e *Engine) RefreshWalk(ctx context.Context) error {
 	defer os.Remove(src)
 	e.log.Info("downloading the street map", "from", e.cfg.Data.WalkSource)
 	if err := download(ctx, e.cfg.Data.WalkSource, src, maxWalkSource); err != nil {
-		return fmt.Errorf("downloading street map: %w", err)
+		return nil, fmt.Errorf("downloading street map: %w", err)
 	}
 	g, err := walk.FromPBF(src)
 	if err != nil {
-		return fmt.Errorf("building street network: %w", err)
+		return nil, fmt.Errorf("building street network: %w", err)
 	}
 	if err := g.Save(filepath.Join(dir, walkFile)); err != nil {
-		return fmt.Errorf("saving street network: %w", err)
+		return nil, fmt.Errorf("saving street network: %w", err)
 	}
-	e.walker.Store(g)
 	e.log.Info("street network ready", "nodes", g.Nodes(), "edges", g.Edges(),
 		"took", e.now().Sub(start).Round(time.Second).String())
-	return nil
+	return g, nil
 }
 
 func (e *Engine) mapDue() bool {
