@@ -1,4 +1,5 @@
-// Package gtfs loads a GTFS static feed, keeping only the trips that run on one service day.
+// Package gtfs loads GTFS static feeds, keeping only the trips that run on one service day
+// (plus the previous day's trips still running after midnight).
 package gtfs
 
 import (
@@ -15,6 +16,8 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/geo"
 )
 
+const secsPerDay = 24 * 3600
+
 // Stop is a GTFS stop, platform or station.
 type Stop struct {
 	ID, Name, Parent, LocationType string
@@ -27,98 +30,160 @@ type Route struct {
 	Type                                    int
 }
 
-// StopTime is one call of a trip at a stop. Times are seconds after midnight of the service day.
+// StopTime is one call of a trip at a stop. Times are seconds after midnight of the loaded day
+// (negative for calls of a previous-day trip that happened before midnight).
 type StopTime struct {
 	Stop     int32
+	Seq      int32 // GTFS stop_sequence
 	Arr, Dep int32
 }
 
-// Trip is a trip running on the loaded service day, with its calls in order.
+// Trip is a trip running on the loaded day, with its calls in order.
 type Trip struct {
 	ID        string
 	Route     int32
 	Headsign  string
+	Shape     string
+	DayOffset int8 // 0: runs on the loaded date; -1: started the previous day
 	StopTimes []StopTime
+	// Realtime state, set by the realtime package on a copy of the day.
+	Status TripStatus
+	Sched  []StopTime // scheduled times when StopTimes holds predictions
 }
 
-// Day is the subset of a feed that runs on a single service date.
+// TripStatus is a trip's realtime state.
+type TripStatus uint8
+
+const (
+	Scheduled TripStatus = iota // no realtime information
+	Predicted                   // StopTimes hold realtime predictions
+	Cancelled
+	Added // realtime-only trip, not in the static timetable
+)
+
+// NoTime marks a call where boarding or alighting is impossible (skipped stop, cancelled trip).
+const NoTime = int32(1<<31 - 1)
+
+// Day is the subset of one or more feeds that runs on a single service date.
 type Day struct {
 	Date      time.Time
 	Stops     []Stop
 	StopIndex map[string]int32
 	Routes    []Route
 	Trips     []Trip
+	// TripIndex maps trip_id to trips of the loaded day (one per day offset).
+	TripIndex map[string][]int32
 }
 
-// LoadDay reads the zipped feed at path and returns the trips active on date.
+// Source is one GTFS zip and the routes to take from it.
+type Source struct {
+	Path    string
+	Include func(Route) bool // nil includes every route
+}
+
+// LoadDay loads every route of a single feed for date. It is shorthand for LoadService.
 func LoadDay(path string, date time.Time) (*Day, error) {
-	zr, err := zip.OpenReader(path)
+	return LoadService(date, Source{Path: path})
+}
+
+// LoadService loads the trips of the included routes running on date from each source, plus
+// trips from the previous day still running after midnight (times shifted by -24h).
+// Stops are merged by stop_id across sources (the first source's definition wins).
+func LoadService(date time.Time, sources ...Source) (*Day, error) {
+	d := &Day{Date: date, StopIndex: map[string]int32{}, TripIndex: map[string][]int32{}}
+	for _, src := range sources {
+		if err := d.load(src); err != nil {
+			return nil, fmt.Errorf("%s: %w", src.Path, err)
+		}
+	}
+	return d, nil
+}
+
+func (d *Day) load(src Source) error {
+	zr, err := zip.OpenReader(src.Path)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer zr.Close()
 	files := map[string]*zip.File{}
 	for _, f := range zr.File {
 		files[f.Name] = f
 	}
-	d := &Day{Date: date, StopIndex: map[string]int32{}}
 
 	err = readCSV(files, "stops.txt", true, func(r row) error {
+		id := r.get("stop_id")
+		if _, dup := d.StopIndex[id]; dup {
+			return nil
+		}
 		lat, err1 := strconv.ParseFloat(r.get("stop_lat"), 64)
 		lon, err2 := strconv.ParseFloat(r.get("stop_lon"), 64)
 		if err1 != nil || err2 != nil {
 			return nil // stops without coordinates (e.g. generic nodes) are not routable
 		}
-		d.StopIndex[r.get("stop_id")] = int32(len(d.Stops))
+		d.StopIndex[id] = int32(len(d.Stops))
 		d.Stops = append(d.Stops, Stop{
-			ID: r.get("stop_id"), Name: r.get("stop_name"), Parent: r.get("parent_station"),
+			ID: id, Name: r.get("stop_name"), Parent: r.get("parent_station"),
 			LocationType: r.get("location_type"), Pos: geo.Point{Lat: lat, Lon: lon},
 		})
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	routeIndex := map[string]int32{}
 	err = readCSV(files, "routes.txt", true, func(r row) error {
 		t, _ := strconv.Atoi(r.get("route_type"))
-		routeIndex[r.get("route_id")] = int32(len(d.Routes))
-		d.Routes = append(d.Routes, Route{
+		rt := Route{
 			ID: r.get("route_id"), AgencyID: r.get("agency_id"), ShortName: r.get("route_short_name"),
 			LongName: r.get("route_long_name"), Desc: r.get("route_desc"), Type: t,
-		})
+		}
+		if src.Include != nil && !src.Include(rt) {
+			return nil
+		}
+		routeIndex[rt.ID] = int32(len(d.Routes))
+		d.Routes = append(d.Routes, rt)
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	active, err := activeServices(files, date)
+	today, err := activeServices(files, d.Date)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	yesterday, err := activeServices(files, d.Date.AddDate(0, 0, -1))
+	if err != nil {
+		return err
 	}
 
-	tripIndex := map[string]int32{}
+	// Trip slots for this source: trip_id → indexes into d.Trips (today and/or yesterday copies).
+	slots := map[string][]int32{}
+	first := int32(len(d.Trips))
 	err = readCSV(files, "trips.txt", true, func(r row) error {
-		if !active[r.get("service_id")] {
-			return nil
-		}
 		ri, ok := routeIndex[r.get("route_id")]
 		if !ok {
 			return nil
 		}
-		tripIndex[r.get("trip_id")] = int32(len(d.Trips))
-		d.Trips = append(d.Trips, Trip{ID: r.get("trip_id"), Route: ri, Headsign: r.get("trip_headsign")})
+		svc := r.get("service_id")
+		for _, off := range []int8{0, -1} {
+			if (off == 0 && !today[svc]) || (off == -1 && !yesterday[svc]) {
+				continue
+			}
+			id := r.get("trip_id")
+			slots[id] = append(slots[id], int32(len(d.Trips)))
+			d.Trips = append(d.Trips, Trip{ID: id, Route: ri, Headsign: r.get("trip_headsign"),
+				Shape: r.get("shape_id"), DayOffset: off})
+		}
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	seqs := make([][]int32, len(d.Trips))
 	err = readCSV(files, "stop_times.txt", true, func(r row) error {
-		ti, ok := tripIndex[r.get("trip_id")]
+		ts, ok := slots[r.get("trip_id")]
 		if !ok {
 			return nil
 		}
@@ -138,31 +203,38 @@ func LoadDay(path string, date time.Time) (*Day, error) {
 		if dep < 0 {
 			dep = arr
 		}
-		d.Trips[ti].StopTimes = append(d.Trips[ti].StopTimes, StopTime{Stop: si, Arr: arr, Dep: dep})
-		seqs[ti] = append(seqs[ti], int32(seq))
+		for _, ti := range ts {
+			d.Trips[ti].StopTimes = append(d.Trips[ti].StopTimes, StopTime{Stop: si, Seq: int32(seq), Arr: arr, Dep: dep})
+		}
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	for i := range d.Trips {
-		sortBySeq(d.Trips[i].StopTimes, seqs[i])
-		fillMissingTimes(d.Trips[i].StopTimes)
-	}
-	return d, nil
-}
 
-func sortBySeq(st []StopTime, seq []int32) {
-	idx := make([]int, len(st))
-	for i := range idx {
-		idx[i] = i
+	// Finalise this source's trips: order calls, shift yesterday's trips, drop those over before midnight.
+	kept := d.Trips[:first]
+	for i := first; i < int32(len(d.Trips)); i++ {
+		t := d.Trips[i]
+		sort.Slice(t.StopTimes, func(a, b int) bool { return t.StopTimes[a].Seq < t.StopTimes[b].Seq })
+		fillMissingTimes(t.StopTimes)
+		if len(t.StopTimes) == 0 {
+			continue
+		}
+		if t.DayOffset == -1 {
+			if t.StopTimes[len(t.StopTimes)-1].Arr < secsPerDay {
+				continue
+			}
+			for j := range t.StopTimes {
+				t.StopTimes[j].Arr -= secsPerDay
+				t.StopTimes[j].Dep -= secsPerDay
+			}
+		}
+		d.TripIndex[t.ID] = append(d.TripIndex[t.ID], int32(len(kept)))
+		kept = append(kept, t)
 	}
-	sort.Slice(idx, func(a, b int) bool { return seq[idx[a]] < seq[idx[b]] })
-	out := make([]StopTime, len(st))
-	for i, j := range idx {
-		out[i] = st[j]
-	}
-	copy(st, out)
+	d.Trips = kept
+	return nil
 }
 
 // fillMissingTimes carries the previous time forward for calls without times (non-timepoints).

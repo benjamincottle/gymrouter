@@ -54,6 +54,13 @@ are deliberately not recorded here; they go in the private deploy config.
   Milestone 2 should match leftovers by route + run number + start time, or show them as realtime-only vehicles
   on the map without using them for routing.
 
+### Update (milestone 2)
+Looking closer, the unmatched train updates (`…1309…` IDs, `RTTA_*` routes) have **no stop predictions**:
+TfNSW includes trips from another timetable version (likely future days). They're now counted as
+"empty" and skipped. With trains loaded from the Sydney Trains bundle, every train update that has
+predictions matched by trip ID in the live checks (fixture snapshot: 210/226 matched, 5 realtime-only added,
+11 unmatched).
+
 ## Map tiles
 - Protomaps daily planet build (`build.protomaps.com/YYYYMMDD.pmtiles`), Greater Sydney extract
   (bbox `150.55,-34.15,151.35,-33.45`, all zooms): **63 MB**, made in ~4 s with `pmtiles extract`.

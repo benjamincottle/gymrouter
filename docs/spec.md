@@ -69,6 +69,11 @@ Non-goals (v1)
   first departure − walk to its first stop (− a personal buffer). Options are compared door to door from
   that leave time, and the leave-by countdown uses it.
 - Small network → millisecond queries; per-query timeout and size caps still apply.
+- Implementation (M2): the range search runs RAPTOR once per distinct leave time in the window (each
+  access-stop departure), then keeps the Pareto set over (leave later, arrive earlier, fewer rides).
+  That's simpler than true rRAPTOR and fast enough at this network size. Alternatives come from re-running
+  with lines excluded (up to two at a time). Options using the same lines and times collapse to the safest
+  variant. Each transfer records its slack, risk level and the next service of the onward line.
 
 ## 7. Map & live vehicles
 - MapLibre GL JS + **self-hosted OpenStreetMap vector extract** (PMTiles file for the Sydney area, served
@@ -95,8 +100,10 @@ Non-goals (v1)
 ## 9. Architecture
 - Single Go binary (stdlib `net/http`, `encoding/csv`, `archive/zip`; deps limited to
   `google.golang.org/protobuf` + generated GTFS-rt bindings + a TOML parser).
-- Internal packages: `gtfs` (streaming filtered parse), `realtime` (poller + cache), `raptor` (router),
-  `risk`, `config`, `api` (HTTP handlers + auth middleware), `tiles` (PMTiles file serving with HTTP range requests).
+- Internal packages: `gtfs` (streaming filtered parse, fixture writer), `timetable` (assemble a day from both bundles),
+  `lines` (line = mode + short name), `tfnsw` (API client, feed table), `gtfsrt/pb` (generated bindings),
+  `realtime` (decode + apply predictions; poller + cache in M3), `raptor` (router), `plan` (window search,
+  alternatives, connection risk), then `config`, `api` (HTTP handlers + auth middleware), `tiles` (PMTiles file serving with HTTP range requests).
 - Frontend: TypeScript + MapLibre GL JS, built by Vite, embedded via `go:embed`. Minimal deps; no UI framework
   unless needed (decide during build).
 - API (JSON; all `/api/*` require the token header except `/healthz`):
@@ -148,7 +155,8 @@ Non-goals (v1)
 - Field validation: ~2 weeks of real trips compared against Opal/Google; record wins/losses.
 
 ## 13. Risks / to verify in an early spike
-Verified 2026-10-03: see `docs/spike-findings.md`. Open: train trip-ID matching for ~25% of train updates.
+Verified 2026-10-03: see `docs/spike-findings.md`. Train trip-ID gap resolved in M2: the unmatched train updates carry
+no predictions (other timetable versions) and are ignored; run-number matching covers renumbered trips with times.
 - TfNSW GTFS-realtime coverage and format per mode (vehicle positions for buses/trains/metro/light rail;
   TfNSW protobuf extensions).
 - Whether trip IDs match between static and realtime feeds (known TfNSW forum pain point).
@@ -162,9 +170,9 @@ Verified 2026-10-03: see `docs/spike-findings.md`. Open: train trip-ID matching 
   common interchanges between them, with frequency stats. You prune or add; the result goes into the private deploy config.
 
 ## 15. Milestones
-1. **Spike**: fetch GTFS + realtime with the key; check §13 risks; build `suggest-lines`; curate
+1. ✅ **Spike**: fetch GTFS + realtime with the key; check §13 risks; build `suggest-lines`; curate
    line sets for Lane Cove, Rydalmere, Chatswood. Log the 3–5 seed cases where Opal/Google got it wrong.
-2. **Router core**: filtered GTFS model, Range RAPTOR, realtime overlay, connection risk; unit + fixture tests.
+2. ✅ **Router core**: filtered GTFS model, Range RAPTOR, realtime overlay, connection risk; unit + fixture tests.
 3. **Server**: config, token auth, demand-driven poller, API, `/healthz`, `setup-link` CLI.
 4. **UI**: PWA shell, settings + export/import/share, gym buttons, option cards, countdown.
 5. **Map**: PMTiles serving, MapLibre, shapes, live vehicles with highlighting.
@@ -203,3 +211,6 @@ Verified 2026-10-03: see `docs/spike-findings.md`. Open: train trip-ID matching 
   routing. This is a key source of advantage (Lane Cove examples).
 - 2026-10-03: Spike: trains load from the per-mode Sydney Trains bundle (better realtime match); line = mode +
   short name; school buses excluded; poller only fetches the feeds the active gym's lines need (Bronze quota 60k/day, 5/s).
+- 2026-10-03: M2 done: router core with realtime overlay (delay propagation, skips, cancellations,
+  run-number matching for trains, realtime-only trips), window search, alternatives, connection risk + fallback,
+  golden tests on a trimmed real-data fixture (CC BY 4.0, attributed). Shapes loading moved to M5 (map).

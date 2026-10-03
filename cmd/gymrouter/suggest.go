@@ -11,6 +11,8 @@ import (
 
 	"github.com/benjamincottle/gymrouter/internal/geo"
 	"github.com/benjamincottle/gymrouter/internal/gtfs"
+	"github.com/benjamincottle/gymrouter/internal/lines"
+	"github.com/benjamincottle/gymrouter/internal/plan"
 	"github.com/benjamincottle/gymrouter/internal/raptor"
 )
 
@@ -21,35 +23,7 @@ var knownGyms = map[string]geo.Point{
 	"rydalmere": {Lat: -33.816213, Lon: 151.039465},   // Unit 11, 38-46 South St, Rydalmere
 }
 
-// Route types (TfNSW extended GTFS route_type values).
-func modeName(t int) string {
-	switch t {
-	case 2:
-		return "train"
-	case 106:
-		return "regional train"
-	case 401:
-		return "metro"
-	case 900:
-		return "light rail"
-	case 4:
-		return "ferry"
-	case 700:
-		return "bus"
-	case 712:
-		return "school bus"
-	case 714:
-		return "replacement bus"
-	case 204, 205:
-		return "coach"
-	default:
-		return "type " + strconv.Itoa(t)
-	}
-}
-
-func lineKey(r gtfs.Route) string {
-	return modeName(r.Type) + " " + r.ShortName
-}
+func lineKey(r gtfs.Route) string { return lines.Of(r.Type, r.ShortName).String() }
 
 func parsePlace(s string) (geo.Point, error) {
 	if p, ok := knownGyms[strings.ToLower(s)]; ok {
@@ -93,7 +67,8 @@ type itinStats struct {
 
 func suggestLines(args []string) error {
 	fs := flag.NewFlagSet("suggest-lines", flag.ExitOnError)
-	feed := fs.String("gtfs", "data/complete_gtfs.zip", "GTFS static zip")
+	feed := fs.String("gtfs", "data/complete_gtfs.zip", "complete GTFS bundle")
+	trains := fs.String("trains", "data/st_sched.zip", "Sydney Trains GTFS bundle (\"\" to use the complete bundle)")
 	from := fs.String("from", "", "origin: gym name or \"lat,lon\" (not saved anywhere)")
 	to := fs.String("to", "", "destination: gym name or \"lat,lon\"")
 	dateS := fs.String("date", "", "service date YYYY-MM-DD (default: next Tuesday)")
@@ -115,9 +90,9 @@ func suggestLines(args []string) error {
 	if err != nil {
 		return err
 	}
-	date := nextWeekday(time.Now(), time.Tuesday)
+	date := nextWeekday(time.Now().In(sydney), time.Tuesday)
 	if *dateS != "" {
-		if date, err = time.Parse("2006-01-02", *dateS); err != nil {
+		if date, err = time.ParseInLocation("2006-01-02", *dateS, sydney); err != nil {
 			return fmt.Errorf("--date: %w", err)
 		}
 	}
@@ -131,12 +106,20 @@ func suggestLines(args []string) error {
 	}
 
 	began := time.Now()
-	day, err := gtfs.LoadDay(*feed, date)
+	public := func(r gtfs.Route) bool { return lines.ModeOf(r.Type) != lines.SchoolBus }
+	srcs := []gtfs.Source{{Path: *feed, Include: public}}
+	if *trains != "" {
+		isTrain := func(r gtfs.Route) bool { return lines.ModeOf(r.Type) == lines.Train }
+		srcs = []gtfs.Source{
+			{Path: *feed, Include: func(r gtfs.Route) bool { return public(r) && !isTrain(r) }},
+			{Path: *trains, Include: isTrain},
+		}
+	}
+	day, err := gtfs.LoadService(date, srcs...)
 	if err != nil {
 		return err
 	}
 	opts := raptor.DefaultOptions()
-	opts.IncludeRoute = func(r gtfs.Route) bool { return r.Type != 712 } // school buses
 	net := raptor.Build(day, opts)
 	fmt.Fprintf(os.Stderr, "loaded %s: %d trips, %d patterns in %s\n",
 		date.Format("Mon 2006-01-02"), len(day.Trips), len(net.Patterns), time.Since(began).Round(time.Millisecond))
@@ -150,9 +133,10 @@ func suggestLines(args []string) error {
 	stats := map[string]*itinStats{}
 	queries := 0
 	for dep := t0; dep <= t1; dep += int32(step.Seconds()) {
-		found := alternatives(net, raptor.Query{
+		found := plan.Alternatives(net, raptor.Query{
 			Depart: dep, Access: acc, Egress: egr, MaxRides: 4, MinChange: int32(minChange.Seconds()),
-		}, int32(slack.Seconds()), &queries)
+		}, int32(slack.Seconds()), 40)
+		queries++
 		for _, j := range found {
 			desc, lines := describe(net, j)
 			st := stats[desc]
@@ -199,63 +183,6 @@ func suggestLines(args []string) error {
 		fmt.Printf("  %-22s %d\n", l, lineCount[l])
 	}
 	return nil
-}
-
-// alternatives finds the Pareto journeys, then re-runs with lines banned (up to two at a time)
-// to surface different routes that arrive within slack of the best.
-func alternatives(net *raptor.Network, q raptor.Query, slack int32, queries *int) []raptor.Journey {
-	var out []raptor.Journey
-	seen := map[string]bool{}
-	tried := map[string]bool{}
-	bestArr := int32(1 << 30)
-	type job struct{ ban []string }
-	queue := []job{{}}
-	runs := 0
-	for len(queue) > 0 && runs < 40 {
-		jb := queue[0]
-		queue = queue[1:]
-		key := strings.Join(jb.ban, "|")
-		if tried[key] {
-			continue
-		}
-		tried[key] = true
-		banned := map[string]bool{}
-		for _, b := range jb.ban {
-			banned[b] = true
-		}
-		q.BanRoute = func(r int32) bool { return banned[lineKey(net.Day.Routes[r])] }
-		*queries++
-		runs++
-		for _, j := range net.Run(q) {
-			if j.Arr < bestArr {
-				bestArr = j.Arr
-			}
-			if j.Arr > bestArr+slack {
-				continue
-			}
-			desc, lines := describe(net, j)
-			if seen[desc] {
-				continue
-			}
-			seen[desc] = true
-			out = append(out, j)
-			if len(jb.ban) < 2 {
-				for _, l := range lines {
-					nb := append(append([]string{}, jb.ban...), l)
-					sort.Strings(nb)
-					queue = append(queue, job{ban: nb})
-				}
-			}
-		}
-	}
-	// drop anything that ended up outside slack of the final best
-	kept := out[:0]
-	for _, j := range out {
-		if j.Arr <= bestArr+slack {
-			kept = append(kept, j)
-		}
-	}
-	return kept
 }
 
 func stationName(net *raptor.Network, s int32) string {
@@ -354,7 +281,7 @@ func minOf(v []int32) int32 {
 }
 
 func nextWeekday(now time.Time, wd time.Weekday) time.Time {
-	d := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	d := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, sydney)
 	for {
 		d = d.AddDate(0, 0, 1)
 		if d.Weekday() == wd {

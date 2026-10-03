@@ -81,3 +81,58 @@ func TestLoadDayFiltersServicesAndOrdersStops(t *testing.T) {
 		t.Fatalf("Wednesday exceptions: want only t-sat, got %+v", d.Trips)
 	}
 }
+
+func TestLoadServiceOvernightAndSources(t *testing.T) {
+	base := map[string]string{
+		"stops.txt":  "stop_id,stop_name,stop_lat,stop_lon\nS1,One,-33.8,151.0\nS2,Two,-33.81,151.0\n",
+		"routes.txt": "route_id,route_short_name,route_type\nBUS,288,700\nTRN,T9,2\n",
+		"calendar.txt": "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\n" +
+			"MON,1,0,0,0,0,0,0,20260101,20261231\nTUE,0,1,0,0,0,0,0,20260101,20261231\n",
+		"trips.txt": "route_id,service_id,trip_id\nBUS,MON,late-mon\nBUS,MON,early-mon\nBUS,TUE,tue\nTRN,TUE,train\n",
+		"stop_times.txt": "trip_id,arrival_time,departure_time,stop_id,stop_sequence\n" +
+			"late-mon,23:50:00,23:50:00,S1,1\nlate-mon,24:20:00,24:20:00,S2,2\n" +
+			"early-mon,10:00:00,10:00:00,S1,1\nearly-mon,10:20:00,10:20:00,S2,2\n" +
+			"tue,08:00:00,08:00:00,S1,1\ntue,08:20:00,08:20:00,S2,2\n" +
+			"train,08:05:00,08:05:00,S1,1\ntrain,08:15:00,08:15:00,S2,2\n",
+	}
+	other := map[string]string{
+		"stops.txt":  "stop_id,stop_name,stop_lat,stop_lon\nS2,Two (dup),-33.81,151.0\nS3,Three,-33.82,151.0\n",
+		"routes.txt": "route_id,route_short_name,route_type\nT9X,T9,2\n",
+		"calendar.txt": "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\n" +
+			"TUE,0,1,0,0,0,0,0,20260101,20261231\n",
+		"trips.txt":      "route_id,service_id,trip_id\nT9X,TUE,train2\n",
+		"stop_times.txt": "trip_id,arrival_time,departure_time,stop_id,stop_sequence\ntrain2,09:00:00,09:00:00,S2,1\ntrain2,09:10:00,09:10:00,S3,2\n",
+	}
+	notTrain := func(r Route) bool { return r.Type != 2 }
+	tue := time.Date(2026, 10, 6, 0, 0, 0, 0, time.UTC)
+	d, err := LoadService(tue, Source{Path: writeFeed(t, base), Include: notTrain}, Source{Path: writeFeed(t, other)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]Trip{}
+	for _, tr := range d.Trips {
+		got[tr.ID] = tr
+	}
+	if _, ok := got["early-mon"]; ok {
+		t.Error("Monday trip finished before midnight should be dropped")
+	}
+	if _, ok := got["train"]; ok {
+		t.Error("train route from first source should be excluded")
+	}
+	late, ok := got["late-mon"]
+	if !ok || late.DayOffset != -1 || late.StopTimes[1].Arr != 20*60 || late.StopTimes[0].Dep != -10*60 {
+		t.Errorf("late Monday trip not shifted to Tuesday times: %+v", late)
+	}
+	if _, ok := got["tue"]; !ok {
+		t.Error("Tuesday bus missing")
+	}
+	if tr, ok := got["train2"]; !ok || len(tr.StopTimes) != 2 {
+		t.Errorf("train from second source missing or incomplete: %+v", tr)
+	}
+	if len(d.Stops) != 3 || d.Stops[d.StopIndex["S2"]].Name != "Two" {
+		t.Errorf("stops not merged by id (first source wins): %+v", d.Stops)
+	}
+	if ids := d.TripIndex["late-mon"]; len(ids) != 1 || d.Trips[ids[0]].ID != "late-mon" {
+		t.Errorf("TripIndex wrong: %v", ids)
+	}
+}

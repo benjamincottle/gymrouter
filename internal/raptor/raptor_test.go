@@ -96,3 +96,30 @@ func TestNoTransferWhenWalkTooLong(t *testing.T) {
 		t.Fatalf("want only the direct journey, got %+v", js)
 	}
 }
+
+func TestOvertakingAndSkippedStops(t *testing.T) {
+	d := testDay()
+	// r1a is now running 20 minutes late, so r1b (scheduled after it) overtakes it.
+	for i := range d.Trips[0].StopTimes {
+		d.Trips[0].StopTimes[i].Arr += 1200
+		d.Trips[0].StopTimes[i].Dep += 1200
+	}
+	// r1b skips stop A entirely: it can't be boarded there.
+	d.Trips[1].StopTimes[0].Arr, d.Trips[1].StopTimes[0].Dep = gtfs.NoTime, gtfs.NoTime
+	n := Build(d, DefaultOptions())
+	if n.Patterns[0].fifo {
+		t.Fatal("pattern with overtaking/skips should not be FIFO")
+	}
+	js := n.Run(query(n, 900))
+	// Delayed r1a reaches B at 2500, too late to walk to B2 for r2b (2500), so direct r3 is best.
+	for _, j := range js {
+		for _, l := range j.Legs {
+			if l.Kind == Ride && n.Day.Trips[l.Trip].ID == "r1b" {
+				t.Fatal("boarded r1b at a skipped stop")
+			}
+		}
+	}
+	if len(js) == 0 || js[0].Arr != 2430 {
+		t.Fatalf("want direct r3 arriving 2430 first, got %+v", js)
+	}
+}
