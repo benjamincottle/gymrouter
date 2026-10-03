@@ -70,7 +70,7 @@ when it is known. `max_walk_m` limits the straight-line distance to candidate st
 
 ## `POST /api/stops/near`
 `{"lat": …, "lon": …, "radius_m": 800}` → stops near the point with every line that serves them, nearest first:
-`{"stops": [{"id", "name", "station", "lat", "lon", "walk_s", "lines": ["bus 999"]}]}`. Used to set up a home or gym,
+`{"stops": [{"id", "name", "station", "lat", "lon", "walk_s", "lines": ["bus 288"]}]}`. Used to set up a home or gym,
 before any lines are chosen. Also returns `"walking": "streets"|"estimate"`: with street data, `walk_s` follows the streets
 and stops that can't be reached on foot are left out. 503 (with `Retry-After`) for a few seconds after the server starts, while it reads the timetable.
 
