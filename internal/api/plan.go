@@ -277,7 +277,7 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 		buffer = 0 // already on the way
 	}
 	for _, o := range options {
-		resp.Options = append(resp.Options, optionJSON(snap, o, buffer, fromAp, toAp))
+		resp.Options = append(resp.Options, optionJSON(snap, o, buffer, fromAp, toAp, s.eng.WalkPath))
 	}
 	return resp, nil
 }
@@ -398,7 +398,13 @@ func (s *Server) access(snap *engine.Snapshot, p placeReq, maxWalk float64, o ra
 		if len(out) == 0 {
 			return nil, engine.Approach{}, badf("none of the access stops exist in the timetable")
 		}
-		return out, engine.Approach{}, nil
+		// The times are the person's own; draw the routes along the streets anyway.
+		var far int32
+		for _, a := range out {
+			far = max(far, a.Secs)
+		}
+		reachM := math.Min(math.Max(float64(far)*o.WalkSpeedMps*1.5, 1500), 6000)
+		return out, s.eng.PathsFrom(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, reachM), nil
 	}
 	ap := s.eng.Approach(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, maxWalk, o)
 	if len(ap.Access) == 0 {
@@ -421,7 +427,7 @@ func stopJSON(d *gtfs.Day, s int32) *stopResp {
 	return out
 }
 
-func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32, fromAp, toAp engine.Approach) optionResp {
+func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32, fromAp, toAp engine.Approach, walkPath func(a, b geo.Point) ([]geo.Point, bool)) optionResp {
 	d := snap.Day
 	leave := o.LeaveAt - buffer
 	out := optionResp{
@@ -443,6 +449,11 @@ func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32, fromAp, toAp
 			switch {
 			case l.From < 0 && l.To >= 0:
 				if pts, ok := fromAp.Path(l.To); ok {
+					lr.Path = coords(pts)
+				}
+			case l.From >= 0 && l.To >= 0 && (d.Stops[l.From].Parent == "" || d.Stops[l.From].Parent != d.Stops[l.To].Parent):
+				// A change between stops (not platforms of one station, which have their own pathways).
+				if pts, ok := walkPath(d.Stops[l.From].Pos, d.Stops[l.To].Pos); ok {
 					lr.Path = coords(pts)
 				}
 			case l.To < 0 && l.From >= 0:

@@ -45,6 +45,8 @@ type Engine interface {
 	Approach(net *raptor.Network, p geo.Point, maxWalkM float64, o raptor.Options) engine.Approach
 	NearbyStops(c *engine.Catalog, p geo.Point, radiusM float64, o raptor.Options) ([]engine.NearStop, bool)
 	Walker() *walk.Graph
+	PathsFrom(net *raptor.Network, p geo.Point, maxM float64) engine.Approach
+	WalkPath(a, b geo.Point) ([]geo.Point, bool)
 	Suggest(ctx context.Context, from engine.SuggestPlace, targets []engine.SuggestPlace, radiusM float64) ([]*engine.SuggestResult, error)
 }
 

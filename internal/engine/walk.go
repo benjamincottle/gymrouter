@@ -107,3 +107,30 @@ func (e *Engine) NearbyStops(c *Catalog, p geo.Point, radiusM float64, o raptor.
 	sort.SliceStable(out, func(a, b int) bool { return out[a].WalkS < out[b].WalkS })
 	return out, true
 }
+
+// PathsFrom is for places whose walks are curated: the times are the person's own, but the route to each stop
+// can still be drawn along the streets. The result has no stops of its own, only paths.
+func (e *Engine) PathsFrom(net *raptor.Network, p geo.Point, maxM float64) Approach {
+	g := e.Walker()
+	if g == nil {
+		return Approach{net: net}
+	}
+	reach, ok := g.From(p, maxM)
+	if !ok {
+		return Approach{net: net}
+	}
+	return Approach{Streets: true, reach: reach, net: net}
+}
+
+// WalkPath returns the route along the streets between two points (for drawing a walk between stops).
+func (e *Engine) WalkPath(a, b geo.Point) ([]geo.Point, bool) {
+	g := e.Walker()
+	if g == nil {
+		return nil, false
+	}
+	reach, ok := g.From(a, geo.DistanceM(a, b)*walkLimitFactor+150)
+	if !ok {
+		return nil, false
+	}
+	return reach.Path(b)
+}
