@@ -22,49 +22,53 @@ export function useVisible(): boolean {
 }
 
 /**
- * Runs `fn` now and then every `ms` while `enabled`, aborting the previous run when a new one
- * starts or the inputs change. `key` identifies the request; changing it restarts immediately.
+ * Runs `fn` as soon as `key` changes, then every `ms` while `visible` (and once more when the page
+ * becomes visible again). Changing `key` aborts the previous request. A null key does nothing.
  */
 export function usePolling<T>(
   key: string | null,
   fn: (signal: AbortSignal) => Promise<T>,
   ms: number,
-  enabled: boolean,
+  visible: boolean,
 ): { data: T | null; error: unknown; loading: boolean; updatedAt: number } {
   const [state, setState] = useState<{ data: T | null; error: unknown; loading: boolean; updatedAt: number }>({
     data: null, error: null, loading: false, updatedAt: 0,
   })
   const fnRef = useRef(fn)
   fnRef.current = fn
+  const ctrl = useRef<AbortController | null>(null)
+  const lastRun = useRef(0)
 
+  const run = () => {
+    ctrl.current?.abort()
+    const c = new AbortController()
+    ctrl.current = c
+    lastRun.current = Date.now()
+    setState((s) => ({ ...s, loading: true }))
+    fnRef
+      .current(c.signal)
+      .then((data) => {
+        if (!c.signal.aborted) setState({ data, error: null, loading: false, updatedAt: Date.now() })
+      })
+      .catch((error) => {
+        if (!c.signal.aborted) setState((s) => ({ ...s, error, loading: false }))
+      })
+  }
+
+  // A new request: always fetch straight away, whatever the visibility.
   useEffect(() => {
     setState({ data: null, error: null, loading: key !== null, updatedAt: 0 })
+    if (key !== null) run()
+    return () => ctrl.current?.abort()
   }, [key])
 
+  // Background refresh only while visible; catch up immediately when the page comes back.
   useEffect(() => {
-    if (key === null || !enabled) return
-    let ctrl: AbortController | null = null
-    const run = () => {
-      ctrl?.abort()
-      ctrl = new AbortController()
-      const c = ctrl
-      setState((s) => ({ ...s, loading: true }))
-      fnRef
-        .current(c.signal)
-        .then((data) => {
-          if (!c.signal.aborted) setState({ data, error: null, loading: false, updatedAt: Date.now() })
-        })
-        .catch((error) => {
-          if (!c.signal.aborted) setState((s) => ({ ...s, error, loading: false }))
-        })
-    }
-    run()
+    if (key === null || !visible) return
+    if (Date.now() - lastRun.current >= ms) run()
     const id = setInterval(run, ms)
-    return () => {
-      clearInterval(id)
-      ctrl?.abort()
-    }
-  }, [key, ms, enabled])
+    return () => clearInterval(id)
+  }, [key, ms, visible])
 
   return state
 }

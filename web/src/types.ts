@@ -114,3 +114,16 @@ export interface PlanRequest {
     transfers?: { from: string; to: string; secs: number }[]
   }
 }
+
+export interface Vehicle {
+  id: string
+  label?: string
+  line: string
+  color?: string
+  trip_id?: string
+  lat: number
+  lon: number
+  bearing?: number
+  status?: string
+  ts: string
+}

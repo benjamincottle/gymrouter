@@ -1,6 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#0f766e"/>
-  <path d="M136 384 C 136 280, 256 304, 256 224 S 376 160, 376 128" fill="none" stroke="#ffffff" stroke-width="36" stroke-linecap="round"/>
-  <circle cx="136" cy="384" r="40" fill="#ffffff"/>
-  <path d="M352 112 l48 0 l-12 48 l-36 8 z" fill="#facc15" stroke="#ffffff" stroke-width="10" stroke-linejoin="round"/>
+  <rect width="512" height="512" rx="96" fill="#1e2226"/>
+  <g fill="#ebeeea" opacity="0.18">
+    <circle cx="96" cy="96" r="10"/><circle cx="256" cy="96" r="10"/><circle cx="416" cy="96" r="10"/>
+    <circle cx="96" cy="256" r="10"/><circle cx="416" cy="256" r="10"/>
+    <circle cx="96" cy="416" r="10"/><circle cx="256" cy="416" r="10"/><circle cx="416" cy="416" r="10"/>
+  </g>
+  <rect x="88" y="232" width="96" height="48" rx="6" fill="#f99d1c"/>
+  <rect x="200" y="232" width="112" height="48" rx="6" fill="#168388"/>
+  <rect x="328" y="232" width="96" height="48" rx="6" fill="#00b5ef"/>
+  <path d="M88 344 h336" stroke="#ebeeea" stroke-width="14" stroke-dasharray="20 18" stroke-linecap="round"/>
 </svg>

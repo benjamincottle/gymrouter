@@ -4,7 +4,7 @@ import { fromLocalInput, toLocalInput } from '../format.ts'
 import { usePolling, useVisible } from '../hooks.ts'
 import { homePlace, prefs, setTransfer, type Settings, type TransferTime } from '../settings.ts'
 import type { GymsResponse, PlanRequest } from '../types.ts'
-import { OptionCard } from './option.tsx'
+import { Board } from './board.tsx'
 
 type Direction = 'to-gym' | 'home'
 
@@ -44,7 +44,7 @@ export function Trip({ settings, setSettings, gyms, onAuthError, goToSettings }:
     key,
     (signal) => api.plan(settings.token!, request!, signal),
     REFRESH_MS,
-    visible && request !== null,
+    visible,
   )
   useEffect(() => {
     if (plan.error instanceof AuthError) onAuthError()
@@ -120,22 +120,31 @@ export function Trip({ settings, setSettings, gyms, onAuthError, goToSettings }:
       </div>
 
       {gym && (
-        <section aria-live="polite">
+        <section class="results">
           <h2 class="results-title">
-            {direction === 'to-gym' ? `${home.name} → ${gym.name}` : `${gym.name} → ${home.name}`}
+            {direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`}
           </h2>
           <DataStatus realtime={plan.data?.realtime} loading={plan.loading} updatedAt={plan.updatedAt} />
           {plan.error !== null && !(plan.error instanceof AuthError) && (
             <p class="error">{(plan.error as Error).message}</p>
           )}
-          {plan.data && plan.data.options.length === 0 && <p class="muted">No options in the next {WINDOW_MIN} minutes.</p>}
-          <ol class="options">
-            {plan.data?.options.map((o, i) => (
-              <li>
-                <OptionCard option={o} first={i === 0} live={leaveAt === null} onSetTransfer={saveTransfer} transfers={settings.transfers} />
-              </li>
-            ))}
-          </ol>
+          {plan.data && plan.data.options.length === 0 && (
+            <p class="muted">Nothing leaves in the next {WINDOW_MIN} minutes. Try a later time.</p>
+          )}
+          {plan.data && plan.data.options.length > 0 && (
+            <Board
+              options={plan.data.options}
+              live={leaveAt === null}
+              serviceDate={plan.data.service_date}
+              token={settings.token!}
+              gymId={gym.id}
+              origin={direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat]}
+              destination={direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat]}
+              title={direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`}
+              transfers={settings.transfers}
+              onSetTransfer={saveTransfer}
+            />
+          )}
         </section>
       )}
     </div>
@@ -148,8 +157,8 @@ function DataStatus({ realtime, loading, updatedAt }: { realtime?: boolean; load
   return (
     <p class="muted small">
       <span class={realtime ? 'dot live' : 'dot'} aria-hidden="true" />
-      {realtime ? 'Live data' : 'Timetable only'} · updated {t}
-      {loading && ' · refreshing…'}
+      {realtime ? 'Live data' : 'Timetable only'}, updated {t}
+      {loading && ', refreshing…'}
     </p>
   )
 }

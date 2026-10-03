@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/benjamincottle/gymrouter/internal/config"
+	"github.com/benjamincottle/gymrouter/internal/geo"
 	"github.com/benjamincottle/gymrouter/internal/gtfs"
 	"github.com/benjamincottle/gymrouter/internal/lines"
 	"github.com/benjamincottle/gymrouter/internal/raptor"
@@ -64,6 +65,7 @@ func (s *Snapshot) Secs(t time.Time) int32 { return int32(t.Sub(s.Midnight) / ti
 type Vehicle struct {
 	ID, Label string
 	Line      lines.Key
+	Color     string // route colour (hex, no '#')
 	TripID    string
 	Lat, Lon  float64
 	Bearing   *float32
@@ -92,6 +94,7 @@ type Engine struct {
 	all   lines.Set
 
 	today      atomic.Pointer[Snapshot]
+	shapes     atomic.Pointer[map[string][]geo.Point]
 	lastActive atomic.Int64 // unix nanos
 	wake       chan struct{}
 
@@ -146,6 +149,7 @@ func (e *Engine) Start(ctx context.Context) error {
 	if fi, err := os.Stat(e.paths.Complete); err == nil && e.now().Sub(fi.ModTime()) > 20*time.Hour {
 		go e.refreshStatic(ctx) // stale after downtime; don't wait for the daily refresh
 	}
+	go e.LoadShapes()
 	go e.staticLoop(ctx)
 	go e.pollLoop(ctx)
 	return nil
@@ -314,6 +318,7 @@ func (e *Engine) refreshStatic(ctx context.Context) {
 		if err := e.reloadToday(); err != nil {
 			e.log.Error("reload after refresh failed", "err", err)
 		}
+		e.LoadShapes()
 	}
 }
 
@@ -332,6 +337,8 @@ func (e *Engine) staticLoop(ctx context.Context) {
 		if s := e.today.Load(); s != nil && !s.Date.Equal(e.LocalDate(now)) {
 			if err := e.reloadToday(); err != nil {
 				e.log.Error("day rollover failed", "err", err)
+			} else {
+				go e.LoadShapes()
 			}
 		}
 		if today := e.LocalDate(now); !today.Equal(lastRefresh) && now.Hour() >= e.cfg.Routing.StaticRefreshH {
@@ -504,20 +511,24 @@ func (e *Engine) Vehicles(set lines.Set) []Vehicle {
 	if s == nil {
 		return nil
 	}
-	routes := map[string]lines.Key{}
+	type lineInfo struct {
+		key   lines.Key
+		color string
+	}
+	routes := map[string]lineInfo{}
 	for _, r := range s.Day.Routes {
 		if k := lines.Of(r.Type, r.ShortName); set[k] {
-			routes[r.ID] = k
+			routes[r.ID] = lineInfo{k, r.Color}
 		}
 	}
-	tripLine := func(id string) (lines.Key, bool) {
+	tripLine := func(id string) (lineInfo, bool) {
 		for _, ti := range s.Day.TripIndex[id] {
 			r := s.Day.Routes[s.Day.Trips[ti].Route]
 			if k := lines.Of(r.Type, r.ShortName); set[k] {
-				return k, true
+				return lineInfo{k, r.Color}, true
 			}
 		}
-		return lines.Key{}, false
+		return lineInfo{}, false
 	}
 	e.rtMu.Lock()
 	defer e.rtMu.Unlock()
@@ -533,7 +544,7 @@ func (e *Engine) Vehicles(set lines.Set) []Vehicle {
 					continue
 				}
 			}
-			out = append(out, Vehicle{ID: v.ID, Label: v.Label, Line: k, TripID: v.TripID, Lat: v.Lat, Lon: v.Lon,
+			out = append(out, Vehicle{ID: v.ID, Label: v.Label, Line: k.key, Color: k.color, TripID: v.TripID, Lat: v.Lat, Lon: v.Lon,
 				Bearing: v.Bearing, Status: v.Status, Timestamp: time.Unix(v.Timestamp, 0)})
 		}
 	}

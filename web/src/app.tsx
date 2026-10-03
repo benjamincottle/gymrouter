@@ -93,7 +93,10 @@ export function App({ initial, imported, storage }: AppProps) {
           <SettingsView settings={settings} setSettings={setSettings} gyms={gyms} onAuthError={onAuthError} />
         )}
       </main>
-      <footer class="footer">Contains Transport for NSW data (CC BY 4.0) · Map data © OpenStreetMap contributors</footer>
+      <footer class="footer">
+        <p>Contains Transport for NSW data (CC BY 4.0).</p>
+        <p>Map data © OpenStreetMap contributors.</p>
+      </footer>
     </div>
   )
 }

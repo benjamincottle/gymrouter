@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -359,5 +361,74 @@ func TestServesFrontendAlongsideAPI(t *testing.T) {
 	}
 	if rec := h.do(t, "GET", "/api/gyms", token, nil); rec.Code != 200 {
 		t.Errorf("API with token: %d", rec.Code)
+	}
+}
+
+func TestLegShapeLineShapesAndMap(t *testing.T) {
+	h := newHarness(t)
+	rec := h.do(t, "POST", "/api/plan", token, eppingToLaneCove)
+	var p struct {
+		ServiceDate string `json:"service_date"`
+		Options     []struct {
+			Legs []struct {
+				Kind   string
+				TripID string `json:"trip_id"`
+				From   struct{ ID string }
+				To     struct{ ID string }
+			}
+		}
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &p)
+	var q string
+	for _, l := range p.Options[0].Legs {
+		if l.Kind == "ride" {
+			q = "/api/shape?date=" + p.ServiceDate + "&trip=" + l.TripID + "&from=" + l.From.ID + "&to=" + l.To.ID
+			break
+		}
+	}
+	shape := func() int {
+		rec := h.do(t, "GET", q, token, nil)
+		var s struct{ Coordinates [][2]float64 }
+		_ = json.Unmarshal(rec.Body.Bytes(), &s)
+		if rec.Code != 200 || len(s.Coordinates) < 2 || s.Coordinates[0][0] < 150 {
+			t.Fatalf("shape %s: %d %s", q, rec.Code, rec.Body)
+		}
+		return len(s.Coordinates)
+	}
+	before := shape() // straight lines between stops until shapes load
+	if rec := h.do(t, "GET", "/api/shapes?gym=lanecove", token, nil); !strings.Contains(rec.Body.String(), `"features":[]`) {
+		t.Errorf("line shapes before loading: %s", rec.Body)
+	}
+	h.env.Engine.LoadShapes()
+	if after := shape(); after <= before {
+		t.Errorf("route shape should have more detail than stops: %d vs %d points", after, before)
+	}
+	rec = h.do(t, "GET", "/api/shapes?gym=lanecove", token, nil)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"line":"metro M1"`) || !strings.Contains(rec.Body.String(), "MultiLineString") {
+		t.Errorf("line shapes: %d %.300s", rec.Code, rec.Body)
+	}
+	if rec := h.do(t, "GET", "/api/shape?date=2026-10-08&trip=nope&from=a&to=b", token, nil); rec.Code != 404 {
+		t.Errorf("unknown trip: %d", rec.Code)
+	}
+	if rec := h.do(t, "GET", "/api/shape?date=bad&trip=a&from=a&to=b", token, nil); rec.Code != 400 {
+		t.Errorf("bad date: %d", rec.Code)
+	}
+
+	if rec := h.do(t, "GET", "/api/map.pmtiles", token, nil); rec.Code != 404 {
+		t.Errorf("missing map: %d", rec.Code)
+	}
+	if err := os.WriteFile(filepath.Join(h.env.Config.Server.DataDir, "map.pmtiles"), []byte("PMTiles-test-bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest("GET", "/api/map.pmtiles", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Range", "bytes=0-6")
+	rr := httptest.NewRecorder()
+	h.h.ServeHTTP(rr, req)
+	if rr.Code != 206 || rr.Body.String() != "PMTiles" || !strings.Contains(rr.Header().Get("Cache-Control"), "private") {
+		t.Errorf("range request: %d %q %q", rr.Code, rr.Body, rr.Header().Get("Cache-Control"))
+	}
+	if rec := h.do(t, "GET", "/api/map.pmtiles", "", nil); rec.Code != 401 {
+		t.Errorf("map without token: %d", rec.Code)
 	}
 }

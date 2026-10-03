@@ -8,12 +8,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/benjamincottle/gymrouter/internal/geo"
 )
 
 // WriteZip writes a minimal GTFS feed containing the trips of the given days (DayOffset 0 only),
-// with services expressed as calendar_dates. Trip, stop and route IDs are preserved so realtime
-// updates still match. It's used to build small test fixtures from real data.
-func WriteZip(path string, days ...*Day) error {
+// with services expressed as calendar_dates, plus the given shapes. Trip, stop and route IDs are
+// preserved so realtime updates still match. It's used to build small test fixtures from real data.
+func WriteZip(path string, shapes map[string][]geo.Point, days ...*Day) error {
 	type tripRec struct {
 		t       Trip
 		route   Route
@@ -119,6 +121,7 @@ func WriteZip(path string, days ...*Day) error {
 		{"trips.txt", []string{"route_id", "service_id", "trip_id", "trip_headsign", "shape_id"}, tripRows},
 		{"stop_times.txt", []string{"trip_id", "arrival_time", "departure_time", "stop_id", "stop_sequence"}, timeRows},
 		{"calendar_dates.txt", []string{"service_id", "date", "exception_type"}, calRows},
+		{"shapes.txt", []string{"shape_id", "shape_pt_lat", "shape_pt_lon", "shape_pt_sequence"}, shapeRows(shapes)},
 		{"pathways.txt", []string{"pathway_id", "from_stop_id", "to_stop_id", "pathway_mode", "is_bidirectional", "traversal_time"}, pathwayRows(days, stops)},
 	} {
 		if err := write(w.name, w.header, w.rows); err != nil {
@@ -181,5 +184,20 @@ func pathwayRows(days []*Day, stops map[string]Stop) [][]string {
 		}
 	}
 	sortRows(rows)
+	return rows
+}
+
+func shapeRows(shapes map[string][]geo.Point) [][]string {
+	ids := make([]string, 0, len(shapes))
+	for id := range shapes {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	var rows [][]string
+	for _, id := range ids {
+		for i, p := range shapes[id] {
+			rows = append(rows, []string{id, ftoa(p.Lat), ftoa(p.Lon), strconv.Itoa(i + 1)})
+		}
+	}
 	return rows
 }

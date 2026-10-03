@@ -55,3 +55,62 @@ func (g *Grid) Within(p Point, radiusM float64, fn func(i int32, distM float64))
 		}
 	}
 }
+
+// Simplify reduces a polyline with the Douglas–Peucker algorithm, keeping points that deviate more
+// than tolM metres from the simplified line. Endpoints are always kept.
+func Simplify(pts []Point, tolM float64) []Point {
+	if len(pts) < 3 {
+		return pts
+	}
+	keep := make([]bool, len(pts))
+	keep[0], keep[len(pts)-1] = true, true
+	type span struct{ a, b int }
+	stack := []span{{0, len(pts) - 1}}
+	for len(stack) > 0 {
+		s := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		maxD, idx := 0.0, -1
+		for i := s.a + 1; i < s.b; i++ {
+			if d := crossTrackM(pts[i], pts[s.a], pts[s.b]); d > maxD {
+				maxD, idx = d, i
+			}
+		}
+		if idx >= 0 && maxD > tolM {
+			keep[idx] = true
+			stack = append(stack, span{s.a, idx}, span{idx, s.b})
+		}
+	}
+	out := make([]Point, 0, len(pts)/4+2)
+	for i, k := range keep {
+		if k {
+			out = append(out, pts[i])
+		}
+	}
+	return out
+}
+
+// crossTrackM is the distance from p to segment ab in metres (equirectangular; fine at city scale).
+func crossTrackM(p, a, b Point) float64 {
+	k := math.Cos(a.Lat * math.Pi / 180)
+	ax, ay := a.Lon*k, a.Lat
+	bx, by := b.Lon*k, b.Lat
+	px, py := p.Lon*k, p.Lat
+	dx, dy := bx-ax, by-ay
+	t := 0.0
+	if l := dx*dx + dy*dy; l > 0 {
+		t = math.Max(0, math.Min(1, ((px-ax)*dx+(py-ay)*dy)/l))
+	}
+	ex, ey := ax+t*dx-px, ay+t*dy-py
+	return math.Sqrt(ex*ex+ey*ey) * 111320
+}
+
+// Nearest returns the index of the point in pts[from:] closest to p.
+func Nearest(pts []Point, p Point, from int) int {
+	best, bestD := from, math.Inf(1)
+	for i := from; i < len(pts); i++ {
+		if d := DistanceM(p, pts[i]); d < bestD {
+			best, bestD = i, d
+		}
+	}
+	return best
+}

@@ -19,6 +19,7 @@ import (
 
 	"github.com/benjamincottle/gymrouter/internal/config"
 	"github.com/benjamincottle/gymrouter/internal/engine"
+	"github.com/benjamincottle/gymrouter/internal/geo"
 	"github.com/benjamincottle/gymrouter/internal/lines"
 	"github.com/benjamincottle/gymrouter/internal/raptor"
 	"github.com/benjamincottle/gymrouter/internal/tfnsw"
@@ -34,6 +35,9 @@ type Engine interface {
 	RoutingOptions() raptor.Options
 	Config() *config.Config
 	Geocode(ctx context.Context, q string) ([]tfnsw.Place, error)
+	LegGeometry(s *engine.Snapshot, tripID, fromStop, toStop string) ([]geo.Point, bool)
+	LineShapes(set lines.Set) []engine.LineShape
+	MapFile() (string, bool)
 }
 
 // maxBody bounds request bodies.
@@ -62,6 +66,9 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/vehicles", s.vehicles)
 	api.HandleFunc("GET /api/status", s.status)
 	api.HandleFunc("POST /api/geocode", s.geocode)
+	api.HandleFunc("GET /api/shape", s.legShape)
+	api.HandleFunc("GET /api/shapes", s.lineShapes)
+	api.HandleFunc("GET /api/map.pmtiles", s.mapTiles)
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { writeError(w, http.StatusNotFound, "not found") })
 	mux.Handle("/api/", s.auth.Require(s.touch(api)))
 	mux.HandleFunc("GET /healthz", s.healthz)
@@ -256,6 +263,7 @@ type vehicleResp struct {
 	ID        string    `json:"id"`
 	Label     string    `json:"label,omitempty"`
 	Line      string    `json:"line"`
+	Color     string    `json:"color,omitempty"`
 	TripID    string    `json:"trip_id,omitempty"`
 	Lat       float64   `json:"lat"`
 	Lon       float64   `json:"lon"`
@@ -273,7 +281,7 @@ func (s *Server) vehicles(w http.ResponseWriter, r *http.Request) {
 	vs := s.eng.Vehicles(g.LineSet)
 	out := make([]vehicleResp, 0, len(vs))
 	for _, v := range vs {
-		out = append(out, vehicleResp{ID: v.ID, Label: v.Label, Line: v.Line.String(), TripID: v.TripID,
+		out = append(out, vehicleResp{ID: v.ID, Label: v.Label, Line: v.Line.String(), Color: v.Color, TripID: v.TripID,
 			Lat: v.Lat, Lon: v.Lon, Bearing: v.Bearing, Status: v.Status, Timestamp: v.Timestamp})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"vehicles": out})

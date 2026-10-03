@@ -1,6 +1,7 @@
 import { render } from 'preact'
 import { App } from './app.tsx'
 import { applyFragment, load, parseFragment, save } from './settings.ts'
+import '@fontsource-variable/archivo/wdth.css'
 import './style.css'
 
 function storage(): Storage | undefined {

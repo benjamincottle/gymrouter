@@ -1,4 +1,4 @@
-import type { GeocodeResult, GymsResponse, NearStop, PlanRequest, PlanResponse } from './types.ts'
+import type { GeocodeResult, GymsResponse, NearStop, PlanRequest, PlanResponse, Vehicle } from './types.ts'
 
 export class AuthError extends Error {}
 
@@ -42,5 +42,6 @@ export const api = {
   plan: (t: string, req: PlanRequest, signal?: AbortSignal) => call<PlanResponse>(t, 'POST', '/api/plan', req, signal),
   stopsNear: (t: string, lat: number, lon: number, radius_m: number) =>
     call<{ stops: NearStop[] }>(t, 'POST', '/api/stops/near', { lat, lon, radius_m }),
+  vehicles: (t: string, gym: string) => call<{ vehicles: Vehicle[] }>(t, 'GET', `/api/vehicles?gym=${encodeURIComponent(gym)}`),
   geocode: (t: string, q: string) => call<{ results: GeocodeResult[] }>(t, 'POST', '/api/geocode', { q }),
 }

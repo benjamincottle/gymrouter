@@ -1,6 +1,5 @@
 import { useState } from 'preact/hooks'
-import { clock, countdown, delay, duration, placeName, platform, riskLabel } from '../format.ts'
-import { useNow } from '../hooks.ts'
+import { clock, delay, placeName, platform, riskLabel } from '../format.ts'
 import type { TransferTime } from '../settings.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 
@@ -16,50 +15,9 @@ export function LineChip({ line }: { line: Line }) {
   )
 }
 
-interface Props {
-  option: Option
-  first: boolean
-  live: boolean
-  transfers: TransferTime[]
-  onSetTransfer: (t: TransferTime) => void
-}
-
-export function OptionCard({ option: o, first, live, transfers, onSetTransfer }: Props) {
-  const [open, setOpen] = useState(first)
-  const now = useNow(1000)
-  const changes = Math.max(0, o.rides - 1)
-  const rideLines = o.legs.filter((l) => l.kind === 'ride' && l.line).map((l) => l.line!)
-
-  return (
-    <article class={`option risk-${o.risk}`}>
-      <button class="option-head" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <div class="row">
-          {live ? (
-            <span class={first ? 'leave big' : 'leave'}>Leave {countdown(o.leave_at, now)}</span>
-          ) : (
-            <span class="leave">Leave {clock(o.leave_at)}</span>
-          )}
-          <span class={`badge risk-${o.risk}`}>{riskLabel(o.risk)}</span>
-        </div>
-        <div class="row muted">
-          <span>
-            {clock(o.leave_at)} → {clock(o.arrive)} · {duration(o.duration_s)} ·{' '}
-            {changes === 0 ? 'direct' : `${changes} change${changes > 1 ? 's' : ''}`}
-          </span>
-          {o.alternative && <span class="tag">Alternative</span>}
-        </div>
-        <div class="chips">
-          {rideLines.map((l) => (
-            <LineChip line={l} />
-          ))}
-        </div>
-      </button>
-      {open && <Timeline option={o} transfers={transfers} onSetTransfer={onSetTransfer} />}
-    </article>
-  )
-}
-
-function Timeline({ option: o, transfers, onSetTransfer }: Omit<Props, 'first' | 'live'> & { option: Option }) {
+export function Timeline({
+  option: o, transfers, onSetTransfer,
+}: { option: Option; transfers: TransferTime[]; onSetTransfer: (t: TransferTime) => void }) {
   const into = new Map<number, Transfer>(o.transfers.map((t) => [t.to_leg, t]))
   return (
     <ol class="timeline">

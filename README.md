@@ -5,7 +5,7 @@ open data. Instead of searching the whole network like a general planner, it che
 option within each gym's own set of lines against live data, using your own walking and transfer
 times. See [docs/spec.md](docs/spec.md).
 
-Status: router, server and web app work. The live map (milestone 5), in-trip mode (6) and deployment (7) are next.
+Status: router, server, web app and live map work. In-trip mode (milestone 6) and deployment (7) are next.
 
 ## Commands
 ```
@@ -27,7 +27,14 @@ gymrouter make-fixture   build the trimmed real-data test fixture
    gymrouter serve --config config.toml
    ```
    On first start it downloads the timetables (~300 MB) into `server.data_dir`.
-4. Run `gymrouter setup-link` and open the link on your phone.
+4. Install the map (optional, ~63 MB): extract Greater Sydney from the daily Protomaps build into the
+   data directory as `map.pmtiles`, e.g. with the [`pmtiles` CLI](https://github.com/protomaps/go-pmtiles):
+   ```
+   pmtiles extract https://build.protomaps.com/$(date -d yesterday +%Y%m%d).pmtiles /data/map.pmtiles \
+     --bbox=150.55,-34.15,151.35,-33.45
+   ```
+   Refresh it every month or two. Without it, the map still shows routes and vehicles on a blank background.
+5. Run `gymrouter setup-link` and open the link on your phone.
 
 API: [docs/api.md](docs/api.md).
 
@@ -52,6 +59,9 @@ Without the frontend build, the server still runs and serves only the API. For f
 Requires Go 1.27+. Regenerating protobuf bindings needs `protoc` and `protoc-gen-go`
 (`protoc --go_out=… proto/gtfs-realtime.proto`).
 
-## Data
-Contains Transport for NSW data, © Transport for NSW, licensed under
-[CC BY 4.0](https://opendata.transport.nsw.gov.au/datalicence).
+## Data and credits
+- Contains Transport for NSW data, © Transport for NSW, licensed under
+  [CC BY 4.0](https://opendata.transport.nsw.gov.au/datalicence).
+- Map data © OpenStreetMap contributors (ODbL), via [Protomaps](https://protomaps.com) basemaps (BSD-3).
+- Map fonts: Noto Sans (SIL OFL, `web/public/basemap/fonts/OFL.txt`); map icons derived from tangrams/icons (MIT,
+  `web/public/basemap/sprites/LICENSE.md`). App font: Archivo (SIL OFL).

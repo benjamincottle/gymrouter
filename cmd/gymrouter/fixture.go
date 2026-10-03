@@ -55,7 +55,33 @@ func makeFixture(args []string) error {
 	if err := os.MkdirAll(*out, 0o755); err != nil {
 		return err
 	}
-	if err := gtfs.WriteZip(filepath.Join(*out, "gtfs.zip"), days...); err != nil {
+	wantTrains, wantOther := map[string]bool{}, map[string]bool{}
+	for _, d := range days {
+		for _, t := range d.Trips {
+			if t.Shape == "" {
+				continue
+			}
+			if lines.ModeOf(d.Routes[t.Route].Type) == lines.Train && *trains != "" {
+				wantTrains[t.Shape] = true
+			} else {
+				wantOther[t.Shape] = true
+			}
+		}
+	}
+	shapes, err := gtfs.LoadShapes(*complete, wantOther, 4)
+	if err != nil {
+		return err
+	}
+	if *trains != "" {
+		ts, err := gtfs.LoadShapes(*trains, wantTrains, 4)
+		if err != nil {
+			return err
+		}
+		for k, v := range ts {
+			shapes[k] = v
+		}
+	}
+	if err := gtfs.WriteZip(filepath.Join(*out, "gtfs.zip"), shapes, days...); err != nil {
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "wrote %s\n", filepath.Join(*out, "gtfs.zip"))

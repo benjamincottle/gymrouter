@@ -176,7 +176,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 2. ✅ **Router core**: filtered GTFS model, Range RAPTOR, realtime overlay, connection risk; unit + fixture tests.
 3. ✅ **Server**: config, token auth, demand-driven poller, API, `/healthz`, `setup-link` CLI.
 4. ✅ **UI**: PWA shell, settings + export/import/share, gym buttons, option cards, countdown.
-5. **Map**: PMTiles serving, MapLibre, shapes, live vehicles with highlighting.
+5. ✅ **Map**: PMTiles serving, MapLibre, shapes, live vehicles with highlighting.
 6. **In-trip mode** and **Arrive by**.
 7. **Deploy**: Dockerfile (distroless), compose example, Traefik labels, CI build/scan/publish.
 8. **Field validation**: ~2 weeks of trips compared against Opal/Google.
@@ -225,3 +225,11 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   are deflate-compressed in the URL fragment (`#z=`) so the QR code stays scannable.
 - 2026-10-03: In-station transfers now use GTFS pathways (stairs/escalators/corridors + 60 s platform allowance;
   lifts only as a fallback) instead of straight-line distance. Found in UI testing: Epping train→metro showed 0 min.
+- 2026-10-03: M5 done. MapLibre + PMTiles (map file in the data dir, served with range requests behind the token);
+  basemap fonts/sprites self-hosted, so the map makes no third-party requests. Leg paths follow GTFS shapes
+  (loaded in the background, simplified to 4 m), falling back to stop-to-stop lines. The map shows the gym's
+  lines faintly, the chosen option boldly, all vehicles on those lines muted, your own vehicles large and
+  labelled, and frames the vehicle for your first ride. MapLibre is lazy-loaded (main bundle stays ~40 KB).
+- 2026-10-03: Visual redesign (frontend-design pass): chalk wall + graphite, colour only for line colours and risk;
+  Archivo with condensed widths for times; results as a countdown plus option "tape" strips on a shared
+  time axis instead of stacked cards.

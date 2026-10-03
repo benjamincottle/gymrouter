@@ -9,6 +9,10 @@
     "test": "node --test src/*.test.ts"
   },
   "dependencies": {
+    "@fontsource-variable/archivo": "5.3.0",
+    "@protomaps/basemaps": "5.7.2",
+    "maplibre-gl": "6.11.2",
+    "pmtiles": "4.5.0",
     "preact": "10.29.8",
     "uqr": "0.1.3"
   },

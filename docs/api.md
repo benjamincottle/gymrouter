@@ -59,8 +59,20 @@ Response:
 
 ## `GET /api/vehicles?gym=<id>`
 Live vehicles on the gym's lines (only fresh data):
-`{"vehicles": [{"id", "label", "line": "metro M1", "trip_id", "lat", "lon", "bearing", "status", "ts"}]}`.
+`{"vehicles": [{"id", "label", "line": "metro M1", "color", "trip_id", "lat", "lon", "bearing", "status", "ts"}]}`.
 Match `trip_id` against a ride leg's `trip_id` to highlight the vehicle you'd catch.
+
+## `GET /api/shape?date=YYYY-MM-DD&trip=<trip_id>&from=<stop_id>&to=<stop_id>`
+Path of one ride leg (use a plan's `service_date` and the leg's `trip_id` and stop IDs):
+`{"coordinates": [[lon, lat], …]}`. Follows the route shape once shapes have loaded (a few seconds after
+startup); until then, straight lines between the trip's stops.
+
+## `GET /api/shapes?gym=<id>`
+GeoJSON `FeatureCollection` of the gym's lines (`MultiLineString` per line, properties `line`, `mode`,
+`name`, `color`), for drawing the network faintly under a trip.
+
+## `GET /api/map.pmtiles`
+The self-hosted basemap (PMTiles), served with HTTP range requests. 404 if not installed (see README).
 
 ## `POST /api/geocode`
 `{"q": "48 Example St, Suburb"}` → `{"results": [{"name", "type", "lat", "lon"}]}` (up to 6). Looks up an address
