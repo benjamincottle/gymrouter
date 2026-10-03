@@ -49,6 +49,10 @@ Non-goals (v1)
 - Walking transfers between stops on those lines: GTFS transfers/pathways where present, otherwise
   distance × walking factor; **personal overrides win**.
 - Access/egress: device-supplied home access stops + walk times; gym access stops from config.
+- **Walk times at each end are measured, not modelled.** General planners walk through places you can't
+  (e.g. through the Johnson factory at Lane Cove) and miss shortcuts that exist (e.g. cutting through the
+  plumbing-supply site). We never route over a street network: every gym access stop has a curated walk time,
+  and optionally a hand-drawn walking path (GeoJSON line in config) that the map draws instead of a straight line.
 - Leg model is mode-generic so bike/scooter legs can be added later.
 - Safety net: on every GTFS refresh, report config lines or stops that no longer exist (health + logs).
 
@@ -61,13 +65,17 @@ Non-goals (v1)
   **user-adjustable in Settings** and sent with each plan request (tuning these is part of how we beat
   generic planners). Options whose
   connection is at risk also show the fallback (the next service).
+- **Leave time is per option**: walk times to stops are fixed settings, but each option's leave time =
+  first departure − walk to its first stop (− a personal buffer). Options are compared door to door from
+  that leave time, and the leave-by countdown uses it.
 - Small network → millisecond queries; per-query timeout and size caps still apply.
 
 ## 7. Map & live vehicles
 - MapLibre GL JS + **self-hosted OpenStreetMap vector extract** (PMTiles file for the Sydney area, served
   by the app, refreshed occasionally). Nothing sent to third parties; OSM attribution shown.
 - The map source sits behind a small interface so Google Maps could be swapped in later.
-- Overlays: option legs (vehicle legs along GTFS shapes; walking legs as dashed straight lines in v1),
+- Overlays: option legs (vehicle legs along GTFS shapes; walking legs as the curated path if configured,
+  otherwise a dashed straight line),
   stops, and **all live vehicles on the selected gym's lines**, with **the selected trip's vehicles
   clearly highlighted** (colour, size, label); the rest muted.
 - Vehicle positions refresh by client polling (~10–15 s) from the server cache.
@@ -127,12 +135,20 @@ Non-goals (v1)
   cancellations, arrive-by); risk classification; config validation; token auth.
 - Fixture tests: a trimmed real TfNSW GTFS slice + recorded realtime snapshots → expected options
   for each v1 gym (golden files).
+- **Walking-knowledge cases**: for each gym, check that its access-stop walk times reflect the real paths
+  (e.g. the Lane Cove factory and shortcut cases).
+- **Real usage windows** (test and validation focus): **Sunday morning, arriving around opening time**,
+  and **Thursday afternoon, leaving home around 16:00**. Fixtures and golden tests use these windows first.
+- **Known-alternative cases**: e.g. T1 → St Leonards → bus (291/287) → Lane Cove. Slower on paper
+  (~70 vs ~55 min Thu 16:00) but sometimes fastest in practice; the router must surface it when realtime
+  makes it win (delays on the Epping/metro option).
 - **Seed real-world cases**: 3–5 logged trips where Opal/Google got it wrong, each as a regression test
   (timetable + realtime snapshot + expected better option).
 - Frontend: type-check + lint; a Playwright smoke test (load, plan, map renders) — light.
 - Field validation: ~2 weeks of real trips compared against Opal/Google; record wins/losses.
 
 ## 13. Risks / to verify in an early spike
+Verified 2026-10-03: see `docs/spike-findings.md`. Open: train trip-ID matching for ~25% of train updates.
 - TfNSW GTFS-realtime coverage and format per mode (vehicle positions for buses/trains/metro/light rail;
   TfNSW protobuf extensions).
 - Whether trip IDs match between static and realtime feeds (known TfNSW forum pain point).
@@ -183,3 +199,7 @@ Non-goals (v1)
 - 2026-10-03: Line sets: the tool suggests, the user curates.
 - 2026-10-03: App repo public-safe; deploy config in a private repo.
 - 2026-10-03: Connection-risk thresholds have defaults and are user-adjustable (stored on the device).
+- 2026-10-03: Gym-end walking uses curated walk times + optional hand-drawn paths, not street-network
+  routing. This is a key source of advantage (Lane Cove examples).
+- 2026-10-03: Spike: trains load from the per-mode Sydney Trains bundle (better realtime match); line = mode +
+  short name; school buses excluded; poller only fetches the feeds the active gym's lines need (Bronze quota 60k/day, 5/s).
