@@ -175,7 +175,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
    line sets for Lane Cove, Rydalmere, Chatswood. Log the 3–5 seed cases where Opal/Google got it wrong.
 2. ✅ **Router core**: filtered GTFS model, Range RAPTOR, realtime overlay, connection risk; unit + fixture tests.
 3. ✅ **Server**: config, token auth, demand-driven poller, API, `/healthz`, `setup-link` CLI.
-4. **UI**: PWA shell, settings + export/import/share, gym buttons, option cards, countdown.
+4. ✅ **UI**: PWA shell, settings + export/import/share, gym buttons, option cards, countdown.
 5. **Map**: PMTiles serving, MapLibre, shapes, live vehicles with highlighting.
 6. **In-trip mode** and **Arrive by**.
 7. **Deploy**: Dockerfile (distroless), compose example, Traefik labels, CI build/scan/publish.
@@ -219,3 +219,9 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   (`TFNSW_API_KEY`, `GYMROUTER_TOKEN`); `new-token` generates the token and the server keeps only its SHA-256 digest.
   Static feeds use conditional download with atomic replace. Live predictions older than 3 min are ignored
   (timetable used instead). Default daily upstream budget is 40k. `/healthz` is minimal; `/api/status` has the detail.
+- 2026-10-03: M4 done. Frontend uses Preact (user confirmed over plain TypeScript): ~4 KB, no transitive deps;
+  built by Vite and embedded into the binary. Home setup uses address search through the server (TfNSW stop_finder,
+  rate-limited, never logged) or device location, then nearby stops grouped by station. Share/backup links
+  are deflate-compressed in the URL fragment (`#z=`) so the QR code stays scannable.
+- 2026-10-03: In-station transfers now use GTFS pathways (stairs/escalators/corridors + 60 s platform allowance;
+  lifts only as a fallback) instead of straight-line distance. Found in UI testing: Epping train→metro showed 0 min.

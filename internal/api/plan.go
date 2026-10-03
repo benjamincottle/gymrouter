@@ -67,11 +67,12 @@ type planReq struct {
 }
 
 type stopResp struct {
-	ID      string  `json:"id"`
-	Name    string  `json:"name"`
-	Station string  `json:"station,omitempty"`
-	Lat     float64 `json:"lat"`
-	Lon     float64 `json:"lon"`
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	Station   string  `json:"station,omitempty"`
+	StationID string  `json:"station_id,omitempty"`
+	Lat       float64 `json:"lat"`
+	Lon       float64 `json:"lon"`
 }
 
 type lineResp struct {
@@ -325,7 +326,7 @@ func stopJSON(d *gtfs.Day, s int32) *stopResp {
 	out := &stopResp{ID: st.ID, Name: st.Name, Lat: st.Pos.Lat, Lon: st.Pos.Lon}
 	if st.Parent != "" {
 		if pi, ok := d.StopIndex[st.Parent]; ok {
-			out.Station = d.Stops[pi].Name
+			out.Station, out.StationID = d.Stops[pi].Name, st.Parent
 		}
 	}
 	return out

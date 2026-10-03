@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 
 	"github.com/benjamincottle/gymrouter/internal/api"
 	"github.com/benjamincottle/gymrouter/internal/engine/enginetest"
@@ -38,13 +40,18 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
+	return newHarnessWeb(t, nil)
+}
+
+func newHarnessWeb(t *testing.T, web fs.FS) *harness {
+	t.Helper()
 	logs := &syncBuffer{}
 	env := enginetest.New(t, "", logs)
 	auth, err := api.NewAuth(token)
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := api.New(env.Engine, auth, slog.New(slog.NewJSONHandler(logs, nil)), nil)
+	srv := api.New(env.Engine, auth, slog.New(slog.NewJSONHandler(logs, nil)), web)
 	return &harness{env: env, h: srv.Handler(), log: logs}
 }
 
@@ -307,5 +314,50 @@ func TestPrivateDataNeverLogged(t *testing.T) {
 		if strings.Contains(logs, s) {
 			t.Errorf("logs contain %q", s)
 		}
+	}
+}
+
+func TestGeocode(t *testing.T) {
+	h := newHarness(t)
+	rec := h.do(t, "POST", "/api/geocode", token, map[string]any{"q": "1 Example St, Epping"})
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"lat":-33.77`) || strings.Contains(rec.Body.String(), "No coords") {
+		t.Fatalf("geocode: %d %s", rec.Code, rec.Body)
+	}
+	if rec := h.do(t, "POST", "/api/geocode", token, map[string]any{"q": "1 Example St, Epping"}); rec.Code != 429 {
+		t.Errorf("second request within a second: %d", rec.Code)
+	}
+	if rec := h.do(t, "POST", "/api/geocode", token, map[string]any{"q": "ab"}); rec.Code != 400 {
+		t.Errorf("short query: %d", rec.Code)
+	}
+	if strings.Contains(h.log.String(), "Example St") {
+		t.Error("address leaked into logs")
+	}
+	if !strings.Contains(h.env.Fetcher.Calls[len(h.env.Fetcher.Calls)-1], "name_sf=1+Example+St") {
+		t.Errorf("query not passed upstream: %v", h.env.Fetcher.Calls)
+	}
+}
+
+func TestServesFrontendAlongsideAPI(t *testing.T) {
+	web := fstest.MapFS{
+		"index.html":        {Data: []byte("<!doctype html><title>app</title>")},
+		"assets/app-abc.js": {Data: []byte("console.log(1)")},
+	}
+	h := newHarnessWeb(t, web)
+	rec := h.do(t, "GET", "/", "", nil)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "<title>app") || rec.Header().Get("Cache-Control") != "no-cache" {
+		t.Errorf("index: %d %q %q", rec.Code, rec.Header().Get("Cache-Control"), rec.Body)
+	}
+	rec = h.do(t, "GET", "/assets/app-abc.js", "", nil)
+	if rec.Code != 200 || !strings.Contains(rec.Header().Get("Cache-Control"), "immutable") {
+		t.Errorf("asset: %d %q", rec.Code, rec.Header().Get("Cache-Control"))
+	}
+	if rec := h.do(t, "POST", "/", "", "{}"); rec.Code != 405 {
+		t.Errorf("POST /: %d", rec.Code)
+	}
+	if rec := h.do(t, "GET", "/api/gyms", "", nil); rec.Code != 401 {
+		t.Errorf("API still needs the token next to the frontend: %d", rec.Code)
+	}
+	if rec := h.do(t, "GET", "/api/gyms", token, nil); rec.Code != 200 {
+		t.Errorf("API with token: %d", rec.Code)
 	}
 }

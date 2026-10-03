@@ -42,7 +42,7 @@ Response:
    "leave_at": "…", "arrive": "…", "duration_s": 3180, "rides": 3, "risk": "tight", "alternative": false,
    "lines": ["train T9", "metro M1", "bus 288"],
    "legs": [
-     {"kind": "walk", "to": {"id": "…", "name": "…", "station": "…", "lat": 0, "lon": 0}, "dep": "…", "arr": "…"},
+     {"kind": "walk", "to": {"id": "…", "name": "…", "station": "…", "station_id": "…", "lat": 0, "lon": 0}, "dep": "…", "arr": "…"},
      {"kind": "ride", "from": {…}, "to": {…}, "dep": "…", "arr": "…",
       "line": {"mode": "metro", "name": "M1", "color": "168388", "text_color": "FFFFFF"},
       "trip_id": "…", "headsign": "…", "status": "predicted", "delay_s": 60, "sched_dep": "…"}
@@ -61,6 +61,11 @@ Response:
 Live vehicles on the gym's lines (only fresh data):
 `{"vehicles": [{"id", "label", "line": "metro M1", "trip_id", "lat", "lon", "bearing", "status", "ts"}]}`.
 Match `trip_id` against a ride leg's `trip_id` to highlight the vehicle you'd catch.
+
+## `POST /api/geocode`
+`{"q": "48 Example St, Suburb"}` → `{"results": [{"name", "type", "lat", "lon"}]}` (up to 6). Looks up an address
+through the TfNSW Trip Planner; used once when setting up a home. Limited to one request per second (429 otherwise),
+counted against the daily upstream budget; the query is never logged.
 
 ## `GET /api/status`
 Detailed health: feed ages and errors, upstream requests today, realtime match stats, configured lines missing today.

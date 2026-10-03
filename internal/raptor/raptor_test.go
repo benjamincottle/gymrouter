@@ -123,3 +123,42 @@ func TestOvertakingAndSkippedStops(t *testing.T) {
 		t.Fatalf("want direct r3 arriving 2430 first, got %+v", js)
 	}
 }
+
+func TestPathwaysSetInStationTransfers(t *testing.T) {
+	d := testDay()
+	// Make B and B2 platforms of one station, linked by stairs via an internal node (no coordinates)
+	// and by a faster lift.
+	d.Stops = append(d.Stops, gtfs.Stop{ID: "ST", Pos: d.Stops[1].Pos})
+	d.StopIndex["ST"] = int32(len(d.Stops) - 1)
+	d.Stops[1].Parent, d.Stops[3].Parent = "ST", "ST"
+	d.Pathways = []gtfs.Pathway{
+		{From: "B", To: "ST_node", Mode: gtfs.PathwayStairs, Secs: 100, Bidirectional: true},
+		{From: "ST_node", To: "B2", Mode: gtfs.PathwayEscalator, Secs: 80, Bidirectional: true},
+		{From: "B", To: "B2", Mode: gtfs.PathwayElevator, Secs: 30, Bidirectional: true},
+	}
+	n := Build(d, DefaultOptions())
+	var got int32 = -1
+	for _, fp := range n.Footpaths[d.StopIndex["B"]] {
+		if fp.To == d.StopIndex["B2"] {
+			got = fp.Secs
+		}
+	}
+	if got != 100+80+60 {
+		t.Fatalf("B→B2 transfer = %d, want stairs+escalator+allowance = 240 (lift ignored)", got)
+	}
+	// r1a reaches B at 1300; r2a leaves B2 at 1500: 240 s no longer makes it, and the next
+	// connection (r2b, arriving 2830) is worse than the direct r3 (2430), so only r3 remains.
+	js := n.Run(query(n, 900))
+	if len(js) != 1 || js[0].Rides != 1 || js[0].Arr != 2430 {
+		t.Errorf("want only the direct journey, got %+v", js)
+	}
+
+	// Without the stairs, the lift is the only way.
+	d.Pathways = d.Pathways[2:]
+	n = Build(d, DefaultOptions())
+	for _, fp := range n.Footpaths[d.StopIndex["B"]] {
+		if fp.To == d.StopIndex["B2"] && fp.Secs != 30+60 {
+			t.Errorf("lift fallback: %d", fp.Secs)
+		}
+	}
+}

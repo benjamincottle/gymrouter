@@ -1,6 +1,10 @@
 package main
 
-import "io/fs"
+import (
+	"io/fs"
 
-// webFS returns the embedded frontend, or nil until the frontend exists (milestone 4).
-func webFS() fs.FS { return nil }
+	"github.com/benjamincottle/gymrouter/internal/webui"
+)
+
+// webFS returns the embedded frontend (nil if it wasn't built before compiling).
+func webFS() fs.FS { return webui.FS() }

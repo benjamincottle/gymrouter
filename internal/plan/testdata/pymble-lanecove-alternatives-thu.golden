@@ -1,38 +1,30 @@
-leave 16:05 arrive 16:42 (37m), 3 ride(s), at-risk
+leave 16:05 arrive 16:48 (43m), 3 ride(s), tight
   walk 3m
   train T1 16:08–16:20 Pymble Station → Chatswood Station
-  walk 0m
-  metro M1 16:21–16:25 Chatswood Station → North Ryde Station — at-risk connection, 47s spare, next 16:25
+  walk 2m
+  metro M1 16:25–16:29 Chatswood Station → North Ryde Station — tight connection, 172s spare, next 16:29
+  walk 6m
+  bus 288 16:41–16:43 Epping Rd At Rivett Rd → Epping Rd Before Cumberland Av — safe connection, 293s spare, next 17:01
+  walk 6m
+leave 16:05 arrive 16:51 (46m), 3 ride(s), tight [alternative]
+  walk 3m
+  train T1 16:08–16:20 Pymble Station → Chatswood Station
+  walk 2m
+  metro M1 16:25–16:29 Chatswood Station → North Ryde Station — tight connection, 172s spare, next 16:29
   walk 4m
-  bus 291 16:33–16:37 Epping Rd After Delhi Rd → Epping Rd Before Cumberland Av — safe connection, 209s spare, next 17:03
-  walk 6m
-leave 16:05 arrive 16:48 (43m), 3 ride(s), at-risk [alternative]
-  walk 3m
-  train T1 16:08–16:20 Pymble Station → Chatswood Station
-  walk 0m
-  metro M1 16:21–16:25 Chatswood Station → North Ryde Station — at-risk connection, 47s spare, next 16:25
-  walk 6m
-  bus 288 16:41–16:43 Epping Rd At Rivett Rd → Epping Rd Before Cumberland Av — safe connection, 533s spare, next 17:01
-  walk 6m
-leave 16:05 arrive 16:51 (46m), 3 ride(s), at-risk [alternative]
-  walk 3m
-  train T1 16:08–16:20 Pymble Station → Chatswood Station
-  walk 0m
-  metro M1 16:21–16:28 Chatswood Station → Macquarie Park Station — at-risk connection, 47s spare, next 16:25
-  walk 4m
-  bus 292 16:33–16:43 Lane Cove Rd After Talavera Rd → Mowbray Rd At Fitzsimmons Av — at-risk connection, 45s spare, next 16:47
+  bus 292 16:39–16:43 Epping Rd After Delhi Rd → Mowbray Rd At Fitzsimmons Av — safe connection, 329s spare, next 16:53
   walk 8m
 leave 16:05 arrive 16:53 (48m), 2 ride(s), safe
   walk 3m
   train T1 16:08–16:20 Pymble Station → Chatswood Station
-  walk 3m
-  bus 533 16:34–16:45 Chatswood Station → Mowbray Public School, Mowbray Rd — safe connection, 638s spare, next 16:47
+  walk 6m
+  bus 533 16:34–16:45 Chatswood Station → Mowbray Public School, Mowbray Rd — safe connection, 498s spare, next 16:47
   walk 8m
 leave 16:05 arrive 16:58 (53m), 2 ride(s), safe [alternative]
   walk 3m
   train T1 16:08–16:25 Pymble Station → St Leonards Station
-  walk 3m
-  bus 287 16:36–16:54 St Leonards Station → Epping Rd After Sam Johnson Way — safe connection, 458s spare, next 17:16
+  walk 7m
+  bus 287 16:36–16:54 St Leonards Station → Epping Rd After Sam Johnson Way — safe connection, 198s spare, next 17:16
   walk 5m
 leave 16:05 arrive 17:05 (60m), 2 ride(s), at-risk [alternative]
   walk 3m

@@ -119,6 +119,7 @@ func WriteZip(path string, days ...*Day) error {
 		{"trips.txt", []string{"route_id", "service_id", "trip_id", "trip_headsign", "shape_id"}, tripRows},
 		{"stop_times.txt", []string{"trip_id", "arrival_time", "departure_time", "stop_id", "stop_sequence"}, timeRows},
 		{"calendar_dates.txt", []string{"service_id", "date", "exception_type"}, calRows},
+		{"pathways.txt", []string{"pathway_id", "from_stop_id", "to_stop_id", "pathway_mode", "is_bidirectional", "traversal_time"}, pathwayRows(days, stops)},
 	} {
 		if err := write(w.name, w.header, w.rows); err != nil {
 			zw.Close()
@@ -141,4 +142,44 @@ func hms(t int32) string {
 
 func sortRows(rows [][]string) {
 	sort.Slice(rows, func(a, b int) bool { return strings.Join(rows[a], ",") < strings.Join(rows[b], ",") })
+}
+
+// pathwayRows keeps the pathways of stations that appear in the fixture.
+func pathwayRows(days []*Day, stops map[string]Stop) [][]string {
+	stations := map[string]bool{}
+	for _, s := range stops {
+		if s.Parent != "" {
+			stations[s.Parent] = true
+		}
+	}
+	// Pathway IDs and internal nodes are prefixed with the stop/station ID in TfNSW data; keep a
+	// pathway if either end belongs to a fixture station (by parent) or is named after one.
+	inStation := func(id string) bool {
+		if s, ok := stops[id]; ok && stations[s.Parent] {
+			return true
+		}
+		prefix, _, _ := strings.Cut(id, "_")
+		return stations[prefix]
+	}
+	seen := map[string]bool{}
+	var rows [][]string
+	for _, d := range days {
+		for i, p := range d.Pathways {
+			if !inStation(p.From) && !inStation(p.To) {
+				continue
+			}
+			key := p.From + ">" + p.To + ">" + strconv.Itoa(p.Mode)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			bi := "0"
+			if p.Bidirectional {
+				bi = "1"
+			}
+			rows = append(rows, []string{"pw" + strconv.Itoa(i), p.From, p.To, strconv.Itoa(p.Mode), bi, strconv.Itoa(int(p.Secs))})
+		}
+	}
+	sortRows(rows)
+	return rows
 }

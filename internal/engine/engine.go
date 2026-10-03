@@ -108,6 +108,7 @@ type Engine struct {
 	staticAt     time.Time
 	staticErr    string
 	missing      []lines.Key
+	lastGeocode  time.Time
 }
 
 // New creates an engine. Call Start before serving.
@@ -470,6 +471,31 @@ func (e *Engine) applyRealtime() {
 		Realtime: true, RealtimeAt: oldest, Stats: st, Static: static}
 	// Only publish if today hasn't been replaced meanwhile.
 	e.today.CompareAndSwap(cur, s)
+}
+
+// ErrBusy is returned when geocoding is requested too often.
+var ErrBusy = errors.New("too many requests; try again shortly")
+
+// Geocode looks up an address or place via the TfNSW Trip Planner. Rate-limited to one request
+// per second and counted against the daily budget. The query is never logged.
+func (e *Engine) Geocode(ctx context.Context, q string) ([]tfnsw.Place, error) {
+	e.rtMu.Lock()
+	now := e.now()
+	if now.Sub(e.lastGeocode) < time.Second {
+		e.rtMu.Unlock()
+		return nil, ErrBusy
+	}
+	e.lastGeocode = now
+	e.rtMu.Unlock()
+	if !e.allowRequest() {
+		return nil, ErrBusy
+	}
+	e.countRequest()
+	b, err := e.fetch.Get(ctx, tfnsw.GeocodePath(q), 1<<20)
+	if err != nil {
+		return nil, err
+	}
+	return tfnsw.ParseGeocode(b, 6)
 }
 
 // Vehicles returns live vehicles on the given lines (fresh data only).

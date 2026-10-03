@@ -69,6 +69,9 @@ func (f *Fetcher) Get(_ context.Context, path string, _ int64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if strings.HasPrefix(path, "/v1/tp/stop_finder") {
+		return []byte(`{"locations":[{"name":"1 Example St, Epping","type":"singlehouse","coord":[-33.77,151.08]},{"name":"No coords","type":"street"}]}`), nil
+	}
 	for _, feed := range tfnsw.Feeds {
 		kind := ""
 		switch path {

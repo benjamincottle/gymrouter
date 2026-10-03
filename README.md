@@ -5,7 +5,7 @@ open data. Instead of searching the whole network like a general planner, it che
 option within each gym's own set of lines against live data, using your own walking and transfer
 times. See [docs/spec.md](docs/spec.md).
 
-Status: router core and server API work. The web app (milestones 4–6) and deployment (7) are next.
+Status: router, server and web app work. The live map (milestone 5), in-trip mode (6) and deployment (7) are next.
 
 ## Commands
 ```
@@ -41,9 +41,14 @@ API: [docs/api.md](docs/api.md).
 
 ## Development
 ```
+(cd web && npm ci && npm run build)             # builds the frontend into internal/webui/dist (embedded)
+go build -o bin/gymrouter ./cmd/gymrouter
 go test ./...                                   # unit + golden tests (no network)
+(cd web && npm test)                            # frontend unit tests
 go test ./internal/plan -run Fixture -update    # regenerate golden files
 ```
+Without the frontend build, the server still runs and serves only the API. For frontend work,
+`npm run dev` in `web/` proxies the API to a server on 127.0.0.1:18080.
 Requires Go 1.27+. Regenerating protobuf bindings needs `protoc` and `protoc-gen-go`
 (`protoc --go_out=… proto/gtfs-realtime.proto`).
 

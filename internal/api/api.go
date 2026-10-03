@@ -4,6 +4,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/engine"
 	"github.com/benjamincottle/gymrouter/internal/lines"
 	"github.com/benjamincottle/gymrouter/internal/raptor"
+	"github.com/benjamincottle/gymrouter/internal/tfnsw"
 )
 
 // Engine is what the API needs from the data engine.
@@ -31,6 +33,7 @@ type Engine interface {
 	Now() time.Time
 	RoutingOptions() raptor.Options
 	Config() *config.Config
+	Geocode(ctx context.Context, q string) ([]tfnsw.Place, error)
 }
 
 // maxBody bounds request bodies.
@@ -58,11 +61,25 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("POST /api/stops/near", s.stopsNear)
 	api.HandleFunc("GET /api/vehicles", s.vehicles)
 	api.HandleFunc("GET /api/status", s.status)
+	api.HandleFunc("POST /api/geocode", s.geocode)
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { writeError(w, http.StatusNotFound, "not found") })
 	mux.Handle("/api/", s.auth.Require(s.touch(api)))
 	mux.HandleFunc("GET /healthz", s.healthz)
 	if s.web != nil {
-		mux.Handle("GET /", http.FileServerFS(s.web))
+		files := http.FileServerFS(s.web)
+		mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet && r.Method != http.MethodHead {
+				w.Header().Set("Allow", "GET, HEAD")
+				writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+				return
+			}
+			if strings.HasPrefix(r.URL.Path, "/assets/") {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable") // content-hashed names
+			} else {
+				w.Header().Set("Cache-Control", "no-cache")
+			}
+			files.ServeHTTP(w, r)
+		}))
 	} else {
 		mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -180,6 +197,31 @@ func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusServiceUnavailable
 	}
 	writeJSON(w, status, map[string]any{"ok": h.OK, "service_date": h.ServiceDate})
+}
+
+func (s *Server) geocode(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Q string `json:"q"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	q := strings.TrimSpace(req.Q)
+	if len(q) < 3 || len(q) > 200 {
+		writeError(w, http.StatusBadRequest, "q must be 3..200 characters")
+		return
+	}
+	res, err := s.eng.Geocode(r.Context(), q)
+	switch {
+	case errors.Is(err, engine.ErrBusy):
+		writeError(w, http.StatusTooManyRequests, err.Error())
+	case err != nil:
+		s.log.Warn("geocode failed", "err", err)
+		writeError(w, http.StatusBadGateway, "address lookup failed")
+	default:
+		writeJSON(w, http.StatusOK, map[string]any{"results": res})
+	}
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {

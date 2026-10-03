@@ -74,6 +74,28 @@ type Day struct {
 	Trips     []Trip
 	// TripIndex maps trip_id to trips of the loaded day (one per day offset).
 	TripIndex map[string][]int32
+	// Pathways are walking links inside stations (between platforms, entrances and internal nodes,
+	// identified by stop_id; internal nodes usually have no coordinates and aren't in Stops).
+	Pathways []Pathway
+}
+
+// Pathway modes (GTFS).
+const (
+	PathwayWalkway    = 1
+	PathwayStairs     = 2
+	PathwayTravelator = 3
+	PathwayEscalator  = 4
+	PathwayElevator   = 5
+	PathwayFareGate   = 6
+	PathwayExitGate   = 7
+)
+
+// Pathway is one GTFS pathways.txt link.
+type Pathway struct {
+	From, To      string
+	Mode          int
+	Secs          int32
+	Bidirectional bool
 }
 
 // Source is one GTFS zip and the routes to take from it.
@@ -156,6 +178,20 @@ func (d *Day) load(src Source) error {
 		return err
 	}
 	yesterday, err := activeServices(files, d.Date.AddDate(0, 0, -1))
+	if err != nil {
+		return err
+	}
+
+	err = readCSV(files, "pathways.txt", false, func(r row) error {
+		secs, err := strconv.Atoi(r.get("traversal_time"))
+		if err != nil || secs < 0 {
+			return nil // no usable time
+		}
+		mode, _ := strconv.Atoi(r.get("pathway_mode"))
+		d.Pathways = append(d.Pathways, Pathway{From: r.get("from_stop_id"), To: r.get("to_stop_id"), Mode: mode,
+			Secs: int32(secs), Bidirectional: r.get("is_bidirectional") == "1"})
+		return nil
+	})
 	if err != nil {
 		return err
 	}

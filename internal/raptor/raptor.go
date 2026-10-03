@@ -48,11 +48,14 @@ type Options struct {
 	WalkSpeedMps float64
 	DetourFactor float64 // straight-line distance multiplier for walking
 	IncludeRoute func(r gtfs.Route) bool
+	// PlatformAllowance is added to in-station transfers derived from GTFS pathways, which only
+	// time the stairs/escalators/corridors, not walking along the platform.
+	PlatformAllowance int32
 }
 
 // DefaultOptions are conservative generic defaults; personal values replace them later.
 func DefaultOptions() Options {
-	return Options{MaxTransferM: 400, WalkSpeedMps: 1.3, DetourFactor: 1.3}
+	return Options{MaxTransferM: 400, WalkSpeedMps: 1.3, DetourFactor: 1.3, PlatformAllowance: 60}
 }
 
 // WalkSecs converts a straight-line distance to walking seconds.
@@ -127,7 +130,93 @@ func Build(d *gtfs.Day, o Options) *Network {
 			}
 		})
 	}
+	n.applyPathways(used, o)
 	return n
+}
+
+// applyPathways replaces straight-line transfers inside stations with times along the station's
+// pathways (stairs, escalators, corridors). Lifts are only used when there's no other way, as
+// their listed times exclude waiting.
+func (n *Network) applyPathways(used []bool, o Options) {
+	d := n.Day
+	if len(d.Pathways) == 0 {
+		return
+	}
+	type edge struct {
+		to   string
+		secs int32
+	}
+	build := func(withLifts bool) map[string][]edge {
+		g := map[string][]edge{}
+		for _, p := range d.Pathways {
+			if p.Mode == gtfs.PathwayElevator && !withLifts {
+				continue
+			}
+			g[p.From] = append(g[p.From], edge{p.To, p.Secs})
+			if p.Bidirectional {
+				g[p.To] = append(g[p.To], edge{p.From, p.Secs})
+			}
+		}
+		return g
+	}
+	graphs := []map[string][]edge{build(false), build(true)}
+	shortest := func(g map[string][]edge, from string) map[string]int32 {
+		dist := map[string]int32{from: 0}
+		done := map[string]bool{}
+		for {
+			cur, best := "", int32(-1)
+			for id, dd := range dist { // graphs per station are tiny; a linear scan is fine
+				if !done[id] && (best < 0 || dd < best || (dd == best && id < cur)) {
+					cur, best = id, dd
+				}
+			}
+			if best < 0 || best > 1800 {
+				return dist
+			}
+			done[cur] = true
+			for _, e := range g[cur] {
+				if nd := best + e.secs; !done[e.to] {
+					if old, ok := dist[e.to]; !ok || nd < old {
+						dist[e.to] = nd
+					}
+				}
+			}
+		}
+	}
+	for s := range d.Stops {
+		if !used[s] || d.Stops[s].Parent == "" {
+			continue
+		}
+		times := map[int32]int32{}
+		for _, g := range graphs {
+			if _, ok := g[d.Stops[s].ID]; !ok {
+				continue
+			}
+			for id, secs := range shortest(g, d.Stops[s].ID) {
+				t, ok := d.StopIndex[id]
+				if !ok || int(t) == s || !used[t] || d.Stops[t].Parent != d.Stops[s].Parent {
+					continue
+				}
+				if _, have := times[t]; !have { // without lifts first; lifts only as a fallback
+					times[t] = secs + o.PlatformAllowance
+				}
+			}
+		}
+		if len(times) == 0 {
+			continue
+		}
+		fps := n.Footpaths[s][:0]
+		for _, fp := range n.Footpaths[s] {
+			if _, ok := times[fp.To]; !ok {
+				fps = append(fps, fp)
+			}
+		}
+		for t, secs := range times {
+			fps = append(fps, Footpath{To: t, Secs: secs})
+		}
+		sort.Slice(fps, func(a, b int) bool { return fps[a].To < fps[b].To })
+		n.Footpaths[s] = fps
+	}
 }
 
 // StopsNear returns routable stops within radiusM of p with walking times.

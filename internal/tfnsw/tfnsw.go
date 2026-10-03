@@ -4,10 +4,12 @@ package tfnsw
 import (
 	"archive/zip"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,21 +86,21 @@ func (c *Client) Get(ctx context.Context, path string, maxBytes int64) ([]byte, 
 	req.Header.Set("Authorization", "apikey "+c.Key)
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tfnsw %s: request failed", pathOnly(path)) // the URL may hold personal data
 	}
 	defer resp.Body.Close()
 	switch {
 	case resp.StatusCode == http.StatusForbidden:
 		return nil, fmt.Errorf("%w: %s", ErrLimited, resp.Header.Get("X-Error-Detail"))
 	case resp.StatusCode != http.StatusOK:
-		return nil, fmt.Errorf("tfnsw %s: HTTP %d", path, resp.StatusCode)
+		return nil, fmt.Errorf("tfnsw %s: HTTP %d", pathOnly(path), resp.StatusCode)
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 	if err != nil {
 		return nil, err
 	}
 	if int64(len(b)) > maxBytes {
-		return nil, fmt.Errorf("tfnsw %s: response larger than %d bytes", path, maxBytes)
+		return nil, fmt.Errorf("tfnsw %s: response larger than %d bytes", pathOnly(path), maxBytes)
 	}
 	return b, nil
 }
@@ -162,4 +164,51 @@ func (c *Client) Download(ctx context.Context, path, dest string, maxBytes int64
 		_ = os.Remove(etagFile)
 	}
 	return true, nil
+}
+
+func pathOnly(p string) string {
+	path, _, _ := strings.Cut(p, "?")
+	return path
+}
+
+// GeocodePath builds a Trip Planner stop_finder query for free text (addresses, places, stops).
+func GeocodePath(q string) string {
+	v := url.Values{}
+	v.Set("outputFormat", "rapidJSON")
+	v.Set("type_sf", "any")
+	v.Set("name_sf", q)
+	v.Set("coordOutputFormat", "EPSG:4326")
+	v.Set("TfNSWSF", "true")
+	v.Set("version", "10.2.1.42")
+	return "/v1/tp/stop_finder?" + v.Encode()
+}
+
+// Place is a geocoding result.
+type Place struct {
+	Name string  `json:"name"`
+	Type string  `json:"type"`
+	Lat  float64 `json:"lat"`
+	Lon  float64 `json:"lon"`
+}
+
+// ParseGeocode reads a stop_finder response.
+func ParseGeocode(b []byte, max int) ([]Place, error) {
+	var r struct {
+		Locations []struct {
+			Name  string    `json:"name"`
+			Type  string    `json:"type"`
+			Coord []float64 `json:"coord"`
+		} `json:"locations"`
+	}
+	if err := json.Unmarshal(b, &r); err != nil {
+		return nil, fmt.Errorf("stop_finder: %w", err)
+	}
+	out := []Place{}
+	for _, l := range r.Locations {
+		if len(l.Coord) != 2 || len(out) >= max {
+			continue
+		}
+		out = append(out, Place{Name: l.Name, Type: l.Type, Lat: l.Coord[0], Lon: l.Coord[1]})
+	}
+	return out, nil
 }
