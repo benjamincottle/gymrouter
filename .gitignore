@@ -16,3 +16,6 @@ node_modules/
 web/node_modules/
 internal/webui/dist/*
 !internal/webui/dist/.gitkeep
+
+# Real (private) server config: lives in the deploy repo, never here
+config.toml
