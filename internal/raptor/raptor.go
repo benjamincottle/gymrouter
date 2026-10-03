@@ -40,6 +40,7 @@ type Network struct {
 	Patterns     []Pattern
 	stopPatterns [][]patRef
 	Footpaths    [][]Footpath
+	tripPattern  map[int32]int32 // Day.Trips index → pattern
 }
 
 // Options control network construction.
@@ -65,7 +66,8 @@ func (o Options) WalkSecs(distM float64) int32 {
 
 // Build groups trips into patterns and computes walking transfers.
 func Build(d *gtfs.Day, o Options) *Network {
-	n := &Network{Day: d, stopPatterns: make([][]patRef, len(d.Stops)), Footpaths: make([][]Footpath, len(d.Stops))}
+	n := &Network{Day: d, stopPatterns: make([][]patRef, len(d.Stops)), Footpaths: make([][]Footpath, len(d.Stops)),
+		tripPattern: map[int32]int32{}}
 	byKey := map[string]int32{}
 	var sb strings.Builder
 	for ti, t := range d.Trips {
@@ -93,6 +95,7 @@ func Build(d *gtfs.Day, o Options) *Network {
 			n.Patterns = append(n.Patterns, Pattern{Route: t.Route, Stops: stops})
 		}
 		n.Patterns[pi].Trips = append(n.Patterns[pi].Trips, int32(ti))
+		n.tripPattern[int32(ti)] = pi
 	}
 	used := make([]bool, len(d.Stops))
 	for pi := range n.Patterns {
@@ -568,4 +571,10 @@ func (n *Network) RoutesAt(s int32) []int32 {
 		}
 	}
 	return out
+}
+
+// PatternOf returns the pattern a trip (Day.Trips index) belongs to; its call indexes match the trip's.
+func (n *Network) PatternOf(trip int32) (int32, bool) {
+	p, ok := n.tripPattern[trip]
+	return p, ok
 }

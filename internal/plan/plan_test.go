@@ -156,3 +156,63 @@ func TestAllowRestrictsRoutes(t *testing.T) {
 		}
 	}
 }
+
+func TestOnboardReplansFromTheVehicle(t *testing.T) {
+	n := testNet(t)
+	d := n.Day
+	busA := d.TripIndex["bus1-a"][0]
+	ob := Onboard{Trip: busA, BoardCall: 0}
+	r := Request{
+		Access: OnboardAccess(n, &ob, 1100), Egress: []raptor.Access{{Stop: d.StopIndex["G"], Secs: 60}},
+		Depart: 1100, MinChange: 60, Onboard: &ob,
+	}
+	opts := Plan(n, r)
+	if len(opts) == 0 {
+		t.Fatal("no options from onboard")
+	}
+	o := opts[0]
+	if o.Legs[0].Kind != raptor.Ride || d.Trips[o.Legs[0].Trip].ID != "bus1-a" || o.Legs[0].Arr != 1300 {
+		t.Fatalf("first leg should be the bus we're on: %+v", o.Legs[0])
+	}
+	if o.Rides != 2 || o.Arrive != 1760 || len(o.Transfers) != 1 || o.LeaveAt != 1100 {
+		t.Errorf("option: rides %d arrive %d transfers %d leave %d", o.Rides, o.Arrive, len(o.Transfers), o.LeaveAt)
+	}
+	// Get off at X1, walk to platform X2, train: the walk is its own leg and the change is rated.
+	if o.Legs[1].Kind != raptor.Walk || o.Legs[1].From != d.StopIndex["X1"] || o.Legs[1].To != d.StopIndex["X2"] {
+		t.Errorf("walk after getting off: %+v", o.Legs[1])
+	}
+	if tr := o.Transfers[0]; tr.Risk != AtRisk || tr.FromLeg != 0 {
+		t.Errorf("change risk from the vehicle we're on: %+v", tr)
+	}
+
+	// On the direct bus 9: staying on is the answer.
+	bus9 := d.TripIndex["bus9"][0]
+	ob9 := Onboard{Trip: bus9, BoardCall: 0}
+	r.Access, r.Onboard, r.Depart = OnboardAccess(n, &ob9, 1500), &ob9, 1500
+	opts = Plan(n, r)
+	if len(opts) == 0 || opts[0].Rides != 1 || opts[0].Arrive != 2560 || opts[0].Legs[0].Kind != raptor.Ride {
+		t.Fatalf("stay on bus 9: %+v", opts)
+	}
+	if got := OnboardAccess(n, &ob9, 3000); len(got) != 0 {
+		t.Errorf("finished trip should have no remaining stops: %v", got)
+	}
+}
+
+func TestArriveBy(t *testing.T) {
+	n := testNet(t)
+	opts := ArriveBy(n, req(n, 0, 0), 2400, 3600)
+	if len(opts) < 2 {
+		t.Fatalf("want at least 2 options, got %+v", opts)
+	}
+	if opts[0].LeaveAt != 1600-120 || opts[0].Arrive != 2360 {
+		t.Errorf("latest departure first: leave %d arrive %d", opts[0].LeaveAt, opts[0].Arrive)
+	}
+	for _, o := range opts {
+		if o.Arrive > 2400 {
+			t.Errorf("option arrives after the deadline: %d", o.Arrive)
+		}
+	}
+	if len(ArriveBy(n, req(n, 0, 0), 1000, 3600)) != 0 {
+		t.Error("nothing arrives by 1000")
+	}
+}

@@ -34,6 +34,10 @@ Gyms with their lines, plus default preferences:
   them, stops within `max_walk_m` are used.
 - `time` is the earliest time to leave (default: now). Options leaving within `window_min` are returned.
 - `transfers` override walking/changing time between stops. A station ID covers all its platforms.
+- `"arrive_by": true` treats `time` as the latest arrival: options arriving by then, latest departure first.
+- While travelling, the origin can be the vehicle you're on: `"from": {"on_trip": {"trip_id": "…",
+  "from_stop": "<stop where you boarded>"}}`. Planning then starts now, on that vehicle: the first leg is that
+  ride, and the change off it is rated like any other. `time` and `arrive_by` don't apply.
 
 Response:
 ```json

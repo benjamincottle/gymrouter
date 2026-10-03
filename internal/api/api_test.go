@@ -15,6 +15,7 @@ import (
 	"sync"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/benjamincottle/gymrouter/internal/api"
 	"github.com/benjamincottle/gymrouter/internal/engine/enginetest"
@@ -430,5 +431,99 @@ func TestLegShapeLineShapesAndMap(t *testing.T) {
 	}
 	if rec := h.do(t, "GET", "/api/map.pmtiles", "", nil); rec.Code != 401 {
 		t.Errorf("map without token: %d", rec.Code)
+	}
+}
+
+type rideLeg struct {
+	Kind   string
+	TripID string `json:"trip_id"`
+	Dep    string
+	Arr    string
+	From   struct{ ID string }
+	To     struct{ ID string }
+}
+
+type simplePlan struct {
+	Options []struct {
+		LeaveAt string `json:"leave_at"`
+		Arrive  string
+		Rides   int
+		Legs    []rideLeg
+	}
+}
+
+func TestPlanFromOnboard(t *testing.T) {
+	h := newHarness(t)
+	req := map[string]any{"from": eppingToLaneCove["from"], "to": eppingToLaneCove["to"]}
+	var before simplePlan
+	_ = json.Unmarshal(h.do(t, "POST", "/api/plan", token, req).Body.Bytes(), &before)
+	if len(before.Options) == 0 {
+		t.Fatal("no options to board")
+	}
+	o := before.Options[0]
+	var ride rideLeg
+	for _, l := range o.Legs {
+		if l.Kind == "ride" {
+			ride = l
+			break
+		}
+	}
+	dep, _ := time.Parse(time.RFC3339, ride.Dep)
+	h.env.Clock.Advance(dep.Sub(h.env.Clock.Now()) + 2*time.Minute) // two minutes after boarding
+
+	onboard := map[string]any{
+		"from": map[string]any{"on_trip": map[string]any{"trip_id": ride.TripID, "from_stop": ride.From.ID}},
+		"to":   map[string]any{"gym": "lanecove"},
+	}
+	rec := h.do(t, "POST", "/api/plan", token, onboard)
+	var after simplePlan
+	_ = json.Unmarshal(rec.Body.Bytes(), &after)
+	if rec.Code != 200 || len(after.Options) == 0 {
+		t.Fatalf("onboard plan: %d %s", rec.Code, rec.Body)
+	}
+	first := after.Options[0].Legs[0]
+	if first.Kind != "ride" || first.TripID != ride.TripID || first.From.ID != ride.From.ID {
+		t.Errorf("first leg should be the trip we're on: %+v", first)
+	}
+	if after.Options[0].Arrive > o.Arrive {
+		t.Errorf("staying on the planned trip should arrive no later: %s vs %s", after.Options[0].Arrive, o.Arrive)
+	}
+	bad := map[string]any{"from": map[string]any{"on_trip": map[string]any{"trip_id": "nope", "from_stop": "x"}}, "to": map[string]any{"gym": "lanecove"}}
+	if rec := h.do(t, "POST", "/api/plan", token, bad); rec.Code != 400 {
+		t.Errorf("unknown trip: %d", rec.Code)
+	}
+	withTime := map[string]any{"from": onboard["from"], "to": onboard["to"], "time": "2026-10-03T15:00:00+10:00"}
+	if rec := h.do(t, "POST", "/api/plan", token, withTime); rec.Code != 400 {
+		t.Errorf("on_trip with a time: %d", rec.Code)
+	}
+}
+
+func TestPlanArriveBy(t *testing.T) {
+	h := newHarness(t)
+	req := map[string]any{
+		"from": eppingToLaneCove["from"], "to": eppingToLaneCove["to"],
+		"time": "2026-10-08T17:30:00+11:00", "arrive_by": true,
+		"prefs": eppingToLaneCove["prefs"],
+	}
+	rec := h.do(t, "POST", "/api/plan", token, req)
+	var p simplePlan
+	_ = json.Unmarshal(rec.Body.Bytes(), &p)
+	if rec.Code != 200 || len(p.Options) == 0 {
+		t.Fatalf("arrive by: %d %s", rec.Code, rec.Body)
+	}
+	for i, o := range p.Options {
+		if o.Arrive > "2026-10-08T17:30:00+11:00" {
+			t.Errorf("option %d arrives %s, after the deadline", i, o.Arrive)
+		}
+		if i > 0 && o.LeaveAt > p.Options[i-1].LeaveAt {
+			t.Errorf("options not latest-departure first: %s after %s", o.LeaveAt, p.Options[i-1].LeaveAt)
+		}
+	}
+	if p.Options[0].LeaveAt < "2026-10-08T16:45" {
+		t.Errorf("latest departure %s is suspiciously early for a 17:30 deadline", p.Options[0].LeaveAt)
+	}
+	noTime := map[string]any{"from": req["from"], "to": req["to"], "arrive_by": true}
+	if rec := h.do(t, "POST", "/api/plan", token, noTime); rec.Code != 400 {
+		t.Errorf("arrive_by without time: %d", rec.Code)
 	}
 }

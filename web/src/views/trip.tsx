@@ -5,6 +5,7 @@ import { usePolling, useVisible } from '../hooks.ts'
 import { homePlace, prefs, setTransfer, type Settings, type TransferTime } from '../settings.ts'
 import type { GymsResponse, PlanRequest } from '../types.ts'
 import { Board } from './board.tsx'
+import type { ActiveTrip } from './intrip.tsx'
 
 type Direction = 'to-gym' | 'home'
 
@@ -17,12 +18,17 @@ interface Props {
   gyms: GymsResponse | null
   onAuthError: () => void
   goToSettings: () => void
+  onStartTrip: (t: ActiveTrip) => void
 }
 
-export function Trip({ settings, setSettings, gyms, onAuthError, goToSettings }: Props) {
+type When = 'now' | 'leave' | 'arrive'
+
+export function Trip({ settings, setSettings, gyms, onAuthError, goToSettings, onStartTrip }: Props) {
   const [direction, setDirection] = useState<Direction>('to-gym')
   const [gymId, setGymId] = useState<string | null>(null)
-  const [leaveAt, setLeaveAt] = useState<string | null>(null) // datetime-local value; null = now
+  const [when, setWhen] = useState<When>('now')
+  const [at, setAt] = useState(() => toLocalInput(new Date())) // datetime-local value (Sydney time)
+  const leaveAt = when === 'now' ? null : at
   const visible = useVisible()
   const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
 
@@ -34,10 +40,11 @@ export function Trip({ settings, setSettings, gyms, onAuthError, goToSettings }:
       from: direction === 'to-gym' ? place : gym,
       to: direction === 'to-gym' ? gym : place,
       time: leaveAt ? fromLocalInput(leaveAt) : undefined,
+      arrive_by: when === 'arrive' || undefined,
       window_min: WINDOW_MIN,
       prefs: prefs(settings),
     }
-  }, [gymId, home, direction, leaveAt, settings])
+  }, [gymId, home, direction, leaveAt, when, settings])
 
   const key = request ? JSON.stringify(request) : null
   const plan = usePolling(
@@ -102,19 +109,25 @@ export function Trip({ settings, setSettings, gyms, onAuthError, goToSettings }:
 
       <div class="when">
         <div class="segmented small" role="group" aria-label="When">
-          <button aria-pressed={leaveAt === null} onClick={() => setLeaveAt(null)}>
+          <button aria-pressed={when === 'now'} onClick={() => setWhen('now')}>
             Leave now
           </button>
-          <button aria-pressed={leaveAt !== null} onClick={() => setLeaveAt(leaveAt ?? toLocalInput(new Date()))}>
-            Leave at…
+          <button aria-pressed={when === 'leave'} onClick={() => setWhen('leave')}>
+            Leave at
+          </button>
+          <button aria-pressed={when === 'arrive'} onClick={() => setWhen('arrive')}>
+            Arrive by
           </button>
         </div>
-        {leaveAt !== null && (
+        {when !== 'now' && (
           <input
             type="datetime-local"
-            value={leaveAt}
-            onChange={(e) => setLeaveAt((e.target as HTMLInputElement).value || null)}
-            aria-label="Leave at"
+            value={at}
+            onChange={(e) => {
+              const v = (e.target as HTMLInputElement).value
+              if (v) setAt(v)
+            }}
+            aria-label={when === 'arrive' ? 'Arrive by' : 'Leave at'}
           />
         )}
       </div>
@@ -129,7 +142,11 @@ export function Trip({ settings, setSettings, gyms, onAuthError, goToSettings }:
             <p class="error">{(plan.error as Error).message}</p>
           )}
           {plan.data && plan.data.options.length === 0 && (
-            <p class="muted">Nothing leaves in the next {WINDOW_MIN} minutes. Try a later time.</p>
+            <p class="muted">
+              {when === 'arrive'
+                ? 'No way to get there by then on these lines. Try a later time.'
+                : `Nothing leaves in the next ${WINDOW_MIN} minutes. Try a later time.`}
+            </p>
           )}
           {plan.data && plan.data.options.length > 0 && (
             <Board
@@ -143,6 +160,22 @@ export function Trip({ settings, setSettings, gyms, onAuthError, goToSettings }:
               title={direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`}
               transfers={settings.transfers}
               onSetTransfer={saveTransfer}
+              onStart={
+                when === 'now'
+                  ? (o) =>
+                      onStartTrip({
+                        option: o,
+                        plannedArrive: o.arrive,
+                        request: request!,
+                        gymId: gym.id,
+                        title: direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`,
+                        origin: direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat],
+                        destination: direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat],
+                        serviceDate: plan.data!.service_date,
+                        walkSpeedMps: settings.walkSpeedMps ?? gyms.defaults.walk_speed_mps,
+                      })
+                  : undefined
+              }
             />
           )}
         </section>

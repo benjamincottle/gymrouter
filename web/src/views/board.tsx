@@ -23,6 +23,7 @@ interface Props {
   title: string
   transfers: TransferTime[]
   onSetTransfer: (t: TransferTime) => void
+  onStart?: (o: Option) => void
 }
 
 export function Board(p: Props) {
@@ -73,9 +74,16 @@ export function Board(p: Props) {
           <p>
             <strong>{duration(sel.duration_s)}</strong> door to door, {sel.rides === 1 ? 'no changes' : `${sel.rides - 1} change${sel.rides > 2 ? 's' : ''}`}
           </p>
-          <button class="ghost" onClick={() => setMapOpen(true)}>
-            Show on map
-          </button>
+          <span class="actions">
+            {p.onStart && (
+              <button class="primary" onClick={() => p.onStart!(sel)}>
+                Start trip
+              </button>
+            )}
+            <button class="ghost" onClick={() => setMapOpen(true)}>
+              Show on map
+            </button>
+          </span>
         </div>
         <Timeline option={sel} transfers={p.transfers} onSetTransfer={p.onSetTransfer} />
       </div>
@@ -115,11 +123,12 @@ function Hero({ option: o, live, now }: { option: Option; live: boolean; now: nu
 }
 
 /** One option as tape segments on the shared axis: dashed for walking, line colours for rides. */
-export function Strip({ option: o, start, end }: { option: Option; start: number; end: number }) {
+export function Strip({ option: o, start, end, now }: { option: Option; start: number; end: number; now?: number }) {
   const span = Math.max(1, end - start)
   const pct = (t: number) => `${((t - start) / span) * 100}%`
   return (
     <span class="strip" aria-label={o.lines.join(', ')}>
+      {now !== undefined && now >= start && now <= end && <span class="now-mark" style={{ left: pct(now) }} />}
       {o.legs.map((l) => {
         const left = pct(ms(l.dep))
         const width = `${Math.max(0.8, ((ms(l.arr) - ms(l.dep)) / span) * 100)}%`
@@ -142,9 +151,9 @@ export function Strip({ option: o, start, end }: { option: Option; start: number
   )
 }
 
-type MapSheetProps = Props & { option: Option; now: number; onClose: () => void }
+type MapSheetProps = Omit<Props, 'onStart'> & { option: Option; now: number; onClose: () => void }
 
-function MapSheet({ option, now, onClose, token, gymId, serviceDate, origin, destination, title, live }: MapSheetProps) {
+export function MapSheet({ option, now, onClose, token, gymId, serviceDate, origin, destination, title, live }: MapSheetProps) {
   const [View, setView] = useState<ComponentType<MapViewProps> | null>(null)
   const [failed, setFailed] = useState(false)
   useEffect(() => {

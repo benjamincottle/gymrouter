@@ -30,12 +30,19 @@ type accessReq struct {
 	WalkS int32  `json:"walk_s"`
 }
 
-// placeReq is either a gym or a private place (coordinates and optional curated stops).
+// placeReq is a gym, a private place (coordinates and optional curated stops), or (as the origin
+// only) the vehicle the traveller is on.
 type placeReq struct {
 	Gym    string      `json:"gym,omitempty"`
 	Lat    *float64    `json:"lat,omitempty"`
 	Lon    *float64    `json:"lon,omitempty"`
 	Access []accessReq `json:"access,omitempty"`
+	OnTrip *onTripReq  `json:"on_trip,omitempty"`
+}
+
+type onTripReq struct {
+	TripID   string `json:"trip_id"`
+	FromStop string `json:"from_stop"` // where the traveller boarded
 }
 
 type riskReq struct {
@@ -61,7 +68,8 @@ type prefsReq struct {
 type planReq struct {
 	From      placeReq   `json:"from"`
 	To        placeReq   `json:"to"`
-	Time      *time.Time `json:"time,omitempty"` // earliest time to leave; default now
+	Time      *time.Time `json:"time,omitempty"` // earliest time to leave (latest arrival with arrive_by); default now
+	ArriveBy  bool       `json:"arrive_by,omitempty"`
 	WindowMin int        `json:"window_min,omitempty"`
 	Prefs     prefsReq   `json:"prefs"`
 }
@@ -162,6 +170,16 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	if fromGym == nil && toGym == nil {
 		return nil, badf("one end of the trip must be a gym")
 	}
+	if req.To.OnTrip != nil {
+		return nil, badf("on_trip is only valid for the origin")
+	}
+	onboard := req.From.OnTrip != nil
+	if onboard && (req.ArriveBy || req.Time != nil) {
+		return nil, badf("on_trip plans from now; time and arrive_by don't apply")
+	}
+	if req.ArriveBy && req.Time == nil {
+		return nil, badf("arrive_by needs a time")
+	}
 	set := lines.Set{}
 	for _, g := range []*config.Gym{fromGym, toGym} {
 		if g != nil {
@@ -195,8 +213,19 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	if req.Prefs.MaxWalkM > 0 {
 		maxWalk = req.Prefs.MaxWalkM
 	}
-	access, err := s.access(snap, req.From, fromGym, maxWalk, opts)
-	if err != nil {
+	var ob *plan.Onboard
+	var access []raptor.Access
+	if onboard {
+		ob, err = boarded(snap, req.From.OnTrip, snap.Secs(leave))
+		if err != nil {
+			return nil, err
+		}
+		access = plan.OnboardAccess(snap.Net, ob, snap.Secs(leave))
+		if len(access) == 0 {
+			return nil, badf("that trip has already finished")
+		}
+		window = 0
+	} else if access, err = s.access(snap, req.From, fromGym, maxWalk, opts); err != nil {
 		return nil, err
 	}
 	egress, err := s.access(snap, req.To, toGym, maxWalk, opts)
@@ -220,25 +249,63 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	for i, rt := range day.Routes {
 		allowed[i] = set.Has(rt.Type, rt.ShortName)
 	}
-	options := plan.Plan(snap.Net, plan.Request{
+	preq := plan.Request{
 		Access: access, Egress: egress, Depart: snap.Secs(leave), Window: window,
 		MinChange: minChange, Overrides: overrides, Thresholds: th,
 		MaxRides: cfg.Routing.MaxRides, AltSlack: cfg.Routing.AlternativesS,
-		Allow: func(r int32) bool { return allowed[r] },
-	})
+		Allow:   func(r int32) bool { return allowed[r] },
+		Onboard: ob,
+	}
+	var options []plan.Option
+	if req.ArriveBy {
+		options = plan.ArriveBy(snap.Net, preq, snap.Secs(leave), min(cfg.Routing.MaxWindowS, arriveByLookback))
+	} else {
+		options = plan.Plan(snap.Net, preq)
+	}
 
 	resp := &planResp{ServiceDate: snap.Date.Format("2006-01-02"), Realtime: snap.Realtime, Options: []optionResp{}}
 	if snap.Realtime {
 		at := snap.RealtimeAt
 		resp.RealtimeAt = &at
 	}
+	buffer := req.Prefs.LeaveBufferS
+	if onboard {
+		buffer = 0 // already on the way
+	}
 	for _, o := range options {
-		resp.Options = append(resp.Options, optionJSON(snap, o, req.Prefs.LeaveBufferS))
+		resp.Options = append(resp.Options, optionJSON(snap, o, buffer))
 	}
 	return resp, nil
 }
 
+// arriveByLookback is how far before the deadline arrive-by searches for departures.
+const arriveByLookback = 150 * 60
+
+// boarded finds the trip the traveller is on and where they boarded.
+func boarded(snap *engine.Snapshot, ot *onTripReq, now int32) (*plan.Onboard, error) {
+	d := snap.Day
+	for _, ti := range d.TripIndex[ot.TripID] {
+		t := &d.Trips[ti]
+		if t.Status == gtfs.Cancelled || len(t.StopTimes) == 0 || t.StopTimes[len(t.StopTimes)-1].Arr < now-3600 {
+			continue // not this day's run
+		}
+		for i, st := range t.StopTimes {
+			if d.Stops[st.Stop].ID == ot.FromStop {
+				return &plan.Onboard{Trip: ti, BoardCall: int32(i)}, nil
+			}
+		}
+	}
+	return nil, badf("trip or boarding stop not found in today's timetable")
+}
+
 func gymOf(cfg *config.Config, p placeReq) (*config.Gym, error) {
+	if p.OnTrip != nil {
+		if p.Gym != "" || p.Lat != nil || p.OnTrip.TripID == "" || p.OnTrip.FromStop == "" ||
+			len(p.OnTrip.TripID)+len(p.OnTrip.FromStop) > 200 {
+			return nil, badf("on_trip needs trip_id and from_stop, and nothing else")
+		}
+		return nil, nil
+	}
 	if p.Gym == "" {
 		if p.Lat == nil || p.Lon == nil {
 			return nil, badf("each place needs a gym id or lat/lon")
@@ -345,7 +412,7 @@ func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32) optionResp {
 	}
 	for i, l := range o.Legs {
 		dep := l.Dep
-		if i == 0 {
+		if i == 0 && l.Kind == raptor.Walk {
 			dep = leave
 		}
 		lr := legResp{From: stopJSON(d, l.From), To: stopJSON(d, l.To), Dep: snap.Clock(dep), Arr: snap.Clock(l.Arr)}

@@ -5,7 +5,7 @@ open data. Instead of searching the whole network like a general planner, it che
 option within each gym's own set of lines against live data, using your own walking and transfer
 times. See [docs/spec.md](docs/spec.md).
 
-Status: router, server, web app and live map work. In-trip mode (milestone 6) and deployment (7) are next.
+Status: router, server, web app, live map and in-trip mode work. Deployment (milestone 7) is next.
 
 ## Commands
 ```

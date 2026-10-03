@@ -5,6 +5,19 @@ import type { GymsResponse } from './types.ts'
 import { Setup } from './views/setup.tsx'
 import { Trip } from './views/trip.tsx'
 import { SettingsView } from './views/settings.tsx'
+import { InTrip, TRIP_KEY, type ActiveTrip } from './views/intrip.tsx'
+
+function loadTrip(storage: Storage | undefined): ActiveTrip | null {
+  try {
+    const raw = storage?.getItem(TRIP_KEY)
+    if (!raw) return null
+    const t = JSON.parse(raw) as ActiveTrip
+    // Drop trips that ended more than an hour ago.
+    return t?.option?.arrive && Date.parse(t.option.arrive) > Date.now() - 3600_000 ? t : null
+  } catch {
+    return null
+  }
+}
 
 type View = 'trip' | 'settings'
 
@@ -21,6 +34,19 @@ export function App({ initial, imported, storage }: AppProps) {
   const [authFailed, setAuthFailed] = useState(false)
   const [notice, setNotice] = useState(imported ? 'Settings saved on this device.' : '')
   const [storageOk, setStorageOk] = useState(true)
+  const [trip, setTripState] = useState<ActiveTrip | null>(() => loadTrip(storage))
+  const setTrip = useCallback(
+    (t: ActiveTrip | null) => {
+      setTripState(t)
+      try {
+        if (t) storage?.setItem(TRIP_KEY, JSON.stringify(t))
+        else storage?.removeItem(TRIP_KEY)
+      } catch {
+        /* trip just won't survive a reload */
+      }
+    },
+    [storage],
+  )
 
   const setSettings = useCallback(
     (s: Settings) => {
@@ -63,6 +89,14 @@ export function App({ initial, imported, storage }: AppProps) {
     )
   }
 
+  if (trip) {
+    return (
+      <div class="app">
+        <InTrip trip={trip} token={settings.token} onUpdate={setTrip} onEnd={() => setTrip(null)} onAuthError={onAuthError} />
+      </div>
+    )
+  }
+
   return (
     <div class="app">
       <header class="topbar">
@@ -88,7 +122,14 @@ export function App({ initial, imported, storage }: AppProps) {
       )}
       <main>
         {view === 'trip' ? (
-          <Trip settings={settings} setSettings={setSettings} gyms={gyms} onAuthError={onAuthError} goToSettings={() => setView('settings')} />
+          <Trip
+            settings={settings}
+            setSettings={setSettings}
+            gyms={gyms}
+            onAuthError={onAuthError}
+            goToSettings={() => setView('settings')}
+            onStartTrip={setTrip}
+          />
         ) : (
           <SettingsView settings={settings} setSettings={setSettings} gyms={gyms} onAuthError={onAuthError} />
         )}

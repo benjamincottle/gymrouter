@@ -98,12 +98,14 @@ export interface PlaceRequest {
   lat?: number
   lon?: number
   access?: { stop: string; walk_s: number }[]
+  on_trip?: { trip_id: string; from_stop: string }
 }
 
 export interface PlanRequest {
   from: PlaceRequest
   to: PlaceRequest
   time?: string
+  arrive_by?: boolean
   window_min?: number
   prefs: {
     walk_speed_mps?: number

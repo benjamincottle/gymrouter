@@ -177,7 +177,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 3. ✅ **Server**: config, token auth, demand-driven poller, API, `/healthz`, `setup-link` CLI.
 4. ✅ **UI**: PWA shell, settings + export/import/share, gym buttons, option cards, countdown.
 5. ✅ **Map**: PMTiles serving, MapLibre, shapes, live vehicles with highlighting.
-6. **In-trip mode** and **Arrive by**.
+6. ✅ **In-trip mode** and **Arrive by**.
 7. **Deploy**: Dockerfile (distroless), compose example, Traefik labels, CI build/scan/publish.
 8. **Field validation**: ~2 weeks of trips compared against Opal/Google.
 
@@ -233,3 +233,10 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - 2026-10-03: Visual redesign (frontend-design pass): chalk wall + graphite, colour only for line colours and risk;
   Archivo with condensed widths for times; results as a countdown plus option "tape" strips on a shared
   time axis instead of stacked cards.
+- 2026-10-03: M6 done. Arrive by searches departures in the 150 min before the deadline and returns options arriving
+  by then, latest departure first. In-trip mode: the app tracks the phase from live times (plus GPS when the user
+  turns it on), re-plans every 30 s from the vehicle you're on (`on_trip` origin: you can stay on, get off, or walk
+  to a nearby stop, and that change is rated), from your position, or from the next stop. It compares the result
+  with the committed trips: on track (with lateness), a faster option (≥ 3 min sooner), or a missed connection with
+  the next best, offered with one-tap "Switch to this". Screen wake lock while travelling; the active trip
+  survives reloads (stored on the device only).

@@ -836,3 +836,92 @@ label.walk input {
     scroll-behavior: auto !important;
   }
 }
+
+/* ---- in-trip ---- */
+
+.intrip .sheet-bar {
+  padding-left: 0;
+  padding-right: 0;
+  margin-bottom: 4px;
+}
+
+.intrip .hero {
+  border-top: 0;
+  margin-top: 8px;
+}
+
+.alert {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border-left: 5px solid var(--missed);
+  background: var(--panel);
+}
+
+.alert.risk-safe {
+  border-left-color: var(--safe);
+}
+
+.alert p {
+  margin-bottom: 10px;
+}
+
+.label {
+  margin: 0 0 2px;
+  font-weight: 600;
+  color: var(--pencil);
+}
+
+.now {
+  padding: 12px 0;
+  border-top: 3px solid var(--ink);
+}
+
+.now-main {
+  margin: 0 0 6px;
+  font-stretch: var(--semi);
+  font-weight: 750;
+  font-size: 1.5rem;
+  line-height: 1.15;
+}
+
+.next {
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+}
+
+.spare {
+  display: block;
+  margin-top: 4px;
+  font-weight: 600;
+  color: var(--safe);
+}
+
+.spare.tight {
+  color: var(--tight);
+}
+
+.spare.bad {
+  color: var(--missed);
+}
+
+.progress {
+  padding: 16px 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 16px;
+}
+
+.now-mark {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 3px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--ink);
+  z-index: 1;
+}
+
+.details-head .actions {
+  flex-wrap: nowrap;
+}
