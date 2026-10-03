@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # --- Frontend: built once on the build platform (the output is platform-independent) ---
-FROM --platform=$BUILDPLATFORM node:24-trixie-slim AS web
+FROM --platform=$BUILDPLATFORM node:26-trixie-slim AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 # --ignore-scripts: no dependency gets to run install scripts.
