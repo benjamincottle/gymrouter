@@ -5,7 +5,9 @@ import type { KnownGym, PlaceRequest, PlanRequest, SuggestResult } from './types
 export interface AccessStop {
   stop: string
   name: string
-  walk_s: number
+  walk_s: number // what the router uses: the mean of `times` when walks have been measured
+  times?: number[] // measured walks, seconds (most recent few)
+  trace?: [number, number][] // the route walked, [lon, lat], from the place to the stop
 }
 
 /** A place on the map: curated stops with measured walk times (empty = every stop within the walking limit). */
@@ -79,7 +81,18 @@ function sanitizePlace(input: unknown): Place | null {
     for (const a of r.access.slice(0, 20)) {
       const x = a as Record<string, unknown>
       if (x && isStr(x.stop, 40) && isStr(x.name, 120) && isNum(x.walk_s, 0, 3600)) {
-        access.push({ stop: x.stop, name: x.name, walk_s: Math.round(x.walk_s) })
+        const st: AccessStop = { stop: x.stop, name: x.name, walk_s: Math.round(x.walk_s) }
+        if (Array.isArray(x.times)) {
+          const times = x.times.filter((t): t is number => isNum(t, 1, 3600)).slice(-5).map(Math.round)
+          if (times.length > 0) st.times = times
+        }
+        if (Array.isArray(x.trace) && x.trace.length >= 2 && x.trace.length <= 120) {
+          const trace = x.trace.filter(
+            (p): p is [number, number] => Array.isArray(p) && p.length === 2 && isNum(p[0], -180, 180) && isNum(p[1], -90, 90),
+          )
+          if (trace.length === x.trace.length) st.trace = trace
+        }
+        access.push(st)
       }
     }
   }
@@ -256,4 +269,17 @@ export function gymFromKnown(k: KnownGym): Gym {
 export function withSuggested(g: Gym, r: SuggestResult, homeId: string): Gym {
   const add = r.lines.filter((l) => l.recommended && isLine(l.line)).map((l) => l.line)
   return { ...g, lines: [...new Set([...g.lines, ...add])].slice(0, MAX_LINES), homeId }
+}
+
+/** The measured routes to draw on the map: from the trip's start place to its stop, and from its stop to the end place. */
+export interface WalkTraces {
+  from: Record<string, [number, number][]> // keyed by stop ID; runs from the start place to the stop
+  to: Record<string, [number, number][]> // keyed by stop ID; runs from the stop to the end place
+}
+
+export function walkTraces(start: Place, end: Place): WalkTraces {
+  const out: WalkTraces = { from: {}, to: {} }
+  for (const a of start.access) if (a.trace) out.from[a.stop] = a.trace
+  for (const a of end.access) if (a.trace) out.to[a.stop] = [...a.trace].reverse()
+  return out
 }

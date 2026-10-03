@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
 import { fromLocalInput, toLocalInput } from '../format.ts'
 import { usePolling, useVisible } from '../hooks.ts'
-import { placeRequest, prefs, setTransfer, type Settings, type TransferTime } from '../settings.ts'
+import { placeRequest, prefs, setTransfer, walkTraces, type Settings, type TransferTime } from '../settings.ts'
 import type { DefaultsResponse, PlanRequest } from '../types.ts'
 import { Board } from './board.tsx'
 import type { ActiveTrip } from './intrip.tsx'
@@ -74,6 +74,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   }
 
   const gym = settings.gyms.find((g) => g.id === gymId)
+  const traces = gym ? (direction === 'to-gym' ? walkTraces(home, gym) : walkTraces(gym, home)) : undefined
 
   return (
     <div class="stack">
@@ -157,6 +158,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
               serviceDate={plan.data.service_date}
               token={settings.token!}
               lines={gym.lines}
+              traces={traces}
               origin={direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat]}
               destination={direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat]}
               title={direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`}
@@ -170,6 +172,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
                         plannedArrive: o.arrive,
                         request: request!,
                         lines: gym.lines,
+                        traces,
                         title: direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`,
                         origin: direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat],
                         destination: direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat],

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, ApiError, AuthError } from '../api.ts'
-import { gymFromKnown, isLine, LINE_MODES, MAX_LINES, newId, placeRequest, withSuggested, type Gym, type Home } from '../settings.ts'
+import { gymFromKnown, isLine, LINE_MODES, MAX_LINES, newId, placeRequest, withSuggested, type AccessStop, type Gym, type Home } from '../settings.ts'
 import { groupStops, relevantGroups, type StopGroup } from '../stops.ts'
 import type { GeocodeResult, KnownGym, NearStop, SuggestResult } from '../types.ts'
 import { LineChip } from './option.tsx'
+import { WalkTimer } from './walktimer.tsx'
+import { withWalk, type Walk } from '../walkmeasure.ts'
 
 export const newHome = (): Home => ({ id: newId(), name: 'Home', lat: NaN, lon: NaN, access: [] })
 export const newGym = (): Gym => ({ id: newId(), name: '', lat: NaN, lon: NaN, access: [], lines: [] })
@@ -106,10 +108,45 @@ export function PlaceEditor({ kind, place, isNew, token, homes, onAuthError, onS
     setP({ ...p, access: on ? rest : [...rest, ...g.ids.map((stop) => ({ stop, name: g.name, walk_s: g.walk_s }))] })
   }
   const setWalk = (g: StopGroup, mins: number) =>
-    setP({ ...p, access: p.access.map((a) => (g.ids.includes(a.stop) ? { ...a, walk_s: Math.round(mins * 60) } : a)) })
+    setP({
+      ...p,
+      access: p.access.map((a) => {
+        if (!g.ids.includes(a.stop)) return a
+        const secs = Math.round(mins * 60)
+        return { ...a, walk_s: secs, times: secs > 0 ? [secs] : undefined } // typing a time replaces any measured walks
+      }),
+    })
   const visibleGroups = showAll ? groups : relevantGroups(groups)
 
+  // Timing a walk to a stop, tracing it with GPS.
+  const [timing, setTiming] = useState<StopGroup | null>(null)
+  const accessOf = (g: StopGroup): AccessStop | undefined => p.access.find((a) => g.ids.includes(a.stop))
+  const saveWalk = (g: StopGroup, w: Walk, replace: boolean) => {
+    const merged = withWalk(accessOf(g) ?? { stop: g.ids[0], name: g.name, walk_s: g.walk_s }, w, replace)
+    const rest = p.access.filter((a) => !g.ids.includes(a.stop))
+    // Every platform or stand of the station shares the one measured walk.
+    setP({ ...p, access: [...rest, ...g.ids.map((stop) => ({ ...merged, stop, name: g.name }))] })
+    setTiming(null)
+  }
+
   const canSave = hasLocation && p.name.trim() !== '' && (!gym || p.lines.length > 0)
+
+  if (timing) {
+    return (
+      <div class="stack">
+        <WalkTimer
+          placeName={p.name.trim() || (gym ? 'the gym' : 'home')}
+          place={p}
+          stopName={timing.name}
+          stop={timing}
+          earlier={accessOf(timing)?.times ?? []}
+          estimateS={timing.walk_s}
+          onSave={(w, replace) => saveWalk(timing, w, replace)}
+          onCancel={() => setTiming(null)}
+        />
+      </div>
+    )
+  }
 
   return (
     <div class="stack">
@@ -177,22 +214,28 @@ export function PlaceEditor({ kind, place, isNew, token, homes, onAuthError, onS
                       <span class="muted small"> · {g.lines.join(', ')}</span>
                     </span>
                   </label>
-                  {walk !== undefined ? (
-                    <label class="walk">
-                      <input
-                        type="number"
-                        min="0"
-                        max="60"
-                        step="0.5"
-                        value={walk / 60}
-                        onChange={(e) => setWalk(g, Number((e.target as HTMLInputElement).value) || 0)}
-                        aria-label={`Walking time to ${g.name} in minutes`}
-                      />
-                      min
-                    </label>
-                  ) : (
-                    <span class="muted small">~{Math.round(g.walk_s / 60)} min</span>
-                  )}
+                  <span class="walkcell">
+                    {walk !== undefined ? (
+                      <label class="walk">
+                        <input
+                          type="number"
+                          min="0"
+                          max="60"
+                          step="0.5"
+                          value={Math.round((walk / 60) * 100) / 100}
+                          onChange={(e) => setWalk(g, Number((e.target as HTMLInputElement).value) || 0)}
+                          aria-label={`Walking time to ${g.name} in minutes`}
+                        />
+                        min
+                      </label>
+                    ) : (
+                      <span class="muted small">~{Math.round(g.walk_s / 60)} min</span>
+                    )}
+                    <button class="link" onClick={() => setTiming(g)}>
+                      {accessOf(g)?.times ? `Re-time (${accessOf(g)!.times!.length})` : 'Time it'}
+                    </button>
+                    {accessOf(g)?.trace && <span class="muted small" title="The route you walked is drawn on the map">traced</span>}
+                  </span>
                 </li>
               )
             })}

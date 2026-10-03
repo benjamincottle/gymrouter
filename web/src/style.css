@@ -960,3 +960,23 @@ details > summary {
   margin: 4px 0 8px;
   font-weight: 600;
 }
+
+/* ---- walk timer ---- */
+
+.timer-clock {
+  margin: 8px 0;
+  font-family: 'Archivo Variable', system-ui, sans-serif;
+  font-stretch: var(--narrow);
+  font-weight: 800;
+  font-size: 4.5rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.walkcell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}

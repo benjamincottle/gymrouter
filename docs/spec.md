@@ -62,7 +62,9 @@ Non-goals (v1)
   (e.g. through the Johnson factory at Lane Cove) and miss shortcuts that exist (e.g. cutting through the
   plumbing-supply site). Walks to and from stops, and between stops when changing, are routed over a pedestrian network built from OpenStreetMap
   (footpaths, steps, streets; private and no-foot ways excluded). A curated access stop with a measured walk time
-  overrides the routed one, which is how the OSM data's mistakes get corrected. Until the network has been built
+  overrides the routed one, which is how the OSM data's mistakes get corrected. Walks are measured in the app: a timer with a
+  GPS trace (stand at the door, start, walk, "I'm here") for any walk from a home or gym to one of its stops. Repeat walks
+  average (most recent five); the traced route replaces the street-map route on the map. Traces and times stay on the device. Until the network has been built
   (first start), walks fall back to straight line × detour and the app says so. Transfers between stops are timed along the
   streets too (cached per stop; pairs that can't be walked within a sensible detour, e.g. across a river, are dropped);
   GTFS pathways inside stations still win, and a personal transfer time wins over both.
@@ -294,3 +296,10 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   hook; the engine fills it with street walks per stop, in parallel and cached by stop ID so live-data rebuilds don't redo them
   (timetable load went from ~3 s to ~4 s with the full Sydney graph). Whole-network passes (stop catalogue, line suggestions)
   keep straight-line transfers: tens of thousands of stops, and only roughly right is needed there.
+- 2026-10-03: Measured walks. Rather than guess or type minutes, any walk from a home or gym to a stop can be timed in the app
+  and traced with GPS (Start, walk, "I'm here"), with the screen kept awake. The time is the mean of the last five walks; the
+  traced route (simplified to ~80 points) is stored with the stop on the device and drawn on the map in place of the street-map
+  route. Poor GPS readings and jumps are discarded; the app warns if the walk started far from the place or ended far from the
+  stop. The server only ever sees the resulting number (as before); traces never leave the device. Found while testing: the
+  street graph routes Lane Cove's Epping Rd stops the long way round the factory block (~17 min), and the real shortcut
+  through the plumbing supplier is about 10 min, which is exactly what this is for.

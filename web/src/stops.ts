@@ -8,6 +8,8 @@ export interface StopGroup {
   ids: string[]
   lines: string[]
   walk_s: number
+  lat: number // the nearest platform/stand
+  lon: number
 }
 
 /** Groups platforms/stands of the same station into one row, nearest first. */
@@ -15,10 +17,14 @@ export function groupStops(stops: NearStop[]): StopGroup[] {
   const byKey = new Map<string, StopGroup>()
   for (const s of stops) {
     const key = s.station_id || s.id
-    const g = byKey.get(key) ?? { key, name: s.station || s.name, ids: [], lines: [], walk_s: s.walk_s }
+    const g = byKey.get(key) ?? { key, name: s.station || s.name, ids: [], lines: [], walk_s: s.walk_s, lat: s.lat, lon: s.lon }
     g.ids.push(s.id)
     for (const l of s.lines) if (!g.lines.includes(l)) g.lines.push(l)
-    g.walk_s = Math.min(g.walk_s, s.walk_s)
+    if (s.walk_s < g.walk_s) {
+      g.walk_s = s.walk_s
+      g.lat = s.lat
+      g.lon = s.lon
+    }
     byKey.set(key, g)
   }
   return [...byKey.values()].sort((a, b) => a.walk_s - b.walk_s)

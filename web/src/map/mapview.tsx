@@ -7,6 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { FetchSource, PMTiles, Protocol } from 'pmtiles'
 import { layers, namedFlavor } from '@protomaps/basemaps'
 import { ApiError, api } from '../api.ts'
+import type { WalkTraces } from '../settings.ts'
 import type { Leg, Option } from '../types.ts'
 
 maplibregl.setWorkerUrl(workerUrl)
@@ -51,6 +52,7 @@ const fc = (features: Feature[]) => ({ type: 'FeatureCollection' as const, featu
 export interface MapViewProps {
   token: string
   lines: string[]
+  traces?: WalkTraces
   option: Option
   serviceDate: string
   origin: [number, number] // [lon, lat] of where the trip starts (home or gym)
@@ -58,7 +60,7 @@ export interface MapViewProps {
 }
 
 /** Draws the option's legs, the gym's lines, and live vehicles (the option's own highlighted). */
-export function MapView({ token, lines, option, serviceDate, origin, destination }: MapViewProps) {
+export function MapView({ token, lines, traces, option, serviceDate, origin, destination }: MapViewProps) {
   const linesKey = lines.join(',')
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
@@ -192,7 +194,10 @@ export function MapView({ token, lines, option, serviceDate, origin, destination
         if (!a || !b) continue
         bounds.extend(a).extend(b)
         if (l.kind === 'walk') {
-          const coords = l.path && l.path.length > 1 ? l.path : [a, b]
+          // A walk you timed and traced beats the street-map route, which beats a straight line.
+          const last = i === option.legs.length - 1
+          const traced = (i === 0 && l.to ? traces?.from[l.to.id] : undefined) ?? (last && l.from ? traces?.to[l.from.id] : undefined)
+          const coords = traced && traced.length > 1 ? traced : l.path && l.path.length > 1 ? l.path : [a, b]
           features.push({ type: 'Feature', properties: { kind: 'walk' }, geometry: { type: 'LineString', coordinates: coords } })
           continue
         }

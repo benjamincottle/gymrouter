@@ -4,7 +4,7 @@ import { useEffect, useState } from 'preact/hooks'
 import type { ComponentType } from 'preact'
 import { clock, countdown, delay, duration, placeName, riskLabel } from '../format.ts'
 import { useNow } from '../hooks.ts'
-import type { TransferTime } from '../settings.ts'
+import type { TransferTime, WalkTraces } from '../settings.ts'
 import type { Leg, Option } from '../types.ts'
 import { Timeline } from './option.tsx'
 import type { MapViewProps } from '../map/mapview.tsx'
@@ -18,6 +18,7 @@ interface Props {
   serviceDate: string
   token: string
   lines: string[]
+  traces?: WalkTraces // walks you've timed and traced, drawn instead of the street-map route
   origin: [number, number]
   destination: [number, number]
   title: string
@@ -153,7 +154,7 @@ export function Strip({ option: o, start, end, now }: { option: Option; start: n
 
 type MapSheetProps = Omit<Props, 'onStart'> & { option: Option; now: number; onClose: () => void }
 
-export function MapSheet({ option, now, onClose, token, lines, serviceDate, origin, destination, title, live }: MapSheetProps) {
+export function MapSheet({ option, now, onClose, token, lines, traces, serviceDate, origin, destination, title, live }: MapSheetProps) {
   const [View, setView] = useState<ComponentType<MapViewProps> | null>(null)
   const [failed, setFailed] = useState(false)
   useEffect(() => {
@@ -177,7 +178,7 @@ export function MapSheet({ option, now, onClose, token, lines, serviceDate, orig
       {failed ? (
         <p class="map-note">Couldn't load the map. Check your connection and try again.</p>
       ) : View ? (
-        <View token={token} lines={lines} option={option} serviceDate={serviceDate} origin={origin} destination={destination} />
+        <View token={token} lines={lines} traces={traces} option={option} serviceDate={serviceDate} origin={origin} destination={destination} />
       ) : (
         <p class="map-note subtle">Loading map…</p>
       )}

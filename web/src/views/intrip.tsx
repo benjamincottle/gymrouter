@@ -5,6 +5,7 @@ import { api, AuthError } from '../api.ts'
 import { clock, countdown, delay, duration, placeName, riskLabel } from '../format.ts'
 import { useNow, useVisible } from '../hooks.ts'
 import { assess, instruction, phaseAt, replanOrigin, spareToBoard, tripsFrom, type Assessment, type Position } from '../intrip.ts'
+import type { WalkTraces } from '../settings.ts'
 import type { Option, PlanRequest } from '../types.ts'
 import { MapSheet, Strip } from './board.tsx'
 
@@ -14,6 +15,7 @@ export interface ActiveTrip {
   plannedArrive: string
   request: PlanRequest // the original request (from/to/prefs)
   lines: string[] // the gym's lines: what the map draws
+  traces?: WalkTraces // measured walks to draw on the map
   title: string
   origin: [number, number]
   destination: [number, number]
@@ -234,6 +236,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
           serviceDate={trip.serviceDate}
           token={token}
           lines={trip.lines}
+          traces={trip.traces}
           origin={trip.origin}
           destination={trip.destination}
           title={trip.title}
