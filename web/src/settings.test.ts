@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  applyFragment, emptySettings, gymFromPreset, isLine, load, parseFragment, placeRequest, prefs, sanitize, save, setTransfer, settingsLink,
+  applyFragment, emptySettings, gymFromKnown, isLine, withSuggested, load, parseFragment, placeRequest, prefs, sanitize, save, setTransfer, settingsLink,
   type Settings,
 } from './settings.ts'
 import { countdown, delay, duration, fromLocalInput, platform, toLocalInput } from './format.ts'
@@ -65,11 +65,36 @@ test('isLine accepts what the server writes', () => {
   for (const bad of ['', 'bus', 'tram 1', 'bus  ', 'Bus 288', 5]) assert.equal(isLine(bad), false, String(bad))
 })
 
-test('a server preset becomes a gym with its own id', () => {
-  const g = gymFromPreset({ name: 'Gym', lat: -33.8, lon: 151.1, lines: ['bus 288'], access: [{ stop: '1', walk_s: 90 }] })
+test('a built-in gym keeps its curated lines and walks, with a fresh id', () => {
+  const k = { id: 'lanecove', name: 'Gym', lat: -33.8, lon: 151.1, lines: ['bus 288'], access: [{ stop: '1', name: 'Mars Rd', walk_s: 90 }] }
+  const g = gymFromKnown(k)
   assert.deepEqual(g.lines, ['bus 288'])
-  assert.equal(g.access[0].walk_s, 90)
+  assert.deepEqual(g.access, [{ stop: '1', name: 'Mars Rd', walk_s: 90 }])
+  assert.equal(g.ref, 'lanecove')
   assert.ok(g.id.length > 0)
+  assert.notEqual(g.lines, k.lines, 'must be a copy')
+})
+
+test('suggested lines are added to the gym end, never replacing it', () => {
+  const g = { ...sample.gyms[0], lines: ['bus 288'] }
+  const r = {
+    windows: [], itineraries: [],
+    lines: [
+      { line: 'train T4', share: 1, recommended: true },
+      { line: 'bus 288', share: 0.9, recommended: true },
+      { line: 'bus 530', share: 0.16, recommended: false },
+      { line: 'train ', share: 1, recommended: true },
+    ],
+  }
+  const out = withSuggested(g, r, 'h1')
+  assert.deepEqual(out.lines, ['bus 288', 'train T4'])
+  assert.equal(out.homeId, 'h1')
+})
+
+test('gym ref and homeId survive sanitize', () => {
+  const s = sanitize({ ...sample, gyms: [{ ...sample.gyms[0], ref: 'lanecove', homeId: 'h1' }] })
+  assert.equal(s.gyms[0].ref, 'lanecove')
+  assert.equal(s.gyms[0].homeId, 'h1')
 })
 
 test('activeHome falls back to the first home', () => {

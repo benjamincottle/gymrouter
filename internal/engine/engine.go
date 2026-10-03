@@ -120,14 +120,15 @@ type Engine struct {
 }
 
 // New creates an engine. Call Start before serving.
-func New(cfg *config.Config, loc *time.Location, f Fetcher, log *slog.Logger) *Engine {
+// preload is the set of lines to load at startup (the built-in gyms'), so the first request is fast. It may be empty.
+func New(cfg *config.Config, loc *time.Location, f Fetcher, log *slog.Logger, preload lines.Set) *Engine {
 	e := &Engine{
 		cfg: cfg, loc: loc, fetch: f, log: log, now: time.Now,
 		paths: timetable.Paths{
 			Complete: filepath.Join(cfg.Server.DataDir, "complete.zip"),
 			Trains:   filepath.Join(cfg.Server.DataDir, "sydneytrains.zip"),
 		},
-		all:   cfg.AllLines(),
+		all:   lines.Union(preload),
 		heavy: make(chan struct{}, 1),
 		wake:  make(chan struct{}, 1),
 		cache: map[string]*Snapshot{},
@@ -427,7 +428,7 @@ func (e *Engine) staticLoop(ctx context.Context) {
 				go e.LoadShapes()
 			}
 		}
-		if today := e.LocalDate(now); !today.Equal(lastRefresh) && now.Hour() >= e.cfg.Routing.StaticRefreshH {
+		if today := e.LocalDate(now); !today.Equal(lastRefresh) && now.Hour() >= e.cfg.Server.StaticRefreshH {
 			lastRefresh = today
 			e.refreshStatic(ctx)
 		}

@@ -55,7 +55,7 @@ func newHarnessWeb(t *testing.T, web fs.FS) *harness {
 	return newHarnessWith(t, web, func(logs *syncBuffer) *enginetest.Env { return enginetest.New(t, "", logs) })
 }
 
-// newHarnessEmpty has no preset gyms, so the server starts without any lines loaded.
+// newHarnessEmpty preloads nothing, so the server starts without any lines loaded.
 func newHarnessEmpty(t *testing.T) *harness {
 	t.Helper()
 	return newHarnessWith(t, nil, func(logs *syncBuffer) *enginetest.Env {
@@ -108,7 +108,8 @@ func TestAuth(t *testing.T) {
 		t.Errorf("unknown API paths must also need the token: %d", rec.Code)
 	}
 	rec := h.do(t, "GET", "/api/defaults", token, nil)
-	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"9 Degrees Lane Cove"`) || !strings.Contains(rec.Body.String(), `"walk_speed_mps"`) {
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"9 Degrees Lane Cove"`) || !strings.Contains(rec.Body.String(), `"walk_speed_mps"`) ||
+		!strings.Contains(rec.Body.String(), `"gyms"`) {
 		t.Fatalf("defaults: %d %s", rec.Code, rec.Body)
 	}
 	if _, err := api.NewAuth("short"); err == nil {
@@ -594,12 +595,13 @@ func TestPlanLoadsLinesTheServerHasNotSeen(t *testing.T) {
 
 func TestSuggestLines(t *testing.T) {
 	h := newHarnessEmpty(t)
+	chatswood := map[string]any{"lat": -33.7856633, "lon": 151.2003558}
 	body := map[string]any{
 		"from": map[string]any{"lat": -33.7727, "lon": 151.0821},
-		"to":   laneCove,
+		"to":   []any{laneCove, chatswood},
 	}
 	rec := h.do(t, "POST", "/api/suggest-lines", token, body)
-	var r struct {
+	type result struct {
 		Windows []struct {
 			Label      string
 			Departures int
@@ -615,33 +617,50 @@ func TestSuggestLines(t *testing.T) {
 			Seen  int
 		}
 	}
+	var r struct{ Results []result }
 	_ = json.Unmarshal(rec.Body.Bytes(), &r)
-	if rec.Code != 200 || len(r.Windows) == 0 || len(r.Lines) == 0 || len(r.Itineraries) == 0 {
+	if rec.Code != 200 || len(r.Results) != 2 {
 		t.Fatalf("suggest: %d %.400s", rec.Code, rec.Body)
 	}
-	rec1 := false
-	for _, l := range r.Lines {
-		if l.Line == "metro M1" && l.Recommended && l.Share > 0 {
-			rec1 = true
+	for i, res := range r.Results {
+		if len(res.Windows) == 0 || len(res.Lines) == 0 || len(res.Itineraries) == 0 {
+			t.Fatalf("result %d is empty: %+v", i, res)
 		}
 	}
-	if !rec1 {
-		t.Errorf("metro M1 should be recommended: %+v", r.Lines)
+	has := func(res result, line string) bool {
+		for _, l := range res.Lines {
+			if l.Line == line && l.Recommended && l.Share > 0 {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(r.Results[0], "metro M1") || !has(r.Results[0], "bus 288") {
+		t.Errorf("Lane Cove should recommend M1 and the 288: %+v", r.Results[0].Lines)
+	}
+	if has(r.Results[1], "bus 288") {
+		t.Errorf("the 288 doesn't go to Chatswood: %+v", r.Results[1].Lines)
 	}
 	if n := len(h.env.Engine.Lines()); n != 0 {
 		t.Errorf("suggesting loaded %d lines into the timetable", n)
 	}
 
-	// Curated stops are honoured, and bad input is rejected.
-	nowhere := map[string]any{"from": map[string]any{"lat": -20, "lon": 130}, "to": laneCove}
+	// Bad input is rejected.
+	nowhere := map[string]any{"from": map[string]any{"lat": -20, "lon": 130}, "to": []any{laneCove}}
 	if rec := h.do(t, "POST", "/api/suggest-lines", token, nowhere); rec.Code != 400 {
 		t.Errorf("no stops nearby: %d %s", rec.Code, rec.Body)
 	}
-	if rec := h.do(t, "POST", "/api/suggest-lines", token, map[string]any{"from": laneCove}); rec.Code != 400 {
-		t.Errorf("missing destination: %d", rec.Code)
-	}
-	if rec := h.do(t, "POST", "/api/suggest-lines", token, map[string]any{"from": laneCove, "to": laneCove, "radius_m": 99999}); rec.Code != 400 {
-		t.Errorf("huge radius: %d", rec.Code)
+	for name, b := range map[string]map[string]any{
+		"no destination":  {"from": laneCove},
+		"empty list":      {"from": laneCove, "to": []any{}},
+		"too many":        {"from": laneCove, "to": []any{laneCove, laneCove, laneCove, laneCove, laneCove, laneCove, laneCove}},
+		"not a list":      {"from": laneCove, "to": laneCove},
+		"huge radius":     {"from": laneCove, "to": []any{laneCove}, "radius_m": 99999},
+		"destination bad": {"from": laneCove, "to": []any{map[string]any{"lat": 200, "lon": 1}}},
+	} {
+		if rec := h.do(t, "POST", "/api/suggest-lines", token, b); rec.Code != 400 {
+			t.Errorf("%s: %d", name, rec.Code)
+		}
 	}
 	if rec := h.do(t, "POST", "/api/suggest-lines", "", body); rec.Code != 401 {
 		t.Errorf("suggest without a token: %d", rec.Code)

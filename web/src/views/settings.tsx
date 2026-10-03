@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { encode } from 'uqr'
-import { emptySettings, gymFromPreset, MAX_GYMS, sanitize, settingsLink, type Gym, type Home, type Settings } from '../settings.ts'
+import { emptySettings, MAX_GYMS, sanitize, settingsLink, type Gym, type Home, type Settings } from '../settings.ts'
 import type { DefaultsResponse } from '../types.ts'
-import { newGym, newHome, PlaceEditor, type EditorKind } from './places.tsx'
+import { GymChooser, newGym, newHome, PlaceEditor, type EditorKind } from './places.tsx'
 
 interface Props {
   settings: Settings
@@ -11,20 +11,41 @@ interface Props {
   onAuthError: () => void
 }
 
-interface Editing {
-  kind: EditorKind
-  place: Gym
-  isNew: boolean
-}
+type Editing =
+  | { kind: EditorKind; place: Gym; isNew: boolean }
+  | { kind: 'choose-gyms' }
 
 const editNew = (kind: EditorKind): Editing => ({ kind, place: kind === 'home' ? { ...newHome(), lines: [] } : newGym(), isNew: true })
 
 export function SettingsView({ settings, setSettings, server, onAuthError }: Props) {
-  // First run: add a home, then a gym.
+  // First run: add a home, then choose gyms.
   const [editing, setEditing] = useState<Editing | null>(
-    settings.homes.length === 0 ? editNew('home') : settings.gyms.length === 0 ? editNew('gym') : null,
+    settings.homes.length === 0 ? editNew('home') : settings.gyms.length === 0 ? { kind: 'choose-gyms' } : null,
   )
+  const [warning, setWarning] = useState('')
   const d = server?.defaults
+  const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
+
+  if (editing?.kind === 'choose-gyms') {
+    return (
+      <div class="stack">
+        <GymChooser
+          known={server?.gyms ?? null}
+          have={settings.gyms}
+          home={home}
+          token={settings.token!}
+          onAuthError={onAuthError}
+          onCancel={settings.gyms.length > 0 ? () => setEditing(null) : undefined}
+          onCustom={() => setEditing(editNew('gym'))}
+          onAdd={(gyms, warn) => {
+            setSettings({ ...settings, gyms: [...settings.gyms, ...gyms] })
+            setWarning(warn ?? '')
+            setEditing(null)
+          }}
+        />
+      </div>
+    )
+  }
 
   if (editing) {
     return (
@@ -42,7 +63,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
             const h: Home = { id: g.id, name: g.name, lat: g.lat, lon: g.lon, access: g.access }
             const homes = settings.homes.some((x) => x.id === h.id) ? settings.homes.map((x) => (x.id === h.id ? h : x)) : [...settings.homes, h]
             setSettings({ ...settings, homes, activeHome: settings.activeHome ?? h.id })
-            setEditing(settings.gyms.length === 0 ? editNew('gym') : null)
+            setEditing(settings.gyms.length === 0 ? { kind: 'choose-gyms' } : null)
           } else {
             const gyms = settings.gyms.some((x) => x.id === g.id) ? settings.gyms.map((x) => (x.id === g.id ? g : x)) : [...settings.gyms, g]
             setSettings({ ...settings, gyms })
@@ -52,8 +73,6 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
       />
     )
   }
-
-  const importable = (server?.presets ?? []).filter((p) => !settings.gyms.some((g) => g.name === p.name))
 
   return (
     <div class="stack">
@@ -94,6 +113,11 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
       <section class="card">
         <h2>Gyms</h2>
         <p class="muted small">Stored only on this device, with the lines used to get to each one.</p>
+        {warning && (
+          <p class="notice warn" role="status">
+            {warning}
+          </p>
+        )}
         <ul class="list">
           {settings.gyms.map((g) => (
             <li>
@@ -102,11 +126,12 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
                 <span class="muted small">
                   {' '}
                   · {g.lines.length} line{g.lines.length === 1 ? '' : 's'}
+                  {!g.homeId && home ? ` · none near ${home.name} yet` : ''}
                 </span>
               </span>
               <span>
                 <button class="link" onClick={() => setEditing({ kind: 'gym', place: g, isNew: false })}>
-                  Edit
+                  {!g.homeId && home ? 'Add lines' : 'Edit'}
                 </button>
                 <button
                   class="link danger"
@@ -121,32 +146,10 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
           ))}
         </ul>
         <div class="actions">
-          <button disabled={settings.gyms.length >= MAX_GYMS} onClick={() => setEditing(editNew('gym'))}>
+          <button disabled={settings.gyms.length >= MAX_GYMS} onClick={() => setEditing({ kind: 'choose-gyms' })}>
             Add gym
           </button>
         </div>
-        {importable.length > 0 && (
-          <div class="stack tight">
-            <p class="muted small">This server offers {importable.length === 1 ? 'a gym' : `${importable.length} gyms`} ready-made:</p>
-            <ul class="list">
-              {importable.map((p) => (
-                <li>
-                  <span>
-                    {p.name}
-                    <span class="muted small"> · {p.lines.length} lines</span>
-                  </span>
-                  <button
-                    class="link"
-                    onClick={() => setSettings({ ...settings, gyms: [...settings.gyms, gymFromPreset(p)] })}
-                  >
-                    Import
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <p class="muted small">Imported gyms only have the lines near the gym. Edit one and suggest lines from your home to add the rest.</p>
-          </div>
-        )}
       </section>
 
       <section class="card">

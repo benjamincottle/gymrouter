@@ -44,7 +44,7 @@ export const api = {
     call<{ stops: NearStop[] }>(t, 'POST', '/api/stops/near', { lat, lon, radius_m }),
   vehicles: (t: string, lines: string[]) =>
     call<{ vehicles: Vehicle[] }>(t, 'GET', `/api/vehicles?lines=${encodeURIComponent(lines.join(','))}`),
-  suggestLines: (t: string, from: PlaceRequest, to: PlaceRequest, signal?: AbortSignal) =>
+  suggestLines: (t: string, from: PlaceRequest, to: PlaceRequest[], signal?: AbortSignal) =>
     call<SuggestResponse>(t, 'POST', '/api/suggest-lines', { from, to }, signal),
   geocode: (t: string, q: string) => call<{ results: GeocodeResult[] }>(t, 'POST', '/api/geocode', { q }),
 }

@@ -51,7 +51,7 @@ func TestPollingOnlyWhileActive(t *testing.T) {
 
 func TestPollSchedulesAndAppliesRealtime(t *testing.T) {
 	env := enginetest.New(t, "", nil)
-	feeds := len(tfnsw.FeedsFor(env.Config.AllLines())) // trains, metro, buses
+	feeds := len(tfnsw.FeedsFor(enginetest.Preload)) // trains, metro, buses
 	env.Engine.PollOnce(ctx)
 	if got := env.Fetcher.CallCount(); got != 2*feeds {
 		t.Fatalf("first poll: %d calls, want %d", got, 2*feeds)
@@ -251,13 +251,14 @@ func TestCatalogListsEveryLineAtAStop(t *testing.T) {
 
 func TestSuggestFindsTheLinesBetweenTwoPlaces(t *testing.T) {
 	env := enginetest.NewWith(t, noPresets, nil)
-	res, err := env.Engine.Suggest(ctx,
-		engine.SuggestPlace{Pos: geo.Point{Lat: -33.7727, Lon: 151.0821}},     // Epping
-		engine.SuggestPlace{Pos: geo.Point{Lat: -33.807948, Lon: 151.150629}}, // Lane Cove
+	results, err := env.Engine.Suggest(ctx,
+		engine.SuggestPlace{Pos: geo.Point{Lat: -33.7727, Lon: 151.0821}},         // Epping
+		[]engine.SuggestPlace{{Pos: geo.Point{Lat: -33.807948, Lon: 151.150629}}}, // Lane Cove
 		1200)
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || len(results) != 1 {
+		t.Fatal(err, results)
 	}
+	res := results[0]
 	if len(res.Windows) == 0 || len(res.Lines) == 0 || len(res.Itineraries) == 0 {
 		t.Fatalf("suggest: %+v", res)
 	}
@@ -281,7 +282,7 @@ type suggestLine struct {
 func TestSuggestRunsOneAtATimeAndNeedsStops(t *testing.T) {
 	env := enginetest.NewWith(t, noPresets, nil)
 	_, err := env.Engine.Suggest(ctx, engine.SuggestPlace{Pos: geo.Point{Lat: -20, Lon: 130}},
-		engine.SuggestPlace{Pos: geo.Point{Lat: -33.8, Lon: 151.15}}, 1200)
+		[]engine.SuggestPlace{{Pos: geo.Point{Lat: -33.8, Lon: 151.15}}}, 1200)
 	if !errors.Is(err, engine.ErrNoStops) {
 		t.Errorf("want ErrNoStops, got %v", err)
 	}

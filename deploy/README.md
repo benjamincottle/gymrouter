@@ -21,8 +21,8 @@ Start from `config.example.toml` in the app repo and keep the real file in the d
 - `server.public_url = "https://gymrouter.example.com"` (used by `setup-link`)
 - `server.data_dir = "/data"`, `server.listen = ":8080"`, `server.trust_proxy = true` (Traefik sets
   `X-Forwarded-For`)
-- No gyms are needed here: gyms, homes and their lines are set up in the app and live on the device.
-  Optional `[[gym]]` entries are presets a device can import, and the server preloads their lines. Validate with:
+- Infrastructure only. Gyms are built into the image, homes and their lines live on the device, and routing/risk
+  defaults are compiled in (the old `[routing]`, `[risk]` and `[[gym]]` sections are rejected as unknown keys). Validate with:
   ```
   docker run --rm -v ./config.toml:/c.toml:ro ghcr.io/benjamincottle/gymrouter check-config --config /c.toml
   ```
@@ -59,8 +59,8 @@ docker compose exec gymrouter /app/gymrouter setup-link
 ```
 
 Open the printed link on the phone (it carries the token in the URL fragment, which never reaches a
-server log), then add your home and each gym in Settings. The app suggests the lines for each gym from the
-timetable; you review them. "Set up another device" in Settings shares a link or QR code.
+server log), then add your home and tick your gyms in Settings. The app finds the lines near home for each gym from the
+timetable; you can review them. "Set up another device" in Settings shares a link or QR code.
 
 ## Operations
 

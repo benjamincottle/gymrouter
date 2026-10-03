@@ -1,6 +1,6 @@
 // Device-side settings: everything personal lives here, never on the server.
 
-import type { PlaceRequest, PlanRequest, Preset } from './types.ts'
+import type { KnownGym, PlaceRequest, PlanRequest, SuggestResult } from './types.ts'
 
 export interface AccessStop {
   stop: string
@@ -23,6 +23,8 @@ export type Home = Place
 export interface Gym extends Place {
   address?: string
   lines: string[] // e.g. "bus 288", "train T9"
+  ref?: string // the built-in gym this was added from
+  homeId?: string // the home whose nearby lines were last suggested for it
 }
 
 export interface TransferTime {
@@ -102,7 +104,13 @@ export function sanitize(input: unknown): Settings {
       if (!p) continue
       const r = g as Record<string, unknown>
       const ls = Array.isArray(r.lines) ? r.lines.filter(isLine).slice(0, MAX_LINES) : []
-      out.gyms.push({ ...p, ...(isStr(r.address, 200) && r.address ? { address: r.address } : {}), lines: [...new Set(ls)] })
+      out.gyms.push({
+        ...p,
+        ...(isStr(r.address, 200) && r.address ? { address: r.address } : {}),
+        lines: [...new Set(ls)],
+        ...(isStr(r.ref, 40) && r.ref ? { ref: r.ref } : {}),
+        ...(isStr(r.homeId, 40) && r.homeId ? { homeId: r.homeId } : {}),
+      })
     }
   }
   if (isStr(s.activeHome, 40) && out.homes.some((h) => h.id === s.activeHome)) out.activeHome = s.activeHome
@@ -236,10 +244,16 @@ export function newId(): string {
   return Math.random().toString(36).slice(2, 10)
 }
 
-/** Turns a server preset into a gym on this device. Curated stops keep their IDs (names aren't known). */
-export function gymFromPreset(p: Preset): Gym {
+/** Adds a built-in gym to this device, with its curated lines and walks. */
+export function gymFromKnown(k: KnownGym): Gym {
   return {
-    id: newId(), name: p.name, address: p.address, lat: p.lat, lon: p.lon, lines: [...p.lines],
-    access: (p.access ?? []).map((a) => ({ stop: a.stop, name: `Stop ${a.stop}`, walk_s: a.walk_s })),
+    id: newId(), name: k.name, address: k.address, lat: k.lat, lon: k.lon, lines: [...k.lines], ref: k.id,
+    access: (k.access ?? []).map((a) => ({ stop: a.stop, name: a.name, walk_s: a.walk_s })),
   }
+}
+
+/** Adds the lines a suggestion search recommends to the gym's own, keeping what's already chosen. */
+export function withSuggested(g: Gym, r: SuggestResult, homeId: string): Gym {
+  const add = r.lines.filter((l) => l.recommended && isLine(l.line)).map((l) => l.line)
+  return { ...g, lines: [...new Set([...g.lines, ...add])].slice(0, MAX_LINES), homeId }
 }

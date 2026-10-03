@@ -17,6 +17,7 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/api"
 	"github.com/benjamincottle/gymrouter/internal/config"
 	"github.com/benjamincottle/gymrouter/internal/engine"
+	"github.com/benjamincottle/gymrouter/internal/gyms"
 	"github.com/benjamincottle/gymrouter/internal/tfnsw"
 )
 
@@ -54,8 +55,8 @@ func serve(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	eng := engine.New(cfg, sydney, tfnsw.NewClient(key), log)
-	log.Info("starting", "preset_gyms", len(cfg.Gyms), "preloaded_lines", len(cfg.AllLines()))
+	eng := engine.New(cfg, sydney, tfnsw.NewClient(key), log, gyms.AllLines())
+	log.Info("starting", "known_gyms", len(gyms.Known()), "preloaded_lines", len(gyms.AllLines()))
 	if err := eng.Start(ctx); err != nil {
 		return err
 	}
@@ -122,14 +123,13 @@ func checkConfig(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(cfg.Gyms) == 0 {
-		fmt.Println("no preset gyms: devices supply their own gyms and lines")
-	}
-	for _, g := range cfg.Gyms {
-		fmt.Printf("%-12s %-28s %s\n", g.ID, g.Name, strings.Join(g.LineSet.Strings(), ", "))
+	fmt.Printf("listen %s, data %s, public url %q\n", cfg.Server.Listen, cfg.Server.DataDir, cfg.Server.PublicURL)
+	fmt.Println("known gyms:")
+	for _, g := range gyms.Known() {
+		fmt.Printf("  %-12s %-28s %s\n", g.ID, g.Name, strings.Join(g.LineSet.Strings(), ", "))
 	}
 	fmt.Printf("preloaded realtime feeds: ")
-	for _, f := range tfnsw.FeedsFor(cfg.AllLines()) {
+	for _, f := range tfnsw.FeedsFor(gyms.AllLines()) {
 		fmt.Printf("%s ", f.Name)
 	}
 	fmt.Println()

@@ -20,6 +20,7 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/config"
 	"github.com/benjamincottle/gymrouter/internal/engine"
 	"github.com/benjamincottle/gymrouter/internal/geo"
+	"github.com/benjamincottle/gymrouter/internal/gyms"
 	"github.com/benjamincottle/gymrouter/internal/lines"
 	"github.com/benjamincottle/gymrouter/internal/raptor"
 	"github.com/benjamincottle/gymrouter/internal/tfnsw"
@@ -40,7 +41,7 @@ type Engine interface {
 	MapFile() (string, bool)
 	Ensure(set lines.Set) error
 	Catalog() *engine.Catalog
-	Suggest(ctx context.Context, from, to engine.SuggestPlace, radiusM float64) (*engine.SuggestResult, error)
+	Suggest(ctx context.Context, from engine.SuggestPlace, targets []engine.SuggestPlace, radiusM float64) ([]*engine.SuggestResult, error)
 }
 
 // maxBody bounds request bodies.
@@ -134,6 +135,9 @@ func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
 }
+
+// Unwrap lets http.ResponseController reach the real writer (per-request deadlines, flushing).
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 // logRequests logs method, path (never the query string or body), status and duration.
 func (s *Server) logRequests(h http.Handler) http.Handler {
@@ -239,28 +243,12 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.eng.Health())
 }
 
-type presetResp struct {
-	Name    string      `json:"name"`
-	Address string      `json:"address,omitempty"`
-	Lat     float64     `json:"lat"`
-	Lon     float64     `json:"lon"`
-	Lines   []string    `json:"lines"`
-	Access  []accessReq `json:"access,omitempty"`
-}
-
-// defaults returns the routing defaults and any preset gyms a device can import.
+// defaults returns the gyms the app knows about and the routing defaults.
 func (s *Server) defaults(w http.ResponseWriter, r *http.Request) {
 	cfg := s.eng.Config()
-	presets := make([]presetResp, 0, len(cfg.Gyms))
-	for _, g := range cfg.Gyms {
-		p := presetResp{Name: g.Name, Address: g.Address, Lat: g.Lat, Lon: g.Lon, Lines: g.LineSet.Strings()}
-		for _, a := range g.Access {
-			p.Access = append(p.Access, accessReq{Stop: a.Stop, WalkS: a.WalkS})
-		}
-		presets = append(presets, p)
-	}
+	known := gyms.Known()
 	writeJSON(w, http.StatusOK, map[string]any{
-		"presets": presets,
+		"gyms": known,
 		"defaults": map[string]any{
 			"walk_speed_mps": cfg.Routing.WalkSpeedMps, "min_change_s": cfg.Routing.MinChangeS,
 			"max_walk_m": cfg.Routing.MaxWalkM, "risk": map[string]int32{"safe_s": cfg.Risk.SafeS, "tight_s": cfg.Risk.TightS},

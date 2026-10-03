@@ -30,9 +30,12 @@ Non-goals (v1)
 - **Places** are symmetric (name, coordinates, access stops with walk times); any place can be
   origin or destination. Homes and gyms are both places held on the device; a gym also carries its
   **set of lines**.
-- **Server config (infrastructure only)**: listen address, data directory, routing and risk defaults, polling
-  budget. Deployed as a mounted file from the private deploy repo (Ansible/compose); the app repo ships only an
-  example. Optional `[[gym]]` entries are *presets* a device can import in one tap; the server does not need them.
+- **Server config (infrastructure only)**: listen address, data directory, public URL, daily timetable refresh hour,
+  realtime polling and budget. Deployed as a mounted file from the private deploy repo (Ansible/compose); the app repo
+  ships only an example. Routing and connection-risk defaults are compiled in and overridden per device.
+- **Known gyms are built into the app** (`internal/gyms/gyms.toml`, public data): name, address, coordinates, the lines
+  that serve the gym end, and optionally measured walks from the door to stops. Every device is offered them, so setup is
+  just adding a home. Any other gym can still be added on the device.
 - **App repo is public-safe**: no secrets, no real config, no home locations, no recorded data that
   could reveal a home (test fixtures use gym-side or synthetic origins). Secret scanning in CI.
 - **Device storage (private data)**: home place(s), **gyms with their line sets and curated access stops**, home
@@ -40,14 +43,14 @@ Non-goals (v1)
   (start from server defaults; user-tunable), access token. Sent in POST bodies; never stored on the server.
 - Multiple homes = more entries in device storage; no code change.
 - Initial gyms (9 Degrees): **Lane Cove, Parramatta (Rydalmere), Chatswood** for v1;
-  Waterloo and Alexandria later. They are added in the app (address search, then suggested lines), not in config.
+  Waterloo and Alexandria later. They are built in; others are added in the app (address search, then suggested lines).
 
 ## 5. Route model: dynamic routing within each gym's lines
 - Each gym has a set of lines that could matter for reaching it (from home, incl. home-side lines),
   e.g. `["bus 370", "train T4", "metro M1"]`. The router finds the best options within that set, so timetable
   changes need no edits. The set lives on the device and is sent with every request.
 - GTFS static is filtered at ingest to the union of the line sets the server has been asked about → small
-  in-memory timetable. The server starts with only the preset lines (none by default); a request naming lines it
+  in-memory timetable. The server starts with only the known gyms' lines; a request naming lines it
   hasn't loaded makes it reload with the union (a few seconds, once per new line). The union only grows until restart
   and is capped. The union is never written to disk.
 - A **stop catalogue** (every stop with the lines that serve it) is built from a full-network pass after each timetable
@@ -113,10 +116,10 @@ Non-goals (v1)
 - Frontend: TypeScript + MapLibre GL JS, built by Vite, embedded via `go:embed`. Minimal deps; no UI framework
   unless needed (decide during build).
 - API (JSON; all `/api/*` require the token header except `/healthz`):
-  - `GET  /api/defaults` — routing/risk defaults and any preset gyms.
+  - `GET  /api/defaults` — routing/risk defaults and the known gyms.
   - `POST /api/plan` — {from, to: place (lat/lon + optional access stops), lines, mode, time, prefs} → options.
   - `POST /api/stops/near` — {lat, lon} → nearby stops (all lines serving them) with estimated walk times.
-  - `POST /api/suggest-lines` — {from, to} → candidate lines with how often they appear in the best options.
+  - `POST /api/suggest-lines` — {from, to: [places]} → per destination, candidate lines with how often they appear in the best options.
   - `GET  /api/vehicles?lines=<list>` — live vehicles on those lines (+ trip ids for highlighting).
   - `GET  /api/shapes?lines=<list>` — line shapes for drawing.
   - `GET  /api/status` — detailed health (auth). Implemented API: see `docs/api.md`.
@@ -175,8 +178,8 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 ## 14. Line-set curation
 - `POST /api/suggest-lines` (and the `gymrouter suggest-lines` CLI, which shares the code): given two places, loads the
   whole network for a typical weekday and a Sunday, searches home → gym at many departure times, and reports which
-  lines appear in the best options and how often, plus the most common itineraries. The app pre-ticks lines that
-  appear in the best options for at least 30% of departure times; the user adds or removes lines and saves them on the gym. Coordinates are used in memory only.
+  lines appear in the best options and how often, plus the most common itineraries. The app adds the lines that
+  appear in the best options for at least 30% of departure times to a gym's built-in lines; the user adds or removes lines and saves them on the gym. Coordinates are used in memory only.
 - The full network is loaded for the duration of one request (about 5 s and 150 MB live per day), one request at a time.
 
 ## 15. Milestones
@@ -267,3 +270,10 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   catalogue lets setup list nearby stops before any lines exist; `suggest-lines` becomes a one-at-a-time endpoint that
   loads the full network per request (not kept resident); `[[gym]]` in server config is optional presets. Gym-end
   walking stays measured by hand (curated access stops with walk times), now also on the device.
+- 2026-10-03: Refines the previous entry after use. The known gyms (9 Degrees Lane Cove, Parramatta, Chatswood) are built
+  into the app as public data, with their gym-end lines and room for curated door-to-stop walks, rather than being forced
+  through setup: curated data is more precise than anything suggested, and a new device then only needs a home. Setting up
+  adds the gyms (all ticked) and finds the lines near home for all of them in one server pass (the full network is loaded once
+  per day searched, not once per gym). Custom gyms still work through the editor. Server config shrinks to infrastructure
+  (`[server]`, `[realtime]`); `[routing]`, `[risk]` and `[[gym]]` are gone and rejected as unknown keys. The server preloads
+  the known gyms' lines at startup.

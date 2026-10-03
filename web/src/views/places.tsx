@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, ApiError, AuthError } from '../api.ts'
-import { isLine, LINE_MODES, MAX_LINES, newId, placeRequest, type Gym, type Home, type Place } from '../settings.ts'
+import { gymFromKnown, isLine, LINE_MODES, MAX_LINES, newId, placeRequest, withSuggested, type Gym, type Home } from '../settings.ts'
 import { groupStops, relevantGroups, type StopGroup } from '../stops.ts'
-import type { GeocodeResult, NearStop, SuggestResponse } from '../types.ts'
+import type { GeocodeResult, KnownGym, NearStop, SuggestResult } from '../types.ts'
 import { LineChip } from './option.tsx'
 
 export const newHome = (): Home => ({ id: newId(), name: 'Home', lat: NaN, lon: NaN, access: [] })
@@ -206,7 +206,14 @@ export function PlaceEditor({ kind, place, isNew, token, homes, onAuthError, onS
       )}
 
       {gym && hasLocation && (
-        <LinesSection gym={p} homes={homes} token={token} onAuthError={onAuthError} setLines={(lines) => setP((cur) => ({ ...cur, lines }))} />
+        <LinesSection
+          gym={p}
+          homes={homes}
+          token={token}
+          onAuthError={onAuthError}
+          setLines={(lines) => setP((cur) => ({ ...cur, lines }))}
+          onSuggested={(r, homeId) => setP((cur) => withSuggested(cur, r, homeId))}
+        />
       )}
 
       <div class="actions">
@@ -234,10 +241,17 @@ function chipOf(key: string, color?: string) {
 
 /** Chooses the lines worth considering for a gym: the server suggests them from a home, the person decides. */
 function LinesSection({
-  gym, homes, token, onAuthError, setLines,
-}: { gym: Gym; homes: Home[]; token: string; onAuthError: () => void; setLines: (l: string[]) => void }) {
+  gym, homes, token, onAuthError, setLines, onSuggested,
+}: {
+  gym: Gym
+  homes: Home[]
+  token: string
+  onAuthError: () => void
+  setLines: (l: string[]) => void
+  onSuggested: (r: SuggestResult, homeId: string) => void
+}) {
   const [homeId, setHomeId] = useState(homes[0]?.id ?? '')
-  const [result, setResult] = useState<SuggestResponse | null>(null)
+  const [result, setResult] = useState<SuggestResult | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [mode, setMode] = useState<string>('bus')
@@ -254,11 +268,10 @@ function LinesSection({
     setBusy(true)
     setError('')
     try {
-      const r = await api.suggestLines(token, placeRequest(home), placeRequest(gym), c.signal)
+      const r = (await api.suggestLines(token, placeRequest(home), [placeRequest(gym)], c.signal)).results[0]
       if (c.signal.aborted) return
       setResult(r)
-      // Keep what's already chosen and add what the search recommends.
-      setLines([...new Set([...gym.lines, ...r.lines.filter((l) => l.recommended && isLine(l.line)).map((l) => l.line)])].slice(0, MAX_LINES))
+      onSuggested(r, home.id) // keeps what's already chosen and adds what the search recommends
     } catch (e) {
       if (c.signal.aborted) return
       if (e instanceof AuthError) onAuthError()
@@ -300,7 +313,7 @@ function LinesSection({
           <button onClick={find} disabled={busy}>
             {busy ? 'Reading the timetable…' : result ? `Search again from ${home?.name}` : `Suggest lines from ${home?.name}`}
           </button>
-          {busy && <p class="muted small">Checking trips at many departure times. This takes about 10 seconds.</p>}
+          {busy && <p class="muted small">Checking trips at many departure times. This can take up to a minute.</p>}
         </div>
       )}
       {error && <p class="error">{error}</p>}
@@ -389,4 +402,105 @@ function LinesSection({
   )
 }
 
-export type { Place }
+
+interface ChooserProps {
+  known: KnownGym[] | null
+  have: Gym[] // already on this device
+  home: Home | undefined
+  token: string
+  onAuthError: () => void
+  /** Called with the gyms to add; `warning` says if their home-side lines couldn't be found. */
+  onAdd: (gyms: Gym[], warning?: string) => void
+  onCustom: () => void
+  onCancel?: () => void
+}
+
+/** Picks gyms from the ones the app already knows, and finds the lines near home for them in one go. */
+export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCustom, onCancel }: ChooserProps) {
+  const available = (known ?? []).filter((k) => !have.some((g) => g.ref === k.id))
+  const [picked, setPicked] = useState<Set<string> | null>(null)
+  const sel = picked ?? new Set(available.map((k) => k.id)) // everything ticked until the person says otherwise
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const ctrl = useRef<AbortController | null>(null)
+  useEffect(() => () => ctrl.current?.abort(), [])
+
+  const toggle = (id: string) => {
+    const next = new Set(sel)
+    if (!next.delete(id)) next.add(id)
+    setPicked(next)
+  }
+
+  const add = async () => {
+    let gyms = available.filter((k) => sel.has(k.id)).map(gymFromKnown)
+    if (gyms.length === 0) return
+    let warning: string | undefined
+    if (home) {
+      ctrl.current?.abort()
+      const c = new AbortController()
+      ctrl.current = c
+      setBusy(true)
+      setError('')
+      try {
+        const res = await api.suggestLines(token, placeRequest(home), gyms.map((g) => placeRequest(g)), c.signal)
+        if (c.signal.aborted) return
+        gyms = gyms.map((g, i) => (res.results[i] ? withSuggested(g, res.results[i], home.id) : g))
+      } catch (e) {
+        if (c.signal.aborted) return
+        if (e instanceof AuthError) return onAuthError()
+        warning = `Added, but couldn't find the lines near ${home.name}: ${e instanceof Error ? e.message : e}`
+      }
+      setBusy(false)
+    } else {
+      warning = 'Add a home to find the lines near it.'
+    }
+    onAdd(gyms, warning)
+  }
+
+  return (
+    <section class="card">
+      <h2>{have.length === 0 ? 'Which gyms do you climb at?' : 'Add a gym'}</h2>
+      {!known ? (
+        <p class="muted">Loading…</p>
+      ) : available.length === 0 ? (
+        <p class="muted small">You have all the gyms the app knows about.</p>
+      ) : (
+        <>
+          <p class="muted small">
+            The app knows these gyms and the lines that serve them.{' '}
+            {home ? `It will look up the lines near ${home.name} too, which can take up to a minute.` : ''}
+          </p>
+          <ul class="list">
+            {available.map((k) => (
+              <li>
+                <label class="check">
+                  <input type="checkbox" checked={sel.has(k.id)} disabled={busy} onChange={() => toggle(k.id)} />
+                  <span>
+                    {k.name}
+                    {k.address && <span class="muted small"> · {k.address}</span>}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {error && <p class="error">{error}</p>}
+      <div class="actions">
+        {available.length > 0 && (
+          <button class="primary" disabled={busy || sel.size === 0} onClick={add}>
+            {busy ? 'Finding lines…' : sel.size === 1 ? 'Add gym' : `Add ${sel.size} gyms`}
+          </button>
+        )}
+        <button disabled={busy} onClick={onCustom}>
+          Another gym…
+        </button>
+        {onCancel && (
+          <button disabled={busy} onClick={onCancel}>
+            Cancel
+          </button>
+        )}
+      </div>
+    </section>
+  )
+}

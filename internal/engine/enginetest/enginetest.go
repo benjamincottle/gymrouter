@@ -16,6 +16,7 @@ import (
 
 	"github.com/benjamincottle/gymrouter/internal/config"
 	"github.com/benjamincottle/gymrouter/internal/engine"
+	"github.com/benjamincottle/gymrouter/internal/lines"
 	"github.com/benjamincottle/gymrouter/internal/tfnsw"
 )
 
@@ -31,25 +32,17 @@ var Sydney = func() *time.Location {
 // SnapshotTime is when the fixture's realtime snapshot was captured.
 var SnapshotTime = time.Date(2026, 10, 3, 12, 37, 30, 0, Sydney)
 
-// Config uses gym-side lines that exist in the fixture.
+// Config is a minimal server config.
 const Config = `
 [server]
 public_url = "https://gym.example.com"
-
-[[gym]]
-id = "lanecove"
-name = "9 Degrees Lane Cove"
-lat = -33.807948
-lon = 151.150629
-lines = ["train T1", "train T9", "metro M1", "bus 288", "bus 291", "bus 292", "bus 533", "bus 287"]
-
-[[gym]]
-id = "chatswood"
-name = "9 Degrees Chatswood"
-lat = -33.7856633
-lon = 151.2003558
-lines = ["train T1", "metro M1", "bus 160X", "bus 283", "bus 281", "bus 271", "bus 207", "bus 194"]
 `
+
+// Preload is what New loads at startup: gym-side lines that exist in the fixture.
+var Preload = lines.MustSet(
+	"train T1", "train T9", "metro M1", "bus 288", "bus 291", "bus 292", "bus 533", "bus 287",
+	"bus 160X", "bus 283", "bus 281", "bus 271", "bus 207", "bus 194",
+)
 
 // Fetcher serves the fixture's realtime files and records calls.
 type Fetcher struct {
@@ -131,14 +124,19 @@ func fixtureDir() string {
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "testdata", "fixture")
 }
 
-// New returns an initialised engine at SnapshotTime. extraConfig is appended to Config.
+// New returns an initialised engine at SnapshotTime with Preload loaded. extraConfig is appended to Config.
 func New(t testing.TB, extraConfig string, log io.Writer) *Env {
 	t.Helper()
-	return NewWith(t, Config+extraConfig, log)
+	return build(t, Config+extraConfig, Preload, log)
 }
 
-// NewWith is New with the whole config text given (e.g. no preset gyms, so no lines are loaded at first).
+// NewWith is New with the whole config text given and nothing preloaded, so no lines are loaded at first.
 func NewWith(t testing.TB, configText string, log io.Writer) *Env {
+	t.Helper()
+	return build(t, configText, nil, log)
+}
+
+func build(t testing.TB, configText string, preload lines.Set, log io.Writer) *Env {
 	t.Helper()
 	cfg, err := config.Parse(configText)
 	if err != nil {
@@ -160,7 +158,7 @@ func NewWith(t testing.TB, configText string, log io.Writer) *Env {
 	}
 	f := &Fetcher{dir: fixtureDir()}
 	clk := &Clock{t: SnapshotTime}
-	e := engine.New(cfg, Sydney, f, slog.New(slog.NewTextHandler(log, nil)))
+	e := engine.New(cfg, Sydney, f, slog.New(slog.NewTextHandler(log, nil)), preload)
 	e.SetClock(clk.Now)
 	if err := e.Init(context.Background()); err != nil {
 		t.Fatal(err)

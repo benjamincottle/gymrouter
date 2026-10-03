@@ -1,13 +1,14 @@
 // API types (see docs/api.md).
 
-/** A gym the server offers to import (from its optional config). */
-export interface Preset {
+/** A gym the app knows about (public data shipped with the server). */
+export interface KnownGym {
+  id: string
   name: string
   address?: string
   lat: number
   lon: number
-  lines: string[]
-  access?: { stop: string; walk_s: number }[]
+  lines: string[] // the lines that serve the gym end
+  access?: { stop: string; name: string; walk_s: number }[] // measured walks from the door
 }
 
 export interface Defaults {
@@ -18,7 +19,7 @@ export interface Defaults {
 }
 
 export interface DefaultsResponse {
-  presets: Preset[]
+  gyms: KnownGym[]
   defaults: Defaults
 }
 
@@ -148,8 +149,13 @@ export interface SuggestedItinerary {
   window: string
 }
 
-export interface SuggestResponse {
+export interface SuggestResult {
   windows: { label: string; date: string; departures: number; typical_s?: number }[]
   lines: SuggestedLine[]
   itineraries: SuggestedItinerary[]
+}
+
+/** One result per destination, in the order asked. */
+export interface SuggestResponse {
+  results: SuggestResult[]
 }

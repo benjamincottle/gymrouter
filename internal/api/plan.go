@@ -518,9 +518,9 @@ type suggestPlaceReq struct {
 }
 
 type suggestReq struct {
-	From    suggestPlaceReq `json:"from"`
-	To      suggestPlaceReq `json:"to"`
-	RadiusM float64         `json:"radius_m,omitempty"`
+	From    suggestPlaceReq   `json:"from"`
+	To      []suggestPlaceReq `json:"to"` // one or more destinations, answered in the same order
+	RadiusM float64           `json:"radius_m,omitempty"`
 }
 
 type suggestLineResp struct {
@@ -550,24 +550,46 @@ type suggestItinResp struct {
 // maxSuggestItineraries bounds how many example itineraries come back.
 const maxSuggestItineraries = 8
 
-// suggestLines finds candidate lines between two places. It loads the whole network, so it takes several
-// seconds and only one runs at a time.
+type suggestResultResp struct {
+	Windows     []suggestWindowResp `json:"windows"`
+	Lines       []suggestLineResp   `json:"lines"`
+	Itineraries []suggestItinResp   `json:"itineraries"`
+}
+
+// suggestPlace validates one end of a suggestion request.
+func suggestPlace(p suggestPlaceReq) (engine.SuggestPlace, error) {
+	if err := checkPlace(placeReq{Lat: p.Lat, Lon: p.Lon, Access: p.Access}); err != nil {
+		return engine.SuggestPlace{}, err
+	}
+	out := engine.SuggestPlace{Pos: geo.Point{Lat: *p.Lat, Lon: *p.Lon}}
+	for _, a := range p.Access {
+		out.Access = append(out.Access, engine.StopWalk{Stop: a.Stop, WalkS: a.WalkS})
+	}
+	return out, nil
+}
+
+// suggestLines finds candidate lines from one place to each of several. It loads the whole network, so it
+// takes several seconds and only one runs at a time.
 func (s *Server) suggestLines(w http.ResponseWriter, r *http.Request) {
 	var req suggestReq
 	if err := decode(w, r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	places := [2]engine.SuggestPlace{}
-	for i, p := range []suggestPlaceReq{req.From, req.To} {
-		pr := placeReq{Lat: p.Lat, Lon: p.Lon, Access: p.Access}
-		if err := checkPlace(pr); err != nil {
+	if len(req.To) == 0 || len(req.To) > engine.MaxSuggestTargets {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("to needs 1 to %d destinations", engine.MaxSuggestTargets))
+		return
+	}
+	from, err := suggestPlace(req.From)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	targets := make([]engine.SuggestPlace, len(req.To))
+	for i, t := range req.To {
+		if targets[i], err = suggestPlace(t); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
-		}
-		places[i].Pos = geo.Point{Lat: *p.Lat, Lon: *p.Lon}
-		for _, a := range p.Access {
-			places[i].Access = append(places[i].Access, engine.StopWalk{Stop: a.Stop, WalkS: a.WalkS})
 		}
 	}
 	if req.RadiusM < 0 || req.RadiusM > maxRadiusM {
@@ -579,7 +601,7 @@ func (s *Server) suggestLines(w http.ResponseWriter, r *http.Request) {
 	}
 	// The default write timeout is short for a search that reads the whole timetable.
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(2 * time.Minute))
-	res, err := s.eng.Suggest(r.Context(), places[0], places[1], req.RadiusM)
+	results, err := s.eng.Suggest(r.Context(), from, targets, req.RadiusM)
 	switch {
 	case errors.Is(err, engine.ErrBusy):
 		w.Header().Set("Retry-After", "10")
@@ -594,25 +616,27 @@ func (s *Server) suggestLines(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := struct {
-		Windows     []suggestWindowResp `json:"windows"`
-		Lines       []suggestLineResp   `json:"lines"`
-		Itineraries []suggestItinResp   `json:"itineraries"`
-	}{Windows: []suggestWindowResp{}, Lines: []suggestLineResp{}, Itineraries: []suggestItinResp{}}
-	for _, wn := range res.Windows {
-		out.Windows = append(out.Windows, suggestWindowResp{Label: wn.Label, Date: wn.Date.Format("2006-01-02"),
-			Departures: wn.Departures, TypicalS: wn.BestS})
-	}
-	for _, l := range res.Lines {
-		out.Lines = append(out.Lines, suggestLineResp{Line: l.Line.String(), Color: l.Color, Share: math.Round(l.Share*100) / 100,
-			Recommended: l.Recommended})
-	}
-	sort.SliceStable(res.Itineraries, func(a, b int) bool { return res.Itineraries[a].Seen > res.Itineraries[b].Seen })
-	for _, it := range res.Itineraries {
-		if len(out.Itineraries) >= maxSuggestItineraries {
-			break
+		Results []suggestResultResp `json:"results"`
+	}{Results: make([]suggestResultResp, 0, len(results))}
+	for _, res := range results {
+		one := suggestResultResp{Windows: []suggestWindowResp{}, Lines: []suggestLineResp{}, Itineraries: []suggestItinResp{}}
+		for _, wn := range res.Windows {
+			one.Windows = append(one.Windows, suggestWindowResp{Label: wn.Label, Date: wn.Date.Format("2006-01-02"),
+				Departures: wn.Departures, TypicalS: wn.BestS})
 		}
-		out.Itineraries = append(out.Itineraries, suggestItinResp{Desc: it.Desc, Lines: it.Lines, MedianS: it.MedianS,
-			BestS: it.BestS, Seen: it.Seen, Of: it.Of, Window: it.Window})
+		for _, l := range res.Lines {
+			one.Lines = append(one.Lines, suggestLineResp{Line: l.Line.String(), Color: l.Color, Share: math.Round(l.Share*100) / 100,
+				Recommended: l.Recommended})
+		}
+		sort.SliceStable(res.Itineraries, func(a, b int) bool { return res.Itineraries[a].Seen > res.Itineraries[b].Seen })
+		for _, it := range res.Itineraries {
+			if len(one.Itineraries) >= maxSuggestItineraries {
+				break
+			}
+			one.Itineraries = append(one.Itineraries, suggestItinResp{Desc: it.Desc, Lines: it.Lines, MedianS: it.MedianS,
+				BestS: it.BestS, Seen: it.Seen, Of: it.Of, Window: it.Window})
+		}
+		out.Results = append(out.Results, one)
 	}
 	writeJSON(w, http.StatusOK, out)
 }

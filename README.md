@@ -3,8 +3,8 @@
 Public transport routing for a handful of destinations (bouldering gyms), using Transport for NSW
 open data. Instead of searching the whole network like a general planner, it checks every
 option within each gym's own set of lines against live data, using your own walking and transfer
-times. Homes, gyms and their lines are set up in the app (it suggests the lines from the timetable) and
-stay on your device. See [docs/spec.md](docs/spec.md).
+times. The 9 Degrees gyms are built in; you add your home and the app finds the lines near it from the
+timetable. Homes and their lines stay on your device. See [docs/spec.md](docs/spec.md).
 
 Status: all milestones built (router, server, web app, live map, in-trip mode, deployment). Field
 validation against Opal/Google is next. Deploying: [deploy/README.md](deploy/README.md).
@@ -23,7 +23,7 @@ gymrouter make-fixture   build the trimmed real-data test fixture
 
 ## Running
 1. Get a free API key from the [TfNSW Open Data Hub](https://opendata.transport.nsw.gov.au).
-2. Copy `config.example.toml` and adjust it (listen address, data directory, public URL). Gyms are optional presets.
+2. Copy `config.example.toml` and adjust it (listen address, data directory, public URL). It holds infrastructure only.
 3. Set the secrets in the environment and start the server:
    ```
    export TFNSW_API_KEY=…  GYMROUTER_TOKEN=$(gymrouter new-token)
@@ -37,8 +37,9 @@ gymrouter make-fixture   build the trimmed real-data test fixture
      --bbox=150.55,-34.15,151.35,-33.45
    ```
    Refresh it every month or two. Without it, the map still shows routes and vehicles on a blank background.
-5. Run `gymrouter setup-link` and open the link on your phone. In Settings, add your home, then each gym:
-   search its address, pick the stops you'd walk to, and let the app suggest the lines.
+5. Run `gymrouter setup-link` and open the link on your phone. In Settings, add your home and tick
+   your gyms; the app finds the lines near home for each. Other gyms can be added by address. To change the built-in gyms,
+   edit `internal/gyms/gyms.toml`.
 
 API: [docs/api.md](docs/api.md).
 

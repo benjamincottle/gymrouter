@@ -8,12 +8,15 @@ Personal data (home coordinates, walk times) is only sent in request bodies and 
 `{"ok": true, "service_date": "2026-10-03"}`; returns 503 when the timetable is missing or more than 3 days old.
 
 ## `GET /api/defaults`
-Default preferences, plus any preset gyms the server offers for import (from its optional config):
+The gyms the app knows about (built-in public data) and the default preferences:
 ```json
-{"presets": [{"name": "9 Degrees Lane Cove", "address": "…", "lat": -33.8, "lon": 151.15,
-              "lines": ["bus 288", "metro M1", "train T9"], "access": [{"stop": "206638", "walk_s": 300}]}],
+{"gyms": [{"id": "lanecove", "name": "9 Degrees Lane Cove", "address": "…", "lat": -33.8, "lon": 151.15,
+           "lines": ["bus 288", "metro M1", "train T9"],
+           "access": [{"stop": "206638", "name": "Mars Rd Stop", "walk_s": 300}]}],
  "defaults": {"walk_speed_mps": 1.3, "min_change_s": 60, "max_walk_m": 1000, "risk": {"safe_s": 180, "tight_s": 60}}}
 ```
+`lines` are the ones that serve the gym end; the device adds the lines near its own home. `access` (optional) holds
+measured walks from the gym door.
 
 ## `POST /api/plan`
 ```json
@@ -66,17 +69,20 @@ Response:
 before any lines are chosen. 503 (with `Retry-After`) for a few seconds after the server starts, while it reads the timetable.
 
 ## `POST /api/suggest-lines`
-`{"from": {"lat", "lon", "access"?}, "to": {…}, "radius_m"?: 1200}` → the lines that appear in the best options
-from `from` to `to` over the whole network, searched at 10-minute steps on a typical weekday afternoon and a Sunday morning:
+`{"from": {"lat", "lon", "access"?}, "to": [{"lat", "lon", "access"?}, …], "radius_m"?: 1200}` (1 to 6 destinations)
+→ for each destination, in order, the lines that appear in the best options from `from` over the whole network,
+searched at 10-minute steps on a typical weekday afternoon and a Sunday morning:
 ```json
-{"windows": [{"label": "Weekday afternoon", "date": "2026-10-06", "departures": 19, "typical_s": 1490}],
- "lines": [{"line": "metro M1", "color": "168388", "share": 1.0, "recommended": true}],
- "itineraries": [{"desc": "metro M1 → […] → bus 533", "lines": ["metro M1", "bus 533"], "median_s": 1860,
-                  "best_s": 1800, "seen": 13, "of": 19, "window": "Weekday afternoon"}]}
+{"results": [{
+  "windows": [{"label": "Weekday afternoon", "date": "2026-10-06", "departures": 19, "typical_s": 1490}],
+  "lines": [{"line": "metro M1", "color": "168388", "share": 1.0, "recommended": true}],
+  "itineraries": [{"desc": "metro M1 → […] → bus 533", "lines": ["metro M1", "bus 533"], "median_s": 1860,
+                   "best_s": 1800, "seen": 13, "of": 19, "window": "Weekday afternoon"}]}]}
 ```
 `share` is the fraction of departure times at which the line appeared in an option; `recommended` means at least 30%.
-It reads the whole timetable (about 15 s, ~300 MB briefly), so only one runs at a time (429 with `Retry-After` otherwise).
-400 if either end has no stops nearby. Coordinates are used in memory only.
+It reads the whole timetable once per day searched (about 15 s, ~300 MB briefly) however many destinations there are, so
+only one request runs at a time (429 with `Retry-After` otherwise). 400 if either end has no stops nearby.
+Coordinates are used in memory only.
 
 ## `GET /api/vehicles?lines=<list>`
 Live vehicles on the given lines, comma-separated (e.g. `lines=bus 288,train T9`; only fresh data):

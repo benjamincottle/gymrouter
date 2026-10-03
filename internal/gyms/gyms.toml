@@ -1,0 +1,37 @@
+# The gyms the app knows about. Public data only: where each gym is, and the lines that serve the gym end.
+# The app adds the lines near each person's home (suggested from the timetable) on their own device.
+#
+# Addresses: 9degrees.com.au/locations. To add a gym, append a [[gym]] block (rebuild to ship it).
+#
+# Optional measured walks from the gym door to a stop. Planners guess these badly (through the factory,
+# round the shortcut), so curated ones are where this app can beat them. If a gym has none, every stop
+# within the walking limit is considered.
+#
+#   [[gym.access]]
+#   stop = "206638"          # GTFS stop_id
+#   name = "Mars Rd Stop"    # shown in the app
+#   walk_s = 300
+
+[[gym]]
+id = "lanecove"
+name = "9 Degrees Lane Cove"
+address = "1a/21 Mars Rd, Lane Cove West"
+lat = -33.807948
+lon = 151.150629
+lines = ["train T1", "train T9", "metro M1", "bus 288", "bus 291", "bus 292", "bus 533", "bus 287"]
+
+[[gym]]
+id = "chatswood"
+name = "9 Degrees Chatswood"
+address = "7/372 Eastern Valley Way, Chatswood"
+lat = -33.7856633
+lon = 151.2003558
+lines = ["train T1", "train T9", "metro M1", "bus 160X", "bus 283", "bus 281", "bus 280", "bus 271", "bus 207", "bus 194"]
+
+[[gym]]
+id = "rydalmere"
+name = "9 Degrees Parramatta"
+address = "Unit 11, 38-46 South St, Rydalmere"
+lat = -33.816213
+lon = 151.039465
+lines = ["train T9", "bus 52", "bus 521", "bus 523", "bus 524", "bus 525", "light-rail L4", "bus 546", "bus 550"]
