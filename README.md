@@ -5,7 +5,8 @@ open data. Instead of searching the whole network like a general planner, it che
 option within each gym's own set of lines against live data, using your own walking and transfer
 times. See [docs/spec.md](docs/spec.md).
 
-Status: router, server, web app, live map and in-trip mode work. Deployment (milestone 7) is next.
+Status: all milestones built (router, server, web app, live map, in-trip mode, deployment). Field
+validation against Opal/Google is next. Deploying: [deploy/README.md](deploy/README.md).
 
 ## Commands
 ```
@@ -13,6 +14,7 @@ gymrouter serve          run the server
 gymrouter setup-link     print the link that sets up a device
 gymrouter new-token      generate an access token
 gymrouter check-config   validate a config file
+gymrouter healthcheck    probe the local server (the container's HEALTHCHECK)
 gymrouter suggest-lines  find candidate lines between two places (run locally)
 gymrouter plan           plan a trip from the command line, optionally with live data
 gymrouter make-fixture   build the trimmed real-data test fixture

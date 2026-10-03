@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -129,5 +130,34 @@ func checkConfig(args []string) error {
 		fmt.Printf("%s ", f.Name)
 	}
 	fmt.Println()
+	return nil
+}
+
+// healthcheck probes the local server's /healthz (the container image has no shell or curl).
+// It exits non-zero unless the server answers 200.
+func healthcheck(args []string) error {
+	fs := flag.NewFlagSet("healthcheck", flag.ExitOnError)
+	cfgPath := configFlag(fs)
+	_ = fs.Parse(args)
+	addr := ":8080"
+	if cfg, err := config.Load(*cfgPath); err == nil {
+		addr = cfg.Server.Listen
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("listen address %q: %w", addr, err)
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	c := &http.Client{Timeout: 5 * time.Second}
+	resp, err := c.Get("http://" + net.JoinHostPort(host, port) + "/healthz")
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("healthz: HTTP %d", resp.StatusCode)
+	}
 	return nil
 }

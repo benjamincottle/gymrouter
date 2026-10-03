@@ -1,0 +1,63 @@
+# Gym Router behind Traefik. Copy into the private deploy repo next to config.toml and a .env
+# holding TFNSW_API_KEY and GYMROUTER_TOKEN (from Ansible Vault).
+
+networks:
+  traefik_default:
+    external: true
+
+volumes:
+  # Timetables (~300 MB, refreshed daily) and the optional map file (map.pmtiles).
+  gymrouter_data:
+
+services:
+  gymrouter:
+    image: ghcr.io/benjamincottle/gymrouter:latest
+    container_name: gymrouter
+    restart: unless-stopped
+    # The image's distroless nonroot user, stated here so the container never
+    # depends on what the image happens to say.
+    user: "65532:65532"
+    # Writes only to the data volume.
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Measured peak ~115 MB; headroom for planning on other dates and the daily refresh.
+    mem_limit: 512m
+    pids_limit: 64
+    environment:
+      - TFNSW_API_KEY=${TFNSW_API_KEY}
+      - GYMROUTER_TOKEN=${GYMROUTER_TOKEN}
+      # Keep the Go heap well under the container limit.
+      - GOMEMLIMIT=400MiB
+    volumes:
+      - ./config.toml:/etc/gymrouter/config.toml:ro
+      - gymrouter_data:/data
+    expose:
+      - 8080
+    # Distroless, so the binary probes its own listener. The first start downloads the
+    # timetables before listening, hence the long start period; probes run every 2 s until
+    # the first pass so a redeploy is only a short gap.
+    healthcheck:
+      test: ["CMD", "/app/gymrouter", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
+      start_interval: 2s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gymrouter.entrypoints=websecure"
+      - "traefik.http.routers.gymrouter.rule=Host(`gymrouter.example.com`)"
+      - "traefik.http.routers.gymrouter.tls.certresolver=letsencrypt"
+      - "traefik.http.services.gymrouter.loadbalancer.server.port=8080"
+      # Per client address. Generous because opening the map fetches dozens of tile ranges at
+      # once; the app's own requests are a few per minute. The token is 256-bit, so this isn't
+      # about guessing it, just about blunting floods.
+      - "traefik.http.routers.gymrouter.middlewares=gymrouter-ratelimit-ip@docker"
+      - "traefik.http.middlewares.gymrouter-ratelimit-ip.ratelimit.average=600"
+      - "traefik.http.middlewares.gymrouter-ratelimit-ip.ratelimit.period=1m"
+      - "traefik.http.middlewares.gymrouter-ratelimit-ip.ratelimit.burst=200"
+    networks:
+      - traefik_default

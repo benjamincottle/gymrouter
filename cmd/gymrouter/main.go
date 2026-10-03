@@ -25,6 +25,7 @@ commands:
   setup-link      print the device setup link (uses server.public_url and GYMROUTER_TOKEN)
   new-token       generate a random access token
   check-config    validate a config file and list gyms, lines and realtime feeds
+  healthcheck     probe the local server (used by the container HEALTHCHECK)
   suggest-lines   suggest each gym's set of lines from timetable data (run locally)
   plan            plan a trip from the command line (optionally with live data)
   make-fixture    write a trimmed real-data test fixture (GTFS + optional realtime snapshot)`)
@@ -45,6 +46,8 @@ func main() {
 		err = newToken(os.Args[2:])
 	case "check-config":
 		err = checkConfig(os.Args[2:])
+	case "healthcheck", "--healthcheck":
+		err = healthcheck(os.Args[2:])
 	case "suggest-lines":
 		err = suggestLines(os.Args[2:])
 	case "plan":

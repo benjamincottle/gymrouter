@@ -178,7 +178,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 4. ✅ **UI**: PWA shell, settings + export/import/share, gym buttons, option cards, countdown.
 5. ✅ **Map**: PMTiles serving, MapLibre, shapes, live vehicles with highlighting.
 6. ✅ **In-trip mode** and **Arrive by**.
-7. **Deploy**: Dockerfile (distroless), compose example, Traefik labels, CI build/scan/publish.
+7. ✅ **Deploy**: Dockerfile (distroless), compose example, Traefik labels, CI build/scan/publish.
 8. **Field validation**: ~2 weeks of trips compared against Opal/Google.
 
 ## Prerequisites (before milestone 1)
@@ -240,3 +240,11 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   with the committed trips: on track (with lateness), a faster option (≥ 3 min sooner), or a missed connection with
   the next best, offered with one-tap "Switch to this". Screen wake lock while travelling; the active trip
   survives reloads (stored on the device only).
+- 2026-10-03: M7 done. Multi-stage Dockerfile (Node builds the frontend, Go cross-compiles from the build
+  platform, final image distroless static :nonroot, ~16 MB, built-in `healthcheck` command). Compose example
+  matches the homelab pattern (Traefik `websecure`/`letsencrypt` on `traefik_default`, read-only, cap_drop ALL,
+  no-new-privileges, uid 65532, 512 MB limit, per-IP rate limit), host `gymrouter.example.com`. GitHub Actions
+  mirror the existing repos: CI (Go tests with race, frontend checks, actionlint, PR Docker build), build and
+  publish `linux/arm64` to GHCR with a daily base-image digest check, daily govulncheck and npm audit,
+  grouped weekly Dependabot. Verified: container healthy ~22 s after first start (timetable download
+  included), ~117 MB in use.
