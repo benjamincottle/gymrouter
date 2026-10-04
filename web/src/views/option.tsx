@@ -1,6 +1,6 @@
 import { clock, delay, placeName, platform, riskLabel } from '../format.ts'
 import type { ComponentChildren } from 'preact'
-import { findChange, type Segment, type TimedWalk } from '../walks.ts'
+import { findChange, type PlaceRef, type Segment, type TimedWalk } from '../walks.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 import { position, rows, type Row } from '../options.ts'
 import { HOLD } from './icons.tsx'
@@ -21,44 +21,47 @@ export function LineChip({ line }: { line: Line }) {
 export interface Tracking {
   now: number
   at?: { row: number; frac: number } | null // where your location puts you on the steps (else the clock decides)
-  from: { name: string; home: boolean } // where the trip starts: shown at the top of the rail
   segs: Segment[]
   onTime: (s: Segment) => void
 }
 
+/**
+ * The trip's description: a line down the left in each leg's colours, from the home or gym it starts at (`from`).
+ * During a trip (`track`) you're on the line, and walks can be timed (walk times only come from recordings).
+ */
 export function Timeline({
-  option: o, destination, walks, track,
+  option: o, from, destination, walks, track,
 }: {
   option: Option
+  from: PlaceRef
   destination: string
   walks: TimedWalk[]
-  track?: Tracking // during a trip: the rail with you on it, and "Time my walk" (walk times only come from recordings)
+  track?: Tracking
 }) {
-  const rs = rows(o, !!track)
+  const rs = rows(o, true)
   const me = track && (track.at ?? position(rs, track.now))
   const seg = (leg: number) => track?.segs.find((s) => s.leg === leg)
-  const rail = (r: Row, k: number) =>
-    track && (
-      <Rail
-        kind={
-          r.kind === 'start' ? (track.from.home ? 'home' : 'gym')
-          : r.kind === 'arrive' ? 'end'
-          : r.kind === 'change' || r.leg.kind === 'walk' ? 'walk'
-          : 'ride'
-        }
-        color={r.kind === 'leg' ? hex(r.leg.line?.color) : undefined}
-        me={me && me.row === k ? me.frac : undefined}
-      />
-    )
+  const rail = (r: Row, k: number) => (
+    <Rail
+      kind={
+        r.kind === 'start' ? (from.key.startsWith('home:') ? 'home' : 'gym')
+        : r.kind === 'arrive' ? 'end'
+        : r.kind === 'change' || r.leg.kind === 'walk' ? 'walk'
+        : 'ride'
+      }
+      color={r.kind === 'leg' ? hex(r.leg.line?.color) : undefined}
+      me={me && me.row === k ? me.frac : undefined}
+    />
+  )
   return (
-    <ol class={track ? 'timeline tracked' : 'timeline'}>
+    <ol class="timeline">
       {rs.map((r, k) => {
         if (r.kind === 'start') {
           return (
             <li class="step setoff">
               <span class="time">{clock(o.leave_at)}</span>
               {rail(r, k)}
-              <span>Leave {track!.from.name}</span>
+              <span>Leave {from.name}</span>
             </li>
           )
         }
@@ -120,7 +123,7 @@ function LegRow({ leg, last, destination, rail, onTime }: {
   leg: Leg
   last: boolean
   destination: string
-  rail?: ComponentChildren
+  rail: ComponentChildren
   onTime?: () => void
 }) {
   const mins = Math.max(1, Math.round((Date.parse(leg.arr) - Date.parse(leg.dep)) / 60000))
@@ -186,7 +189,7 @@ function TransferRow({
   to?: StopRef
   modes: [string?, string?] // of the rides either side
   walks: TimedWalk[]
-  rail?: ComponentChildren
+  rail: ComponentChildren
   onTime?: () => void
 }) {
   const mine = from && to ? findChange(walks, { stop: from, mode: modes[0] }, { stop: to, mode: modes[1] }) : undefined
