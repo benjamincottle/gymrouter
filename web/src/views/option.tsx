@@ -71,7 +71,7 @@ function LegRow({ leg, last }: { leg: Leg; last: boolean }) {
           {pf && ` · ${pf}`}
         </div>
         <div class="muted small">
-          to {placeName(leg.to)} at {clock(leg.arr)} ({mins} min)
+          to {placeName(leg.to)} at {clock(leg.arr)} ({mins} min{leg.stops ? `, ${leg.stops} stop${leg.stops === 1 ? '' : 's'}` : ''})
         </div>
       </div>
     </li>

@@ -55,7 +55,7 @@ Response:
      {"kind": "walk", "to": {"id": "…", "name": "…", "station": "…", "station_id": "…", "lat": 0, "lon": 0}, "dep": "…", "arr": "…"},
      {"kind": "ride", "from": {…}, "to": {…}, "dep": "…", "arr": "…",
       "line": {"mode": "metro", "name": "M1", "color": "168388", "text_color": "FFFFFF"},
-      "trip_id": "…", "headsign": "…", "status": "predicted", "delay_s": 60, "sched_dep": "…"}
+      "trip_id": "…", "headsign": "…", "status": "predicted", "delay_s": 60, "sched_dep": "…", "stops": 6}
    ],
    "transfers": [{"from_leg": 1, "to_leg": 3, "walk_s": 120, "slack_s": 95, "risk": "tight", "fallback_dep": "…"}]
  }]}
@@ -65,6 +65,7 @@ network), or `estimate` (straight line × a detour factor) while that network is
 walks apply either way. The first and last walk legs of an option carry a `path` (`[[lon, lat], …]`) along the streets
 when it is known. `max_walk_m` limits the straight-line distance to candidate stops; the walk along the streets may be longer.
 
+`stops` on a ride is the number of stops travelled, counting the one you get off at.
 `status` is `scheduled`, `predicted` (live data) or `added` (a realtime-only trip). `risk` is `safe`, `tight`,
 `at-risk` or `missed`. `fallback_dep` is the next service of the onward line from the same stop.
 
@@ -90,19 +91,17 @@ It reads the whole timetable once per day searched (about 15 s, ~300 MB briefly)
 only one request runs at a time (429 with `Retry-After` otherwise). 400 if either end has no stops nearby.
 Coordinates are used in memory only.
 
-## `GET /api/vehicles?lines=<list>`
+## `GET /api/vehicles?lines=<list>[&rides=<list>]`
 Live vehicles on the given lines, comma-separated (e.g. `lines=bus 288,train T9`; only fresh data):
 `{"vehicles": [{"id", "label", "line": "metro M1", "color", "trip_id", "lat", "lon", "bearing", "status", "ts"}]}`.
-Match `trip_id` against a ride leg's `trip_id` to highlight the vehicle you'd catch.
+With `rides` (up to 8, comma-separated, each `<trip_id>|<from stop_id>|<to stop_id>` from an option's ride legs), only
+the vehicles running those rides, and only while they're within 3 stops of the part ridden: on the way to where you
+get on, carrying you, or just past where you get off.
 
 ## `GET /api/shape?date=YYYY-MM-DD&trip=<trip_id>&from=<stop_id>&to=<stop_id>`
-Path of one ride leg (use a plan's `service_date` and the leg's `trip_id` and stop IDs):
-`{"coordinates": [[lon, lat], …]}`. Follows the route shape once shapes have loaded (a few seconds after
+Path of one ride leg (use a plan's `service_date` and the leg's `trip_id` and stop IDs) and the stops it calls at
+in between: `{"coordinates": [[lon, lat], …], "stops": [[lon, lat], …]}`. Follows the route shape once shapes have loaded (a few seconds after
 startup); until then, straight lines between the trip's stops.
-
-## `GET /api/shapes?lines=<list>`
-GeoJSON `FeatureCollection` of the given lines (`MultiLineString` per line, properties `line`, `mode`,
-`name`, `color`), for drawing the network faintly under a trip. Like `plan`, these load lines the server hasn't seen.
 
 ## `GET /api/map.pmtiles`
 The self-hosted basemap (PMTiles), served with HTTP range requests. 404 if not installed (see README).

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { reselect, tripKey } from './options.ts'
+import { changesAndStops, reselect, stopCount, tripKey } from './options.ts'
 import type { Leg, Option } from './types.ts'
 
 const iso = (hhmm: string) => `2026-10-08T${hhmm}:00+11:00`
@@ -28,4 +28,13 @@ test('when the chosen option has gone, the one leaving closest to it is picked',
 
 test('the same vehicle boarded at a different stop is a different option', () => {
   assert.notEqual(tripKey(option('08:00', ride('t1', 'A', '08:05', '08:30'))), tripKey(option('08:00', ride('t1', 'B', '08:07', '08:30'))))
+})
+
+test('stops and changes summary', () => {
+  const a = { ...ride('t1', 'A', '08:05', '08:30'), stops: 7 }
+  const b = { ...ride('t2', 'B', '08:35', '08:50'), stops: 1 }
+  assert.equal(stopCount(option('08:00', a, b)), 8)
+  assert.equal(changesAndStops(option('08:00', a, b)), '1 change, 8 stops')
+  assert.equal(changesAndStops(option('08:00', b)), 'no changes, 1 stop')
+  assert.equal(changesAndStops(option('08:00', ride('t1', 'A', '08:05', '08:30'))), 'no changes') // older server
 })

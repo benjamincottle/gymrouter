@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -70,6 +71,7 @@ type Vehicle struct {
 	TripID    string
 	Lat, Lon  float64
 	Bearing   *float32
+	StopID    string // the stop it's at or heading for, when the feed says
 	Status    string
 	Timestamp time.Time
 }
@@ -644,10 +646,79 @@ func (e *Engine) Vehicles(set lines.Set) []Vehicle {
 				}
 			}
 			out = append(out, Vehicle{ID: v.ID, Label: v.Label, Line: k.key, Color: k.color, TripID: v.TripID, Lat: v.Lat, Lon: v.Lon,
-				Bearing: v.Bearing, Status: v.Status, Timestamp: time.Unix(v.Timestamp, 0)})
+				Bearing: v.Bearing, StopID: v.StopID, Status: v.Status, Timestamp: time.Unix(v.Timestamp, 0)})
 		}
 	}
 	return out
+}
+
+// Ride is part of a trip someone takes: the trip, and the stops where they get on and off.
+type Ride struct {
+	TripID, From, To string
+}
+
+// NearRideStops is how many stops either side of the part of a trip someone rides its vehicle is shown.
+const NearRideStops = 3
+
+// VehiclesNear returns the live vehicles running the given rides, but only while they are within NearRideStops
+// stops of the part ridden: on the way to where you get on, carrying you, or just past where you get off.
+func (e *Engine) VehiclesNear(set lines.Set, rides []Ride) []Vehicle {
+	s := e.today.Load()
+	if s == nil {
+		return nil
+	}
+	d := s.Day
+	var out []Vehicle
+	for _, v := range e.Vehicles(set) {
+		for _, r := range rides {
+			if v.TripID == r.TripID && nearRide(d, v, r) {
+				out = append(out, v)
+				break
+			}
+		}
+	}
+	return out
+}
+
+func nearRide(d *gtfs.Day, v Vehicle, r Ride) bool {
+	for _, ti := range d.TripIndex[r.TripID] {
+		t := &d.Trips[ti]
+		fi, li := callRange(d, t, r.From, r.To)
+		if fi < 0 {
+			continue
+		}
+		lo, hi := max(0, fi-NearRideStops), min(len(t.StopTimes)-1, li+NearRideStops)
+		at := -1 // the call the vehicle is at or heading for
+		if v.StopID != "" {
+			for i, st := range t.StopTimes {
+				if d.Stops[st.Stop].ID == v.StopID && (at < 0 || callsOutside(i, fi, li) < callsOutside(at, fi, li)) {
+					at = i // a loop can call twice; take the call nearer the ride
+				}
+			}
+		}
+		if at < 0 {
+			pos := geo.Point{Lat: v.Lat, Lon: v.Lon}
+			best := math.Inf(1)
+			for i, st := range t.StopTimes {
+				if m := geo.DistanceM(pos, d.Stops[st.Stop].Pos); m < best {
+					at, best = i, m
+				}
+			}
+		}
+		return at >= lo && at <= hi
+	}
+	return false
+}
+
+// callsOutside is how many calls i is outside the range [a, b].
+func callsOutside(i, a, b int) int {
+	switch {
+	case i < a:
+		return a - i
+	case i > b:
+		return i - b
+	}
+	return 0
 }
 
 // Health summarises data freshness for /healthz.

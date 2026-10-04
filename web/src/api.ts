@@ -42,8 +42,11 @@ export const api = {
   plan: (t: string, req: PlanRequest, signal?: AbortSignal) => call<PlanResponse>(t, 'POST', '/api/plan', req, signal),
   stopsNear: (t: string, lat: number, lon: number, radius_m: number) =>
     call<{ stops: NearStop[] }>(t, 'POST', '/api/stops/near', { lat, lon, radius_m }),
-  vehicles: (t: string, lines: string[]) =>
-    call<{ vehicles: Vehicle[] }>(t, 'GET', `/api/vehicles?lines=${encodeURIComponent(lines.join(','))}`),
+  /** Vehicles running the given rides (<trip>|<from stop>|<to stop>) while near the part ridden. */
+  vehicles: (t: string, lines: string[], rides: string[]) =>
+    call<{ vehicles: Vehicle[] }>(
+      t, 'GET', `/api/vehicles?lines=${encodeURIComponent(lines.join(','))}&rides=${encodeURIComponent(rides.join(','))}`,
+    ),
   suggestLines: (t: string, from: PlaceRequest, to: PlaceRequest[], signal?: AbortSignal) =>
     call<SuggestResponse>(t, 'POST', '/api/suggest-lines', { from, to }, signal),
   geocode: (t: string, q: string) => call<{ results: GeocodeResult[] }>(t, 'POST', '/api/geocode', { q }),

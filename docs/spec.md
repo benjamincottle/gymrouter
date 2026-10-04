@@ -96,10 +96,9 @@ Non-goals (v1)
 - MapLibre GL JS + **self-hosted OpenStreetMap vector extract** (PMTiles file for the Sydney area, served
   by the app, refreshed occasionally). Nothing sent to third parties; OSM attribution shown.
 - The map source sits behind a small interface so Google Maps could be swapped in later.
-- Overlays: option legs (vehicle legs along GTFS shapes; walking legs as the curated path if configured,
-  otherwise a dashed straight line),
-  stops, and **all live vehicles on the selected gym's lines**, with **the selected trip's vehicles
-  clearly highlighted** (colour, size, label); the rest muted.
+- Overlays: only the option itself: the parts of each line ridden (along GTFS shapes) with the stops passed as small
+  outlined dots, walking legs as the traced or street route, **the vehicles running your rides** (colour, size, label)
+  while they're within about 3 stops of the part you ride, and, during a trip, you.
 - Vehicle positions refresh by client polling (~10–15 s) from the server cache.
 
 ## 8. UI / UX
@@ -128,8 +127,8 @@ Non-goals (v1)
   - `POST /api/plan` — {from, to: place (lat/lon + optional access stops), lines, mode, time, prefs} → options.
   - `POST /api/stops/near` — {lat, lon} → nearby stops (all lines serving them) with estimated walk times.
   - `POST /api/suggest-lines` — {from, to: [places]} → per destination, candidate lines with how often they appear in the best options.
-  - `GET  /api/vehicles?lines=<list>` — live vehicles on those lines (+ trip ids for highlighting).
-  - `GET  /api/shapes?lines=<list>` — line shapes for drawing.
+  - `GET  /api/vehicles?lines=<list>&rides=<list>` — live vehicles running your rides, near the part ridden.
+  - `GET  /api/shape?…` — one ride's path and the stops it passes, for drawing.
   - `GET  /api/status` — detailed health (auth). Implemented API: see `docs/api.md`.
   - `GET  /healthz` — liveness, feed ages, config warnings (no sensitive detail).
 
@@ -303,3 +302,8 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   stop. The server only ever sees the resulting number (as before); traces never leave the device. Found while testing: the
   street graph routes Lane Cove's Epping Rd stops the long way round the factory block (~17 min), and the real shortcut
   through the plumbing supplier is about 10 min, which is exactly what this is for.
+- 2026-10-04: After field use, the map shows only the trip (supersedes "all vehicles on the gym's lines, the rest muted"
+  and the faint network): the sections ridden with their stops, your own vehicles only from ~3 stops before you board to
+  ~3 stops after you get off (the server filters by the feed's current stop, else the nearest call), and your position as
+  soon as the map opens during a trip (location is on by default in a trip). `GET /api/shapes` is gone. Trips planned with
+  Leave at / Arrive by can be started too; until it's about to leave, in-trip checks plan from the trip's own start and time.

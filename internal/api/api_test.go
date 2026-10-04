@@ -337,6 +337,14 @@ func TestVehiclesAndActivity(t *testing.T) {
 	if rec.Code != 200 || len(v.Vehicles) == 0 || v.Vehicles[0].Lat > -33 {
 		t.Fatalf("vehicles: %d %s", rec.Code, rec.Body)
 	}
+	// Only the vehicles running your rides, near the part you ride.
+	if rec := h.do(t, "GET", "/api/vehicles?lines="+laneCoveQuery+"&rides=nope", token, nil); rec.Code != 400 {
+		t.Errorf("malformed rides: %d", rec.Code)
+	}
+	rec = h.do(t, "GET", "/api/vehicles?lines="+laneCoveQuery+"&rides="+url.QueryEscape("no-such-trip|a|b"), token, nil)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"vehicles":[]`) {
+		t.Errorf("rides filter: %d %s", rec.Code, rec.Body)
+	}
 	// Unauthenticated requests must not keep polling alive.
 	h.env.Clock.Advance(11 * 60e9)
 	h.do(t, "GET", "/api/defaults", "", nil)
@@ -413,7 +421,7 @@ func TestServesFrontendAlongsideAPI(t *testing.T) {
 	}
 }
 
-func TestLegShapeLineShapesAndMap(t *testing.T) {
+func TestLegShapeAndMap(t *testing.T) {
 	h := newHarness(t)
 	rec := h.do(t, "POST", "/api/plan", token, eppingToLaneCove)
 	var p struct {
@@ -422,6 +430,7 @@ func TestLegShapeLineShapesAndMap(t *testing.T) {
 			Legs []struct {
 				Kind   string
 				TripID string `json:"trip_id"`
+				Stops  int
 				From   struct{ ID string }
 				To     struct{ ID string }
 			}
@@ -429,32 +438,33 @@ func TestLegShapeLineShapesAndMap(t *testing.T) {
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &p)
 	var q string
+	var travelled int
 	for _, l := range p.Options[0].Legs {
 		if l.Kind == "ride" {
 			q = "/api/shape?date=" + p.ServiceDate + "&trip=" + l.TripID + "&from=" + l.From.ID + "&to=" + l.To.ID
+			travelled = l.Stops
 			break
 		}
 	}
+	if travelled < 1 {
+		t.Errorf("a ride should count the stops travelled: %d", travelled)
+	}
 	shape := func() int {
 		rec := h.do(t, "GET", q, token, nil)
-		var s struct{ Coordinates [][2]float64 }
+		var s struct{ Coordinates, Stops [][2]float64 }
 		_ = json.Unmarshal(rec.Body.Bytes(), &s)
 		if rec.Code != 200 || len(s.Coordinates) < 2 || s.Coordinates[0][0] < 150 {
 			t.Fatalf("shape %s: %d %s", q, rec.Code, rec.Body)
 		}
+		if len(s.Stops) != travelled-1 { // the stops passed, not where you get on or off
+			t.Errorf("shape stops: %d, want %d", len(s.Stops), travelled-1)
+		}
 		return len(s.Coordinates)
 	}
 	before := shape() // straight lines between stops until shapes load
-	if rec := h.do(t, "GET", "/api/shapes?lines="+laneCoveQuery, token, nil); !strings.Contains(rec.Body.String(), `"features":[]`) {
-		t.Errorf("line shapes before loading: %s", rec.Body)
-	}
 	h.env.Engine.LoadShapes()
 	if after := shape(); after <= before {
 		t.Errorf("route shape should have more detail than stops: %d vs %d points", after, before)
-	}
-	rec = h.do(t, "GET", "/api/shapes?lines="+laneCoveQuery, token, nil)
-	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"line":"metro M1"`) || !strings.Contains(rec.Body.String(), "MultiLineString") {
-		t.Errorf("line shapes: %d %.300s", rec.Code, rec.Body)
 	}
 	if rec := h.do(t, "GET", "/api/shape?date=2026-10-08&trip=nope&from=a&to=b", token, nil); rec.Code != 404 {
 		t.Errorf("unknown trip: %d", rec.Code)

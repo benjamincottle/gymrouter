@@ -101,6 +101,7 @@ type legResp struct {
 	Status   string     `json:"status,omitempty"` // scheduled | predicted | added
 	DelayS   *int32     `json:"delay_s,omitempty"`
 	SchedDep *time.Time `json:"sched_dep,omitempty"`
+	Stops    int32      `json:"stops,omitempty"` // ride legs: stops travelled, counting the one you get off at
 	// Path is the walk along the streets, [lon, lat] pairs, for the first and last legs when known.
 	Path [][2]float64 `json:"path,omitempty"`
 }
@@ -470,6 +471,7 @@ func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32, fromAp, toAp
 			lr.Line = &lineResp{Mode: string(k.Mode), Name: k.Name, Color: r.Color, TextColor: r.TextColor}
 			t := &d.Trips[l.Trip]
 			lr.TripID, lr.Headsign = t.ID, t.Headsign
+			lr.Stops = l.AlightIdx - l.BoardIdx
 			switch t.Status {
 			case gtfs.Predicted:
 				lr.Status = "predicted"

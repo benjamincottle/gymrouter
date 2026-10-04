@@ -8,7 +8,7 @@ feedback left a choice open; say if any are wrong.
 - [x] **Keep the selected option across live refreshes.** Looking at any option but the first, a refresh
       jumped back to the first. (The "same option" key included the leave time, which shifts with live data.)
 - [x] **Door-to-door time in the option list**, to the right of the connection-risk square.
-- [ ] **Number of stops in the selected option's summary** (stops travelled on all rides; also shown per ride).
+- [x] **Number of stops in the selected option's summary** (stops travelled on all rides; also shown per ride).
 - [x] **Start a trip from "Leave at" and "Arrive by"**, not only "Leave now". In-trip re-checks then plan
       from the trip's own leave time until it's close, so a later trip isn't reported as missed.
 - [x] **Order of choices:** direction (to the gym / home), home, then when (now / leave at / arrive by),
@@ -19,12 +19,12 @@ feedback left a choice open; say if any are wrong.
 
 ## Map
 
-- [ ] **Only the trip's own lines, only the sections ridden.** No faint network lines.
-- [ ] **Stops along the ridden sections** as small dots in the line colour with a white outline.
-- [ ] **Vehicles only near your part of each trip:** only the vehicles of the trips in the option, shown
+- [x] **Only the trip's own lines, only the sections ridden.** No faint network lines.
+- [x] **Stops along the ridden sections** as small dots in the line colour with a white outline.
+- [x] **Vehicles only near your part of each trip:** only the vehicles of the trips in the option, shown
       from about 3 stops before you board until about 3 stops after you get off. Other vehicles on the same
       lines are no longer drawn.
-- [ ] **Your location shows as soon as the map opens during a trip.** Location is on by default in a trip
+- [x] **Your location shows as soon as the map opens during a trip.** Location is on by default in a trip
       (no "Use my location" tap), and the map draws you without pressing the locate button.
 
 ## Walk timing overhaul

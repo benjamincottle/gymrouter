@@ -37,8 +37,8 @@ type Engine interface {
 	RoutingOptions() raptor.Options
 	Config() *config.Config
 	Geocode(ctx context.Context, q string) ([]tfnsw.Place, error)
-	LegGeometry(s *engine.Snapshot, tripID, fromStop, toStop string) ([]geo.Point, bool)
-	LineShapes(set lines.Set) []engine.LineShape
+	LegGeometry(s *engine.Snapshot, tripID, fromStop, toStop string) (path, stops []geo.Point, ok bool)
+	VehiclesNear(set lines.Set, rides []engine.Ride) []engine.Vehicle
 	MapFile() (string, bool)
 	Ensure(set lines.Set) error
 	Catalog() *engine.Catalog
@@ -78,7 +78,6 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/status", s.status)
 	api.HandleFunc("POST /api/geocode", s.geocode)
 	api.HandleFunc("GET /api/shape", s.legShape)
-	api.HandleFunc("GET /api/shapes", s.lineShapes)
 	api.HandleFunc("GET /api/map.pmtiles", s.mapTiles)
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { writeError(w, http.StatusNotFound, "not found") })
 	mux.Handle("/api/", s.auth.Require(s.touch(api)))
@@ -298,12 +297,31 @@ func (s *Server) linesParam(w http.ResponseWriter, r *http.Request) (lines.Set, 
 	return set, true
 }
 
+// maxRides bounds the rides one vehicles request may name.
+const maxRides = 8
+
+// vehicles lists live vehicles on the lines; with rides=<trip>|<from stop>|<to stop>,… only the vehicles running
+// those rides, while near the part ridden.
 func (s *Server) vehicles(w http.ResponseWriter, r *http.Request) {
 	set, ok := s.linesParam(w, r)
 	if !ok {
 		return
 	}
-	vs := s.eng.Vehicles(set)
+	var vs []engine.Vehicle
+	if v := r.URL.Query().Get("rides"); v != "" {
+		var rides []engine.Ride
+		for _, one := range strings.Split(v, ",") {
+			p := strings.Split(one, "|")
+			if len(p) != 3 || p[0] == "" || p[1] == "" || p[2] == "" || len(one) > 300 || len(rides) >= maxRides {
+				writeError(w, http.StatusBadRequest, fmt.Sprintf("rides must be up to %d of <trip>|<from stop>|<to stop>", maxRides))
+				return
+			}
+			rides = append(rides, engine.Ride{TripID: p[0], From: p[1], To: p[2]})
+		}
+		vs = s.eng.VehiclesNear(set, rides)
+	} else {
+		vs = s.eng.Vehicles(set)
+	}
 	out := make([]vehicleResp, 0, len(vs))
 	for _, v := range vs {
 		out = append(out, vehicleResp{ID: v.ID, Label: v.Label, Line: v.Line.String(), Color: v.Color, TripID: v.TripID,

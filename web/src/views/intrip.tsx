@@ -37,7 +37,8 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   const now = useNow(1000)
   const visible = useVisible()
   const [pos, setPos] = useState<Position | null>(null)
-  const [locState, setLocState] = useState<'off' | 'on' | 'denied'>('off')
+  // Location is on for the whole trip (it's what makes the map and "time to spare" useful); it stays on this device.
+  const [locState, setLocState] = useState<'on' | 'denied'>(() => (navigator.geolocation ? 'on' : 'denied'))
   const [check, setCheck] = useState<Assessment | null>(null)
   const [checkedAt, setCheckedAt] = useState(0)
   const [error, setError] = useState('')
@@ -67,7 +68,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
     if (locState !== 'on' || !navigator.geolocation) return
     const id = navigator.geolocation.watchPosition(
       (p) => setPos({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy }),
-      () => setLocState('denied'),
+      (e) => e.code === e.PERMISSION_DENIED && setLocState('denied'),
       { enableHighAccuracy: true, maximumAge: 10_000, timeout: 30_000 },
     )
     return () => navigator.geolocation.clearWatch(id)
@@ -223,9 +224,9 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
         <button class="ghost" onClick={() => setMapOpen(true)}>
           Show on map
         </button>
-        {locState === 'off' && (
+        {locState === 'denied' && navigator.geolocation && (
           <button class="ghost" onClick={() => setLocState('on')}>
-            Use my location
+            Try my location again
           </button>
         )}
       </div>
@@ -242,7 +243,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
           live
           serviceDate={trip.serviceDate}
           token={token}
-          lines={trip.lines}
+          me={pos}
           traces={trip.traces}
           origin={trip.origin}
           destination={trip.destination}

@@ -22,3 +22,15 @@ export function reselect(opts: Option[], trips: string, leave: number): number {
   }
   return best
 }
+
+/** Stops travelled over all of an option's rides. */
+export function stopCount(o: Option): number {
+  return o.legs.reduce((n, l) => n + (l.kind === 'ride' ? (l.stops ?? 0) : 0), 0)
+}
+
+/** "no changes, 12 stops" */
+export function changesAndStops(o: Option): string {
+  const changes = o.rides <= 1 ? 'no changes' : `${o.rides - 1} change${o.rides > 2 ? 's' : ''}`
+  const n = stopCount(o)
+  return n > 0 ? `${changes}, ${n} stop${n === 1 ? '' : 's'}` : changes
+}

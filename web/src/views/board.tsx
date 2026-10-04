@@ -7,7 +7,7 @@ import { useNow } from '../hooks.ts'
 import type { TransferTime, WalkTraces } from '../settings.ts'
 import type { Leg, Option } from '../types.ts'
 import { Timeline } from './option.tsx'
-import { reselect, tripKey } from '../options.ts'
+import { changesAndStops, reselect, tripKey } from '../options.ts'
 import type { MapViewProps } from '../map/mapview.tsx'
 
 const hex = (c?: string) => (c && /^[0-9a-fA-F]{6}$/.test(c) ? `#${c}` : undefined)
@@ -18,7 +18,6 @@ interface Props {
   live: boolean
   serviceDate: string
   token: string
-  lines: string[]
   traces?: WalkTraces // walks you've timed and traced, drawn instead of the street-map route
   origin: [number, number]
   destination: [number, number]
@@ -77,7 +76,7 @@ export function Board(p: Props) {
       <div class="details">
         <div class="details-head">
           <p>
-            <strong>{duration(sel.duration_s)}</strong> door to door, {sel.rides === 1 ? 'no changes' : `${sel.rides - 1} change${sel.rides > 2 ? 's' : ''}`}
+            <strong>{duration(sel.duration_s)}</strong> door to door, {changesAndStops(sel)}
           </p>
           <span class="actions">
             {p.onStart && (
@@ -152,9 +151,9 @@ export function Strip({ option: o, start, end, now }: { option: Option; start: n
   )
 }
 
-type MapSheetProps = Omit<Props, 'onStart'> & { option: Option; now: number; onClose: () => void }
+type MapSheetProps = Omit<Props, 'onStart'> & { option: Option; now: number; onClose: () => void; me?: MapViewProps['me'] }
 
-export function MapSheet({ option, now, onClose, token, lines, traces, serviceDate, origin, destination, title, live }: MapSheetProps) {
+export function MapSheet({ option, now, onClose, token, traces, serviceDate, origin, destination, title, live, me }: MapSheetProps) {
   const [View, setView] = useState<ComponentType<MapViewProps> | null>(null)
   const [failed, setFailed] = useState(false)
   useEffect(() => {
@@ -178,7 +177,7 @@ export function MapSheet({ option, now, onClose, token, lines, traces, serviceDa
       {failed ? (
         <p class="map-note">Couldn't load the map. Check your connection and try again.</p>
       ) : View ? (
-        <View token={token} lines={lines} traces={traces} option={option} serviceDate={serviceDate} origin={origin} destination={destination} />
+        <View token={token} me={me} traces={traces} option={option} serviceDate={serviceDate} origin={origin} destination={destination} />
       ) : (
         <p class="map-note subtle">Loading map…</p>
       )}

@@ -18,7 +18,7 @@ func coords(pts []geo.Point) [][2]float64 {
 	return out
 }
 
-// legShape returns the path of one ride leg: GET /api/shape?date=YYYY-MM-DD&trip=&from=&to=
+// legShape returns the path of one ride leg and the stops it calls at on the way: GET /api/shape?date=YYYY-MM-DD&trip=&from=&to=
 func (s *Server) legShape(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	date, err := time.ParseInLocation("2006-01-02", q.Get("date"), s.eng.Now().Location())
@@ -41,41 +41,12 @@ func (s *Server) legShape(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "timetable unavailable")
 		return
 	}
-	pts, ok := s.eng.LegGeometry(snap, trip, from, to)
+	pts, stops, ok := s.eng.LegGeometry(snap, trip, from, to)
 	if !ok {
 		writeError(w, http.StatusNotFound, "trip or stops not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"coordinates": coords(pts)})
-}
-
-// lineShapes returns the given lines as GeoJSON for drawing: GET /api/shapes?lines=bus 288,train T9
-func (s *Server) lineShapes(w http.ResponseWriter, r *http.Request) {
-	set, ok := s.linesParam(w, r)
-	if !ok {
-		return
-	}
-	type feature struct {
-		Type       string         `json:"type"`
-		Properties map[string]any `json:"properties"`
-		Geometry   map[string]any `json:"geometry"`
-	}
-	fc := struct {
-		Type     string    `json:"type"`
-		Features []feature `json:"features"`
-	}{Type: "FeatureCollection", Features: []feature{}}
-	for _, ls := range s.eng.LineShapes(set) {
-		multi := make([][][2]float64, len(ls.Coords))
-		for i, c := range ls.Coords {
-			multi[i] = coords(c)
-		}
-		fc.Features = append(fc.Features, feature{
-			Type:       "Feature",
-			Properties: map[string]any{"line": ls.Line.String(), "mode": string(ls.Line.Mode), "name": ls.Line.Name, "color": ls.Color},
-			Geometry:   map[string]any{"type": "MultiLineString", "coordinates": multi},
-		})
-	}
-	writeJSON(w, http.StatusOK, fc)
+	writeJSON(w, http.StatusOK, map[string]any{"coordinates": coords(pts), "stops": coords(stops)})
 }
 
 // mapTiles serves the self-hosted basemap with range requests (PMTiles is read in pieces).

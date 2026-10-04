@@ -51,6 +51,7 @@ export interface Leg {
   status?: 'scheduled' | 'predicted' | 'added'
   delay_s?: number
   sched_dep?: string
+  stops?: number // ride legs: stops travelled, counting the one you get off at
   path?: [number, number][] // a walk along the streets, [lon, lat]
 }
 

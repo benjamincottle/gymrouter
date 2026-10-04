@@ -166,7 +166,6 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
               live={leaveAt === null}
               serviceDate={plan.data.service_date}
               token={settings.token!}
-              lines={gym.lines}
               traces={traces}
               origin={direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat]}
               destination={direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat]}
