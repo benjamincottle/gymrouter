@@ -849,18 +849,7 @@ button.link.small {
   background: var(--missed);
 }
 
-.inline-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 8px;
-  margin-top: 8px;
-}
 
-.inline-form label {
-  flex: 1 1 10rem;
-  margin: 0;
-}
 
 /* ---- map ---- */
 
@@ -1025,16 +1014,7 @@ label.check input {
   accent-color: var(--ink);
 }
 
-label.walk {
-  flex-direction: row;
-  align-items: center;
-  margin: 0;
-  white-space: nowrap;
-}
 
-label.walk input {
-  width: 4.5em;
-}
 
 .row-form {
   display: flex;

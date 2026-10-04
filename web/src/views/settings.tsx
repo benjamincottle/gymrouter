@@ -233,7 +233,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
           <IconTimer /> Timed walks
         </h2>
         <p class="muted small">
-          Walks and changes you've timed during trips (tap "Time this walk" while travelling). They're used whenever the same
+          Walks and changes you've timed during trips (tap "Time my walk" while travelling). They're used whenever the same
           walk comes up, either way round, and the route you walked is drawn on the map.
         </p>
         {settings.walks.length === 0 ? (

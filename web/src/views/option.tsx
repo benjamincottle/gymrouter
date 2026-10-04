@@ -1,7 +1,6 @@
-import { useState } from 'preact/hooks'
 import { clock, delay, placeName, platform, riskLabel } from '../format.ts'
 import type { ComponentChildren } from 'preact'
-import { findChange, walkSecs, type Segment, type TimedWalk } from '../walks.ts'
+import { findChange, type Segment, type TimedWalk } from '../walks.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 import { position, rows, type Row } from '../options.ts'
 
@@ -25,13 +24,12 @@ export interface Tracking {
 }
 
 export function Timeline({
-  option: o, destination, walks, onSetChange, track,
+  option: o, destination, walks, track,
 }: {
   option: Option
   destination: string
   walks: TimedWalk[]
-  onSetChange?: (a: StopRef, b: StopRef, secs: number) => void // before a trip: type a change time
-  track?: Tracking // during a trip: the rail with you on it, and "Time my walk"
+  track?: Tracking // during a trip: the rail with you on it, and "Time my walk" (walk times only come from recordings)
 }) {
   const rs = rows(o)
   const me = track && position(rs, track.now)
@@ -59,7 +57,7 @@ export function Timeline({
         if (r.kind === 'change') {
           const s = seg(r.t.to_leg)
           return (
-            <TransferRow t={r.t} from={r.from} to={r.to} walks={walks} onSet={onSetChange} rail={rail(r, k)}
+            <TransferRow t={r.t} from={r.from} to={r.to} walks={walks} rail={rail(r, k)}
               onTime={s && track ? () => track.onTime(s) : undefined} />
           )
         }
@@ -146,19 +144,16 @@ function ChangeIcon() {
 }
 
 function TransferRow({
-  t, from, to, walks, onSet, rail, onTime,
+  t, from, to, walks, rail, onTime,
 }: {
   t: Transfer
   from?: StopRef
   to?: StopRef
   walks: TimedWalk[]
-  onSet?: (a: StopRef, b: StopRef, secs: number) => void
   rail?: ComponentChildren
   onTime?: () => void
 }) {
-  const [editing, setEditing] = useState(false)
-  const mine = from && to ? findChange(walks, from, to)?.walk : undefined
-  const [mins, setMins] = useState(String(Math.round((mine ? walkSecs(mine) : t.walk_s) / 60)))
+  const mine = from && to ? findChange(walks, from, to) : undefined
   const where = placeName(from) === placeName(to) ? placeName(from) : `${placeName(from)} → ${placeName(to)}`
   const spare = t.slack_s >= 60 ? `${Math.floor(t.slack_s / 60)} min ${t.slack_s % 60}s spare` : `${t.slack_s}s spare`
 
@@ -171,50 +166,19 @@ function TransferRow({
       <div>
         <div>
           <span class={`badge risk-${t.risk}`}>{riskLabel(t.risk)}</span> Change at {where}: {Math.round(t.walk_s / 60)} min
-          {mine ? ' (your time)' : ''}, {spare}
+          {mine ? ' (timed)' : ''}, {spare}
         </div>
         <div class="muted small">
           {t.fallback_dep ? `If missed, next one at ${clock(t.fallback_dep)}` : 'No later service on this line'}
-          {onTime ? (
+          {onTime && (
             <>
               {' · '}
               <button class="link" onClick={onTime}>
                 Time my walk
               </button>
             </>
-          ) : (
-            onSet && from && to && !editing && (
-              <>
-                {' · '}
-                <button class="link" onClick={() => setEditing(true)}>
-                  Set my time
-                </button>
-              </>
-            )
           )}
         </div>
-        {editing && onSet && from && to && (
-          <form
-            class="inline-form"
-            onSubmit={(e) => {
-              e.preventDefault()
-              const m = Number(mins)
-              if (Number.isFinite(m) && m >= 0 && m <= 60) {
-                onSet(from, to, Math.round(m * 60))
-                setEditing(false)
-              }
-            }}
-          >
-            <label>
-              My time for this change (min)
-              <input type="number" min="0" max="60" step="0.5" value={mins} onInput={(e) => setMins((e.target as HTMLInputElement).value)} />
-            </label>
-            <button type="submit">Save</button>
-            <button type="button" class="link" onClick={() => setEditing(false)}>
-              Cancel
-            </button>
-          </form>
-        )}
       </div>
     </li>
   )

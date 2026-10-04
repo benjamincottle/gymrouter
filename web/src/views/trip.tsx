@@ -3,7 +3,6 @@ import { api, AuthError } from '../api.ts'
 import { addDays, dayLabel, fromLocalInput, roundUp, toLocalInput } from '../format.ts'
 import { usePolling, useVisible } from '../hooks.ts'
 import { placeRef, planPlace, prefs, type Settings } from '../settings.ts'
-import { setChangeTime } from '../walks.ts'
 import type { DefaultsResponse, PlanRequest } from '../types.ts'
 import { Board, WindowShift, type Shift } from './board.tsx'
 import { BrandLogo } from './brand.tsx'
@@ -186,7 +185,6 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
               title={direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`}
               destinationName={direction === 'to-gym' ? gym.name : home.name}
               onShift={shift}
-              onSetChange={(a, b, secs) => setSettings({ ...settings, walks: setChangeTime(settings.walks, a, b, secs) })}
               onStart={(o) =>
                 onStartTrip({
                   option: o,

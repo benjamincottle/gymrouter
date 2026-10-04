@@ -160,15 +160,6 @@ function changeLabel(a: StopRef, b: StopRef): string {
   return stopName(a) === stopName(b) ? `Change at ${stopName(a)}` : `${stopName(a)} – ${stopName(b)}`
 }
 
-/** Sets a change's time by hand (replacing any timed walks; a traced route is kept). */
-export function setChangeTime(walks: TimedWalk[], a: StopRef, b: StopRef, secs: number): TimedWalk[] {
-  const found = findChange(walks, a, b)
-  const next: ChangeWalk = found
-    ? { ...found.walk, times: [secs] }
-    : { kind: 'change', from: [stopKey(a)], to: [stopKey(b)], label: changeLabel(a, b), times: [secs] }
-  return [...walks.filter((x) => x !== found?.walk), next].slice(-MAX_WALKS)
-}
-
 // --- Using them ---
 
 /** The walks to send with a place in a plan request. */

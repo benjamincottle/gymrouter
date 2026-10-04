@@ -338,3 +338,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   the current step the clock is. It replaces the horizontal progress strip; the summary and switch alerts stay above it.
   Walks are timed from small "Time my walk" links on each walk and change in it (before a trip, changes keep "Set my
   time"). The trip's map shows the same description under it, scrolling on its own, so both fit on one screen.
+- 2026-10-04: Walk times only come from recordings made on a trip. "Set my time" (typing a change time) and the minutes typed
+  per stop in the home/gym editor are gone: a recording has a route, which is what matters (shortcuts the street map doesn't
+  know); for ordinary walks the street routing is right. Ticked stops take the street map's estimate. Change times typed in
+  earlier versions stay as timed walks until removed in Settings.

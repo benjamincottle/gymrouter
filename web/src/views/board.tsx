@@ -5,7 +5,7 @@ import type { ComponentType } from 'preact'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, shortDuration } from '../format.ts'
 import { useNow } from '../hooks.ts'
 import type { TimedWalk } from '../walks.ts'
-import type { Leg, Option, StopRef } from '../types.ts'
+import type { Leg, Option } from '../types.ts'
 import { Timeline, type Tracking } from './option.tsx'
 import { changesAndStops, reselect, tripKey } from '../options.ts'
 import type { MapViewProps } from '../map/mapview.tsx'
@@ -24,7 +24,6 @@ interface Props {
   destination: [number, number]
   title: string
   destinationName: string // the gym or home the trip ends at
-  onSetChange: (a: StopRef, b: StopRef, secs: number) => void
   onStart?: (o: Option) => void
   onShift: Shift
 }
@@ -105,7 +104,7 @@ export function Board(p: Props) {
             </button>
           </span>
         </div>
-        <Timeline option={sel} destination={p.destinationName} walks={p.walks} onSetChange={p.onSetChange} />
+        <Timeline option={sel} destination={p.destinationName} walks={p.walks} />
       </div>
       {mapOpen && (
         <MapSheet {...p} option={sel} now={now} onClose={() => setMapOpen(false)} onStart={p.onStart && (() => p.onStart!(sel))} />
@@ -168,7 +167,7 @@ export function Strip({ option: o, start, end }: { option: Option; start: number
   )
 }
 
-type MapSheetProps = Omit<Props, 'onStart' | 'onSetChange' | 'options' | 'onShift' | 'destinationName'> & {
+type MapSheetProps = Omit<Props, 'onStart' | 'options' | 'onShift' | 'destinationName'> & {
   option: Option
   now: number
   onClose: () => void

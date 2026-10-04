@@ -1,5 +1,11 @@
 # TODO: field-test feedback (2026-10-04)
 
+## Round 5
+
+- [x] **Walk times only come from recordings made on a trip.** No "Set my time" on changes in the option list, and no
+      typed-in minutes per stop in the home/gym editor (stops are still ticked there; their times come from the street
+      map or a recording). A recording has a route, which is the point: shortcuts the map doesn't know about.
+
 ## Round 4
 
 - [x] **The trip description in a started trip.** The same summary as under the option list, with a bar down the

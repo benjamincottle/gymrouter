@@ -6,7 +6,7 @@ import { changeTimes, cleanTimes, MAX_WALKS, placeKey, placeWalks, sanitizeWalks
 export interface AccessStop {
   stop: string
   name: string
-  walk_s: number // a typed-in walking time (a walk timed during a trip beats it; see walks.ts)
+  walk_s: number // the street map's walking time (a walk timed during a trip beats it; see walks.ts)
 }
 
 /** A place on the map: curated stops with measured walk times (empty = every stop within the walking limit). */
