@@ -52,3 +52,12 @@ test('the description rows and where you are on them', () => {
   assert.deepEqual(position(rs, t('08:42')), { row: 3, frac: 7 / 15 })
   assert.deepEqual(position(rs, t('09:30')), { row: 4, frac: 0 }, 'arrived')
 })
+
+test('during a trip the rail starts where you set off, and that is where you are until you leave', () => {
+  const o = option('08:00', ride('t1', 'A', '08:05', '08:30'))
+  const rs = rows(o, true)
+  assert.deepEqual(rs.map((r) => r.kind), ['start', 'leg', 'leg', 'arrive'])
+  const t = (hhmm: string) => Date.parse(iso(hhmm))
+  assert.deepEqual(position(rs, t('07:40')), { row: 0, frac: 0 })
+  assert.deepEqual(position(rs, t('08:02')), { row: 1, frac: 0.4 }, 'out the door: on the walk')
+})

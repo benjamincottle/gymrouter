@@ -1,6 +1,7 @@
 import { render } from 'preact'
 import { App } from './app.tsx'
 import { applyFragment, load, parseFragment, save } from './settings.ts'
+import { applyTheme } from './theme.ts'
 import '@fontsource-variable/archivo/wdth.css'
 import './style.css'
 
@@ -15,6 +16,7 @@ function storage(): Storage | undefined {
 // A setup or settings link puts its data in the fragment. Apply it, then remove it from the
 // address bar and history so the token isn't left lying around.
 let settings = load(storage())
+applyTheme(settings.theme) // before anything is drawn, so the page doesn't flash the wrong way
 let imported = false
 const frag = await parseFragment(window.location.hash)
 if (frag) {

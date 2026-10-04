@@ -8,6 +8,7 @@ import { FetchSource, PMTiles, Protocol } from 'pmtiles'
 import { layers, namedFlavor } from '@protomaps/basemaps'
 import { ApiError, api } from '../api.ts'
 import { legTrace, type TimedWalk } from '../walks.ts'
+import { isDark } from '../theme.ts'
 import type { Leg, Option } from '../types.ts'
 
 maplibregl.setWorkerUrl(workerUrl)
@@ -76,6 +77,13 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
   const map = useRef<maplibregl.Map | null>(null)
   const [error, setError] = useState('')
   const [vehicleCount, setVehicleCount] = useState<number | null>(null)
+  // The note about vehicles goes by itself after a few seconds (or when dismissed); it only needs saying once.
+  const [noteGone, setNoteGone] = useState(false)
+  useEffect(() => {
+    if (vehicleCount !== 0) return
+    const id = setTimeout(() => setNoteGone(true), 5000)
+    return () => clearTimeout(id)
+  }, [vehicleCount === 0])
   const routeBounds = useRef<maplibregl.LngLatBounds | null>(null)
   const firstVehicle = useRef<[number, number] | null>(null) // where the vehicle for your first ride is
   const framed = useRef(false)
@@ -88,7 +96,8 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
     if (!routeBounds.current || userMoved.current) return
     const b = new maplibregl.LngLatBounds(routeBounds.current.getSouthWest(), routeBounds.current.getNorthEast())
     if (firstVehicle.current) b.extend(firstVehicle.current)
-    m.fitBounds(b, { padding: { top: 60, bottom: 220, left: 40, right: 60 }, maxZoom: 15, duration: animate ? 600 : 0 })
+    // The trip fills the map: just enough room for the zoom and locate buttons on the right.
+    m.fitBounds(b, { padding: { top: 36, bottom: 36, left: 28, right: 64 }, maxZoom: 16, duration: animate ? 600 : 0 })
   }
   // The rides, as the vehicles endpoint wants them: <trip>|<board stop>|<alight stop>.
   const rides = option.legs
@@ -99,7 +108,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
   // Create the map once.
   useEffect(() => {
     if (!el.current) return
-    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const dark = isDark()
     const m = new maplibregl.Map({
       container: el.current,
       style: style(token, dark),
@@ -209,6 +218,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
           // A walk you timed and traced beats the street-map route, which beats a straight line.
           const traced = legTrace(walks, option, i, places.start, places.end)
           const coords = traced ?? (l.path && l.path.length > 1 ? l.path : [a, b])
+          for (const c of coords) bounds.extend(c)
           features.push({ type: 'Feature', properties: { kind: 'walk' }, geometry: { type: 'LineString', coordinates: coords } })
           continue
         }
@@ -226,6 +236,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         } catch {
           /* keep the straight line */
         }
+        for (const c of coords) bounds.extend(c) // the line can bow out past its ends
         features.push({ type: 'Feature', properties: { kind: 'ride', color }, geometry: { type: 'LineString', coordinates: coords } })
         for (const p of via) features.push({ type: 'Feature', properties: { kind: 'via', color }, geometry: { type: 'Point', coordinates: p } })
         features.push({ type: 'Feature', properties: { kind: 'stop', color }, geometry: { type: 'Point', coordinates: a } })
@@ -297,8 +308,13 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
     <div class="map-wrap">
       <div ref={el} class="map" role="region" aria-label="Map of the trip with live vehicles" data-my-vehicles={vehicleCount ?? ''} />
       {error && <p class="map-note">{error}</p>}
-      {vehicleCount === 0 && (
-        <p class="map-note subtle">Your services appear here once they're a few stops away.</p>
+      {vehicleCount === 0 && !noteGone && (
+        <p class="map-note subtle" role="status">
+          Your services appear here once they're a few stops away.
+          <button class="close" aria-label="Dismiss" onClick={() => setNoteGone(true)}>
+            ×
+          </button>
+        </p>
       )}
     </div>
   )

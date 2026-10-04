@@ -3,6 +3,7 @@ import type { ComponentChildren } from 'preact'
 import { findChange, type Segment, type TimedWalk } from '../walks.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 import { position, rows, type Row } from '../options.ts'
+import { HOLD } from './icons.tsx'
 
 const hex = (c?: string) => (c && /^[0-9a-fA-F]{6}$/.test(c) ? `#${c}` : undefined)
 
@@ -19,6 +20,7 @@ export function LineChip({ line }: { line: Line }) {
 /** During a trip: where you are, and the walks you can time (see walks.ts segments). */
 export interface Tracking {
   now: number
+  from: { name: string; home: boolean } // where the trip starts: shown at the top of the rail
   segs: Segment[]
   onTime: (s: Segment) => void
 }
@@ -31,13 +33,18 @@ export function Timeline({
   walks: TimedWalk[]
   track?: Tracking // during a trip: the rail with you on it, and "Time my walk" (walk times only come from recordings)
 }) {
-  const rs = rows(o)
+  const rs = rows(o, !!track)
   const me = track && position(rs, track.now)
   const seg = (leg: number) => track?.segs.find((s) => s.leg === leg)
   const rail = (r: Row, k: number) =>
     track && (
       <Rail
-        kind={r.kind === 'arrive' ? 'end' : r.kind === 'change' || r.leg.kind === 'walk' ? 'walk' : 'ride'}
+        kind={
+          r.kind === 'start' ? (track.from.home ? 'home' : 'gym')
+          : r.kind === 'arrive' ? 'end'
+          : r.kind === 'change' || r.leg.kind === 'walk' ? 'walk'
+          : 'ride'
+        }
         color={r.kind === 'leg' ? hex(r.leg.line?.color) : undefined}
         me={me && me.row === k ? me.frac : undefined}
       />
@@ -45,6 +52,15 @@ export function Timeline({
   return (
     <ol class={track ? 'timeline tracked' : 'timeline'}>
       {rs.map((r, k) => {
+        if (r.kind === 'start') {
+          return (
+            <li class="step setoff">
+              <span class="time">{clock(o.leave_at)}</span>
+              {rail(r, k)}
+              <span>Leave {track!.from.name}</span>
+            </li>
+          )
+        }
         if (r.kind === 'arrive') {
           return (
             <li class="step arrive">
@@ -72,10 +88,15 @@ export function Timeline({
 }
 
 /** One step's piece of the line down the left: the leg's colour for a ride, dotted for walking, you if you're here. */
-function Rail({ kind, color, me }: { kind: 'ride' | 'walk' | 'end'; color?: string; me?: number }) {
+function Rail({ kind, color, me }: { kind: 'ride' | 'walk' | 'end' | 'home' | 'gym'; color?: string; me?: number }) {
   return (
     <span class={`rail ${kind}`} style={color ? { '--c': color } : undefined} aria-hidden="true">
       {kind === 'ride' && <i class="stop off" />}
+      {(kind === 'home' || kind === 'gym') && (
+        <svg class="origin" viewBox="0 0 24 24" width="22" height="22">
+          {kind === 'home' ? <path d="M3.5 11 L12 4 L20.5 11 M5.5 9.5 V20 H18.5 V9.5 M10 20 V14 H14 V20" /> : <path d={HOLD} />}
+        </svg>
+      )}
       {me !== undefined && <i class="you" style={{ top: `${me * 100}%` }} />}
     </span>
   )

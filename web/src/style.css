@@ -33,32 +33,37 @@
 :root[data-hl='white'], .swatch[data-hl='white'] { --hl: #ffffff; --hl-edge: #9aa2a9; }
 :root[data-hl='yellow'], .swatch[data-hl='yellow'] { --hl: #f5c400; --hl-edge: #b38f00; }
 
-@media (prefers-color-scheme: dark) {
-  :root[data-hl='blue'], .swatch[data-hl='blue'] { --hl: #4d8df0; }
-  :root[data-hl='red'], .swatch[data-hl='red'] { --hl: #ef5350; }
-  :root[data-hl='purple'], .swatch[data-hl='purple'] { --hl: #a074e8; }
-  :root[data-hl='white'], .swatch[data-hl='white'],
-  :root[data-hl='yellow'], .swatch[data-hl='yellow'] { --hl-edge: transparent; }
-  /* black means the ink, which is pale here; the swatch still shows a black hold */
-  .swatch[data-hl='black'] .hold { fill: #0d0f10; stroke: #6b737a; }
-  :root { --icon-edge: #3a4046; }
+/* dark: grade colours that need lifting off the dark wall */
+:root[data-theme='dark'][data-hl='blue'], [data-theme='dark'] .swatch[data-hl='blue'] { --hl: #4d8df0; }
+:root[data-theme='dark'][data-hl='red'], [data-theme='dark'] .swatch[data-hl='red'] { --hl: #ef5350; }
+:root[data-theme='dark'][data-hl='purple'], [data-theme='dark'] .swatch[data-hl='purple'] { --hl: #a074e8; }
+:root[data-theme='dark'][data-hl='white'], [data-theme='dark'] .swatch[data-hl='white'],
+:root[data-theme='dark'][data-hl='yellow'], [data-theme='dark'] .swatch[data-hl='yellow'] { --hl-edge: transparent; }
+/* black means the ink, which is pale here; the swatch still shows a black hold */
+[data-theme='dark'] .swatch[data-hl='black'] .hold { fill: #0d0f10; stroke: #6b737a; }
+
+/* Dark: chosen in Settings, or following the system (theme.ts sets data-theme either way). */
+:root[data-theme='dark'] {
+  --wall: #1b1e21;
+  --panel: #23272b;
+  --ink: #e8ebe7;
+  --pencil: #9aa2a9;
+  --rule: #383e44;
+  --dot: rgba(232, 235, 231, 0.06);
+  --on-ink: #1b1e21;
+  --focus: #7aa2ff;
+  --safe: #5cc285;
+  --tight: #e0a53a;
+  --risk: #f08a4b;
+  --missed: #f2766b;
+  --icon-edge: #3a4046;
+  color-scheme: dark;
 }
 
+/* before the script has set a theme, don't flash a light page on a dark system */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --wall: #1b1e21;
-    --panel: #23272b;
-    --ink: #e8ebe7;
-    --pencil: #9aa2a9;
-    --rule: #383e44;
-    --dot: rgba(232, 235, 231, 0.06);
-    --on-ink: #1b1e21;
-    --focus: #7aa2ff;
-    --safe: #5cc285;
-    --tight: #e0a53a;
-    --risk: #f08a4b;
-    --missed: #f2766b;
-    color-scheme: dark;
+  html:not([data-theme]) {
+    background: #1b1e21;
   }
 }
 
@@ -256,6 +261,7 @@ label.inline {
   gap: 10px;
   padding: 8px 0;
   border: 0;
+  border-radius: 0; /* square ends on the underline, like the Settings tab */
   font-weight: inherit;
   text-align: left;
 }
@@ -336,7 +342,7 @@ label.inline {
 .when {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 20px 8px; /* the chooser sits as far below as the next control does */
 }
 
 .when .segmented {
@@ -689,6 +695,10 @@ label.inline {
   grid-template-columns: 3.4rem 16px 1fr;
 }
 
+.timeline.tracked .step.arrive {
+  border-top: 1px solid var(--rule);
+}
+
 .timeline.tracked .step.change {
   padding-left: 0;
   padding-right: 8px;
@@ -737,6 +747,36 @@ label.inline {
 
 .rail .stop.off {
   bottom: 8px;
+}
+
+/* where you set off from: home (or the gym), with the walk dotted away below it */
+.rail.home::before,
+.rail.gym::before {
+  top: 32px;
+  left: 7px;
+  width: 0;
+  background: none;
+  border-left: 3px dotted var(--pencil);
+}
+
+.rail .origin {
+  position: absolute;
+  top: 8px;
+  left: -3px;
+  fill: var(--wall);
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rail.home .you,
+.rail.gym .you {
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  margin-top: 15px; /* inside the house (or on the hold): you're there */
+  border-width: 2px;
 }
 
 .rail.end::before {
@@ -902,9 +942,23 @@ button.link.small {
 }
 
 .map-note.subtle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   border-left-color: var(--rule);
   top: auto;
   bottom: 12px;
+}
+
+.map-note .close {
+  flex: none;
+  min-height: 32px;
+  margin-left: auto;
+  padding: 0 8px;
+  border: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--pencil);
 }
 
 .sheet > .map-note {
@@ -985,6 +1039,30 @@ button.link.small {
   gap: 8px;
   padding: 8px 0;
   border-bottom: 1px solid var(--rule);
+}
+
+.row-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+}
+
+.icon-btn:hover {
+  background: var(--panel);
+}
+
+.icon-btn.danger .icon {
+  stroke: var(--missed);
 }
 
 .list.pick li {
@@ -1272,6 +1350,22 @@ fieldset.choice label.check {
 .icon .risk-safe-fill { fill: var(--safe); stroke: none; }
 .icon .risk-tight-fill { fill: var(--tight); stroke: none; }
 .icon .risk-risk-fill { fill: var(--risk); stroke: none; }
+
+.pace {
+  margin: 4px 0 12px;
+  padding: 12px;
+  background: var(--panel);
+  border-left: 4px solid var(--hl);
+}
+
+.pace .timer-clock {
+  font-size: 3rem;
+}
+
+.card h3 {
+  margin: 18px 0 2px;
+  font-size: 1rem;
+}
 
 .swatches {
   display: grid;

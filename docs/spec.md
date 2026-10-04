@@ -348,3 +348,8 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   station (any platform counts: they're inside, a minute apart); a bus or coach stop is keyed by itself, including stands that
   belong to a station (the stand across the road is a different walk). The server applies a station-keyed walk or change
   time to the station's rail platforms only. A walk still counts both ways for the same stop.
+- 2026-10-04: Round 6 polish. Gyms are listed most used first (each choice counts; the order is fixed while the trip screen
+  is open). A started trip's rail begins at home (or the gym's hold) with you there until you leave. The map opens fitted
+  to the whole trip. Settings: Auto / Light / Dark appearance (driven by `<html data-theme>`, set before first paint), icon
+  buttons to edit and delete, and "Measure my pace": a minute or two of ordinary walking with GPS, counting only the time
+  spent moving (readings under 0.5 m/s are standing still), at least 60 s and 100 m, 0.6–2.5 m/s to count as walking.

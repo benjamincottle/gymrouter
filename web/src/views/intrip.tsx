@@ -129,6 +129,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   // The trip's description: you on its rail, and its walks to time (from the map, timing goes back to this screen).
   const track: Tracking = {
     now,
+    from: { name: trip.ends.start.name, home: trip.ends.start.key.startsWith('home:') },
     segs: segments(o, trip.ends.start, trip.ends.end),
     onTime: (s) => {
       setMapOpen(false)
