@@ -7,7 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { FetchSource, PMTiles, Protocol } from 'pmtiles'
 import { layers, namedFlavor } from '@protomaps/basemaps'
 import { ApiError, api } from '../api.ts'
-import type { WalkTraces } from '../settings.ts'
+import { legTrace, type TimedWalk } from '../walks.ts'
 import type { Leg, Option } from '../types.ts'
 
 maplibregl.setWorkerUrl(workerUrl)
@@ -58,7 +58,8 @@ const fc = (features: Feature[]) => ({ type: 'FeatureCollection' as const, featu
 
 export interface MapViewProps {
   token: string
-  traces?: WalkTraces
+  walks: TimedWalk[] // timed walks: their traced routes are drawn instead of the street-map ones
+  places: { start?: string; end?: string } // the trip's home or gym at each end (placeKey), for its timed walks
   option: Option
   serviceDate: string
   origin: [number, number] // [lon, lat] of where the trip starts (home or gym)
@@ -70,7 +71,7 @@ export interface MapViewProps {
  * Draws the option's legs (only the parts ridden, with the stops passed), the vehicles running them while
  * they're near your part of the trip, and you.
  */
-export function MapView({ token, traces, option, serviceDate, origin, destination, me }: MapViewProps) {
+export function MapView({ token, walks, places, option, serviceDate, origin, destination, me }: MapViewProps) {
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const [error, setError] = useState('')
@@ -198,9 +199,8 @@ export function MapView({ token, traces, option, serviceDate, origin, destinatio
         bounds.extend(a).extend(b)
         if (l.kind === 'walk') {
           // A walk you timed and traced beats the street-map route, which beats a straight line.
-          const last = i === option.legs.length - 1
-          const traced = (i === 0 && l.to ? traces?.from[l.to.id] : undefined) ?? (last && l.from ? traces?.to[l.from.id] : undefined)
-          const coords = traced && traced.length > 1 ? traced : l.path && l.path.length > 1 ? l.path : [a, b]
+          const traced = legTrace(walks, option, i, places.start, places.end)
+          const coords = traced ?? (l.path && l.path.length > 1 ? l.path : [a, b])
           features.push({ type: 'Feature', properties: { kind: 'walk' }, geometry: { type: 'LineString', coordinates: coords } })
           continue
         }
@@ -233,7 +233,7 @@ export function MapView({ token, traces, option, serviceDate, origin, destinatio
     return () => {
       live = false
     }
-  }, [option, serviceDate, token])
+  }, [option, serviceDate, token, walks])
 
   // Live vehicles every 10 s; this also keeps the server's realtime polling active.
   useEffect(() => {

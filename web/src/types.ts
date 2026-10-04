@@ -102,6 +102,7 @@ export interface PlaceRequest {
   lat?: number
   lon?: number
   access?: { stop: string; walk_s: number }[]
+  walks?: { stop: string; walk_s: number }[] // timed walks (stop or station IDs); beat everything else
   on_trip?: { trip_id: string; from_stop: string }
 }
 

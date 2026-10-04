@@ -4,8 +4,8 @@ import { useEffect, useState } from 'preact/hooks'
 import type { ComponentType } from 'preact'
 import { clock, countdown, delay, duration, placeName, riskLabel, shortDuration } from '../format.ts'
 import { useNow } from '../hooks.ts'
-import type { TransferTime, WalkTraces } from '../settings.ts'
-import type { Leg, Option } from '../types.ts'
+import type { TimedWalk } from '../walks.ts'
+import type { Leg, Option, StopRef } from '../types.ts'
 import { Timeline } from './option.tsx'
 import { changesAndStops, reselect, tripKey } from '../options.ts'
 import type { MapViewProps } from '../map/mapview.tsx'
@@ -18,12 +18,12 @@ interface Props {
   live: boolean
   serviceDate: string
   token: string
-  traces?: WalkTraces // walks you've timed and traced, drawn instead of the street-map route
+  walks: TimedWalk[] // walks you've timed; their traced routes are drawn instead of the street-map ones
+  places: { start?: string; end?: string } // the home or gym at each end (placeKey)
   origin: [number, number]
   destination: [number, number]
   title: string
-  transfers: TransferTime[]
-  onSetTransfer: (t: TransferTime) => void
+  onSetChange: (a: StopRef, b: StopRef, secs: number) => void
   onStart?: (o: Option) => void
 }
 
@@ -89,7 +89,7 @@ export function Board(p: Props) {
             </button>
           </span>
         </div>
-        <Timeline option={sel} transfers={p.transfers} onSetTransfer={p.onSetTransfer} />
+        <Timeline option={sel} walks={p.walks} onSetChange={p.onSetChange} />
       </div>
       {mapOpen && (
         <MapSheet {...p} option={sel} now={now} onClose={() => setMapOpen(false)} />
@@ -151,9 +151,9 @@ export function Strip({ option: o, start, end, now }: { option: Option; start: n
   )
 }
 
-type MapSheetProps = Omit<Props, 'onStart'> & { option: Option; now: number; onClose: () => void; me?: MapViewProps['me'] }
+type MapSheetProps = Omit<Props, 'onStart' | 'onSetChange' | 'options'> & { option: Option; now: number; onClose: () => void; me?: MapViewProps['me'] }
 
-export function MapSheet({ option, now, onClose, token, traces, serviceDate, origin, destination, title, live, me }: MapSheetProps) {
+export function MapSheet({ option, now, onClose, token, walks, places, serviceDate, origin, destination, title, live, me }: MapSheetProps) {
   const [View, setView] = useState<ComponentType<MapViewProps> | null>(null)
   const [failed, setFailed] = useState(false)
   useEffect(() => {
@@ -177,7 +177,7 @@ export function MapSheet({ option, now, onClose, token, traces, serviceDate, ori
       {failed ? (
         <p class="map-note">Couldn't load the map. Check your connection and try again.</p>
       ) : View ? (
-        <View token={token} me={me} traces={traces} option={option} serviceDate={serviceDate} origin={origin} destination={destination} />
+        <View token={token} me={me} walks={walks} places={places} option={option} serviceDate={serviceDate} origin={origin} destination={destination} />
       ) : (
         <p class="map-note subtle">Loading map…</p>
       )}

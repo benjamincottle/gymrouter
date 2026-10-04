@@ -29,17 +29,17 @@ feedback left a choice open; say if any are wrong.
 
 ## Walk timing overhaul
 
-- [ ] **Time walks from the live trip**, not from home/gym settings: the walk to the first stop, each
+- [x] **Time walks from the live trip**, not from home/gym settings: the walk to the first stop, each
       change, and the walk from the last stop.
-- [ ] **Saved per walk and reused whenever that walk comes up again**, for any stop (not only the stops
+- [x] **Saved per walk and reused whenever that walk comes up again**, for any stop (not only the stops
       ticked under a home or gym; a timed walk to an unticked stop makes that stop usable too).
-- [ ] **First recording replaces the default** (street-map estimate) for planning, and its GPS trace is
+- [x] **First recording replaces the default** (street-map estimate) for planning, and its GPS trace is
       drawn on the map from then on.
-- [ ] **Later recordings replace or average** according to a setting (default: average the last 5). The
+- [x] **Later recordings replace or average** according to a setting (default: average the last 5). The
       save screen offers the other choice too.
-- [ ] Assumption: a walk is the same either way (home → stop is timed once and also used for stop → home;
+- [x] Assumption: a walk is the same either way (home → stop is timed once and also used for stop → home;
       a change A → B also covers B → A, trace reversed).
-- [ ] Settings lists the timed walks and changes (with remove); the old per-stop "Time it" button goes.
+- [x] Settings lists the timed walks and changes (with remove); the old per-stop "Time it" button goes.
       Existing timings (stop walks, "Set my time" changes) are carried over.
 
 ## Setup

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { encode } from 'uqr'
 import { emptySettings, MAX_GYMS, sanitize, settingsLink, type Gym, type Home, type Settings } from '../settings.ts'
 import type { DefaultsResponse } from '../types.ts'
+import { mmss } from '../walkmeasure.ts'
+import { walkSecs } from '../walks.ts'
 import { GymChooser, newGym, newHome, PlaceEditor, type EditorKind } from './places.tsx'
 
 interface Props {
@@ -56,6 +58,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
         isNew={editing.isNew}
         token={settings.token!}
         homes={settings.homes}
+        walks={settings.walks}
         onAuthError={onAuthError}
         onCancel={() => setEditing(null)}
         onSave={(g) => {
@@ -217,19 +220,28 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
       </section>
 
       <section class="card">
-        <h2>My change times</h2>
-        {settings.transfers.length === 0 ? (
-          <p class="muted small">None yet. Tap "Set my time" on a change in a trip to add one.</p>
+        <h2>Timed walks</h2>
+        <p class="muted small">
+          Walks and changes you've timed during trips (tap "Time this walk" while travelling). They're used whenever the same
+          walk comes up, either way round, and the route you walked is drawn on the map.
+        </p>
+        {settings.walks.length === 0 ? (
+          <p class="muted small">None yet.</p>
         ) : (
           <ul class="list">
-            {settings.transfers.map((t) => (
+            {settings.walks.map((w) => (
               <li>
                 <span>
-                  {t.label} <span class="muted small">· {round1(t.secs / 60)} min</span>
+                  {w.label}{' '}
+                  <span class="muted small">
+                    · {mmss(walkSecs(w))}
+                    {w.times.length > 1 ? `, average of ${w.times.length}` : ''}
+                    {w.trace ? ', traced' : ''}
+                  </span>
                 </span>
                 <button
                   class="link danger"
-                  onClick={() => setSettings({ ...settings, transfers: settings.transfers.filter((x) => x !== t) })}
+                  onClick={() => setSettings({ ...settings, walks: settings.walks.filter((x) => x !== w) })}
                 >
                   Remove
                 </button>
@@ -237,6 +249,27 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
             ))}
           </ul>
         )}
+        <fieldset class="choice">
+          <legend>Timing a walk again</legend>
+          <label class="check">
+            <input
+              type="radio"
+              name="retime"
+              checked={(settings.retime ?? 'average') === 'average'}
+              onChange={() => setSettings({ ...settings, retime: 'average' })}
+            />
+            <span>Average it with the last few walks</span>
+          </label>
+          <label class="check">
+            <input
+              type="radio"
+              name="retime"
+              checked={settings.retime === 'replace'}
+              onChange={() => setSettings({ ...settings, retime: 'replace' })}
+            />
+            <span>Replace the earlier time</span>
+          </label>
+        </fieldset>
       </section>
 
       <Backup settings={settings} setSettings={setSettings} />

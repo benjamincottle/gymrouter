@@ -36,8 +36,11 @@ measured walks from the gym door.
 - `lines` (1–60, each `"<mode> <name>"`) is the set to route on, normally the gym's. The server loads timetable
   data for any line it hasn't seen yet, so the first request naming new lines takes a few seconds. There is a cap on
   the total the server will hold (400 Bad Request beyond it).
-- A place is `lat`/`lon`, optionally with curated `access` stops and measured walk times. Without
+- A place is `lat`/`lon`, optionally with curated `access` stops and walk times. Without
   them, stops within `max_walk_m` are used. Either end can be home or gym.
+- A place can also carry `walks` (up to 40, `[{"stop": "<stop or station ID>", "walk_s": 540}]`): walks the traveller
+  has timed between the place and a stop. They beat any other time for that stop (a station ID covers its platforms)
+  and add the stop if it isn't otherwise considered, curated or not. Not allowed with `on_trip`.
 - `time` is the earliest time to leave (default: now). Options leaving within `window_min` are returned.
 - `transfers` override walking/changing time between stops. A station ID covers all its platforms.
 - `"arrive_by": true` treats `time` as the latest arrival: options arriving by then, latest departure first.

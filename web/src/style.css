@@ -1001,3 +1001,40 @@ details > summary {
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+
+/* timing a walk during a trip */
+.time-walk {
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+}
+
+.time-walk > button {
+  width: 100%;
+  text-align: left;
+}
+
+.time-walk .sub {
+  font-weight: 500;
+}
+
+.intrip .timer {
+  margin-bottom: 16px;
+}
+
+fieldset.choice {
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+fieldset.choice legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+fieldset.choice label.check {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0;
+}

@@ -18,6 +18,7 @@ import (
 // Request limits.
 const (
 	maxAccess    = 20
+	maxWalks     = 40
 	maxTransfers = 100
 	maxWalkS     = 3600
 	maxRadiusM   = 2000
@@ -34,6 +35,9 @@ type placeReq struct {
 	Lat    *float64    `json:"lat,omitempty"`
 	Lon    *float64    `json:"lon,omitempty"`
 	Access []accessReq `json:"access,omitempty"`
+	// Walks are walks the traveller has timed between this place and particular stops (stop or station IDs). They
+	// beat any other time for that stop, and make it usable even if it isn't otherwise one of the place's stops.
+	Walks  []accessReq `json:"walks,omitempty"`
 	OnTrip *onTripReq  `json:"on_trip,omitempty"`
 }
 
@@ -304,7 +308,7 @@ func boarded(snap *engine.Snapshot, ot *onTripReq, now int32) (*plan.Onboard, er
 
 func checkPlace(p placeReq) error {
 	if p.OnTrip != nil {
-		if p.Lat != nil || p.Lon != nil || len(p.Access) > 0 || p.OnTrip.TripID == "" || p.OnTrip.FromStop == "" ||
+		if p.Lat != nil || p.Lon != nil || len(p.Access) > 0 || len(p.Walks) > 0 || p.OnTrip.TripID == "" || p.OnTrip.FromStop == "" ||
 			len(p.OnTrip.TripID)+len(p.OnTrip.FromStop) > 200 {
 			return badf("on_trip needs trip_id and from_stop, and nothing else")
 		}
@@ -319,9 +323,15 @@ func checkPlace(p placeReq) error {
 	if len(p.Access) > maxAccess {
 		return badf("at most %d access stops", maxAccess)
 	}
-	for _, a := range p.Access {
+	if len(p.Walks) > maxWalks {
+		return badf("at most %d walks", maxWalks)
+	}
+	for _, a := range append(p.Access, p.Walks...) {
 		if a.WalkS < 0 || a.WalkS > maxWalkS {
 			return badf("walk_s must be 0..%d", maxWalkS)
+		}
+		if a.Stop == "" || len(a.Stop) > 64 {
+			return badf("each walk needs a stop")
 		}
 	}
 	return nil
@@ -386,8 +396,55 @@ func validatePrefs(p prefsReq) error {
 }
 
 // access resolves a place to stops with walking times: curated stops if given, otherwise nearby stops
-// reached along the streets (or by a straight-line estimate until the street network exists).
+// reached along the streets (or by a straight-line estimate until the street network exists). Timed walks
+// then override those times and add their stops.
 func (s *Server) access(snap *engine.Snapshot, p placeReq, maxWalk float64, o raptor.Options) ([]raptor.Access, engine.Approach, error) {
+	out, ap, err := s.baseAccess(snap, p, maxWalk, o)
+	if len(p.Walks) == 0 {
+		return out, ap, err
+	}
+	timed := withWalks(snap.Day, out, p.Walks)
+	if len(timed) == 0 {
+		return nil, ap, err
+	}
+	if len(out) == 0 && ap.Access == nil { // only timed stops: draw the street routes anyway
+		ap = s.eng.PathsFrom(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, math.Min(maxWalk*3, 6000))
+	}
+	return timed, ap, nil
+}
+
+// withWalks applies timed walks (by stop or parent station ID) to access stops, adding stops not yet there.
+func withWalks(d *gtfs.Day, access []raptor.Access, walks []accessReq) []raptor.Access {
+	secs := map[string]int32{}
+	for _, w := range walks {
+		secs[w.Stop] = w.WalkS
+	}
+	timed := func(si int32) (int32, bool) {
+		st := d.Stops[si]
+		if v, ok := secs[st.ID]; ok {
+			return v, true
+		}
+		v, ok := secs[st.Parent]
+		return v, ok && st.Parent != ""
+	}
+	out := make([]raptor.Access, 0, len(access)+len(walks))
+	have := map[int32]bool{}
+	for _, a := range access {
+		if v, ok := timed(a.Stop); ok {
+			a.Secs = v
+		}
+		out = append(out, a)
+		have[a.Stop] = true
+	}
+	for si, st := range d.Stops {
+		if v, ok := timed(int32(si)); ok && !have[int32(si)] && st.LocationType != "1" { // board at platforms, not the station
+			out = append(out, raptor.Access{Stop: int32(si), Secs: v})
+		}
+	}
+	return out
+}
+
+func (s *Server) baseAccess(snap *engine.Snapshot, p placeReq, maxWalk float64, o raptor.Options) ([]raptor.Access, engine.Approach, error) {
 	if len(p.Access) > 0 {
 		var out []raptor.Access
 		for _, a := range p.Access {

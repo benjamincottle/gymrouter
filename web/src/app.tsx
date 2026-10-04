@@ -6,6 +6,7 @@ import { Setup } from './views/setup.tsx'
 import { Trip } from './views/trip.tsx'
 import { SettingsView } from './views/settings.tsx'
 import { InTrip, TRIP_KEY, type ActiveTrip } from './views/intrip.tsx'
+import { record } from './walks.ts'
 
 function loadTrip(storage: Storage | undefined): ActiveTrip | null {
   try {
@@ -95,7 +96,16 @@ export function App({ initial, imported, storage }: AppProps) {
   if (trip) {
     return (
       <div class="app">
-        <InTrip trip={trip} token={settings.token} onUpdate={setTrip} onEnd={() => setTrip(null)} onAuthError={onAuthError} />
+        <InTrip
+          trip={trip}
+          token={settings.token}
+          walks={settings.walks}
+          retime={settings.retime ?? 'average'}
+          onUpdate={setTrip}
+          onSaveWalk={(seg, w, replace) => setSettings({ ...settings, walks: record(settings.walks, seg, w, replace ? 'replace' : 'average') })}
+          onEnd={() => setTrip(null)}
+          onAuthError={onAuthError}
+        />
       </div>
     )
   }

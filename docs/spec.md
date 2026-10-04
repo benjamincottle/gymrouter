@@ -62,9 +62,9 @@ Non-goals (v1)
   (e.g. through the Johnson factory at Lane Cove) and miss shortcuts that exist (e.g. cutting through the
   plumbing-supply site). Walks to and from stops, and between stops when changing, are routed over a pedestrian network built from OpenStreetMap
   (footpaths, steps, streets; private and no-foot ways excluded). A curated access stop with a measured walk time
-  overrides the routed one, which is how the OSM data's mistakes get corrected. Walks are measured in the app: a timer with a
-  GPS trace (stand at the door, start, walk, "I'm here") for any walk from a home or gym to one of its stops. Repeat walks
-  average (most recent five); the traced route replaces the street-map route on the map. Traces and times stay on the device. Until the network has been built
+  overrides the routed one, which is how the OSM data's mistakes get corrected. Walks are measured in the app during a trip: a timer
+  with a GPS trace (start, walk, "I'm here") for the walk to the first stop, each change, or the walk from the last stop.
+  Repeat walks average (most recent five) or replace, by preference; the traced route replaces the street-map route on the map. Traces and times stay on the device. Until the network has been built
   (first start), walks fall back to straight line × detour and the app says so. Transfers between stops are timed along the
   streets too (cached per stop; pairs that can't be walked within a sensible detour, e.g. across a river, are dropped);
   GTFS pathways inside stations still win, and a personal transfer time wins over both.
@@ -311,3 +311,11 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   five built-in gyms in one request timed out in the field (three then two worked). Splitting per gym was rejected: reading the
   timetable is most of the cost (~12 of ~14 s locally for one gym, ~1 s per extra gym), so it would multiply the work. One job
   at a time, up to 12 destinations, kept 10 minutes after finishing; a dropped poll is retried.
+- 2026-10-04: Walk timing moves from home/gym settings into the live trip (supersedes the per-stop timer of 2026-10-03). In
+  a trip, "Time this walk" offers the walk you're on (to the first stop, a change, or from the last stop) and any other walk
+  of the trip. Timed walks are their own list on the device, keyed by place (a built-in gym by its ref, so re-adding it keeps
+  them) and stop or station, and count in both directions. The first timing replaces the default time and its GPS trace is
+  drawn from then on; later timings average (last five) or replace, by a setting, with the other offered when saving.
+  Plan requests carry a place's timed walks as `walks`, which beat curated and street times and add stops that aren't ticked
+  under the home or gym (they weren't usable before, which is likely why saving such a walk seemed not to work). Timed
+  changes are sent as transfer times both ways. Older per-stop timings and "Set my time" change times are migrated.

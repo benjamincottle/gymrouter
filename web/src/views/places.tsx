@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, ApiError, AuthError } from '../api.ts'
-import { gymFromKnown, isLine, LINE_MODES, MAX_LINES, newId, placeRequest, withSuggested, type AccessStop, type Gym, type Home } from '../settings.ts'
+import { gymFromKnown, isLine, LINE_MODES, MAX_LINES, newId, placeRequest, withSuggested, type Gym, type Home } from '../settings.ts'
 import { groupStops, relevantGroups, type StopGroup } from '../stops.ts'
 import type { GeocodeResult, KnownGym, NearStop, SuggestResult } from '../types.ts'
 import { LineChip } from './option.tsx'
-import { WalkTimer } from './walktimer.tsx'
-import { withWalk, type Walk } from '../walkmeasure.ts'
+import { mmss } from '../walkmeasure.ts'
+import { placeKey, walkSecs, type AccessWalk, type TimedWalk } from '../walks.ts'
 
 export const newHome = (): Home => ({ id: newId(), name: 'Home', lat: NaN, lon: NaN, access: [] })
 export const newGym = (): Gym => ({ id: newId(), name: '', lat: NaN, lon: NaN, access: [], lines: [] })
@@ -20,13 +20,14 @@ interface Props {
   isNew: boolean
   token: string
   homes: Home[] // line suggestions start from one of these
+  walks: TimedWalk[] // walks timed during trips, shown against their stops
   onAuthError: () => void
   onSave: (p: Gym) => void
   onCancel: () => void
 }
 
 /** Adds or edits a home or a gym: where it is, the stops to walk to, and (for a gym) its lines. */
-export function PlaceEditor({ kind, place, isNew, token, homes, onAuthError, onSave, onCancel }: Props) {
+export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthError, onSave, onCancel }: Props) {
   const [p, setP] = useState<Gym>(place)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<GeocodeResult[]>([])
@@ -118,35 +119,12 @@ export function PlaceEditor({ kind, place, isNew, token, homes, onAuthError, onS
     })
   const visibleGroups = showAll ? groups : relevantGroups(groups)
 
-  // Timing a walk to a stop, tracing it with GPS.
-  const [timing, setTiming] = useState<StopGroup | null>(null)
-  const accessOf = (g: StopGroup): AccessStop | undefined => p.access.find((a) => g.ids.includes(a.stop))
-  const saveWalk = (g: StopGroup, w: Walk, replace: boolean) => {
-    const merged = withWalk(accessOf(g) ?? { stop: g.ids[0], name: g.name, walk_s: g.walk_s }, w, replace)
-    const rest = p.access.filter((a) => !g.ids.includes(a.stop))
-    // Every platform or stand of the station shares the one measured walk.
-    setP({ ...p, access: [...rest, ...g.ids.map((stop) => ({ ...merged, stop, name: g.name }))] })
-    setTiming(null)
-  }
+  // Walks timed during trips win over the minutes typed here.
+  const key = placeKey(kind, p)
+  const timedOf = (g: StopGroup) =>
+    walks.find((w): w is AccessWalk => w.kind === 'access' && w.place === key && w.stop.some((id) => id === g.key || g.ids.includes(id)))
 
   const canSave = hasLocation && p.name.trim() !== '' && (!gym || p.lines.length > 0)
-
-  if (timing) {
-    return (
-      <div class="stack">
-        <WalkTimer
-          placeName={p.name.trim() || (gym ? 'the gym' : 'home')}
-          place={p}
-          stopName={timing.name}
-          stop={timing}
-          earlier={accessOf(timing)?.times ?? []}
-          estimateS={timing.walk_s}
-          onSave={(w, replace) => saveWalk(timing, w, replace)}
-          onCancel={() => setTiming(null)}
-        />
-      </div>
-    )
-  }
 
   return (
     <div class="stack">
@@ -196,15 +174,15 @@ export function PlaceEditor({ kind, place, isNew, token, homes, onAuthError, onS
         <section class="card">
           <h2>{gym ? 'Stops near the gym' : 'Your stops'}</h2>
           <p class="muted small">
-            {gym
-              ? "Pick the stops you'd use and time the real walk from the door. Planners guess these walks badly, so this is where you can beat them. "
-              : "Pick the stops you'd actually walk to and set your real walking time. "}
-            If you pick none, every stop within your walking limit is considered.
+            Pick the stops you'd actually walk to, and your walking time if you know it. If you pick none, every stop within
+            your walking limit is considered. To time a walk, use "Time this walk" during a trip: timed walks are used
+            for any stop, picked here or not.
           </p>
           {stops.length === 0 && <p class="muted">No stops within {gym ? '1.2' : '1.5'} km.</p>}
           <ul class="list stops">
             {visibleGroups.map((g) => {
               const walk = groupWalk(g)
+              const timed = timedOf(g)
               return (
                 <li>
                   <label class="check">
@@ -215,7 +193,11 @@ export function PlaceEditor({ kind, place, isNew, token, homes, onAuthError, onS
                     </span>
                   </label>
                   <span class="walkcell">
-                    {walk !== undefined ? (
+                    {timed ? (
+                      <span class="small" title="Timed during a trip; this is the time used">
+                        timed {mmss(walkSecs(timed))}
+                      </span>
+                    ) : walk !== undefined ? (
                       <label class="walk">
                         <input
                           type="number"
@@ -231,10 +213,6 @@ export function PlaceEditor({ kind, place, isNew, token, homes, onAuthError, onS
                     ) : (
                       <span class="muted small">~{Math.round(g.walk_s / 60)} min</span>
                     )}
-                    <button class="link" onClick={() => setTiming(g)}>
-                      {accessOf(g)?.times ? `Re-time (${accessOf(g)!.times!.length})` : 'Time it'}
-                    </button>
-                    {accessOf(g)?.trace && <span class="muted small" title="The route you walked is drawn on the map">traced</span>}
                   </span>
                 </li>
               )

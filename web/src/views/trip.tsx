@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
 import { fromLocalInput, toLocalInput } from '../format.ts'
 import { usePolling, useVisible } from '../hooks.ts'
-import { placeRequest, prefs, setTransfer, walkTraces, type Settings, type TransferTime } from '../settings.ts'
+import { placeRef, planPlace, prefs, type Settings } from '../settings.ts'
+import { setChangeTime } from '../walks.ts'
 import type { DefaultsResponse, PlanRequest } from '../types.ts'
 import { Board } from './board.tsx'
 import type { ActiveTrip } from './intrip.tsx'
@@ -35,8 +36,8 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   const request: PlanRequest | null = useMemo(() => {
     const g = settings.gyms.find((x) => x.id === gymId)
     if (!g || !home) return null
-    const gym = placeRequest(g)
-    const place = placeRequest(home)
+    const gym = planPlace('gym', g, settings.walks)
+    const place = planPlace('home', home, settings.walks)
     return {
       from: direction === 'to-gym' ? place : gym,
       to: direction === 'to-gym' ? gym : place,
@@ -59,7 +60,6 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
     if (plan.error instanceof AuthError) onAuthError()
   }, [plan.error, onAuthError])
 
-  const saveTransfer = (t: TransferTime) => setSettings(setTransfer(settings, t))
 
   if (!server) return <p class="muted">Loading…</p>
   if (!home || settings.gyms.length === 0) {
@@ -74,7 +74,8 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   }
 
   const gym = settings.gyms.find((g) => g.id === gymId)
-  const traces = gym ? (direction === 'to-gym' ? walkTraces(home, gym) : walkTraces(gym, home)) : undefined
+  const ends = gym && (direction === 'to-gym' ? { start: placeRef('home', home), end: placeRef('gym', gym) } : { start: placeRef('gym', gym), end: placeRef('home', home) })
+  const places = { start: ends?.start.key, end: ends?.end.key }
 
   return (
     <div class="stack">
@@ -166,25 +167,25 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
               live={leaveAt === null}
               serviceDate={plan.data.service_date}
               token={settings.token!}
-              traces={traces}
+              walks={settings.walks}
+              places={places}
               origin={direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat]}
               destination={direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat]}
               title={direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`}
-              transfers={settings.transfers}
-              onSetTransfer={saveTransfer}
+              onSetChange={(a, b, secs) => setSettings({ ...settings, walks: setChangeTime(settings.walks, a, b, secs) })}
               onStart={(o) =>
-                      onStartTrip({
-                        option: o,
-                        plannedArrive: o.arrive,
-                        request: request!,
-                        lines: gym.lines,
-                        traces,
-                        title: direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`,
-                        origin: direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat],
-                        destination: direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat],
-                        serviceDate: plan.data!.service_date,
-                        walkSpeedMps: settings.walkSpeedMps ?? server.defaults.walk_speed_mps,
-                      })
+                onStartTrip({
+                  option: o,
+                  plannedArrive: o.arrive,
+                  request: request!,
+                  lines: gym.lines,
+                  ends,
+                  title: direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`,
+                  origin: direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat],
+                  destination: direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat],
+                  serviceDate: plan.data!.service_date,
+                  walkSpeedMps: settings.walkSpeedMps ?? server.defaults.walk_speed_mps,
+                })
               }
             />
           )}

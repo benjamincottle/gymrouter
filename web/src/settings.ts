@@ -1,13 +1,12 @@
 // Device-side settings: everything personal lives here, never on the server.
 
 import type { KnownGym, PlaceRequest, PlanRequest, SuggestResult } from './types.ts'
+import { changeTimes, cleanTimes, MAX_WALKS, placeKey, placeWalks, sanitizeWalks, type PlaceRef, type Retime, type TimedWalk } from './walks.ts'
 
 export interface AccessStop {
   stop: string
   name: string
-  walk_s: number // what the router uses: the mean of `times` when walks have been measured
-  times?: number[] // measured walks, seconds (most recent few)
-  trace?: [number, number][] // the route walked, [lon, lat], from the place to the stop
+  walk_s: number // a typed-in walking time (a walk timed during a trip beats it; see walks.ts)
 }
 
 /** A place on the map: curated stops with measured walk times (empty = every stop within the walking limit). */
@@ -29,13 +28,6 @@ export interface Gym extends Place {
   homeId?: string // the home whose nearby lines were last suggested for it
 }
 
-export interface TransferTime {
-  from: string // stop or station ID
-  to: string
-  secs: number
-  label: string
-}
-
 export interface Settings {
   version: 1
   token?: string
@@ -47,13 +39,14 @@ export interface Settings {
   maxWalkM?: number
   leaveBufferS?: number
   risk?: { safe_s: number; tight_s: number }
-  transfers: TransferTime[]
+  walks: TimedWalk[] // walks and changes timed during trips
+  retime?: Retime // timing a walk again: average with the earlier ones (default) or replace them
 }
 
 export const STORAGE_KEY = 'gymrouter.settings'
 
 export function emptySettings(): Settings {
-  return { version: 1, homes: [], gyms: [], transfers: [] }
+  return { version: 1, homes: [], gyms: [], walks: [] }
 }
 
 const isNum = (v: unknown, min: number, max: number): v is number =>
@@ -72,31 +65,36 @@ export function isLine(v: unknown): v is string {
   return i > 0 && v.slice(i + 1).trim() !== '' && (LINE_MODES as readonly string[]).includes(v.slice(0, i))
 }
 
-function sanitizePlace(input: unknown): Place | null {
+/**
+ * Validates a place. Walks timed with the old per-stop timer (times and a trace on the stop) are moved to `walks`,
+ * one per stop name (a station's platforms shared one walk).
+ */
+function sanitizePlace(input: unknown, key: (p: Place & { ref?: string }) => string, walks: TimedWalk[]): Place | null {
   if (typeof input !== 'object' || input === null) return null
   const r = input as Record<string, unknown>
   if (!isStr(r.id, 40) || !isStr(r.name, 60) || !isNum(r.lat, -90, 90) || !isNum(r.lon, -180, 180)) return null
   const access: AccessStop[] = []
+  const timed = new Map<string, TimedWalk & { kind: 'access' }>()
   if (Array.isArray(r.access)) {
     for (const a of r.access.slice(0, 20)) {
       const x = a as Record<string, unknown>
       if (x && isStr(x.stop, 40) && isStr(x.name, 120) && isNum(x.walk_s, 0, 3600)) {
-        const st: AccessStop = { stop: x.stop, name: x.name, walk_s: Math.round(x.walk_s) }
-        if (Array.isArray(x.times)) {
-          const times = x.times.filter((t): t is number => isNum(t, 1, 3600)).slice(-5).map(Math.round)
-          if (times.length > 0) st.times = times
+        access.push({ stop: x.stop, name: x.name, walk_s: Math.round(x.walk_s) })
+        const times = cleanTimes(x.times)
+        if (times.length === 0) continue
+        const prev = timed.get(x.name)
+        if (prev) prev.stop.push(x.stop)
+        else {
+          const old = sanitizeWalks([{ kind: 'access', place: '-', stop: [x.stop], label: x.name, times, trace: x.trace }])[0]
+          if (old) timed.set(x.name, { ...(old as TimedWalk & { kind: 'access' }), label: `${r.name} – ${x.name}` })
         }
-        if (Array.isArray(x.trace) && x.trace.length >= 2 && x.trace.length <= 120) {
-          const trace = x.trace.filter(
-            (p): p is [number, number] => Array.isArray(p) && p.length === 2 && isNum(p[0], -180, 180) && isNum(p[1], -90, 90),
-          )
-          if (trace.length === x.trace.length) st.trace = trace
-        }
-        access.push(st)
       }
     }
   }
-  return { id: r.id, name: r.name, lat: r.lat, lon: r.lon, access }
+  const p: Place = { id: r.id, name: r.name, lat: r.lat, lon: r.lon, access }
+  const k = key({ ...p, ref: isStr(r.ref, 40) ? r.ref : undefined })
+  for (const w of timed.values()) walks.push({ ...w, place: k })
+  return p
 }
 
 /** Validates untrusted settings (from storage, an import file or a link), dropping anything malformed. */
@@ -105,15 +103,17 @@ export function sanitize(input: unknown): Settings {
   if (typeof input !== 'object' || input === null) return out
   const s = input as Record<string, unknown>
   if (isStr(s.token, 200) && /^[A-Za-z0-9_-]{32,}$/.test(s.token)) out.token = s.token
+  out.walks = sanitizeWalks(s.walks)
+  const migrated: TimedWalk[] = [] // from older versions, added unless already there
   if (Array.isArray(s.homes)) {
     for (const h of s.homes.slice(0, 10)) {
-      const p = sanitizePlace(h)
+      const p = sanitizePlace(h, (x) => placeKey('home', x), migrated)
       if (p) out.homes.push(p)
     }
   }
   if (Array.isArray(s.gyms)) {
     for (const g of s.gyms.slice(0, MAX_GYMS)) {
-      const p = sanitizePlace(g)
+      const p = sanitizePlace(g, (x) => placeKey('gym', x), migrated)
       if (!p) continue
       const r = g as Record<string, unknown>
       const ls = Array.isArray(r.lines) ? r.lines.filter(isLine).slice(0, MAX_LINES) : []
@@ -138,13 +138,21 @@ export function sanitize(input: unknown): Settings {
       out.risk = { safe_s: Math.round(r.safe_s), tight_s: Math.round(r.tight_s) }
     }
   }
+  if (s.retime === 'average' || s.retime === 'replace') out.retime = s.retime
+  // Change times set by hand in older versions.
   if (Array.isArray(s.transfers)) {
     for (const t of s.transfers.slice(0, 100)) {
       const x = t as Record<string, unknown>
-      if (x && isStr(x.from, 40) && isStr(x.to, 40) && isNum(x.secs, 0, 3600) && isStr(x.label, 120)) {
-        out.transfers.push({ from: x.from, to: x.to, secs: Math.round(x.secs), label: x.label })
+      if (x && isStr(x.from, 40) && isStr(x.to, 40) && isNum(x.secs, 1, 3600) && isStr(x.label, 120)) {
+        migrated.push({ kind: 'change', from: [x.from], to: [x.to], label: x.label, times: [Math.round(x.secs)] })
       }
     }
+  }
+  for (const w of migrated) {
+    const dup = out.walks.some((x) =>
+      w.kind === 'access' ? x.kind === 'access' && x.place === w.place && x.stop.some((id) => w.stop.includes(id))
+        : x.kind === 'change' && x.from.join() === w.from.join() && x.to.join() === w.to.join())
+    if (!dup && out.walks.length < MAX_WALKS) out.walks.push(w)
   }
   return out
 }
@@ -236,6 +244,18 @@ export function placeRequest(h: Place): PlaceRequest {
   return p
 }
 
+/** A home or gym as one end of a trip: its stops, plus the walks to stops timed from it. */
+export function planPlace(kind: 'home' | 'gym', p: Place & { ref?: string }, walks: TimedWalk[]): PlaceRequest {
+  const r = placeRequest(p)
+  const w = placeWalks(walks, placeKey(kind, p))
+  if (w.length > 0) r.walks = w
+  return r
+}
+
+export function placeRef(kind: 'home' | 'gym', p: Place & { ref?: string }): PlaceRef {
+  return { key: placeKey(kind, p), name: p.name, lat: p.lat, lon: p.lon }
+}
+
 export function prefs(s: Settings): PlanRequest['prefs'] {
   const p: PlanRequest['prefs'] = {}
   if (s.walkSpeedMps !== undefined) p.walk_speed_mps = s.walkSpeedMps
@@ -243,14 +263,9 @@ export function prefs(s: Settings): PlanRequest['prefs'] {
   if (s.maxWalkM !== undefined) p.max_walk_m = s.maxWalkM
   if (s.leaveBufferS !== undefined) p.leave_buffer_s = s.leaveBufferS
   if (s.risk) p.risk = s.risk
-  if (s.transfers.length > 0) p.transfers = s.transfers.map(({ from, to, secs }) => ({ from, to, secs }))
+  const transfers = changeTimes(s.walks)
+  if (transfers.length > 0) p.transfers = transfers
   return p
-}
-
-/** Adds or replaces the personal time for a change between two stops/stations. */
-export function setTransfer(s: Settings, t: TransferTime): Settings {
-  const rest = s.transfers.filter((x) => !(x.from === t.from && x.to === t.to))
-  return { ...s, transfers: [...rest, t] }
 }
 
 export function newId(): string {
@@ -269,17 +284,4 @@ export function gymFromKnown(k: KnownGym): Gym {
 export function withSuggested(g: Gym, r: SuggestResult, homeId: string): Gym {
   const add = r.lines.filter((l) => l.recommended && isLine(l.line)).map((l) => l.line)
   return { ...g, lines: [...new Set([...g.lines, ...add])].slice(0, MAX_LINES), homeId }
-}
-
-/** The measured routes to draw on the map: from the trip's start place to its stop, and from its stop to the end place. */
-export interface WalkTraces {
-  from: Record<string, [number, number][]> // keyed by stop ID; runs from the start place to the stop
-  to: Record<string, [number, number][]> // keyed by stop ID; runs from the stop to the end place
-}
-
-export function walkTraces(start: Place, end: Place): WalkTraces {
-  const out: WalkTraces = { from: {}, to: {} }
-  for (const a of start.access) if (a.trace) out.from[a.stop] = a.trace
-  for (const a of end.access) if (a.trace) out.to[a.stop] = [...a.trace].reverse()
-  return out
 }

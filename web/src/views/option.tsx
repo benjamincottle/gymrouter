@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks'
 import { clock, delay, placeName, platform, riskLabel } from '../format.ts'
-import type { TransferTime } from '../settings.ts'
+import { findChange, walkSecs, type TimedWalk } from '../walks.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 
 const hex = (c?: string) => (c && /^[0-9a-fA-F]{6}$/.test(c) ? `#${c}` : undefined)
@@ -16,8 +16,8 @@ export function LineChip({ line }: { line: Line }) {
 }
 
 export function Timeline({
-  option: o, transfers, onSetTransfer,
-}: { option: Option; transfers: TransferTime[]; onSetTransfer: (t: TransferTime) => void }) {
+  option: o, walks, onSetChange,
+}: { option: Option; walks: TimedWalk[]; onSetChange: (a: StopRef, b: StopRef, secs: number) => void }) {
   const into = new Map<number, Transfer>(o.transfers.map((t) => [t.to_leg, t]))
   return (
     <ol class="timeline">
@@ -26,7 +26,7 @@ export function Timeline({
         const prevRide = t ? o.legs[t.from_leg] : undefined
         return (
           <>
-            {t && prevRide && <TransferRow t={t} from={prevRide.to} to={leg.from} transfers={transfers} onSet={onSetTransfer} />}
+            {t && prevRide && <TransferRow t={t} from={prevRide.to} to={leg.from} walks={walks} onSet={onSetChange} />}
             <LegRow leg={leg} last={i === o.legs.length - 1} />
           </>
         )
@@ -78,18 +78,12 @@ function LegRow({ leg, last }: { leg: Leg; last: boolean }) {
   )
 }
 
-function stationKey(s: StopRef | undefined): string | undefined {
-  return s?.station_id || s?.id
-}
-
 function TransferRow({
-  t, from, to, transfers, onSet,
-}: { t: Transfer; from?: StopRef; to?: StopRef; transfers: TransferTime[]; onSet: (t: TransferTime) => void }) {
+  t, from, to, walks, onSet,
+}: { t: Transfer; from?: StopRef; to?: StopRef; walks: TimedWalk[]; onSet: (a: StopRef, b: StopRef, secs: number) => void }) {
   const [editing, setEditing] = useState(false)
-  const fromKey = stationKey(from)
-  const toKey = stationKey(to)
-  const mine = transfers.find((x) => x.from === fromKey && x.to === toKey)
-  const [mins, setMins] = useState(String(Math.round((mine?.secs ?? t.walk_s) / 60)))
+  const mine = from && to ? findChange(walks, from, to)?.walk : undefined
+  const [mins, setMins] = useState(String(Math.round((mine ? walkSecs(mine) : t.walk_s) / 60)))
   const where = placeName(from) === placeName(to) ? placeName(from) : `${placeName(from)} → ${placeName(to)}`
   const spare = t.slack_s >= 60 ? `${Math.floor(t.slack_s / 60)} min ${t.slack_s % 60}s spare` : `${t.slack_s}s spare`
 
@@ -103,7 +97,7 @@ function TransferRow({
         </div>
         <div class="muted small">
           {t.fallback_dep ? `If missed, next one at ${clock(t.fallback_dep)}` : 'No later service on this line'}
-          {fromKey && toKey && !editing && (
+          {from && to && !editing && (
             <>
               {' · '}
               <button class="link" onClick={() => setEditing(true)}>
@@ -112,14 +106,14 @@ function TransferRow({
             </>
           )}
         </div>
-        {editing && fromKey && toKey && (
+        {editing && from && to && (
           <form
             class="inline-form"
             onSubmit={(e) => {
               e.preventDefault()
               const m = Number(mins)
               if (Number.isFinite(m) && m >= 0 && m <= 60) {
-                onSet({ from: fromKey, to: toKey, secs: Math.round(m * 60), label: where })
+                onSet(from, to, Math.round(m * 60))
                 setEditing(false)
               }
             }}
