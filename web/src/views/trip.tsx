@@ -6,6 +6,7 @@ import { placeRef, planPlace, prefs, type Settings } from '../settings.ts'
 import { setChangeTime } from '../walks.ts'
 import type { DefaultsResponse, PlanRequest } from '../types.ts'
 import { Board } from './board.tsx'
+import { BrandLogo } from './brand.tsx'
 import type { ActiveTrip } from './intrip.tsx'
 
 type Direction = 'to-gym' | 'home'
@@ -135,6 +136,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
             aria-label={g.id === gymId ? `${g.name}: choose a different gym` : undefined}
             onClick={() => setGymId(g.id === gymId ? null : g.id)}
           >
+            <BrandLogo brand={server.gyms.find((k) => k.id === g.ref)?.brand} />
             <span class="gym-name">{g.name}</span>
             {g.id === gymId ? (
               <span class="gym-address">{settings.gyms.length > 1 ? 'Change gym' : g.address}</span>

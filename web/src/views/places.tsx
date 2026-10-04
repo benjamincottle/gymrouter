@@ -4,6 +4,7 @@ import { gymFromKnown, isLine, LINE_MODES, MAX_LINES, newId, placeRequest, withS
 import { groupStops, relevantGroups, type StopGroup } from '../stops.ts'
 import type { GeocodeResult, KnownGym, NearStop, SuggestResult } from '../types.ts'
 import { LineChip } from './option.tsx'
+import { BrandLogo } from './brand.tsx'
 import { mmss } from '../walkmeasure.ts'
 import { placeKey, walkSecs, type AccessWalk, type TimedWalk } from '../walks.ts'
 
@@ -500,6 +501,7 @@ export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCus
               <li>
                 <label class="check">
                   <input type="checkbox" checked={sel.has(k.id)} disabled={busy} onChange={() => toggle(k.id)} />
+                  <BrandLogo brand={k.brand} />
                   <span>
                     {k.name}
                     {k.address && <span class="muted small"> · {k.address}</span>}

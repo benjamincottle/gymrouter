@@ -22,6 +22,7 @@ var data string
 type Gym struct {
 	ID      string   `toml:"id" json:"id"`
 	Name    string   `toml:"name" json:"name"`
+	Brand   string   `toml:"brand" json:"brand,omitempty"` // whose logo to show, one of Brands
 	Address string   `toml:"address" json:"address,omitempty"`
 	Lat     float64  `toml:"lat" json:"lat"`
 	Lon     float64  `toml:"lon" json:"lon"`
@@ -53,6 +54,9 @@ func Known() []Gym {
 	return list
 }
 
+// Brands are the gym brands the app has a logo for.
+var Brands = map[string]bool{"9degrees": true, "climbfit": true}
+
 var idPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 
 // Parse reads and validates gym definitions.
@@ -77,6 +81,9 @@ func Parse(text string) ([]Gym, error) {
 		seen[g.ID] = true
 		if g.Name == "" {
 			errs = append(errs, fmt.Errorf("gym %q: name required", g.ID))
+		}
+		if g.Brand != "" && !Brands[g.Brand] {
+			errs = append(errs, fmt.Errorf("gym %q: unknown brand %q", g.ID, g.Brand))
 		}
 		if math.Abs(g.Lat) > 90 || math.Abs(g.Lon) > 180 || (g.Lat == 0 && g.Lon == 0) {
 			errs = append(errs, fmt.Errorf("gym %q: lat/lon required", g.ID))

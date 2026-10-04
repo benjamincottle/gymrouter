@@ -5,8 +5,8 @@
 - [x] **Unauthenticated visits look like nothing's there.** Without a token the app shows a plain
       "404 page not found" like Go/Traefik's own, and the API answers unauthenticated requests the same way
       (instead of 401 JSON). A setup link is the only way in; the paste-a-link setup form goes.
-- [ ] **Two more built-in gyms:** ClimbFit Macquarie and ClimbFit St Leonards.
-- [ ] **A small colour logo of the gym's brand** (9 Degrees, ClimbFit) to the left of each gym in the list.
+- [x] **Two more built-in gyms:** ClimbFit Macquarie and ClimbFit St Leonards.
+- [x] **A small colour logo of the gym's brand** (9 Degrees, ClimbFit) to the left of each gym in the list.
 - [ ] **An app icon** next to the "Gym Router" title, and the same mark as the favicon / home-screen icon
       (the current one is a placeholder).
 - [ ] **"Earlier trips" / "Later trips"** in place of the first/last times above the option list, moving the

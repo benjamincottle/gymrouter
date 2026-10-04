@@ -324,3 +324,6 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   found" (no icon, manifest or service worker), and unauthenticated API requests (and non-GETs to the site) get Go's own
   404 instead of 401 JSON, which the app recognises by its plain-text body. The paste-a-setup-link form is gone; a setup link
   is the only way in. The page itself is still served with 200 (the app's HTML must load to read the token from storage).
+- 2026-10-04: Two more built-in gyms, ClimbFit Macquarie and ClimbFit St Leonards (lines found as for Waterloo/Alexandria).
+  Built-in gyms carry a `brand`, and the gym lists show that brand's small logo (`web/public/brands/`, 64 px PNGs from the
+  brands' own sites; ClimbFit's reduced to its teal mountain mark so it reads at 32 px on light and dark).

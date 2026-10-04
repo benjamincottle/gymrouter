@@ -4,6 +4,7 @@
 export interface KnownGym {
   id: string
   name: string
+  brand?: string // whose logo to show: /brands/<brand>.png
   address?: string
   lat: number
   lon: number

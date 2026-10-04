@@ -311,7 +311,7 @@ label.inline {
 /* each gym is a route on the wall: a strip of tape, then its name */
 .gym {
   display: grid;
-  grid-template-columns: 8px 1fr;
+  grid-template-columns: 8px 32px 1fr;
   column-gap: 12px;
   align-items: center;
   text-align: left;
@@ -332,6 +332,18 @@ label.inline {
 
 .gym.selected::before {
   background: var(--ink);
+}
+
+.gym .brand {
+  grid-row: span 2;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.gym-name,
+.gym-address {
+  grid-column: 3;
 }
 
 .gym-name {
@@ -787,6 +799,13 @@ label.check {
   align-items: flex-start;
   margin: 0;
   font-weight: 500;
+}
+
+label.check .brand {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
 }
 
 label.check input {
