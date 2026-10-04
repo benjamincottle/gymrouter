@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
 import { clock, countdown, delay, duration, placeName, riskLabel } from '../format.ts'
 import { useNow, useVisible } from '../hooks.ts'
-import { assess, instruction, phaseAt, replanOrigin, spareToBoard, tripsFrom, type Assessment, type Position } from '../intrip.ts'
+import { assess, instruction, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, type Assessment, type Position } from '../intrip.ts'
 import type { WalkTraces } from '../settings.ts'
 import type { Option, PlanRequest } from '../types.ts'
 import { MapSheet, Strip } from './board.tsx'
@@ -77,11 +77,13 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   useEffect(() => {
     let live = true
     const run = async () => {
-      const ph = phaseAt(trip.option, Date.now())
-      const from = replanOrigin(trip.option, ph, posRef.current, trip.request.from)
+      const nowMs = Date.now()
+      const ph = phaseAt(trip.option, nowMs)
+      const from = replanOrigin(trip.option, ph, posRef.current, trip.request.from, nowMs)
       if (!from || (ph.kind !== 'before' && ph.kind !== 'riding')) return
+      const time = from.on_trip ? undefined : replanTime(trip.option, ph, nowMs)
       try {
-        const res = await api.plan(token, { from, to: trip.request.to, lines: trip.request.lines, window_min: 45, prefs: trip.request.prefs })
+        const res = await api.plan(token, { from, to: trip.request.to, lines: trip.request.lines, time, window_min: 45, prefs: trip.request.prefs })
         if (!live) return
         const a = assess(tripsFrom(trip.option, ph.ride), res.options, trip.plannedArrive)
         setCheck(a)
@@ -178,6 +180,11 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
       <section class="now">
         <p class="label">Now</p>
         <p class="now-main">{ins.now}</p>
+        {now < start - 60_000 && (
+          <p>
+            Leave at <strong>{clock(o.leave_at)}</strong> ({countdown(o.leave_at, now)})
+          </p>
+        )}
         {ins.detail && phase.kind === 'before' && (
           <p>
             {ins.detail.line?.name} leaves {clock(ins.detail.dep)} ({countdown(ins.detail.dep, now).replace(/^in /, 'in ')})

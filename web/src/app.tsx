@@ -35,6 +35,7 @@ export function App({ initial, imported, storage }: AppProps) {
   const [server, setServer] = useState<DefaultsResponse | null>(null)
   const [authFailed, setAuthFailed] = useState(false)
   const [notice, setNotice] = useState(imported ? 'Settings saved on this device.' : '')
+  const [restarts, setRestarts] = useState(0) // bumping this starts the trip screen afresh
   const [storageOk, setStorageOk] = useState(true)
   const [trip, setTripState] = useState<ActiveTrip | null>(() => loadTrip(storage))
   const setTrip = useCallback(
@@ -102,12 +103,19 @@ export function App({ initial, imported, storage }: AppProps) {
   return (
     <div class="app">
       <header class="topbar">
-        <h1>Gym Router</h1>
-        <nav>
-          <button class={view === 'trip' ? 'tab active' : 'tab'} onClick={() => setView('trip')}>
-            Trips
+        <h1>
+          <button
+            class="home-link"
+            onClick={() => {
+              setView('trip')
+              setRestarts((n) => n + 1)
+            }}
+          >
+            Gym Router
           </button>
-          <button class={view === 'settings' ? 'tab active' : 'tab'} onClick={() => setView('settings')}>
+        </h1>
+        <nav>
+          <button class={view === 'settings' ? 'tab active' : 'tab'} aria-pressed={view === 'settings'} onClick={() => setView('settings')}>
             Settings
           </button>
         </nav>
@@ -125,6 +133,7 @@ export function App({ initial, imported, storage }: AppProps) {
       <main>
         {view === 'trip' ? (
           <Trip
+            key={restarts}
             settings={settings}
             setSettings={setSettings}
             server={server}

@@ -214,6 +214,13 @@ label.inline {
   margin-bottom: 20px;
 }
 
+.home-link {
+  padding: 0;
+  border: 0;
+  font-weight: inherit;
+  text-align: left;
+}
+
 .topbar nav {
   display: flex;
 }
@@ -415,7 +422,7 @@ label.inline {
 .axis {
   display: flex;
   justify-content: space-between;
-  padding: 0 calc(3.4rem + 10px + 14px) 4px calc(3.4rem + 10px);
+  padding: 0 calc(6rem + 42px) 4px calc(3.4rem + 10px);
   font-size: 0.75rem;
   color: var(--pencil);
 }
@@ -433,7 +440,7 @@ label.inline {
 
 .strip-row {
   display: grid;
-  grid-template-columns: 3.4rem 1fr 3.4rem 12px;
+  grid-template-columns: 3.4rem 1fr 3.4rem 12px 2.6rem;
   align-items: center;
   column-gap: 10px;
   width: 100%;
@@ -458,6 +465,14 @@ label.inline {
 }
 
 .strip-arrive {
+  text-align: right;
+}
+
+.strip-dur {
+  font-stretch: var(--narrow);
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--pencil);
   text-align: right;
 }
 
@@ -739,6 +754,12 @@ label.inline {
 .card {
   padding-top: 14px;
   border-top: 3px solid var(--ink);
+}
+
+/* the header's rule already sits above the first section */
+main > .stack > .card:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .list {

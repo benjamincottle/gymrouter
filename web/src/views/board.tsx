@@ -2,11 +2,12 @@
 // shared time axis, so when each leaves and arrives can be compared at a glance.
 import { useEffect, useState } from 'preact/hooks'
 import type { ComponentType } from 'preact'
-import { clock, countdown, delay, duration, placeName, riskLabel } from '../format.ts'
+import { clock, countdown, delay, duration, placeName, riskLabel, shortDuration } from '../format.ts'
 import { useNow } from '../hooks.ts'
 import type { TransferTime, WalkTraces } from '../settings.ts'
 import type { Leg, Option } from '../types.ts'
 import { Timeline } from './option.tsx'
+import { reselect, tripKey } from '../options.ts'
 import type { MapViewProps } from '../map/mapview.tsx'
 
 const hex = (c?: string) => (c && /^[0-9a-fA-F]{6}$/.test(c) ? `#${c}` : undefined)
@@ -32,11 +33,11 @@ export function Board(p: Props) {
   const [mapOpen, setMapOpen] = useState(false)
   const now = useNow(1000)
   const opts = p.options
-  // Keep the selection on the same trip when the list refreshes.
-  const [selKey, setSelKey] = useState('')
+  // Keep the selection on the same option when the list refreshes (live times move, so match on the
+  // vehicles taken; failing that, the option leaving closest to the one chosen).
+  const [selKey, setSelKey] = useState<{ trips: string; leave: number } | null>(null)
   useEffect(() => {
-    const i = opts.findIndex((o) => key(o) === selKey)
-    setSelected(i >= 0 ? i : 0)
+    setSelected(selKey ? reselect(opts, selKey.trips, selKey.leave) : 0)
   }, [opts])
 
   if (opts.length === 0) return null
@@ -45,7 +46,7 @@ export function Board(p: Props) {
   const end = Math.max(...opts.map((o) => ms(o.arrive)))
   const choose = (i: number) => {
     setSelected(i)
-    setSelKey(key(opts[i]))
+    setSelKey({ trips: tripKey(opts[i]), leave: ms(opts[i].leave_at) })
   }
 
   return (
@@ -64,6 +65,9 @@ export function Board(p: Props) {
               <span class="strip-arrive">{clock(o.arrive)}</span>
               <span class={`risk-mark risk-${o.risk}`} title={`${riskLabel(o.risk)} connections`}>
                 <span class="sr-only">{riskLabel(o.risk)}</span>
+              </span>
+              <span class="strip-dur" title="Door to door">
+                {shortDuration(o.duration_s)}
               </span>
             </button>
             {o.alternative && i === selected && <p class="alt-note">A different route, a little slower than the best.</p>}
@@ -93,10 +97,6 @@ export function Board(p: Props) {
       )}
     </div>
   )
-}
-
-function key(o: Option): string {
-  return o.legs.map((l) => l.trip_id ?? '').join('|') + o.leave_at
 }
 
 function firstRide(o: Option): Leg | undefined {

@@ -101,15 +101,6 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
         </label>
       )}
 
-      <div class="gyms">
-        {settings.gyms.map((g) => (
-          <button class={g.id === gymId ? 'gym selected' : 'gym'} aria-pressed={g.id === gymId} onClick={() => setGymId(g.id)}>
-            <span class="gym-name">{g.name}</span>
-            {g.address && <span class="gym-address">{g.address}</span>}
-          </button>
-        ))}
-      </div>
-
       <div class="when">
         <div class="segmented small" role="group" aria-label="When">
           <button aria-pressed={when === 'now'} onClick={() => setWhen('now')}>
@@ -133,6 +124,24 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
             aria-label={when === 'arrive' ? 'Arrive by' : 'Leave at'}
           />
         )}
+      </div>
+
+      <div class="gyms">
+        {(gym ? [gym] : settings.gyms).map((g) => (
+          <button
+            class={g.id === gymId ? 'gym selected' : 'gym'}
+            aria-pressed={g.id === gymId}
+            aria-label={g.id === gymId ? `${g.name}: choose a different gym` : undefined}
+            onClick={() => setGymId(g.id === gymId ? null : g.id)}
+          >
+            <span class="gym-name">{g.name}</span>
+            {g.id === gymId ? (
+              <span class="gym-address">{settings.gyms.length > 1 ? 'Change gym' : g.address}</span>
+            ) : (
+              g.address && <span class="gym-address">{g.address}</span>
+            )}
+          </button>
+        ))}
       </div>
 
       {gym && (
@@ -164,9 +173,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
               title={direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`}
               transfers={settings.transfers}
               onSetTransfer={saveTransfer}
-              onStart={
-                when === 'now'
-                  ? (o) =>
+              onStart={(o) =>
                       onStartTrip({
                         option: o,
                         plannedArrive: o.arrive,
@@ -179,7 +186,6 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
                         serviceDate: plan.data!.service_date,
                         walkSpeedMps: settings.walkSpeedMps ?? server.defaults.walk_speed_mps,
                       })
-                  : undefined
               }
             />
           )}
