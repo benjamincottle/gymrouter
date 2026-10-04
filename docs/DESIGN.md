@@ -151,8 +151,9 @@ Each exists once in code and is reused. Don't restyle one locally; add a variant
   - Tape labels appear only where the whole line name fits.
   - The board is one tab stop; arrow keys move between options (radio group).
 - **Timeline:** time | rail | description, sharing columns through subgrid.
-  - Rides: a thick line in the line colour, with a mode disc where you get on and a dot where you get off.
-  - Walks: dotted. Changes get a `--panel` row with a risk badge.
+  - Rides: a thick line in the line colour that fills its row, stopping about 2px short of the rules above and below,
+    with the mode disc at its top (where you get on) and a dot inside its bottom end (where you get off).
+  - Walks: round dots, 4px every 10px. Changes get a `--panel` row with a risk badge.
   - The house or hold marks each end. The "you" marker never covers text.
 - **Line chip, risk badge, risk mark:** 12px/800 on `--r-mark`. Badge text is `--on-tone`.
 - **Status text** for a service:

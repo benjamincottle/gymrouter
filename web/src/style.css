@@ -711,22 +711,28 @@ label.inline {
   margin: -11px 0 -10px; /* through the row's padding and rule, so the pieces join up */
 }
 
-/* walking: dotted (also behind a ride, showing above and below its line) */
+/* walking: a column of round dots, 4.5px every 10px */
 .rail::before {
   content: '';
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(50% - 1.5px);
-  border-left: 3px dotted var(--pencil);
+  left: calc(50% - 2.5px);
+  width: 5px;
+  background: radial-gradient(circle at 2.5px 2.5px, var(--pencil) 2px, transparent 2.5px) 0 2px / 5px 10px repeat-y;
+}
+
+/* a ride fills its row, stopping just short of the rules above and below */
+.rail.ride::before {
+  display: none;
 }
 
 /* a ride: a thick line from where you get on (the vehicle, in a disc a little wider than the line) to where you
    get off (a dot inside its end) */
 .rail .line {
   position: absolute;
-  top: 22px;
-  bottom: 8px;
+  top: 14px;
+  bottom: 2px;
   left: calc(50% - 7px);
   width: 14px;
   border-radius: 7px;
@@ -735,7 +741,7 @@ label.inline {
 
 .rail .board {
   position: absolute;
-  top: 11px;
+  top: 3px;
   left: calc(50% - 11px);
   display: grid;
   place-items: center;
@@ -757,7 +763,7 @@ label.inline {
 
 .rail .alight {
   position: absolute;
-  bottom: 12px;
+  bottom: 6px;
   left: calc(50% - 3px);
   width: 6px;
   height: 6px;
