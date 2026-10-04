@@ -284,6 +284,7 @@ func TestPlanValidation(t *testing.T) {
 		"no lines":        map[string]any{"from": place, "to": laneCove},
 		"empty lines":     with("lines", []string{}),
 		"bad line":        with("lines", []string{"tram 1"}),
+		"unknown line":    with("lines", []string{"bus 288", "bus nosuch"}),
 		"too many lines":  with("lines", many),
 		"long line":       with("lines", []string{"bus " + strings.Repeat("x", 60)}),
 		"unknown field":   with("extra", 1),

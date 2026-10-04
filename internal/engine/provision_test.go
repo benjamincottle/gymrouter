@@ -36,8 +36,9 @@ func streetsPBF() []byte {
 func TestStreetNetworkIsDownloadedBuiltAndCached(t *testing.T) {
 	env := enginetest.NewWith(t, noPresets, nil)
 	e := env.Engine
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(streetsPBF()) }))
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(streetsPBF()) }))
 	defer srv.Close()
+	e.SetTransport(srv.Client().Transport)
 	env.Config.Data.WalkSource = srv.URL + "/Sydney.osm.pbf"
 
 	if e.Walker() != nil || e.Health().Data.WalkReady {
@@ -110,10 +111,11 @@ func TestStreetNetworkFailuresLeaveTheAppWorking(t *testing.T) {
 
 func TestOversizedDownloadsAreRefused(t *testing.T) {
 	env := enginetest.NewWith(t, noPresets, nil)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", "999999999999")
 	}))
 	defer srv.Close()
+	env.Engine.SetTransport(srv.Client().Transport)
 	env.Config.Data.WalkSource = srv.URL
 	if err := env.Engine.RefreshWalk(ctx); err == nil || !strings.Contains(err.Error(), "limit") {
 		t.Errorf("want a size-limit error, got %v", err)

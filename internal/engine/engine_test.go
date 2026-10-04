@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -223,6 +224,48 @@ func TestLoadedLinesAreCapped(t *testing.T) {
 	}
 	if len(env.Engine.Lines()) != 0 {
 		t.Error("a rejected request must not change the loaded lines")
+	}
+}
+
+func TestUnknownLinesAreRejected(t *testing.T) {
+	env := enginetest.NewWith(t, noPresets, nil)
+	err := env.Engine.Ensure(lines.MustSet("bus 288", "bus nosuch"))
+	if !errors.Is(err, engine.ErrUnknownLine) || !strings.Contains(err.Error(), "bus nosuch") {
+		t.Errorf("want ErrUnknownLine naming the line, got %v", err)
+	}
+	if len(env.Engine.Lines()) != 0 {
+		t.Error("a rejected request must not change the loaded lines")
+	}
+	if err := env.Engine.Ensure(lines.MustSet("bus 288")); err != nil {
+		t.Errorf("a real line: %v", err)
+	}
+}
+
+func TestUnusedLinesArePruned(t *testing.T) {
+	env := enginetest.NewWith(t, noPresets, nil)
+	e := env.Engine
+	if err := e.Ensure(lines.MustSet("metro M1", "bus 288")); err != nil {
+		t.Fatal(err)
+	}
+	env.Clock.Advance(10 * 24 * time.Hour)
+	if err := e.Ensure(lines.MustSet("metro M1")); err != nil { // covered: counts as use without a reload
+		t.Fatal(err)
+	}
+	env.Clock.Advance(5 * 24 * time.Hour)
+	e.PruneLines()
+	if got := e.Lines(); len(got) != 1 || !got[lines.Key{Mode: lines.Metro, Name: "M1"}] {
+		t.Errorf("after pruning: %v", got)
+	}
+	if err := e.Ensure(lines.MustSet("bus 288")); err != nil || len(e.Lines()) != 2 {
+		t.Errorf("a pruned line loads again on demand: %v %v", err, e.Lines())
+	}
+
+	// The built-in gyms' lines are never pruned.
+	env = enginetest.New(t, "", nil)
+	env.Clock.Advance(60 * 24 * time.Hour)
+	env.Engine.PruneLines()
+	if got := len(env.Engine.Lines()); got != len(enginetest.Preload) {
+		t.Errorf("preloaded lines were pruned: %d of %d left", got, len(enginetest.Preload))
 	}
 }
 

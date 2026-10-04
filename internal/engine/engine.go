@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -94,14 +95,19 @@ type Engine struct {
 	log   *slog.Logger
 	now   func() time.Time
 	paths timetable.Paths
+	// transport makes the street map download; nil means the default (tests use one that trusts their server).
+	transport http.RoundTripper
 
-	linesMu sync.RWMutex
-	all     lines.Set     // lines the timetable covers (only grows; changed under growMu)
-	growMu  sync.Mutex    // serialises growing the line set
-	heavy   chan struct{} // held while a whole-network pass runs (one at a time bounds memory)
-	catalog atomic.Pointer[Catalog]
-	walker  atomic.Pointer[walk.Graph]
-	foot    footCache
+	linesMu  sync.RWMutex
+	all      lines.Set  // lines the timetable covers (grows on demand, pruned daily; changed under growMu)
+	growMu   sync.Mutex // serialises growing (and pruning) the line set
+	preload  lines.Set  // always covered
+	usedMu   sync.Mutex
+	lastUsed map[lines.Key]time.Time // when a request last named each covered line
+	heavy    chan struct{}           // held while a whole-network pass runs (one at a time bounds memory)
+	catalog  atomic.Pointer[Catalog]
+	walker   atomic.Pointer[walk.Graph]
+	foot     footCache
 
 	today      atomic.Pointer[Snapshot]
 	shapes     atomic.Pointer[map[string][]geo.Point]
@@ -135,10 +141,12 @@ func New(cfg *config.Config, loc *time.Location, f Fetcher, log *slog.Logger, pr
 			Complete: filepath.Join(cfg.Server.DataDir, "complete.zip"),
 			Trains:   filepath.Join(cfg.Server.DataDir, "sydneytrains.zip"),
 		},
-		all:   lines.Union(preload),
-		heavy: make(chan struct{}, 1),
-		wake:  make(chan struct{}, 1),
-		cache: map[string]*Snapshot{},
+		all:      lines.Union(preload),
+		preload:  lines.Union(preload),
+		lastUsed: map[lines.Key]time.Time{},
+		heavy:    make(chan struct{}, 1),
+		wake:     make(chan struct{}, 1),
+		cache:    map[string]*Snapshot{},
 	}
 	e.addFeeds(e.all)
 	return e
@@ -187,20 +195,37 @@ const MaxLoadedLines = 150
 // ErrTooManyLines is returned when a request would push the loaded set over MaxLoadedLines.
 var ErrTooManyLines = errors.New("too many lines for this server")
 
+// ErrUnknownLine is returned for a line the timetable doesn't have.
+var ErrUnknownLine = errors.New("no such line in the timetable")
+
+// lineKeep is how long a line stays loaded after a request last named it. The built-in gyms' lines always stay.
+const lineKeep = 14 * 24 * time.Hour
+
 // Ensure makes the timetable and realtime polling cover set, loading the union of everything asked for
-// so far if it doesn't already. Loading takes a few seconds, so callers may wait; the line set only grows.
+// so far if it doesn't already. Loading takes a few seconds, so callers may wait. Lines nobody asks for
+// drop out again (PruneLines).
 func (e *Engine) Ensure(set lines.Set) error {
 	if e.covers(set) {
+		e.used(set)
 		return nil
 	}
 	e.growMu.Lock()
 	defer e.growMu.Unlock()
 	if e.covers(set) { // someone else just did it
+		e.used(set)
 		return nil
 	}
-	grown := lines.Union(e.Lines(), set)
+	have := e.Lines()
+	grown := lines.Union(have, set)
 	if len(grown) > MaxLoadedLines {
 		return ErrTooManyLines
+	}
+	if c := e.Catalog(); c != nil { // until the catalogue is built (just after startup), any line is tried
+		for k := range set {
+			if !have[k] && !c.Lines[k] {
+				return fmt.Errorf("%w: %s", ErrUnknownLine, k)
+			}
+		}
 	}
 	if err := e.reloadTodayFor(grown); err != nil {
 		return err
@@ -218,8 +243,57 @@ func (e *Engine) Ensure(set lines.Set) error {
 	default:
 	}
 	go e.LoadShapes()
+	e.used(set)
 	return nil
 }
+
+// used records that a request named the lines.
+func (e *Engine) used(set lines.Set) {
+	now := e.now()
+	e.usedMu.Lock()
+	defer e.usedMu.Unlock()
+	for k := range set {
+		e.lastUsed[k] = now
+	}
+}
+
+// PruneLines stops covering lines no request has named for lineKeep (the built-in gyms' stay), so the loaded set
+// doesn't creep up to MaxLoadedLines. It runs at the day rollover, just before the new day's timetable loads.
+func (e *Engine) PruneLines() {
+	e.growMu.Lock()
+	defer e.growMu.Unlock()
+	now := e.now()
+	keep := lines.Union(e.preload)
+	e.usedMu.Lock()
+	for k, at := range e.lastUsed {
+		if now.Sub(at) > lineKeep {
+			delete(e.lastUsed, k)
+		} else {
+			keep[k] = true
+		}
+	}
+	e.usedMu.Unlock()
+	have := e.Lines()
+	for k := range keep {
+		if !have[k] {
+			delete(keep, k)
+		}
+	}
+	if len(keep) == len(have) {
+		return
+	}
+	e.log.Info("no longer covering unused lines", "before", len(have), "after", len(keep))
+	e.linesMu.Lock()
+	e.all = keep
+	e.linesMu.Unlock()
+	e.cacheMu.Lock()
+	e.cache = map[string]*Snapshot{}
+	e.generation++
+	e.cacheMu.Unlock()
+}
+
+// SetTransport replaces the transport for downloads (tests).
+func (e *Engine) SetTransport(rt http.RoundTripper) { e.transport = rt }
 
 // SetClock replaces the time source (tests).
 func (e *Engine) SetClock(now func() time.Time) { e.now = now }
@@ -433,6 +507,7 @@ func (e *Engine) staticLoop(ctx context.Context) {
 		}
 		now := e.now().In(e.loc)
 		if s := e.today.Load(); s != nil && !s.Date.Equal(e.LocalDate(now)) {
+			e.PruneLines()
 			if err := e.reloadToday(); err != nil {
 				e.log.Error("day rollover failed", "err", err)
 			} else {

@@ -10,7 +10,7 @@ import (
 
 func TestDownloadsOnlyOverHTTPS(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "f")
-	if err := download(context.Background(), "http://example.com/x.pbf", dest, 1<<20); err == nil {
+	if err := download(context.Background(), nil, "http://example.com/x.pbf", dest, 1<<20); err == nil {
 		t.Error("downloaded over plain http")
 	}
 	// A server that redirects to plain http: the redirect isn't followed.
