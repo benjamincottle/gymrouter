@@ -112,8 +112,8 @@ export function assess(committed: string[], fresh: Option[], plannedArrive: stri
   return { status: 'on-track', current: same, lateBy }
 }
 
-/** Short instruction for the current phase. */
-export function instruction(o: Option, phase: Phase): { now: string; detail?: Leg } {
+/** Short instruction for the current phase. `destination` names where the trip ends. */
+export function instruction(o: Option, phase: Phase, destination = 'your destination'): { now: string; detail?: Leg } {
   switch (phase.kind) {
     case 'before': {
       const l = o.legs[phase.ride]
@@ -124,7 +124,7 @@ export function instruction(o: Option, phase: Phase): { now: string; detail?: Le
       return { now: `On the ${l.line?.name ?? ''}: get off at ${l.to?.station || l.to?.name || 'your stop'}`, detail: l }
     }
     case 'final-walk':
-      return { now: 'Walk to your destination' }
+      return { now: `Walk to ${destination}` }
     case 'arrived':
       return { now: "You've arrived" }
   }

@@ -122,7 +122,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
     setCheck(null)
   }
 
-  const ins = instruction(o, phase)
+  const ins = instruction(o, phase, trip.ends?.end.name)
   const lateBy = check && check.status !== 'missed' ? check.lateBy : 0
   const nextRide = phase.kind === 'before' ? o.legs[phase.ride] : undefined
   const spare = nextRide ? spareToBoard(nextRide, pos, now, trip.walkSpeedMps) : null

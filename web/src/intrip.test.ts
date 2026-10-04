@@ -98,4 +98,5 @@ test('instructions', () => {
   assert.equal(instruction(planned, { kind: 'before', ride: 1 }).now, 'Get to Central Station for the T9')
   assert.equal(instruction(planned, { kind: 'riding', ride: 1 }).now, 'On the T9: get off at Epping Station')
   assert.equal(instruction(planned, { kind: 'arrived' }).now, "You've arrived")
+  assert.equal(instruction(planned, { kind: 'final-walk' }, '9 Degrees Parramatta').now, 'Walk to 9 Degrees Parramatta')
 })

@@ -618,6 +618,12 @@ label.inline {
   font-weight: 700;
 }
 
+.step .change-icon {
+  display: block;
+  margin-top: 1px;
+  color: var(--pencil);
+}
+
 .step.change {
   font-size: 0.92rem;
   background: var(--panel);
@@ -775,6 +781,27 @@ label.inline {
   font-stretch: var(--narrow);
   font-weight: 800;
   font-size: 1.6rem;
+}
+
+/* the option on the map can be started right there: the button sits where the thumb is, next to what it commits to */
+.sheet-summary.with-start {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  column-gap: 14px;
+}
+
+.sheet-summary.with-start > div {
+  min-width: 0;
+}
+
+.sheet-summary .start {
+  min-width: 6.5rem;
+  padding: 0 18px;
+  font-stretch: var(--semi);
+  font-weight: 750;
+  font-size: 1.15rem;
+  line-height: 1.1;
 }
 
 /* ---- settings ---- */

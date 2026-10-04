@@ -23,6 +23,7 @@ interface Props {
   origin: [number, number]
   destination: [number, number]
   title: string
+  destinationName: string // the gym or home the trip ends at
   onSetChange: (a: StopRef, b: StopRef, secs: number) => void
   onStart?: (o: Option) => void
   onShift: Shift
@@ -107,10 +108,10 @@ export function Board(p: Props) {
             </button>
           </span>
         </div>
-        <Timeline option={sel} walks={p.walks} onSetChange={p.onSetChange} />
+        <Timeline option={sel} destination={p.destinationName} walks={p.walks} onSetChange={p.onSetChange} />
       </div>
       {mapOpen && (
-        <MapSheet {...p} option={sel} now={now} onClose={() => setMapOpen(false)} />
+        <MapSheet {...p} option={sel} now={now} onClose={() => setMapOpen(false)} onStart={p.onStart && (() => p.onStart!(sel))} />
       )}
     </div>
   )
@@ -169,9 +170,15 @@ export function Strip({ option: o, start, end, now }: { option: Option; start: n
   )
 }
 
-type MapSheetProps = Omit<Props, 'onStart' | 'onSetChange' | 'options' | 'onShift'> & { option: Option; now: number; onClose: () => void; me?: MapViewProps['me'] }
+type MapSheetProps = Omit<Props, 'onStart' | 'onSetChange' | 'options' | 'onShift' | 'destinationName'> & {
+  option: Option
+  now: number
+  onClose: () => void
+  onStart?: () => void // offered on the map so a trip can start without closing it
+  me?: MapViewProps['me']
+}
 
-export function MapSheet({ option, now, onClose, token, walks, places, serviceDate, origin, destination, title, live, me }: MapSheetProps) {
+export function MapSheet({ option, now, onClose, onStart, token, walks, places, serviceDate, origin, destination, title, live, me }: MapSheetProps) {
   const [View, setView] = useState<ComponentType<MapViewProps> | null>(null)
   const [failed, setFailed] = useState(false)
   useEffect(() => {
@@ -199,12 +206,19 @@ export function MapSheet({ option, now, onClose, token, walks, places, serviceDa
       ) : (
         <p class="map-note subtle">Loading map…</p>
       )}
-      <footer class="sheet-summary">
-        <p>
-          <span class="sheet-leave">{live ? `Leave ${countdown(option.leave_at, now)}` : `Leave ${clock(option.leave_at)}`}</span>
-          <span>arrive {clock(option.arrive)}</span>
-        </p>
-        <Strip option={option} start={start} end={end} />
+      <footer class={onStart ? 'sheet-summary with-start' : 'sheet-summary'}>
+        <div>
+          <p>
+            <span class="sheet-leave">{live ? `Leave ${countdown(option.leave_at, now)}` : `Leave ${clock(option.leave_at)}`}</span>
+            <span>arrive {clock(option.arrive)}</span>
+          </p>
+          <Strip option={option} start={start} end={end} />
+        </div>
+        {onStart && (
+          <button class="primary start" onClick={onStart}>
+            Start trip
+          </button>
+        )}
       </footer>
     </div>
   )

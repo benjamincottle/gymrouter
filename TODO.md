@@ -11,10 +11,12 @@
       (the current one is a placeholder).
 - [x] **"Earlier trips" / "Later trips"** in place of the first/last times above the option list, moving the
       window by 30 minutes.
-- [ ] **Start a trip from the map** without closing it first.
-- [ ] **Name the destination in the last walk:** "Walk 5 min to 9 Degrees Parramatta", not "to your destination".
-- [ ] **A started trip always uses location** (falling back to the timetable if it isn't available).
-- [ ] **A change icon** in the time column of a change in the trip description.
+- [x] **Start a trip from the map** without closing it first.
+- [x] **Name the destination in the last walk:** "Walk 5 min to 9 Degrees Parramatta", not "to your destination".
+- [x] **A started trip always uses location** (falling back to the timetable if it isn't available).
+      Already the case since round 1: location starts with the trip, no tap needed; if it's refused or missing the
+      trip follows the timetable and offers "Try my location again".
+- [x] **A change icon** in the time column of a change in the trip description.
 
 ## Round 1
 
