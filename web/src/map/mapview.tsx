@@ -79,11 +79,13 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
   const routeBounds = useRef<maplibregl.LngLatBounds | null>(null)
   const firstVehicle = useRef<[number, number] | null>(null) // where the vehicle for your first ride is
   const framed = useRef(false)
+  // Once you've zoomed or moved the map yourself, live updates leave the view alone.
+  const userMoved = useRef(false)
   const firstTrip = option.legs.find((l) => l.kind === 'ride')?.trip_id
 
   // Frame the route plus the vehicle you'll catch first (it may still be on its way to your stop).
   const frame = (m: maplibregl.Map, animate: boolean) => {
-    if (!routeBounds.current) return
+    if (!routeBounds.current || userMoved.current) return
     const b = new maplibregl.LngLatBounds(routeBounds.current.getSouthWest(), routeBounds.current.getNorthEast())
     if (firstVehicle.current) b.extend(firstVehicle.current)
     m.fitBounds(b, { padding: { top: 60, bottom: 220, left: 40, right: 60 }, maxZoom: 15, duration: animate ? 600 : 0 })
@@ -107,7 +109,13 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
       maxBounds: [149.9, -34.6, 152.0, -33.0],
     })
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
-    m.addControl(new maplibregl.GeolocateControl({ trackUserLocation: true }), 'top-right')
+    const locate = new maplibregl.GeolocateControl({ trackUserLocation: true })
+    m.addControl(locate, 'top-right')
+    // Gestures and the zoom buttons carry the event that caused them; programmatic framing doesn't.
+    m.on('movestart', (e) => {
+      if (e.originalEvent) userMoved.current = true
+    })
+    locate.on('trackuserlocationstart', () => (userMoved.current = true))
     m.on('error', (e) => {
       const msg = String(e.error?.message ?? '')
       if (msg.includes('404')) setError("The map hasn't been installed on the server yet. Routes and vehicles still show.")

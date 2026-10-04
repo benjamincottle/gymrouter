@@ -2,13 +2,14 @@
 // you are (or the vehicle you're on), and suggests a switch when something slips.
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
-import { clock, countdown, delay, duration, placeName, riskLabel } from '../format.ts'
+import { clock, countdown, dayOf, delay, duration, placeName, riskLabel } from '../format.ts'
 import { useNow, useVisible } from '../hooks.ts'
 import { assess, instruction, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, type Assessment, type Position } from '../intrip.ts'
 import type { Option, PlanRequest } from '../types.ts'
-import { mmss, type Walk } from '../walkmeasure.ts'
-import { existing, segments, walkSecs, type PlaceRef, type Retime, type Segment, type TimedWalk } from '../walks.ts'
-import { MapSheet, Strip } from './board.tsx'
+import type { Walk } from '../walkmeasure.ts'
+import { existing, segments, type PlaceRef, type Retime, type Segment, type TimedWalk } from '../walks.ts'
+import { MapSheet } from './board.tsx'
+import { Timeline, type Tracking } from './option.tsx'
 import { WalkTimer } from './walktimer.tsx'
 
 /** Everything needed to resume a trip after a reload; kept on this device only. */
@@ -16,8 +17,7 @@ export interface ActiveTrip {
   option: Option // the option as currently committed (updated with live times)
   plannedArrive: string
   request: PlanRequest // the original request (from/to/prefs)
-  lines: string[] // the gym's lines: what the map draws
-  ends?: { start: PlaceRef; end: PlaceRef } // the home or gym at each end, for timing walks to and from them
+  ends: { start: PlaceRef; end: PlaceRef } // the home or gym at each end, for timing walks to and from them
   title: string
   origin: [number, number]
   destination: [number, number]
@@ -50,6 +50,8 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   const [mapOpen, setMapOpen] = useState(false)
   const [timing, setTiming] = useState<Segment | null>(null)
   const [saved, setSaved] = useState('')
+  const timerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => timerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), [timing])
   const o = trip.option
   const phase = phaseAt(o, now)
   const posRef = useRef(pos)
@@ -122,14 +124,24 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
     setCheck(null)
   }
 
-  const ins = instruction(o, phase, trip.ends?.end.name)
+  const ins = instruction(o, phase, trip.ends.end.name)
+  const destination = trip.ends.end.name
+  // The trip's description: you on its rail, and its walks to time (from the map, timing goes back to this screen).
+  const track: Tracking = {
+    now,
+    segs: segments(o, trip.ends.start, trip.ends.end),
+    onTime: (s) => {
+      setMapOpen(false)
+      setSaved('')
+      setTiming(s)
+    },
+  }
   const lateBy = check && check.status !== 'missed' ? check.lateBy : 0
   const nextRide = phase.kind === 'before' ? o.legs[phase.ride] : undefined
   const spare = nextRide ? spareToBoard(nextRide, pos, now, trip.walkSpeedMps) : null
   // The next change: the one after the ride you're on or heading for.
   const upcoming = o.transfers.find((t) => (phase.kind === 'riding' || phase.kind === 'before') && t.from_leg === phase.ride)
   const start = Date.parse(o.leave_at)
-  const end = Date.parse(o.arrive)
 
   return (
     <div class="intrip">
@@ -190,7 +202,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
         <p class="now-main">{ins.now}</p>
         {now < start - 60_000 && (
           <p>
-            Leave at <strong>{clock(o.leave_at)}</strong> ({countdown(o.leave_at, now)})
+            Leave {dayOf(o.leave_at, now) && `${dayOf(o.leave_at, now)} `}at <strong>{clock(o.leave_at)}</strong> ({countdown(o.leave_at, now)})
           </p>
         )}
         {ins.detail && phase.kind === 'before' && (
@@ -224,6 +236,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
       )}
 
       {timing ? (
+        <div ref={timerRef}>
         <WalkTimer
           from={timing.from}
           to={timing.to}
@@ -237,18 +250,13 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           }}
           onCancel={() => setTiming(null)}
         />
-      ) : (
-        <TimeAWalk segs={segments(o, trip.ends?.start, trip.ends?.end)} current={currentLeg(o, phase)} walks={walks} onTime={setTiming} />
-      )}
+        </div>
+      ) : null}
       {saved && !timing && (
         <p class="notice" role="status">
           {saved}
         </p>
       )}
-
-      <div class="progress">
-        <Strip option={o} start={start} end={end} now={now} />
-      </div>
 
       <div class="actions">
         <button class="ghost" onClick={() => setMapOpen(true)}>
@@ -267,6 +275,10 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
         {error && ` ${error}`}
       </p>
 
+      <section class="steps" aria-label="The trip">
+        <Timeline option={o} destination={destination} walks={walks} track={track} />
+      </section>
+
       {mapOpen && (
         <MapSheet
           live
@@ -274,75 +286,17 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           token={token}
           me={pos}
           walks={walks}
-          places={{ start: trip.ends?.start.key, end: trip.ends?.end.key }}
+          places={{ start: trip.ends.start.key, end: trip.ends.end.key }}
           origin={trip.origin}
           destination={trip.destination}
           title={trip.title}
           option={o}
           now={now}
           onClose={() => setMapOpen(false)}
+          steps={{ destination, track }}
         />
       )}
     </div>
-  )
-}
-
-/** The walk leg (or for a change, the ride changed onto) that the trip is at: what "time this walk" offers first. */
-function currentLeg(o: Option, phase: ReturnType<typeof phaseAt>): number {
-  switch (phase.kind) {
-    case 'before': {
-      const first = o.legs.findIndex((l) => l.kind === 'ride')
-      return phase.ride === first ? 0 : phase.ride
-    }
-    case 'final-walk':
-    case 'arrived':
-      return o.legs.length - 1
-    default:
-      return -1
-  }
-}
-
-/** Offers to time the walk you're on (or about to start), and any other walk of the trip. */
-function TimeAWalk({ segs, current, walks, onTime }: {
-  segs: Segment[]
-  current: number
-  walks: TimedWalk[]
-  onTime: (s: Segment) => void
-}) {
-  if (segs.length === 0) return null
-  const now = segs.find((s) => s.leg === current)
-  const others = segs.filter((s) => s !== now)
-  const timed = (s: Segment) => {
-    const w = existing(walks, s)
-    return w ? ` (timed ${mmss(walkSecs(w))})` : ''
-  }
-  return (
-    <section class="time-walk">
-      {now && (
-        <button class="primary" onClick={() => onTime(now)}>
-          Time this walk: {now.label}
-          <span class="sub">{timed(now)}</span>
-        </button>
-      )}
-      {others.length > 0 && (
-        <details>
-          <summary>{now ? 'Time another walk in this trip' : 'Time a walk in this trip'}</summary>
-          <ul class="list">
-            {others.map((s) => (
-              <li>
-                <span>
-                  {s.label}
-                  <span class="muted small">{timed(s)}</span>
-                </span>
-                <button class="link" onClick={() => onTime(s)}>
-                  Time it
-                </button>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-    </section>
   )
 }
 

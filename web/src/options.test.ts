@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { changesAndStops, reselect, stopCount, tripKey } from './options.ts'
+import { changesAndStops, position, reselect, rows, stopCount, tripKey } from './options.ts'
 import type { Leg, Option } from './types.ts'
 
 const iso = (hhmm: string) => `2026-10-08T${hhmm}:00+11:00`
@@ -36,5 +36,19 @@ test('stops and changes summary', () => {
   assert.equal(stopCount(option('08:00', a, b)), 8)
   assert.equal(changesAndStops(option('08:00', a, b)), '1 change, 8 stops')
   assert.equal(changesAndStops(option('08:00', b)), 'no changes, 1 stop')
-  assert.equal(changesAndStops(option('08:00', ride('t1', 'A', '08:05', '08:30'))), 'no changes') // older server
+})
+
+test('the description rows and where you are on them', () => {
+  const a = ride('t1', 'A', '08:05', '08:30')
+  const b = { ...ride('t2', 'B', '08:35', '08:50'), from: stop('B') }
+  const o = { ...option('08:00', a, b), transfers: [{ from_leg: 1, to_leg: 2, walk_s: 120, slack_s: 180, risk: 'safe' as const }] }
+  const rs = rows(o)
+  assert.deepEqual(rs.map((r) => r.kind), ['leg', 'leg', 'change', 'leg', 'arrive'])
+  const t = (hhmm: string) => Date.parse(iso(hhmm))
+  assert.deepEqual(position(rs, t('07:50')), { row: 0, frac: 0 }, 'before leaving: the top')
+  assert.deepEqual(position(rs, t('08:03')), { row: 0, frac: 0.6 }, 'walking to the stop')
+  assert.deepEqual(position(rs, t('08:04')), { row: 0, frac: 0.8 })
+  assert.deepEqual(position(rs, t('08:30')), { row: 2, frac: 0 }, 'off the first vehicle: the change')
+  assert.deepEqual(position(rs, t('08:42')), { row: 3, frac: 7 / 15 })
+  assert.deepEqual(position(rs, t('09:30')), { row: 4, frac: 0 }, 'arrived')
 })

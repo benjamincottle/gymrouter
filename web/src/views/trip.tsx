@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
-import { fromLocalInput, toLocalInput } from '../format.ts'
+import { addDays, dayLabel, fromLocalInput, roundUp, toLocalInput } from '../format.ts'
 import { usePolling, useVisible } from '../hooks.ts'
 import { placeRef, planPlace, prefs, type Settings } from '../settings.ts'
-import { setChangeTime } from '../walks.ts'
 import type { DefaultsResponse, PlanRequest } from '../types.ts'
 import { Board, WindowShift, type Shift } from './board.tsx'
 import { BrandLogo } from './brand.tsx'
@@ -30,9 +29,14 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   const [direction, setDirection] = useState<Direction>('to-gym')
   const [gymId, setGymId] = useState<string | null>(null)
   const [when, setWhen] = useState<When>('now')
-  const [at, setAt] = useState(() => toLocalInput(new Date())) // datetime-local value (Sydney time)
-  const [later, setLater] = useState<number | null>(null) // "Leave now", moved later: where the window starts
-  useEffect(() => setLater(null), [when, gymId, direction])
+  const [at, setAt] = useState(() => roundUp(toLocalInput(new Date()))) // "YYYY-MM-DDTHH:MM", Sydney time
+  // Choosing a time starts from now if the one last chosen has passed.
+  const chooseTime = (w: 'leave' | 'arrive') => {
+    if (Date.parse(fromLocalInput(at)) < Date.now()) setAt(roundUp(toLocalInput(new Date())))
+    setWhen(w)
+  }
+  const [moved, setMoved] = useState<number | null>(null) // "Leave now", moved earlier or later: where the window starts
+  useEffect(() => setMoved(null), [when, gymId, direction])
   const leaveAt = when === 'now' ? null : at
   const visible = useVisible()
   const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
@@ -46,25 +50,23 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
       from: direction === 'to-gym' ? place : gym,
       to: direction === 'to-gym' ? gym : place,
       lines: g.lines,
-      time: leaveAt ? fromLocalInput(leaveAt) : later ? new Date(later).toISOString() : undefined,
+      time: leaveAt ? fromLocalInput(leaveAt) : moved ? new Date(moved).toISOString() : undefined,
       arrive_by: when === 'arrive' || undefined,
       window_min: WINDOW_MIN,
       prefs: prefs(settings),
     }
-  }, [gymId, home, direction, leaveAt, later, when, settings])
+  }, [gymId, home, direction, leaveAt, moved, when, settings])
 
-  // Earlier / later trips: half an hour each way. "Leave now" can't go before now; a set time just moves.
-  const shift: Shift = Object.assign(
-    (dir: -1 | 1) => {
-      if (when === 'now') {
-        const next = (later ?? Date.now()) + dir * SHIFT_MS
-        setLater(next > Date.now() + 60_000 ? next : null)
-      } else {
-        setAt(toLocalInput(new Date(Date.parse(fromLocalInput(at)) + dir * SHIFT_MS)))
-      }
-    },
-    { canEarlier: when !== 'now' || later !== null },
-  )
+  // Earlier / later trips: half an hour each way. With "Leave now", earlier shows what has just gone (useful when
+  // you're already on your way or a service is running late); coming back round to now goes back to live.
+  const shift: Shift = (dir) => {
+    if (when === 'now') {
+      const next = (moved ?? Date.now()) + dir * SHIFT_MS
+      setMoved(Math.abs(next - Date.now()) < 60_000 ? null : next)
+    } else {
+      setAt(toLocalInput(new Date(Date.parse(fromLocalInput(at)) + dir * SHIFT_MS)))
+    }
+  }
 
   const key = request ? JSON.stringify(request) : null
   const plan = usePolling(
@@ -96,6 +98,21 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
 
   return (
     <div class="stack">
+      <div class="when">
+        <div class="segmented small" role="group" aria-label="When">
+          <button aria-pressed={when === 'now'} onClick={() => setWhen('now')}>
+            Leave now
+          </button>
+          <button aria-pressed={when === 'leave'} onClick={() => chooseTime('leave')}>
+            Leave at
+          </button>
+          <button aria-pressed={when === 'arrive'} onClick={() => chooseTime('arrive')}>
+            Arrive by
+          </button>
+        </div>
+        {when !== 'now' && <DayTime value={at} onChange={setAt} label={when === 'arrive' ? 'Arrive by' : 'Leave at'} />}
+      </div>
+
       <div class="segmented" role="group" aria-label="Direction">
         <button aria-pressed={direction === 'to-gym'} onClick={() => setDirection('to-gym')}>
           To the gym
@@ -118,31 +135,6 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
           </select>
         </label>
       )}
-
-      <div class="when">
-        <div class="segmented small" role="group" aria-label="When">
-          <button aria-pressed={when === 'now'} onClick={() => setWhen('now')}>
-            Leave now
-          </button>
-          <button aria-pressed={when === 'leave'} onClick={() => setWhen('leave')}>
-            Leave at
-          </button>
-          <button aria-pressed={when === 'arrive'} onClick={() => setWhen('arrive')}>
-            Arrive by
-          </button>
-        </div>
-        {when !== 'now' && (
-          <input
-            type="datetime-local"
-            value={at}
-            onChange={(e) => {
-              const v = (e.target as HTMLInputElement).value
-              if (v) setAt(v)
-            }}
-            aria-label={when === 'arrive' ? 'Arrive by' : 'Leave at'}
-          />
-        )}
-      </div>
 
       <div class="gyms">
         {(gym ? [gym] : settings.gyms).map((g) => (
@@ -193,14 +185,12 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
               title={direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`}
               destinationName={direction === 'to-gym' ? gym.name : home.name}
               onShift={shift}
-              onSetChange={(a, b, secs) => setSettings({ ...settings, walks: setChangeTime(settings.walks, a, b, secs) })}
               onStart={(o) =>
                 onStartTrip({
                   option: o,
                   plannedArrive: o.arrive,
                   request: request!,
-                  lines: gym.lines,
-                  ends,
+                  ends: ends!, // a gym is chosen whenever there are options
                   title: direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`,
                   origin: direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat],
                   destination: direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat],
@@ -212,6 +202,42 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
           )}
         </section>
       )}
+    </div>
+  )
+}
+
+const DAYS_AHEAD = 7 // about a week: as far ahead as the timetable reaches
+const pad = (n: number) => String(n).padStart(2, '0')
+
+/** A day ("Today (4th)", "Tomorrow (5th)", …) and a 24-hour time in five-minute steps, all in Sydney time. */
+function DayTime({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+  const today = toLocalInput(new Date()).slice(0, 10)
+  const day = value.slice(0, 10)
+  const hour = value.slice(11, 13)
+  const minute = value.slice(14, 16)
+  const days = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(today, i))
+  if (!days.includes(day)) days.push(day) // moved outside the usual range with Earlier / Later trips
+  days.sort()
+  const set = (d: string, h: string, m: string) => onChange(`${d}T${h}:${m}`)
+  const pick = (e: Event) => (e.target as HTMLSelectElement).value
+  return (
+    <div class="daytime" role="group" aria-label={label}>
+      <select class="day" aria-label="Day" value={day} onChange={(e) => set(pick(e), hour, minute)}>
+        {days.map((d) => (
+          <option value={d}>{dayLabel(today, d)}</option>
+        ))}
+      </select>
+      <select aria-label="Hour" value={hour} onChange={(e) => set(day, pick(e), minute)}>
+        {Array.from({ length: 24 }, (_, h) => (
+          <option value={pad(h)}>{pad(h)}</option>
+        ))}
+      </select>
+      <span aria-hidden="true">:</span>
+      <select aria-label="Minutes" value={minute} onChange={(e) => set(day, hour, pick(e))}>
+        {Array.from({ length: 12 }, (_, i) => (
+          <option value={pad(i * 5)}>{pad(i * 5)}</option>
+        ))}
+      </select>
     </div>
   )
 }

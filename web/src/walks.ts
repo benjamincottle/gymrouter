@@ -38,21 +38,30 @@ export function placeKey(kind: 'home' | 'gym', p: { id: string; ref?: string }):
   return kind === 'home' ? `home:${p.id}` : `gym:${p.ref ?? p.id}`
 }
 
-/** A stop as walks know it: its station if it has one (any platform will do), else itself. */
-export function stopKey(s: Pick<StopRef, 'id' | 'station_id'>): string {
-  return s.station_id || s.id
+/** A stop as a walk reaches it: the stop, and the mode of the ride you get on or off there. */
+export interface At {
+  stop: Pick<StopRef, 'id' | 'station_id'>
+  mode?: string // e.g. "train", "bus"
 }
 
-const covers = (ids: string[], s: Pick<StopRef, 'id' | 'station_id'>) => ids.includes(s.id) || (!!s.station_id && ids.includes(s.station_id))
+const RAIL = ['train', 'regional-train', 'metro', 'light-rail']
 
-export function findAccess(walks: TimedWalk[], place: string, stop: Pick<StopRef, 'id' | 'station_id'>): AccessWalk | undefined {
-  return walks.find((w): w is AccessWalk => w.kind === 'access' && w.place === place && covers(w.stop, stop))
+/**
+ * A stop as walks know it. A rail platform is its station (any platform will do: they're inside, a minute apart);
+ * anything else, a bus stand included, is its own stop (the stand across the road is a different walk).
+ */
+export function stopKey(at: At): string {
+  return at.mode && RAIL.includes(at.mode) && at.stop.station_id ? at.stop.station_id : at.stop.id
+}
+
+const covers = (ids: string[], at: At) => ids.includes(stopKey(at))
+
+export function findAccess(walks: TimedWalk[], place: string, at: At): AccessWalk | undefined {
+  return walks.find((w): w is AccessWalk => w.kind === 'access' && w.place === place && covers(w.stop, at))
 }
 
 /** The change walk between two stops, in either direction; `reversed` means it was timed from `b` to `a`. */
-export function findChange(
-  walks: TimedWalk[], a: Pick<StopRef, 'id' | 'station_id'>, b: Pick<StopRef, 'id' | 'station_id'>,
-): { walk: ChangeWalk; reversed: boolean } | undefined {
+export function findChange(walks: TimedWalk[], a: At, b: At): { walk: ChangeWalk; reversed: boolean } | undefined {
   for (const w of walks) {
     if (w.kind !== 'change') continue
     if (covers(w.from, a) && covers(w.to, b)) return { walk: w, reversed: false }
@@ -82,13 +91,25 @@ export interface Segment {
   estimateS: number // what this trip assumed
   // what identifies it: access walks by place and stop; changes by the two stops
   place?: string
-  stop?: StopRef
+  stop?: At
   outbound?: boolean // access: walking from the place to the stop (else from the stop to the place)
-  stops?: [StopRef, StopRef]
+  stops?: [At, At]
 }
 
-const stopName = (s: StopRef) => s.station || s.name
+const stopName = (s: Pick<StopRef, 'name' | 'station'>) => s.station || s.name
+/** A rail platform by its station; a bus stand by its own name ("West Ryde Station, Victoria Rd, Stand F"). */
+const atName = (s: StopRef, mode?: string) => (mode && RAIL.includes(mode) ? stopName(s) : s.name)
 const legSecs = (o: Option, i: number) => Math.round((Date.parse(o.legs[i].arr) - Date.parse(o.legs[i].dep)) / 1000)
+const modeOf = (o: Option, i: number) => o.legs[i]?.line?.mode
+
+/** Where a walk leg starts and ends, with the modes of the rides either side of it. */
+function ends(o: Option, i: number): { from?: At; to?: At } {
+  const l = o.legs[i]
+  return {
+    from: l.from && { stop: l.from, mode: modeOf(o, i - 1) },
+    to: l.to && { stop: l.to, mode: modeOf(o, i + 1) },
+  }
+}
 
 /** The walks of an option you could time: to the first stop, each change, and from the last stop. */
 export function segments(o: Option, start?: PlaceRef, end?: PlaceRef): Segment[] {
@@ -96,29 +117,32 @@ export function segments(o: Option, start?: PlaceRef, end?: PlaceRef): Segment[]
   const first = o.legs[0]
   if (start && first?.kind === 'walk' && !first.from && first.to) {
     const s = first.to
+    const name = atName(s, modeOf(o, 1))
     out.push({
-      kind: 'access', leg: 0, label: `${start.name} to ${stopName(s)}`, from: start, to: { name: stopName(s), lat: s.lat, lon: s.lon },
-      estimateS: legSecs(o, 0), place: start.key, stop: s, outbound: true,
+      kind: 'access', leg: 0, label: `${start.name} to ${name}`, from: start, to: { name, lat: s.lat, lon: s.lon },
+      estimateS: legSecs(o, 0), place: start.key, stop: ends(o, 0).to, outbound: true,
     })
   }
   for (const t of o.transfers) {
     const a = o.legs[t.from_leg]?.to
     const b = o.legs[t.to_leg]?.from
     if (!a || !b) continue
-    const same = stopName(a) === stopName(b)
+    const an = atName(a, modeOf(o, t.from_leg))
+    const bn = atName(b, modeOf(o, t.to_leg))
     out.push({
-      kind: 'change', leg: t.to_leg, label: same ? `Change at ${stopName(a)}` : `${stopName(a)} to ${stopName(b)}`,
-      from: { name: stopName(a), lat: a.lat, lon: a.lon }, to: { name: stopName(b), lat: b.lat, lon: b.lon },
-      estimateS: t.walk_s, stops: [a, b],
+      kind: 'change', leg: t.to_leg, label: an === bn ? `Change at ${an}` : `${an} to ${bn}`,
+      from: { name: an, lat: a.lat, lon: a.lon }, to: { name: bn, lat: b.lat, lon: b.lon },
+      estimateS: t.walk_s, stops: [{ stop: a, mode: modeOf(o, t.from_leg) }, { stop: b, mode: modeOf(o, t.to_leg) }],
     })
   }
   const li = o.legs.length - 1
   const last = o.legs[li]
   if (end && li > 0 && last?.kind === 'walk' && last.from && !last.to) {
     const s = last.from
+    const name = atName(s, modeOf(o, li - 1))
     out.push({
-      kind: 'access', leg: li, label: `${stopName(s)} to ${end.name}`, from: { name: stopName(s), lat: s.lat, lon: s.lon }, to: end,
-      estimateS: legSecs(o, li), place: end.key, stop: s, outbound: false,
+      kind: 'access', leg: li, label: `${name} to ${end.name}`, from: { name, lat: s.lat, lon: s.lon }, to: end,
+      estimateS: legSecs(o, li), place: end.key, stop: ends(o, li).from, outbound: false,
     })
   }
   return out
@@ -150,23 +174,10 @@ export function record(walks: TimedWalk[], seg: Segment, w: Walk, retime: Retime
     if (found?.reversed && w.trace.length >= 2) trace = [...w.trace].reverse()
     next = found
       ? { ...found.walk, times, trace }
-      : { kind: 'change', from: [stopKey(a)], to: [stopKey(b)], label: changeLabel(a, b), times, trace }
+      : { kind: 'change', from: [stopKey(a)], to: [stopKey(b)], label: seg.from.name === seg.to.name ? `Change at ${seg.from.name}` : `${seg.from.name} – ${seg.to.name}`, times, trace }
   }
   if (!next.trace) delete next.trace
   return [...walks.filter((x) => x !== old), next].slice(-MAX_WALKS)
-}
-
-function changeLabel(a: StopRef, b: StopRef): string {
-  return stopName(a) === stopName(b) ? `Change at ${stopName(a)}` : `${stopName(a)} – ${stopName(b)}`
-}
-
-/** Sets a change's time by hand (replacing any timed walks; a traced route is kept). */
-export function setChangeTime(walks: TimedWalk[], a: StopRef, b: StopRef, secs: number): TimedWalk[] {
-  const found = findChange(walks, a, b)
-  const next: ChangeWalk = found
-    ? { ...found.walk, times: [secs] }
-    : { kind: 'change', from: [stopKey(a)], to: [stopKey(b)], label: changeLabel(a, b), times: [secs] }
-  return [...walks.filter((x) => x !== found?.walk), next].slice(-MAX_WALKS)
 }
 
 // --- Using them ---
@@ -200,13 +211,14 @@ export function legTrace(walks: TimedWalk[], o: Option, i: number, start?: strin
   const l = o.legs[i]
   if (l.kind !== 'walk') return undefined
   let t: LonLat[] | undefined
-  if (l.from && l.to) {
-    const f = findChange(walks, l.from, l.to)
+  const { from, to } = ends(o, i)
+  if (from && to) {
+    const f = findChange(walks, from, to)
     t = f?.walk.trace && (f.reversed ? [...f.walk.trace].reverse() : f.walk.trace)
-  } else if (l.to && start) {
-    t = findAccess(walks, start, l.to)?.trace
-  } else if (l.from && end) {
-    const tr = findAccess(walks, end, l.from)?.trace
+  } else if (to && start) {
+    t = findAccess(walks, start, to)?.trace
+  } else if (from && end) {
+    const tr = findAccess(walks, end, from)?.trace
     t = tr && [...tr].reverse()
   }
   return t && t.length > 1 ? t : undefined
@@ -224,7 +236,7 @@ function cleanTrace(v: unknown): LonLat[] | undefined {
   return ok ? (v as LonLat[]) : undefined
 }
 
-export function cleanTimes(v: unknown): number[] {
+function cleanTimes(v: unknown): number[] {
   return Array.isArray(v) ? v.filter((t): t is number => isNum(t, 1, 3600)).slice(-MAX_SAMPLES).map(Math.round) : []
 }
 

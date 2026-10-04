@@ -20,10 +20,9 @@ export function duration(secs: number): string {
   return r === 0 ? `${h} h` : `${h} h ${r} min`
 }
 
-/** Compact, for narrow columns: "45m", "1h05". */
+/** Compact, for narrow columns, always in minutes so a column of them compares at a glance: "45m", "80m". */
 export function shortDuration(secs: number): string {
-  const m = Math.round(secs / 60)
-  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`
+  return `${Math.round(secs / 60)}m`
 }
 
 /** Countdown to leaving: "now", "in 6 min", "in 1 h 5 min", "left 2 min ago". */
@@ -78,4 +77,51 @@ export function fromLocalInput(v: string): string {
     if (toLocalInput(t) === v) return `${v}:00+${String(off).padStart(2, '0')}:00`
   }
   return `${v}:00+10:00`
+}
+
+// --- Days, the Australian way: "Today (4th)", "Tomorrow (5th)", "Tuesday (6th)". ---
+
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+/** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st, 22nd, 23rd … */
+export function ordinal(n: number): string {
+  const tens = n % 100
+  const suffix = tens >= 11 && tens <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')
+  return `${n}${suffix}`
+}
+
+/** A calendar day (YYYY-MM-DD) `offset` days after `day`; plain date arithmetic, no time zones involved. */
+export function addDays(day: string, offset: number): string {
+  const [y, m, d] = day.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + offset)).toISOString().slice(0, 10)
+}
+
+/** How many days `day` is after `today` (both YYYY-MM-DD). */
+export function daysBetween(today: string, day: string): number {
+  return Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000)
+}
+
+/** "Today (4th)", "Tomorrow (5th)", "Tuesday (6th)", "Yesterday (3rd)". */
+export function dayLabel(today: string, day: string): string {
+  const n = daysBetween(today, day)
+  const date = ordinal(Number(day.slice(8, 10)))
+  const name = n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : n === -1 ? 'Yesterday' : WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()]
+  return `${name} (${date})`
+}
+
+/** The day something happens, for a time that might not be today: "" (today), "tomorrow", "Tuesday 6th". */
+export function dayOf(iso: string, nowMs: number): string {
+  const today = toLocalInput(new Date(nowMs)).slice(0, 10)
+  const day = toLocalInput(new Date(iso)).slice(0, 10)
+  const n = daysBetween(today, day)
+  if (n === 0) return ''
+  if (n === 1) return 'tomorrow'
+  if (n === -1) return 'yesterday'
+  return `${WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()]} ${ordinal(Number(day.slice(8, 10)))}`
+}
+
+/** A datetime-local value rounded up to the next `step` minutes. */
+export function roundUp(v: string, step = 5): string {
+  const t = Date.parse(fromLocalInput(v))
+  return toLocalInput(new Date(Math.ceil(t / (step * 60_000)) * step * 60_000))
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { changeTimes, existing, findChange, legTrace, placeKey, placeWalks, record, sanitizeWalks, segments, type TimedWalk } from './walks.ts'
+import { changeTimes, existing, findAccess, findChange, legTrace, placeKey, placeWalks, record, sanitizeWalks, segments, stopKey, type At, type TimedWalk } from './walks.ts'
 import type { Leg, Option, StopRef } from './types.ts'
 import type { LonLat } from './walkmeasure.ts'
 
@@ -9,15 +9,17 @@ const stop = (id: string, name: string, station_id?: string): StopRef => ({ id, 
 const EPP = stop('epp-p1', 'Epping Station', 'epp')
 const EPP2 = stop('epp-p5', 'Epping Station', 'epp')
 const BUS = stop('bus-1', 'Epping Rd at Rivett Rd')
+const STAND_A = stop('epp-sa', 'Epping Station, Stand A', 'epp') // a bus stand that belongs to the station
+const STAND_B = stop('epp-sb', 'Epping Station, Stand B', 'epp') // the one across the road
 const MARS = stop('mars', 'Mars Rd')
 const home = { key: 'home:h1', name: 'Home', lat: -33.77, lon: 151.08 }
 const gym = { key: 'gym:lane-cove', name: 'Lane Cove', lat: -33.81, lon: 151.15 }
 
 const legs: Leg[] = [
   { kind: 'walk', to: EPP, dep: iso('08:00'), arr: iso('08:09') },
-  { kind: 'ride', trip_id: 'm1', from: EPP, to: EPP2, dep: iso('08:10'), arr: iso('08:20') },
+  { kind: 'ride', trip_id: 'm1', line: { mode: 'metro', name: 'M1' }, from: EPP, to: EPP2, dep: iso('08:10'), arr: iso('08:20') },
   { kind: 'walk', from: EPP2, to: BUS, dep: iso('08:20'), arr: iso('08:24') },
-  { kind: 'ride', trip_id: 'b', from: BUS, to: MARS, dep: iso('08:26'), arr: iso('08:35') },
+  { kind: 'ride', trip_id: 'b', line: { mode: 'bus', name: '288' }, from: BUS, to: MARS, dep: iso('08:26'), arr: iso('08:35') },
   { kind: 'walk', from: MARS, dep: iso('08:35'), arr: iso('08:40') },
 ]
 const o: Option = {
@@ -58,7 +60,7 @@ test('the first timing replaces the default; later ones average or replace', () 
 
   // A change, timed the other way round on the trip home, updates the same walk.
   w = record(w, change, walk(200, T), 'average')
-  const back = { ...change, stops: [BUS, EPP] as [StopRef, StopRef] }
+  const back = { ...change, stops: [{ stop: BUS, mode: 'bus' }, { stop: EPP, mode: 'metro' }] as [At, At] }
   assert.equal(existing(w, back), w[w.length - 1])
   w = record(w, back, walk(220, [[9, 9], [8, 8]]), 'average')
   const c = w.filter((x) => x.kind === 'change')
@@ -66,7 +68,21 @@ test('the first timing replaces the default; later ones average or replace', () 
   assert.deepEqual([c[0].times, c[0].trace], [[200, 220], [[8, 8], [9, 9]]])
   assert.deepEqual(changeTimes(w), [{ from: 'epp', to: 'bus-1', secs: 210 }, { from: 'bus-1', to: 'epp', secs: 210 }])
   assert.deepEqual(legTrace(w, o, 2), [[8, 8], [9, 9]])
-  assert.equal(findChange(w, EPP2, BUS)?.reversed, false, 'any platform of the station matches')
+  assert.equal(findChange(w, { stop: EPP2, mode: 'train' }, { stop: BUS, mode: 'bus' })?.reversed, false, 'any platform of the station matches')
+})
+
+test('a rail platform is its station; a bus stop, stand or not, is itself', () => {
+  assert.equal(stopKey({ stop: EPP, mode: 'train' }), 'epp')
+  assert.equal(stopKey({ stop: EPP2, mode: 'metro' }), 'epp')
+  assert.equal(stopKey({ stop: STAND_A, mode: 'bus' }), 'epp-sa')
+  assert.equal(stopKey({ stop: BUS, mode: 'bus' }), 'bus-1')
+  const w: TimedWalk[] = [
+    { kind: 'access', place: 'home:h1', stop: ['epp'], label: 'Home – Epping Station', times: [500] },
+    { kind: 'access', place: 'home:h1', stop: ['epp-sa'], label: 'Home – Epping Station, Stand A', times: [420] },
+  ]
+  assert.equal(findAccess(w, 'home:h1', { stop: EPP2, mode: 'train' })?.times[0], 500, 'another platform: the same walk')
+  assert.equal(findAccess(w, 'home:h1', { stop: STAND_A, mode: 'bus' })?.times[0], 420)
+  assert.equal(findAccess(w, 'home:h1', { stop: STAND_B, mode: 'bus' }), undefined, 'the stand across the road is a walk of its own')
 })
 
 test('place keys survive a built-in gym being removed and added again', () => {

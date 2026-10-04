@@ -40,10 +40,12 @@ measured walks from the gym door.
 - A place is `lat`/`lon`, optionally with curated `access` stops and walk times. Without
   them, stops within `max_walk_m` are used. Either end can be home or gym.
 - A place can also carry `walks` (up to 40, `[{"stop": "<stop or station ID>", "walk_s": 540}]`): walks the traveller
-  has timed between the place and a stop. They beat any other time for that stop (a station ID covers its platforms)
+  has timed between the place and a stop. They beat any other time for that stop (a station ID covers its rail platforms,
+not bus stands that belong to the station)
   and add the stop if it isn't otherwise considered, curated or not. Not allowed with `on_trip`.
 - `time` is the earliest time to leave (default: now). Options leaving within `window_min` are returned.
-- `transfers` override walking/changing time between stops. A station ID covers all its platforms.
+- `transfers` override walking/changing time between stops. A station ID covers its rail (train, metro, light rail)
+  platforms; a bus stand that belongs to the station only matches by its own ID.
 - `"arrive_by": true` treats `time` as the latest arrival: options arriving by then, latest departure first.
 - While travelling, the origin can be the vehicle you're on: `"from": {"on_trip": {"trip_id": "…",
   "from_stop": "<stop where you boarded>"}}`. Planning then starts now, on that vehicle: the first leg is that

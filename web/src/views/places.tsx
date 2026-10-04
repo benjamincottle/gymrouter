@@ -109,15 +109,6 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
     const rest = p.access.filter((a) => !g.ids.includes(a.stop))
     setP({ ...p, access: on ? rest : [...rest, ...g.ids.map((stop) => ({ stop, name: g.name, walk_s: g.walk_s }))] })
   }
-  const setWalk = (g: StopGroup, mins: number) =>
-    setP({
-      ...p,
-      access: p.access.map((a) => {
-        if (!g.ids.includes(a.stop)) return a
-        const secs = Math.round(mins * 60)
-        return { ...a, walk_s: secs, times: secs > 0 ? [secs] : undefined } // typing a time replaces any measured walks
-      }),
-    })
   const visibleGroups = showAll ? groups : relevantGroups(groups)
 
   // Walks timed during trips win over the minutes typed here.
@@ -175,9 +166,9 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
         <section class="card">
           <h2>{gym ? 'Stops near the gym' : 'Your stops'}</h2>
           <p class="muted small">
-            Pick the stops you'd actually walk to, and your walking time if you know it. If you pick none, every stop within
-            your walking limit is considered. To time a walk, use "Time this walk" during a trip: timed walks are used
-            for any stop, picked here or not.
+            Pick the stops you'd actually walk to. If you pick none, every stop within your walking limit is considered.
+            Walking times come from the street map until you time a walk on a trip ("Time my walk"); a timed walk is
+            used for its stop, picked here or not.
           </p>
           {stops.length === 0 && <p class="muted">No stops within {gym ? '1.2' : '1.5'} km.</p>}
           <ul class="list stops">
@@ -198,21 +189,10 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
                       <span class="small" title="Timed during a trip; this is the time used">
                         timed {mmss(walkSecs(timed))}
                       </span>
-                    ) : walk !== undefined ? (
-                      <label class="walk">
-                        <input
-                          type="number"
-                          min="0"
-                          max="60"
-                          step="0.5"
-                          value={Math.round((walk / 60) * 100) / 100}
-                          onChange={(e) => setWalk(g, Number((e.target as HTMLInputElement).value) || 0)}
-                          aria-label={`Walking time to ${g.name} in minutes`}
-                        />
-                        min
-                      </label>
                     ) : (
-                      <span class="muted small">~{Math.round(g.walk_s / 60)} min</span>
+                      <span class="muted small" title="From the street map">
+                        ~{Math.max(1, Math.round(g.walk_s / 60))} min
+                      </span>
                     )}
                   </span>
                 </li>

@@ -24,7 +24,7 @@ async function call<T>(token: string, method: string, path: string, body?: unkno
     referrerPolicy: 'no-referrer',
   })
   // Without a valid token the server answers like a missing page (plain text); the API's own 404s are JSON.
-  if (res.status === 401 || (res.status === 404 && res.headers.get('Content-Type')?.startsWith('text/plain'))) {
+  if (res.status === 404 && res.headers.get('Content-Type')?.startsWith('text/plain')) {
     throw new AuthError('This device is not set up (or its access was revoked).')
   }
   if (!res.ok) {

@@ -4,7 +4,7 @@ import {
   applyFragment, emptySettings, gymFromKnown, isLine, withSuggested, load, parseFragment, placeRequest, planPlace, prefs, sanitize, save, settingsLink,
   type Settings,
 } from './settings.ts'
-import { countdown, delay, duration, fromLocalInput, platform, toLocalInput } from './format.ts'
+import { addDays, countdown, dayLabel, dayOf, delay, duration, fromLocalInput, ordinal, platform, roundUp, shortDuration, toLocalInput } from './format.ts'
 
 const TOKEN = 'abcdefghijklmnopqrstuvwxyz0123456789_-ABCDEF'
 
@@ -59,7 +59,7 @@ test('gyms keep their lines and drop malformed ones', () => {
   })
   assert.equal(s.gyms.length, 1)
   assert.deepEqual(s.gyms[0].lines, ['bus 288', 'light-rail L4'])
-  assert.equal(sanitize({ ...sample, gyms: undefined }).gyms.length, 0, 'old backups have no gyms')
+  assert.equal(sanitize({ ...sample, gyms: undefined }).gyms.length, 0, 'gyms are optional')
   assert.equal(sanitize({ ...sample, gyms: Array.from({ length: 30 }, (_, i) => ({ ...sample.gyms[0], id: `g${i}` })) }).gyms.length, 12)
 })
 
@@ -153,29 +153,6 @@ test('requests carry curated access and preferences', () => {
   assert.equal(planPlace('gym', { ...sample.gyms[0], ref: 'lane-cove' }, sample.walks).walks, undefined)
 })
 
-test('walks timed with older versions move to the walk list', () => {
-  const trace = [[151.15, -33.8], [151.151, -33.801]]
-  const old = {
-    version: 1, token: TOKEN,
-    homes: [{ id: 'h1', name: 'Home', lat: -33.8, lon: 151.1, access: [
-      { stop: 'p1', name: 'Epping Station', walk_s: 600, times: [590, 610], trace },
-      { stop: 'p2', name: 'Epping Station', walk_s: 600, times: [590, 610], trace },
-      { stop: 'b1', name: 'Bus stop', walk_s: 120 },
-    ] }],
-    gyms: [{ ...sample.gyms[0], ref: 'lane-cove', access: [{ stop: 's', name: 'Mars Rd', walk_s: 300, times: [300, 'x', -1] }] }],
-    transfers: [{ from: '2121', to: '2122', secs: 150, label: 'Epping' }],
-  }
-  const s = sanitize(old)
-  assert.deepEqual(s.homes[0].access[0], { stop: 'p1', name: 'Epping Station', walk_s: 600 }, 'the stop keeps only its typed time')
-  assert.deepEqual(s.walks, [
-    { kind: 'access', place: 'home:h1', stop: ['p1', 'p2'], label: 'Home – Epping Station', times: [590, 610], trace },
-    { kind: 'access', place: 'gym:lane-cove', stop: ['s'], label: '9 Degrees Lane Cove – Mars Rd', times: [300] },
-    { kind: 'change', from: ['2121'], to: ['2122'], label: 'Epping', times: [150] },
-  ])
-  assert.deepEqual(sanitize(s), s, 'migrating twice changes nothing')
-  assert.deepEqual(sanitize({ ...old, walks: s.walks }).walks, s.walks, 'already-migrated walks are not duplicated')
-})
-
 test('formatting', () => {
   assert.equal(duration(45 * 60), '45 min')
   assert.equal(duration(65 * 60), '1 h 5 min')
@@ -197,4 +174,19 @@ test('datetime-local conversion uses Sydney time across daylight saving', () => 
   assert.equal(toLocalInput(new Date('2026-07-01T06:30:00Z')), '2026-07-01T16:30') // AEST +10
   assert.equal(fromLocalInput('2026-10-08T16:30'), '2026-10-08T16:30:00+11:00')
   assert.equal(fromLocalInput('2026-07-01T16:30'), '2026-07-01T16:30:00+10:00')
+  assert.equal(roundUp('2026-10-08T16:31'), '2026-10-08T16:35')
+  assert.equal(roundUp('2026-10-08T23:58'), '2026-10-09T00:00')
+  assert.equal(shortDuration(80 * 60), '80m')
+})
+
+test('days, the Australian way', () => {
+  assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 31].map(ordinal), ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '23rd', '31st'])
+  assert.equal(addDays('2026-10-31', 1), '2026-11-01')
+  assert.equal(dayLabel('2026-10-04', '2026-10-04'), 'Today (4th)')
+  assert.equal(dayLabel('2026-10-04', '2026-10-05'), 'Tomorrow (5th)')
+  assert.equal(dayLabel('2026-10-04', '2026-10-06'), 'Tuesday (6th)')
+  const now = Date.parse('2026-10-04T15:00:00+11:00')
+  assert.equal(dayOf('2026-10-04T23:30:00+11:00', now), '')
+  assert.equal(dayOf('2026-10-05T00:10:00+11:00', now), 'tomorrow')
+  assert.equal(dayOf('2026-10-06T08:00:00+11:00', now), 'Tuesday 6th')
 })

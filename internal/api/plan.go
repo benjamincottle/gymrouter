@@ -403,7 +403,7 @@ func (s *Server) access(snap *engine.Snapshot, p placeReq, maxWalk float64, o ra
 	if len(p.Walks) == 0 {
 		return out, ap, err
 	}
-	timed := withWalks(snap.Day, out, p.Walks)
+	timed := withWalks(snap.Day, plan.RailStops(snap.Net), out, p.Walks)
 	if len(timed) == 0 {
 		return nil, ap, err
 	}
@@ -413,8 +413,9 @@ func (s *Server) access(snap *engine.Snapshot, p placeReq, maxWalk float64, o ra
 	return timed, ap, nil
 }
 
-// withWalks applies timed walks (by stop or parent station ID) to access stops, adding stops not yet there.
-func withWalks(d *gtfs.Day, access []raptor.Access, walks []accessReq) []raptor.Access {
+// withWalks applies timed walks to access stops, adding stops not yet there. A walk is to a stop, or to a station
+// (for its rail platforms; a bus stand that belongs to the station is a stop of its own).
+func withWalks(d *gtfs.Day, rail []bool, access []raptor.Access, walks []accessReq) []raptor.Access {
 	secs := map[string]int32{}
 	for _, w := range walks {
 		secs[w.Stop] = w.WalkS
@@ -425,7 +426,7 @@ func withWalks(d *gtfs.Day, access []raptor.Access, walks []accessReq) []raptor.
 			return v, true
 		}
 		v, ok := secs[st.Parent]
-		return v, ok && st.Parent != ""
+		return v, ok && st.Parent != "" && rail[si]
 	}
 	out := make([]raptor.Access, 0, len(access)+len(walks))
 	have := map[int32]bool{}

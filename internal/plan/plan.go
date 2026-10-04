@@ -164,7 +164,7 @@ func Plan(n *raptor.Network, req Request) []Option {
 	if req.MaxOptions == 0 {
 		req.MaxOptions = 8
 	}
-	transfer := overrideFunc(n.Day, req.Overrides)
+	transfer := overrideFunc(n, req.Overrides)
 	base := raptor.Query{Access: req.Access, Egress: req.Egress, MaxRides: req.MaxRides,
 		MinChange: req.MinChange, Transfer: transfer}
 	if req.Allow != nil {
@@ -429,11 +429,28 @@ func mergeWalks(legs []raptor.Leg) []raptor.Leg {
 	return out
 }
 
-// overrideFunc resolves personal transfer times to stop pairs; a station ID matches its platforms.
-func overrideFunc(d *gtfs.Day, ovs []TransferOverride) func(a, b int32) (int32, bool) {
+// RailStops marks the stops that trains, metro or light rail call at. A station's ID stands for these platforms only,
+// not for the bus stands that also belong to it (often across a road, each its own walk).
+func RailStops(n *raptor.Network) []bool {
+	out := make([]bool, len(n.Day.Stops))
+	for _, p := range n.Patterns {
+		switch lines.ModeOf(n.Day.Routes[p.Route].Type) {
+		case lines.Train, lines.RegionalTrain, lines.Metro, lines.LightRail:
+			for _, s := range p.Stops {
+				out[s] = true
+			}
+		}
+	}
+	return out
+}
+
+// overrideFunc resolves personal transfer times to stop pairs; a station ID matches its rail platforms.
+func overrideFunc(n *raptor.Network, ovs []TransferOverride) func(a, b int32) (int32, bool) {
 	if len(ovs) == 0 {
 		return func(int32, int32) (int32, bool) { return 0, false }
 	}
+	d := n.Day
+	rail := RailStops(n)
 	type pair struct{ a, b string }
 	m := map[pair]int32{}
 	for _, o := range ovs {
@@ -441,7 +458,7 @@ func overrideFunc(d *gtfs.Day, ovs []TransferOverride) func(a, b int32) (int32, 
 	}
 	ids := func(s int32) []string {
 		st := d.Stops[s]
-		if st.Parent != "" {
+		if st.Parent != "" && rail[s] {
 			return []string{st.ID, st.Parent}
 		}
 		return []string{st.ID}

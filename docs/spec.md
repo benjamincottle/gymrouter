@@ -327,3 +327,24 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - 2026-10-04: Two more built-in gyms, ClimbFit Macquarie and ClimbFit St Leonards (lines found as for Waterloo/Alexandria).
   Built-in gyms carry a `brand`, and the gym lists show that brand's small logo (`web/public/brands/`, 64 px PNGs from the
   brands' own sites; ClimbFit's reduced to its teal mountain mark so it reads at 32 px on light and dark).
+- 2026-10-04: A highlight colour (Settings), one of the nine 9 Degrees grade colours, for underlines and selection marks
+  only (the current screen, the chosen gym's strip, the chosen option's bar, an accent in each Settings icon); structural
+  rules stay ink. Black (the ink) is the default. The header loses its rule: the current screen is underlined instead.
+  Dates are chosen as a day ("Today (4th)", "Tomorrow (5th)", … about a week) and a 24-hour time in five-minute steps,
+  never the browser's locale-dependent picker, and times on another day name it. The map stops re-fitting itself once
+  you've moved or zoomed it. "Earlier trips" works from Leave now too.
+- 2026-10-04: A started trip shows the option's full description (as under the option list) with a rail down the left in
+  each leg's colours (dotted for walking, stops as on the map) and you on it as the blue dot, placed by how far through
+  the current step the clock is. It replaces the horizontal progress strip; the summary and switch alerts stay above it.
+  Walks are timed from small "Time my walk" links on each walk and change in it (before a trip, changes keep "Set my
+  time"). The trip's map shows the same description under it, scrolling on its own, so both fit on one screen.
+- 2026-10-04: Walk times only come from recordings made on a trip. "Set my time" (typing a change time) and the minutes typed
+  per stop in the home/gym editor are gone: a recording has a route, which is what matters (shortcuts the street map doesn't
+  know); for ordinary walks the street routing is right. Ticked stops take the street map's estimate.
+- 2026-10-04: Greenfield: no support for data from earlier versions of the app. The settings migrations (old per-stop
+  timings, hand-set change times) and other fallbacks for older data and servers are removed; stored data that doesn't
+  match the current shape is simply dropped by validation.
+- 2026-10-04: Which stop a timed walk belongs to depends on the mode. A train, metro or light-rail platform is keyed by its
+  station (any platform counts: they're inside, a minute apart); a bus or coach stop is keyed by itself, including stands that
+  belong to a station (the stand across the road is a different walk). The server applies a station-keyed walk or change
+  time to the station's rail platforms only. A walk still counts both ways for the same stop.
