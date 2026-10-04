@@ -318,6 +318,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
         <h2>
           <IconPhone /> This device
         </h2>
+        <p class="muted small">Removes this device's access, homes, gyms and timed walks. Backups and other devices keep theirs.</p>
         <button
           class="danger"
           onClick={() => {

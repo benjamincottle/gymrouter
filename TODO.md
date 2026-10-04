@@ -1,5 +1,19 @@
 # TODO: field-test feedback (2026-10-04)
 
+## Round 6
+
+- [x] **"Gym Router" underline** like the Settings one (it curled up at the ends: the button's rounded corners).
+- [x] **Gap above the date/time chooser** the same as the gap below it.
+- [x] **Settings: space above "Reset this device"** consistent with the other sections.
+- [x] **No rule above Arrive** in a started trip's description.
+- [x] **The map opens zoomed to the trip**, filling most of the screen.
+- [x] **The "services appear a few stops away" note** can be dismissed, and goes by itself after 5 seconds.
+- [x] **A start for the trip's rail:** a house (or the gym's hold) at the top, where you are before you leave.
+- [ ] **Gyms ordered by use:** as added at first, then the most used at the top.
+- [ ] **Settings: edit and delete icons** instead of the Edit / Remove links.
+- [ ] **Settings: light / dark / system** appearance.
+- [ ] **Measure my walking speed:** a short timed walk from Settings works it out.
+
 ## Round 5
 
 - [x] **Walk times only come from recordings made on a trip.** No "Set my time" on changes in the option list, and no

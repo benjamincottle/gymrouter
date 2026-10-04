@@ -40,11 +40,15 @@ export type Row =
   | { kind: 'leg'; leg: Leg; i: number; start: number; end: number }
   | { kind: 'change'; t: Transfer; from?: StopRef; to?: StopRef; modes: [string?, string?]; start: number; end: number }
   | { kind: 'arrive'; start: number; end: number }
+  | { kind: 'start'; start: number; end: number } // where you set off from (during a trip)
 
-/** The steps of an option, each with the stretch of time it covers (for placing you on the rail). */
-export function rows(o: Option): Row[] {
+/**
+ * The steps of an option, each with the stretch of time it covers (for placing you on the rail). `withStart` adds the
+ * place you set off from as the first step, so before you leave you're shown there.
+ */
+export function rows(o: Option, withStart = false): Row[] {
   const into = new Map<number, Transfer>(o.transfers.map((t) => [t.to_leg, t]))
-  const out: Row[] = []
+  const out: Row[] = withStart ? [{ kind: 'start', start: ms(o.leave_at), end: ms(o.leave_at) }] : []
   for (const [i, leg] of o.legs.entries()) {
     const t = into.get(i)
     const prev = t ? o.legs[t.from_leg] : undefined
