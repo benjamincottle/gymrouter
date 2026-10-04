@@ -1,7 +1,8 @@
 # The gyms the app knows about. Public data only: where each gym is, and the lines that serve the gym end.
 # The app adds the lines near each person's home (suggested from the timetable) on their own device.
 #
-# Addresses: 9degrees.com.au/locations. To add a gym, append a [[gym]] block (rebuild to ship it).
+# Addresses: 9degrees.com.au/locations and climbfit.com.au. To add a gym, append a [[gym]] block (rebuild to ship it).
+# `brand` picks the small logo shown next to the gym (web/public/brands/<brand>.png); leave it out for none.
 #
 # Optional measured walks from the gym door to a stop. Planners guess these badly (through the factory,
 # round the shortcut), so curated ones are where this app can beat them. If a gym has none, every stop
@@ -15,6 +16,7 @@
 [[gym]]
 id = "lanecove"
 name = "9 Degrees Lane Cove"
+brand = "9degrees"
 address = "1a/21 Mars Rd, Lane Cove West"
 lat = -33.807948
 lon = 151.150629
@@ -23,6 +25,7 @@ lines = ["train T1", "train T9", "metro M1", "bus 288", "bus 291", "bus 292", "b
 [[gym]]
 id = "chatswood"
 name = "9 Degrees Chatswood"
+brand = "9degrees"
 address = "7/372 Eastern Valley Way, Chatswood"
 lat = -33.7856633
 lon = 151.2003558
@@ -31,6 +34,7 @@ lines = ["train T1", "train T9", "metro M1", "bus 160X", "bus 283", "bus 281", "
 [[gym]]
 id = "rydalmere"
 name = "9 Degrees Parramatta"
+brand = "9degrees"
 address = "Unit 11, 38-46 South St, Rydalmere"
 lat = -33.816213
 lon = 151.039465
@@ -44,6 +48,7 @@ lines = ["train T9", "bus 52", "bus 521", "bus 523", "bus 524", "bus 525", "ligh
 [[gym]]
 id = "waterloo"
 name = "9 Degrees Waterloo"
+brand = "9degrees"
 address = "21 Danks St, Waterloo"
 lat = -33.897869
 lon = 151.211832
@@ -52,7 +57,30 @@ lines = ["train T1", "train T2", "train T4", "train T9", "metro M1", "light-rail
 [[gym]]
 id = "alexandria"
 name = "9 Degrees Alexandria"
+brand = "9degrees"
 address = "3/85 O'Riordan St, Alexandria"
 lat = -33.918443
 lon = 151.192464
 lines = ["train T1", "train T2", "train T4", "train T8", "train T9", "metro M1", "bus 309", "bus 310", "bus 343", "bus 358"]
+
+# ClimbFit Macquarie and St Leonards: addresses from climbfit.com.au, coordinates from OpenStreetMap. Lines found the same
+# way as Waterloo and Alexandria (six starting points, the app's line search), keeping the lines near the gym and the trunk
+# lines that kept showing up. A starting point: refine with timed walks.
+
+[[gym]]
+id = "climbfit-macquarie"
+name = "ClimbFit Macquarie"
+brand = "climbfit"
+address = "3 Waterloo Rd, Macquarie Park"
+lat = -33.788121
+lon = 151.133286
+lines = ["metro M1", "train T1", "train T8", "train T9", "bus 288", "bus 291", "bus 292", "bus 293", "bus 410", "bus 533", "bus 545"]
+
+[[gym]]
+id = "climbfit-stleonards"
+name = "ClimbFit St Leonards"
+brand = "climbfit"
+address = "4/12 Frederick St, St Leonards"
+lat = -33.818797
+lon = 151.189610
+lines = ["train T1", "train T8", "train T9", "metro M1", "bus 114", "bus 120", "bus 144", "bus 252", "bus 291", "bus 612X"]

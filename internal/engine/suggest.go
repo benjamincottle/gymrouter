@@ -64,13 +64,15 @@ func frugalGC() func() {
 	return func() { debug.SetGCPercent(prev) }
 }
 
-// MaxSuggestTargets bounds how many destinations one Suggest call searches.
-const MaxSuggestTargets = 6
+// MaxSuggestTargets bounds how many destinations one Suggest call searches (enough for every gym a device can hold).
+const MaxSuggestTargets = 12
 
 // Suggest searches the whole network from one place to each of the targets and reports, for each, which lines
 // appear in the best options. It loads the full timetable for each window's day once for all targets, for the
 // duration of the call, and runs one at a time (ErrBusy if another is running), so the server's memory stays bounded.
-func (e *Engine) Suggest(ctx context.Context, from SuggestPlace, targets []SuggestPlace, radiusM float64) ([]*SuggestResult, error) {
+// progress, if not nil, is told how many of the steps (reading a day's timetable, searching one target on it) are done.
+func (e *Engine) Suggest(ctx context.Context, from SuggestPlace, targets []SuggestPlace, radiusM float64,
+	progress func(done, of int)) ([]*SuggestResult, error) {
 	if len(targets) == 0 || len(targets) > MaxSuggestTargets {
 		return nil, fmt.Errorf("%w: need 1 to %d destinations", ErrNoStops, MaxSuggestTargets)
 	}
@@ -86,6 +88,14 @@ func (e *Engine) Suggest(ctx context.Context, from SuggestPlace, targets []Sugge
 		debug.FreeOSMemory()
 	}()
 
+	if progress == nil {
+		progress = func(int, int) {}
+	}
+	steps, done := len(suggestWindows)*(1+len(targets)), 0
+	step := func() {
+		done++
+		progress(done, steps)
+	}
 	opts := e.routingOptions()
 	today := e.LocalDate(e.now())
 	results := make([]*SuggestResult, len(targets))
@@ -104,7 +114,7 @@ func (e *Engine) Suggest(ctx context.Context, from SuggestPlace, targets []Sugge
 				break
 			}
 		}
-		runs, err := e.suggestWindow(date, w.label, w.start, w.end, from, targets, radiusM, opts)
+		runs, err := e.suggestWindow(ctx, date, w.label, w.start, w.end, from, targets, radiusM, opts, step)
 		if err != nil {
 			return nil, err
 		}
@@ -127,13 +137,17 @@ func (e *Engine) Suggest(ctx context.Context, from SuggestPlace, targets []Sugge
 
 // suggestWindow searches one window on one day's whole network, once per target. It returns nothing if the
 // feed has no trips that day.
-func (e *Engine) suggestWindow(date time.Time, label string, start, end int32, from SuggestPlace, targets []SuggestPlace,
-	radiusM float64, opts raptor.Options) ([]suggest.WindowResult, error) {
+func (e *Engine) suggestWindow(ctx context.Context, date time.Time, label string, start, end int32, from SuggestPlace,
+	targets []SuggestPlace, radiusM float64, opts raptor.Options, step func()) ([]suggest.WindowResult, error) {
 	day, err := timetable.LoadAll(date, e.paths)
 	if err != nil {
 		return nil, err
 	}
+	step()
 	if len(day.Trips) == 0 {
+		for range targets {
+			step()
+		}
 		return nil, nil
 	}
 	net := raptor.Build(day, opts)
@@ -143,12 +157,16 @@ func (e *Engine) suggestWindow(date time.Time, label string, start, end int32, f
 	}
 	out := make([]suggest.WindowResult, 0, len(targets))
 	for i, to := range targets {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		egress, err := suggestAccess(net, to, radiusM, opts)
 		if err != nil {
 			return nil, fmt.Errorf("destination %d: %w", i+1, err)
 		}
 		out = append(out, suggest.Run(net, access, egress, suggest.Window{Label: label, Start: start, End: end, Step: suggestStep},
 			suggest.DefaultParams()))
+		step()
 	}
 	return out, nil
 }

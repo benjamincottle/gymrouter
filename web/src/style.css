@@ -214,6 +214,21 @@ label.inline {
   margin-bottom: 20px;
 }
 
+.home-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  font-weight: inherit;
+  text-align: left;
+}
+
+.home-link img {
+  flex: none;
+  border-radius: 7px; /* the icon's own corner, kept crisp at this size */
+}
+
 .topbar nav {
   display: flex;
 }
@@ -304,7 +319,7 @@ label.inline {
 /* each gym is a route on the wall: a strip of tape, then its name */
 .gym {
   display: grid;
-  grid-template-columns: 8px 1fr;
+  grid-template-columns: 8px 32px 1fr;
   column-gap: 12px;
   align-items: center;
   text-align: left;
@@ -325,6 +340,18 @@ label.inline {
 
 .gym.selected::before {
   background: var(--ink);
+}
+
+.gym .brand {
+  grid-row: span 2;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.gym-name,
+.gym-address {
+  grid-column: 3;
 }
 
 .gym-name {
@@ -412,12 +439,20 @@ label.inline {
   margin: 8px 0 0;
 }
 
-.axis {
+.shift {
   display: flex;
   justify-content: space-between;
-  padding: 0 calc(3.4rem + 10px + 14px) 4px calc(3.4rem + 10px);
-  font-size: 0.75rem;
+  margin-bottom: 4px;
+}
+
+.shift button.link {
+  padding: 6px 0;
+  font-size: 0.9rem;
   color: var(--pencil);
+}
+
+.shift button.link:disabled {
+  visibility: hidden;
 }
 
 .strips {
@@ -433,7 +468,7 @@ label.inline {
 
 .strip-row {
   display: grid;
-  grid-template-columns: 3.4rem 1fr 3.4rem 12px;
+  grid-template-columns: 3.4rem 1fr 3.4rem 12px 2.6rem;
   align-items: center;
   column-gap: 10px;
   width: 100%;
@@ -458,6 +493,14 @@ label.inline {
 }
 
 .strip-arrive {
+  text-align: right;
+}
+
+.strip-dur {
+  font-stretch: var(--narrow);
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--pencil);
   text-align: right;
 }
 
@@ -573,6 +616,12 @@ label.inline {
 .step.arrive {
   border-top: 3px solid var(--ink);
   font-weight: 700;
+}
+
+.step .change-icon {
+  display: block;
+  margin-top: 1px;
+  color: var(--pencil);
 }
 
 .step.change {
@@ -734,11 +783,38 @@ label.inline {
   font-size: 1.6rem;
 }
 
+/* the option on the map can be started right there: the button sits where the thumb is, next to what it commits to */
+.sheet-summary.with-start {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  column-gap: 14px;
+}
+
+.sheet-summary.with-start > div {
+  min-width: 0;
+}
+
+.sheet-summary .start {
+  min-width: 6.5rem;
+  padding: 0 18px;
+  font-stretch: var(--semi);
+  font-weight: 750;
+  font-size: 1.15rem;
+  line-height: 1.1;
+}
+
 /* ---- settings ---- */
 
 .card {
   padding-top: 14px;
   border-top: 3px solid var(--ink);
+}
+
+/* the header's rule already sits above the first section */
+main > .stack > .card:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .list {
@@ -766,6 +842,13 @@ label.check {
   align-items: flex-start;
   margin: 0;
   font-weight: 500;
+}
+
+label.check .brand {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
 }
 
 label.check input {
@@ -820,15 +903,28 @@ label.walk input {
   height: auto;
 }
 
-.setup {
-  padding-top: 56px;
+/* the page for a browser without access: exactly what a browser shows for a plain-text 404 */
+html.not-found {
+  color-scheme: light dark;
 }
 
-.setup h1 {
-  font-stretch: var(--narrow);
-  font-size: 3rem;
-  line-height: 1;
-  margin-bottom: 16px;
+html.not-found,
+html.not-found body {
+  background: Canvas;
+  background-image: none;
+  color: CanvasText;
+}
+
+html.not-found body {
+  margin: 8px;
+  font: 13px monospace;
+  line-height: normal;
+  font-variant-numeric: normal;
+}
+
+html.not-found pre {
+  margin: 1em 0;
+  font: inherit;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -979,4 +1075,41 @@ details > summary {
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+/* timing a walk during a trip */
+.time-walk {
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+}
+
+.time-walk > button {
+  width: 100%;
+  text-align: left;
+}
+
+.time-walk .sub {
+  font-weight: 500;
+}
+
+.intrip .timer {
+  margin-bottom: 16px;
+}
+
+fieldset.choice {
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+fieldset.choice legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+fieldset.choice label.check {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0;
 }

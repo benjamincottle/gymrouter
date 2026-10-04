@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { assess, instruction, phaseAt, replanOrigin, spareToBoard, tripsFrom } from './intrip.ts'
+import { assess, instruction, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom } from './intrip.ts'
 import type { Leg, Option } from './types.ts'
 
 const stop = (id: string, lat: number, lon: number, station?: string) => ({ id, name: station ? `${station}, Platform 1` : id, station, lat, lon })
@@ -50,11 +50,24 @@ test('spare time to reach the stop uses distance and walking speed', () => {
 
 test('re-plan origin depends on the phase', () => {
   const home = { lat: -33.70, lon: 151.08 }
-  assert.deepEqual(replanOrigin(planned, { kind: 'riding', ride: 1 }, null, home), { on_trip: { trip_id: 't9', from_stop: 'A' } })
-  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 1 }, null, home), home)
-  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 3 }, null, home), { lat: C.lat, lon: C.lon, access: [{ stop: 'C', walk_s: 0 }] })
-  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 3 }, { lat: -33.8, lon: 151.1, accuracy: 10 }, home), { lat: -33.8, lon: 151.1 })
-  assert.equal(replanOrigin(planned, { kind: 'arrived' }, null, home), null)
+  const now = ms('13:40')
+  const here = { lat: -33.8, lon: 151.1, accuracy: 10 }
+  assert.deepEqual(replanOrigin(planned, { kind: 'riding', ride: 1 }, null, home, now), { on_trip: { trip_id: 't9', from_stop: 'A' } })
+  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 1 }, null, home, now), home)
+  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 1 }, here, home, now), { lat: -33.8, lon: 151.1 })
+  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 3 }, null, home, now), { lat: C.lat, lon: C.lon, access: [{ stop: 'C', walk_s: 0 }] })
+  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 3 }, here, home, now), { lat: -33.8, lon: 151.1 })
+  assert.equal(replanOrigin(planned, { kind: 'arrived' }, null, home, now), null)
+})
+
+test('a trip started well before it leaves is re-planned from its own start and time', () => {
+  const home = { lat: -33.70, lon: 151.08 }
+  const early = ms('11:00')
+  const elsewhere = { lat: -33.9, lon: 151.2, accuracy: 10 }
+  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 1 }, elsewhere, home, early), home)
+  assert.equal(replanTime(planned, { kind: 'before', ride: 1 }, early), new Date(ms('13:30')).toISOString())
+  assert.equal(replanTime(planned, { kind: 'before', ride: 1 }, ms('13:32')), undefined)
+  assert.equal(replanTime(planned, { kind: 'riding', ride: 1 }, early), undefined)
 })
 
 test('assessment: on track, running late, better option, missed connection', () => {
@@ -85,4 +98,5 @@ test('instructions', () => {
   assert.equal(instruction(planned, { kind: 'before', ride: 1 }).now, 'Get to Central Station for the T9')
   assert.equal(instruction(planned, { kind: 'riding', ride: 1 }).now, 'On the T9: get off at Epping Station')
   assert.equal(instruction(planned, { kind: 'arrived' }).now, "You've arrived")
+  assert.equal(instruction(planned, { kind: 'final-walk' }, '9 Degrees Parramatta').now, 'Walk to 9 Degrees Parramatta')
 })

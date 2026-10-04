@@ -2,11 +2,12 @@
 // shared time axis, so when each leaves and arrives can be compared at a glance.
 import { useEffect, useState } from 'preact/hooks'
 import type { ComponentType } from 'preact'
-import { clock, countdown, delay, duration, placeName, riskLabel } from '../format.ts'
+import { clock, countdown, delay, duration, placeName, riskLabel, shortDuration } from '../format.ts'
 import { useNow } from '../hooks.ts'
-import type { TransferTime, WalkTraces } from '../settings.ts'
-import type { Leg, Option } from '../types.ts'
+import type { TimedWalk } from '../walks.ts'
+import type { Leg, Option, StopRef } from '../types.ts'
 import { Timeline } from './option.tsx'
+import { changesAndStops, reselect, tripKey } from '../options.ts'
 import type { MapViewProps } from '../map/mapview.tsx'
 
 const hex = (c?: string) => (c && /^[0-9a-fA-F]{6}$/.test(c) ? `#${c}` : undefined)
@@ -17,14 +18,35 @@ interface Props {
   live: boolean
   serviceDate: string
   token: string
-  lines: string[]
-  traces?: WalkTraces // walks you've timed and traced, drawn instead of the street-map route
+  walks: TimedWalk[] // walks you've timed; their traced routes are drawn instead of the street-map ones
+  places: { start?: string; end?: string } // the home or gym at each end (placeKey)
   origin: [number, number]
   destination: [number, number]
   title: string
-  transfers: TransferTime[]
-  onSetTransfer: (t: TransferTime) => void
+  destinationName: string // the gym or home the trip ends at
+  onSetChange: (a: StopRef, b: StopRef, secs: number) => void
   onStart?: (o: Option) => void
+  onShift: Shift
+}
+
+/** Moves the window of options: -1 earlier, +1 later. `canEarlier` is false when the window already starts now. */
+export interface Shift {
+  (dir: -1 | 1): void
+  canEarlier: boolean
+}
+
+/** "Earlier trips" and "Later trips", above the list of options (or in place of it when nothing leaves). */
+export function WindowShift({ shift }: { shift: Shift }) {
+  return (
+    <div class="shift">
+      <button class="link" disabled={!shift.canEarlier} onClick={() => shift(-1)}>
+        Earlier trips
+      </button>
+      <button class="link" onClick={() => shift(1)}>
+        Later trips
+      </button>
+    </div>
+  )
 }
 
 export function Board(p: Props) {
@@ -32,11 +54,11 @@ export function Board(p: Props) {
   const [mapOpen, setMapOpen] = useState(false)
   const now = useNow(1000)
   const opts = p.options
-  // Keep the selection on the same trip when the list refreshes.
-  const [selKey, setSelKey] = useState('')
+  // Keep the selection on the same option when the list refreshes (live times move, so match on the
+  // vehicles taken; failing that, the option leaving closest to the one chosen).
+  const [selKey, setSelKey] = useState<{ trips: string; leave: number } | null>(null)
   useEffect(() => {
-    const i = opts.findIndex((o) => key(o) === selKey)
-    setSelected(i >= 0 ? i : 0)
+    setSelected(selKey ? reselect(opts, selKey.trips, selKey.leave) : 0)
   }, [opts])
 
   if (opts.length === 0) return null
@@ -45,16 +67,13 @@ export function Board(p: Props) {
   const end = Math.max(...opts.map((o) => ms(o.arrive)))
   const choose = (i: number) => {
     setSelected(i)
-    setSelKey(key(opts[i]))
+    setSelKey({ trips: tripKey(opts[i]), leave: ms(opts[i].leave_at) })
   }
 
   return (
     <div class="board">
       <Hero option={sel} live={p.live} now={now} />
-      <div class="axis" aria-hidden="true">
-        <span>{clock(new Date(start).toISOString())}</span>
-        <span>{clock(new Date(end).toISOString())}</span>
-      </div>
+      <WindowShift shift={p.onShift} />
       <ol class="strips" aria-label="Options">
         {opts.map((o, i) => (
           <li>
@@ -65,6 +84,9 @@ export function Board(p: Props) {
               <span class={`risk-mark risk-${o.risk}`} title={`${riskLabel(o.risk)} connections`}>
                 <span class="sr-only">{riskLabel(o.risk)}</span>
               </span>
+              <span class="strip-dur" title="Door to door">
+                {shortDuration(o.duration_s)}
+              </span>
             </button>
             {o.alternative && i === selected && <p class="alt-note">A different route, a little slower than the best.</p>}
           </li>
@@ -73,7 +95,7 @@ export function Board(p: Props) {
       <div class="details">
         <div class="details-head">
           <p>
-            <strong>{duration(sel.duration_s)}</strong> door to door, {sel.rides === 1 ? 'no changes' : `${sel.rides - 1} change${sel.rides > 2 ? 's' : ''}`}
+            <strong>{duration(sel.duration_s)}</strong> door to door, {changesAndStops(sel)}
           </p>
           <span class="actions">
             {p.onStart && (
@@ -86,17 +108,13 @@ export function Board(p: Props) {
             </button>
           </span>
         </div>
-        <Timeline option={sel} transfers={p.transfers} onSetTransfer={p.onSetTransfer} />
+        <Timeline option={sel} destination={p.destinationName} walks={p.walks} onSetChange={p.onSetChange} />
       </div>
       {mapOpen && (
-        <MapSheet {...p} option={sel} now={now} onClose={() => setMapOpen(false)} />
+        <MapSheet {...p} option={sel} now={now} onClose={() => setMapOpen(false)} onStart={p.onStart && (() => p.onStart!(sel))} />
       )}
     </div>
   )
-}
-
-function key(o: Option): string {
-  return o.legs.map((l) => l.trip_id ?? '').join('|') + o.leave_at
 }
 
 function firstRide(o: Option): Leg | undefined {
@@ -152,9 +170,15 @@ export function Strip({ option: o, start, end, now }: { option: Option; start: n
   )
 }
 
-type MapSheetProps = Omit<Props, 'onStart'> & { option: Option; now: number; onClose: () => void }
+type MapSheetProps = Omit<Props, 'onStart' | 'onSetChange' | 'options' | 'onShift' | 'destinationName'> & {
+  option: Option
+  now: number
+  onClose: () => void
+  onStart?: () => void // offered on the map so a trip can start without closing it
+  me?: MapViewProps['me']
+}
 
-export function MapSheet({ option, now, onClose, token, lines, traces, serviceDate, origin, destination, title, live }: MapSheetProps) {
+export function MapSheet({ option, now, onClose, onStart, token, walks, places, serviceDate, origin, destination, title, live, me }: MapSheetProps) {
   const [View, setView] = useState<ComponentType<MapViewProps> | null>(null)
   const [failed, setFailed] = useState(false)
   useEffect(() => {
@@ -178,16 +202,23 @@ export function MapSheet({ option, now, onClose, token, lines, traces, serviceDa
       {failed ? (
         <p class="map-note">Couldn't load the map. Check your connection and try again.</p>
       ) : View ? (
-        <View token={token} lines={lines} traces={traces} option={option} serviceDate={serviceDate} origin={origin} destination={destination} />
+        <View token={token} me={me} walks={walks} places={places} option={option} serviceDate={serviceDate} origin={origin} destination={destination} />
       ) : (
         <p class="map-note subtle">Loading map…</p>
       )}
-      <footer class="sheet-summary">
-        <p>
-          <span class="sheet-leave">{live ? `Leave ${countdown(option.leave_at, now)}` : `Leave ${clock(option.leave_at)}`}</span>
-          <span>arrive {clock(option.arrive)}</span>
-        </p>
-        <Strip option={option} start={start} end={end} />
+      <footer class={onStart ? 'sheet-summary with-start' : 'sheet-summary'}>
+        <div>
+          <p>
+            <span class="sheet-leave">{live ? `Leave ${countdown(option.leave_at, now)}` : `Leave ${clock(option.leave_at)}`}</span>
+            <span>arrive {clock(option.arrive)}</span>
+          </p>
+          <Strip option={option} start={start} end={end} />
+        </div>
+        {onStart && (
+          <button class="primary start" onClick={onStart}>
+            Start trip
+          </button>
+        )}
       </footer>
     </div>
   )

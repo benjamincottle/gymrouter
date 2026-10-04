@@ -1,14 +1,20 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { useNow } from '../hooks.ts'
 import { addFix, finish, meanSecs, mmss, MIN_WALK_S, walkedM, type Recording, type Walk } from '../walkmeasure.ts'
+import type { Retime } from '../walks.ts'
+
+interface Point {
+  name: string
+  lat: number
+  lon: number
+}
 
 interface Props {
-  placeName: string // where the walk starts, e.g. the gym
-  place: { lat: number; lon: number }
-  stopName: string
-  stop: { lat: number; lon: number }
-  earlier: number[] // walks already measured for this stop, seconds
-  estimateS: number // what the street map says, for comparison
+  from: Point // where the walk starts (a home, a gym or a stop)
+  to: Point
+  earlier: number[] // walks already timed for this walk, seconds
+  estimateS: number // what the trip assumed, for comparison
+  retime: Retime // what saving does when there are earlier walks; the other choice is offered too
   onSave: (w: Walk, replace: boolean) => void
   onCancel: () => void
 }
@@ -17,10 +23,10 @@ type Phase = 'ready' | 'recording' | 'review'
 type Gps = 'idle' | 'waiting' | 'on' | 'denied'
 
 /**
- * Times a walk from a place to one of its stops and traces it with GPS. Everything stays on this device; the
- * trace is only drawn on the map and the time is used as the walk.
+ * Times a walk and traces it with GPS. Everything stays on this device; the trace is only drawn on the map and the
+ * time is used for the walk from then on.
  */
-export function WalkTimer({ placeName, place, stopName, stop, earlier, estimateS, onSave, onCancel }: Props) {
+export function WalkTimer({ from, to, earlier, estimateS, retime, onSave, onCancel }: Props) {
   const [phase, setPhase] = useState<Phase>('ready')
   const [gps, setGps] = useState<Gps>('idle')
   const [accuracy, setAccuracy] = useState<number | null>(null)
@@ -74,7 +80,7 @@ export function WalkTimer({ placeName, place, stopName, stop, earlier, estimateS
   const arrive = () => {
     const end = Date.now()
     stopWatching()
-    setWalk(finish(rec.current, end, place, stop))
+    setWalk(finish(rec.current, end, from, to))
     setPhase('review')
   }
 
@@ -93,14 +99,14 @@ export function WalkTimer({ placeName, place, stopName, stop, earlier, estimateS
     <section class="card timer" aria-live="polite">
       <h2>Time the walk</h2>
       <p class="muted small">
-        {placeName} to {stopName}
+        {from.name} to {to.name}
       </p>
 
       {phase === 'ready' && (
         <>
           <p>
-            Stand at the door of {placeName}, tap <strong>Start</strong>, walk to {stopName} the way you normally would, and tap{' '}
-            <strong>I'm here</strong> when you reach the stop.
+            Tap <strong>Start</strong> as you set off from {from.name}, walk to {to.name} the way you normally would, and tap{' '}
+            <strong>I'm here</strong> when you get there.
           </p>
           <p class="muted small">
             It uses your location to trace the route, so the map can show your shortcut. Nothing leaves this device. Keep the
@@ -108,8 +114,7 @@ export function WalkTimer({ placeName, place, stopName, stop, earlier, estimateS
           </p>
           {earlier.length > 0 && (
             <p class="muted small">
-              {earlier.length} earlier {earlier.length === 1 ? 'walk' : 'walks'}, averaging {mmss(meanSecs(earlier))}. Another walk
-              is averaged in.
+              Timed before: {earlier.length === 1 ? mmss(earlier[0]) : `${earlier.length} walks, averaging ${mmss(meanSecs(earlier))}`}.
             </p>
           )}
           <div class="actions">
@@ -145,34 +150,38 @@ export function WalkTimer({ placeName, place, stopName, stop, earlier, estimateS
           <p class="timer-clock">{mmss(walk.secs)}</p>
           <p class="small">
             {walk.distanceM > 0 ? `${walk.distanceM} m walked. ` : ''}
-            {estimateS > 0 && `The street map says ${mmss(estimateS)}.`}
+            {estimateS > 0 && `The trip assumed ${mmss(estimateS)}.`}
           </p>
           {walk.secs < MIN_WALK_S && <p class="error">That was very short. Cancel and try again if it was a mistaken tap.</p>}
           {(walk.startedNearM ?? 0) > 120 && (
             <p class="notice warn">
-              Your location was {walk.startedNearM} m from {placeName} when you started. If you weren't at the door, the route
-              will be off.
+              Your location was {walk.startedNearM} m from {from.name} when you started. If you weren't there, the route will be
+              off.
             </p>
           )}
           {(walk.endedNearM ?? 0) > 80 && (
             <p class="notice warn">
-              You finished {walk.endedNearM} m from {stopName}. Was that the stop you meant?
+              You finished {walk.endedNearM} m from {to.name}. Was that where you meant?
             </p>
           )}
           {walk.trace.length < 2 && gps !== 'idle' && <p class="muted small">No usable route was recorded; only the time will be saved.</p>}
           {earlier.length > 0 && (
             <p class="muted small">
-              Averaged with {earlier.length} earlier {earlier.length === 1 ? 'walk' : 'walks'}: {mmss(meanSecs([...earlier, walk.secs]))}.
+              Averaged with {earlier.length === 1 ? 'the earlier walk' : `the ${earlier.length} earlier walks`}:{' '}
+              {mmss(meanSecs([...earlier, walk.secs].slice(-5)))}. Replacing them: {mmss(walk.secs)}.
             </p>
           )}
           <div class="actions">
-            <button class="primary" disabled={walk.secs < MIN_WALK_S} onClick={() => onSave(walk, false)}>
-              {earlier.length > 0 ? 'Save and average' : 'Save'}
-            </button>
-            {earlier.length > 0 && (
-              <button disabled={walk.secs < MIN_WALK_S} onClick={() => onSave(walk, true)}>
-                Replace earlier walks
+            {earlier.length === 0 ? (
+              <button class="primary" disabled={walk.secs < MIN_WALK_S} onClick={() => onSave(walk, true)}>
+                Save
               </button>
+            ) : (
+              (retime === 'replace' ? [true, false] : [false, true]).map((replace, i) => (
+                <button class={i === 0 ? 'primary' : ''} disabled={walk.secs < MIN_WALK_S} onClick={() => onSave(walk, replace)}>
+                  {replace ? 'Replace earlier' : 'Save and average'}
+                </button>
+              ))
             )}
             <button onClick={reset}>Try again</button>
             <button onClick={onCancel}>Discard</button>

@@ -254,12 +254,16 @@ func TestCatalogListsEveryLineAtAStop(t *testing.T) {
 
 func TestSuggestFindsTheLinesBetweenTwoPlaces(t *testing.T) {
 	env := enginetest.NewWith(t, noPresets, nil)
+	var steps [][2]int
 	results, err := env.Engine.Suggest(ctx,
 		engine.SuggestPlace{Pos: geo.Point{Lat: -33.7727, Lon: 151.0821}},         // Epping
 		[]engine.SuggestPlace{{Pos: geo.Point{Lat: -33.807948, Lon: 151.150629}}}, // Lane Cove
-		1200)
+		1200, func(done, of int) { steps = append(steps, [2]int{done, of}) })
 	if err != nil || len(results) != 1 {
 		t.Fatal(err, results)
+	}
+	if len(steps) != 4 || steps[3] != [2]int{4, 4} { // two days, each read then searched
+		t.Errorf("progress: %v", steps)
 	}
 	res := results[0]
 	if len(res.Windows) == 0 || len(res.Lines) == 0 || len(res.Itineraries) == 0 {
@@ -285,7 +289,7 @@ type suggestLine struct {
 func TestSuggestRunsOneAtATimeAndNeedsStops(t *testing.T) {
 	env := enginetest.NewWith(t, noPresets, nil)
 	_, err := env.Engine.Suggest(ctx, engine.SuggestPlace{Pos: geo.Point{Lat: -20, Lon: 130}},
-		[]engine.SuggestPlace{{Pos: geo.Point{Lat: -33.8, Lon: 151.15}}}, 1200)
+		[]engine.SuggestPlace{{Pos: geo.Point{Lat: -33.8, Lon: 151.15}}}, 1200, nil)
 	if !errors.Is(err, engine.ErrNoStops) {
 		t.Errorf("want ErrNoStops, got %v", err)
 	}

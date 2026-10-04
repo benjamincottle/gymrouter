@@ -45,16 +45,23 @@ export function spareToBoard(ride: Leg, pos: Position | null, nowMs: number, wal
   return Math.round((t(ride.dep) - nowMs) / 1000 - walkS)
 }
 
-/** Where to re-plan from: the vehicle you're on, your position, or the next stop. */
-export function replanOrigin(o: Option, phase: Phase, pos: Position | null, original: PlaceRequest): PlaceRequest | null {
+/** How long before leaving your position counts as where the trip starts (before that you may be elsewhere). */
+export const SETTING_OFF_S = 300
+
+/**
+ * Where to re-plan from: the vehicle you're on, your position, or the next stop. Before setting off, the trip's
+ * own start: a trip planned for later may be started from somewhere else.
+ */
+export function replanOrigin(o: Option, phase: Phase, pos: Position | null, original: PlaceRequest, nowMs: number): PlaceRequest | null {
   switch (phase.kind) {
     case 'riding': {
       const l = o.legs[phase.ride]
       return l.trip_id && l.from ? { on_trip: { trip_id: l.trip_id, from_stop: l.from.id } } : null
     }
     case 'before': {
-      if (pos && pos.accuracy <= 150) return { lat: pos.lat, lon: pos.lon }
       const first = o.legs.findIndex((l) => l.kind === 'ride')
+      const setOff = nowMs >= t(o.leave_at) - SETTING_OFF_S * 1000
+      if (pos && pos.accuracy <= 150 && (setOff || phase.ride !== first)) return { lat: pos.lat, lon: pos.lon }
       if (phase.ride === first) return original // still at the start: plan as originally
       const s = o.legs[phase.ride].from
       return s ? { lat: s.lat, lon: s.lon, access: [{ stop: s.id, walk_s: 0 }] } : null
@@ -62,6 +69,16 @@ export function replanOrigin(o: Option, phase: Phase, pos: Position | null, orig
     default:
       return null // nothing left to plan
   }
+}
+
+/**
+ * The time to re-plan from: now, or (for a trip planned for later) a little before it leaves, so the planned
+ * departure is inside the search window rather than reported as missed.
+ */
+export function replanTime(o: Option, phase: Phase, nowMs: number): string | undefined {
+  if (phase.kind !== 'before') return undefined
+  const from = t(o.leave_at) - SETTING_OFF_S * 1000
+  return from > nowMs ? new Date(from).toISOString() : undefined
 }
 
 /** The trips still ahead of you in an option, from leg index `from` on. */
@@ -95,8 +112,8 @@ export function assess(committed: string[], fresh: Option[], plannedArrive: stri
   return { status: 'on-track', current: same, lateBy }
 }
 
-/** Short instruction for the current phase. */
-export function instruction(o: Option, phase: Phase): { now: string; detail?: Leg } {
+/** Short instruction for the current phase. `destination` names where the trip ends. */
+export function instruction(o: Option, phase: Phase, destination = 'your destination'): { now: string; detail?: Leg } {
   switch (phase.kind) {
     case 'before': {
       const l = o.legs[phase.ride]
@@ -107,7 +124,7 @@ export function instruction(o: Option, phase: Phase): { now: string; detail?: Le
       return { now: `On the ${l.line?.name ?? ''}: get off at ${l.to?.station || l.to?.name || 'your stop'}`, detail: l }
     }
     case 'final-walk':
-      return { now: 'Walk to your destination' }
+      return { now: `Walk to ${destination}` }
     case 'arrived':
       return { now: "You've arrived" }
   }

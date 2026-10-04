@@ -1,7 +1,5 @@
-// Measuring a walk: time it, trace it with GPS, and fold the result into a stop's walking time.
+// Measuring a walk: time it and trace it with GPS (saving it is walks.ts).
 // Pure logic; the screen that drives it is views/walktimer.tsx.
-
-import type { AccessStop } from './settings.ts'
 
 export type LonLat = [number, number]
 
@@ -132,14 +130,6 @@ export function finish(rec: Recording, endedAt: number, from?: { lat: number; lo
 /** The walking time a set of measurements stands for: the mean of the most recent ones. */
 export function meanSecs(times: number[]): number {
   return Math.round(times.reduce((a, b) => a + b, 0) / times.length)
-}
-
-/** Folds a measurement into a stop. `replace` forgets the earlier walks instead of averaging with them. */
-export function withWalk(a: AccessStop, w: Walk, replace: boolean): AccessStop {
-  const times = (replace ? [w.secs] : [...(a.times ?? []), w.secs]).slice(-MAX_SAMPLES)
-  const out: AccessStop = { ...a, times, walk_s: meanSecs(times) }
-  if (w.trace.length >= 2) out.trace = w.trace
-  return out
 }
 
 export function mmss(secs: number): string {

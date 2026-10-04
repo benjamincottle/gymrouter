@@ -47,12 +47,13 @@ func (a *Auth) Valid(r *http.Request) bool {
 	return subtle.ConstantTimeCompare(d[:], a.digest[:]) == 1
 }
 
-// Require wraps h so that requests without a valid token get 401.
+// Require wraps h so that requests without a valid token get Go's plain "404 page not found", the same as any path
+// that doesn't exist (and as Traefik's own): to anyone without a setup link there is nothing here. The app tells it
+// apart from its own 404s, which are JSON.
 func (a *Auth) Require(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !a.Valid(r) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="gymrouter"`)
-			writeError(w, http.StatusUnauthorized, "missing or invalid access token")
+			http.NotFound(w, r)
 			return
 		}
 		h.ServeHTTP(w, r)

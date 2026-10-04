@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  applyFragment, emptySettings, gymFromKnown, isLine, withSuggested, load, parseFragment, placeRequest, prefs, sanitize, save, setTransfer, settingsLink,
+  applyFragment, emptySettings, gymFromKnown, isLine, withSuggested, load, parseFragment, placeRequest, planPlace, prefs, sanitize, save, settingsLink,
   type Settings,
 } from './settings.ts'
 import { countdown, delay, duration, fromLocalInput, platform, toLocalInput } from './format.ts'
@@ -21,7 +21,10 @@ const sample: Settings = {
   activeHome: 'h1',
   walkSpeedMps: 1.4,
   risk: { safe_s: 120, tight_s: 30 },
-  transfers: [{ from: '2121', to: '2121', secs: 150, label: 'Epping' }],
+  walks: [
+    { kind: 'change', from: ['2121'], to: ['2121'], label: 'Change at Epping', times: [150] },
+    { kind: 'access', place: 'home:h1', stop: ['2077'], label: 'Home – Some Station', times: [500, 520], trace: [[151.1, -33.8], [151.11, -33.81]] },
+  ],
 }
 
 test('sanitize keeps valid data and drops malformed entries', () => {
@@ -31,7 +34,7 @@ test('sanitize keeps valid data and drops malformed entries', () => {
     homes: [...sample.homes, { id: 'x', name: 'Bad', lat: 999, lon: 0 }, 'nope'],
     walkSpeedMps: 99,
     risk: { safe_s: 10, tight_s: 60 },
-    transfers: [{ from: 'a', to: 'b', secs: -5, label: 'x' }],
+    walks: [{ kind: 'change', from: ['a'], to: ['b'], label: 'x', times: [-5] }, { kind: 'nope' }, 'x'],
     extra: '<script>',
   }
   const s = sanitize(dirty)
@@ -39,7 +42,7 @@ test('sanitize keeps valid data and drops malformed entries', () => {
   assert.equal(s.homes.length, 1)
   assert.equal(s.walkSpeedMps, undefined)
   assert.equal(s.risk, undefined)
-  assert.deepEqual(s.transfers, [])
+  assert.deepEqual(s.walks, [])
   assert.equal('extra' in s, false)
   assert.deepEqual(sanitize(null), emptySettings())
   assert.deepEqual(sanitize(sample), sample)
@@ -142,11 +145,35 @@ test('requests carry curated access and preferences', () => {
   assert.deepEqual(placeRequest(sample.homes[0]), { lat: -33.8, lon: 151.1, access: [{ stop: '2077', walk_s: 600 }] })
   assert.deepEqual(placeRequest({ ...sample.homes[0], access: [] }), { lat: -33.8, lon: 151.1 })
   assert.deepEqual(prefs(sample), {
-    walk_speed_mps: 1.4, risk: { safe_s: 120, tight_s: 30 }, transfers: [{ from: '2121', to: '2121', secs: 150 }],
+    walk_speed_mps: 1.4, risk: { safe_s: 120, tight_s: 30 },
+    transfers: [{ from: '2121', to: '2121', secs: 150 }],
   })
-  const s = setTransfer(sample, { from: '2121', to: '2121', secs: 90, label: 'Epping' })
-  assert.equal(s.transfers.length, 1)
-  assert.equal(s.transfers[0].secs, 90)
+  // A home's timed walks go with it; suggestions (placeRequest) never carry them.
+  assert.deepEqual(planPlace('home', sample.homes[0], sample.walks).walks, [{ stop: '2077', walk_s: 510 }])
+  assert.equal(planPlace('gym', { ...sample.gyms[0], ref: 'lane-cove' }, sample.walks).walks, undefined)
+})
+
+test('walks timed with older versions move to the walk list', () => {
+  const trace = [[151.15, -33.8], [151.151, -33.801]]
+  const old = {
+    version: 1, token: TOKEN,
+    homes: [{ id: 'h1', name: 'Home', lat: -33.8, lon: 151.1, access: [
+      { stop: 'p1', name: 'Epping Station', walk_s: 600, times: [590, 610], trace },
+      { stop: 'p2', name: 'Epping Station', walk_s: 600, times: [590, 610], trace },
+      { stop: 'b1', name: 'Bus stop', walk_s: 120 },
+    ] }],
+    gyms: [{ ...sample.gyms[0], ref: 'lane-cove', access: [{ stop: 's', name: 'Mars Rd', walk_s: 300, times: [300, 'x', -1] }] }],
+    transfers: [{ from: '2121', to: '2122', secs: 150, label: 'Epping' }],
+  }
+  const s = sanitize(old)
+  assert.deepEqual(s.homes[0].access[0], { stop: 'p1', name: 'Epping Station', walk_s: 600 }, 'the stop keeps only its typed time')
+  assert.deepEqual(s.walks, [
+    { kind: 'access', place: 'home:h1', stop: ['p1', 'p2'], label: 'Home – Epping Station', times: [590, 610], trace },
+    { kind: 'access', place: 'gym:lane-cove', stop: ['s'], label: '9 Degrees Lane Cove – Mars Rd', times: [300] },
+    { kind: 'change', from: ['2121'], to: ['2122'], label: 'Epping', times: [150] },
+  ])
+  assert.deepEqual(sanitize(s), s, 'migrating twice changes nothing')
+  assert.deepEqual(sanitize({ ...old, walks: s.walks }).walks, s.walks, 'already-migrated walks are not duplicated')
 })
 
 test('formatting', () => {

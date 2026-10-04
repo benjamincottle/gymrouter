@@ -4,6 +4,7 @@
 export interface KnownGym {
   id: string
   name: string
+  brand?: string // whose logo to show: /brands/<brand>.png
   address?: string
   lat: number
   lon: number
@@ -51,6 +52,7 @@ export interface Leg {
   status?: 'scheduled' | 'predicted' | 'added'
   delay_s?: number
   sched_dep?: string
+  stops?: number // ride legs: stops travelled, counting the one you get off at
   path?: [number, number][] // a walk along the streets, [lon, lat]
 }
 
@@ -101,6 +103,7 @@ export interface PlaceRequest {
   lat?: number
   lon?: number
   access?: { stop: string; walk_s: number }[]
+  walks?: { stop: string; walk_s: number }[] // timed walks (stop or station IDs); beat everything else
   on_trip?: { trip_id: string; from_stop: string }
 }
 

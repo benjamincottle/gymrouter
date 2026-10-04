@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -100,13 +101,15 @@ func (h *harness) do(t *testing.T, method, path, auth string, body any) *httptes
 
 func TestAuth(t *testing.T) {
 	h := newHarness(t)
-	if rec := h.do(t, "GET", "/api/defaults", "", nil); rec.Code != 401 {
-		t.Errorf("no token: %d", rec.Code)
+	// Without the token there's nothing here: the same plain 404 as Go's (and Traefik's) for a missing page.
+	if rec := h.do(t, "GET", "/api/defaults", "", nil); rec.Code != 404 || rec.Body.String() != "404 page not found\n" ||
+		!strings.HasPrefix(rec.Header().Get("Content-Type"), "text/plain") || rec.Header().Get("WWW-Authenticate") != "" {
+		t.Errorf("no token: %d %q %q", rec.Code, rec.Body, rec.Header())
 	}
-	if rec := h.do(t, "GET", "/api/defaults", token+"x", nil); rec.Code != 401 {
+	if rec := h.do(t, "GET", "/api/defaults", token+"x", nil); rec.Code != 404 {
 		t.Errorf("wrong token: %d", rec.Code)
 	}
-	if rec := h.do(t, "GET", "/api/nonexistent", "", nil); rec.Code != 401 {
+	if rec := h.do(t, "GET", "/api/nonexistent", "", nil); rec.Code != 404 {
 		t.Errorf("unknown API paths must also need the token: %d", rec.Code)
 	}
 	rec := h.do(t, "GET", "/api/defaults", token, nil)
@@ -337,6 +340,14 @@ func TestVehiclesAndActivity(t *testing.T) {
 	if rec.Code != 200 || len(v.Vehicles) == 0 || v.Vehicles[0].Lat > -33 {
 		t.Fatalf("vehicles: %d %s", rec.Code, rec.Body)
 	}
+	// Only the vehicles running your rides, near the part you ride.
+	if rec := h.do(t, "GET", "/api/vehicles?lines="+laneCoveQuery+"&rides=nope", token, nil); rec.Code != 400 {
+		t.Errorf("malformed rides: %d", rec.Code)
+	}
+	rec = h.do(t, "GET", "/api/vehicles?lines="+laneCoveQuery+"&rides="+url.QueryEscape("no-such-trip|a|b"), token, nil)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"vehicles":[]`) {
+		t.Errorf("rides filter: %d %s", rec.Code, rec.Body)
+	}
 	// Unauthenticated requests must not keep polling alive.
 	h.env.Clock.Advance(11 * 60e9)
 	h.do(t, "GET", "/api/defaults", "", nil)
@@ -402,10 +413,10 @@ func TestServesFrontendAlongsideAPI(t *testing.T) {
 	if rec.Code != 200 || !strings.Contains(rec.Header().Get("Cache-Control"), "immutable") {
 		t.Errorf("asset: %d %q", rec.Code, rec.Header().Get("Cache-Control"))
 	}
-	if rec := h.do(t, "POST", "/", "", "{}"); rec.Code != 405 {
+	if rec := h.do(t, "POST", "/", "", "{}"); rec.Code != 404 || rec.Body.String() != "404 page not found\n" {
 		t.Errorf("POST /: %d", rec.Code)
 	}
-	if rec := h.do(t, "GET", "/api/defaults", "", nil); rec.Code != 401 {
+	if rec := h.do(t, "GET", "/api/defaults", "", nil); rec.Code != 404 {
 		t.Errorf("API still needs the token next to the frontend: %d", rec.Code)
 	}
 	if rec := h.do(t, "GET", "/api/defaults", token, nil); rec.Code != 200 {
@@ -413,7 +424,7 @@ func TestServesFrontendAlongsideAPI(t *testing.T) {
 	}
 }
 
-func TestLegShapeLineShapesAndMap(t *testing.T) {
+func TestLegShapeAndMap(t *testing.T) {
 	h := newHarness(t)
 	rec := h.do(t, "POST", "/api/plan", token, eppingToLaneCove)
 	var p struct {
@@ -422,6 +433,7 @@ func TestLegShapeLineShapesAndMap(t *testing.T) {
 			Legs []struct {
 				Kind   string
 				TripID string `json:"trip_id"`
+				Stops  int
 				From   struct{ ID string }
 				To     struct{ ID string }
 			}
@@ -429,32 +441,33 @@ func TestLegShapeLineShapesAndMap(t *testing.T) {
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &p)
 	var q string
+	var travelled int
 	for _, l := range p.Options[0].Legs {
 		if l.Kind == "ride" {
 			q = "/api/shape?date=" + p.ServiceDate + "&trip=" + l.TripID + "&from=" + l.From.ID + "&to=" + l.To.ID
+			travelled = l.Stops
 			break
 		}
 	}
+	if travelled < 1 {
+		t.Errorf("a ride should count the stops travelled: %d", travelled)
+	}
 	shape := func() int {
 		rec := h.do(t, "GET", q, token, nil)
-		var s struct{ Coordinates [][2]float64 }
+		var s struct{ Coordinates, Stops [][2]float64 }
 		_ = json.Unmarshal(rec.Body.Bytes(), &s)
 		if rec.Code != 200 || len(s.Coordinates) < 2 || s.Coordinates[0][0] < 150 {
 			t.Fatalf("shape %s: %d %s", q, rec.Code, rec.Body)
 		}
+		if len(s.Stops) != travelled-1 { // the stops passed, not where you get on or off
+			t.Errorf("shape stops: %d, want %d", len(s.Stops), travelled-1)
+		}
 		return len(s.Coordinates)
 	}
 	before := shape() // straight lines between stops until shapes load
-	if rec := h.do(t, "GET", "/api/shapes?lines="+laneCoveQuery, token, nil); !strings.Contains(rec.Body.String(), `"features":[]`) {
-		t.Errorf("line shapes before loading: %s", rec.Body)
-	}
 	h.env.Engine.LoadShapes()
 	if after := shape(); after <= before {
 		t.Errorf("route shape should have more detail than stops: %d vs %d points", after, before)
-	}
-	rec = h.do(t, "GET", "/api/shapes?lines="+laneCoveQuery, token, nil)
-	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"line":"metro M1"`) || !strings.Contains(rec.Body.String(), "MultiLineString") {
-		t.Errorf("line shapes: %d %.300s", rec.Code, rec.Body)
 	}
 	if rec := h.do(t, "GET", "/api/shape?date=2026-10-08&trip=nope&from=a&to=b", token, nil); rec.Code != 404 {
 		t.Errorf("unknown trip: %d", rec.Code)
@@ -477,7 +490,7 @@ func TestLegShapeLineShapesAndMap(t *testing.T) {
 	if rr.Code != 206 || rr.Body.String() != "PMTiles" || !strings.Contains(rr.Header().Get("Cache-Control"), "private") {
 		t.Errorf("range request: %d %q %q", rr.Code, rr.Body, rr.Header().Get("Cache-Control"))
 	}
-	if rec := h.do(t, "GET", "/api/map.pmtiles", "", nil); rec.Code != 401 {
+	if rec := h.do(t, "GET", "/api/map.pmtiles", "", nil); rec.Code != 404 {
 		t.Errorf("map without token: %d", rec.Code)
 	}
 }
@@ -602,7 +615,6 @@ func TestSuggestLines(t *testing.T) {
 		"from": map[string]any{"lat": -33.7727, "lon": 151.0821},
 		"to":   []any{laneCove, chatswood},
 	}
-	rec := h.do(t, "POST", "/api/suggest-lines", token, body)
 	type result struct {
 		Windows []struct {
 			Label      string
@@ -619,10 +631,14 @@ func TestSuggestLines(t *testing.T) {
 			Seen  int
 		}
 	}
-	var r struct{ Results []result }
-	_ = json.Unmarshal(rec.Body.Bytes(), &r)
-	if rec.Code != 200 || len(r.Results) != 2 {
-		t.Fatalf("suggest: %d %.400s", rec.Code, rec.Body)
+	var r struct {
+		State    string
+		Done, Of int
+		Results  []result
+	}
+	_ = json.Unmarshal(runSuggest(t, h, body), &r)
+	if r.State != "done" || len(r.Results) != 2 || r.Done != r.Of || r.Of != 6 {
+		t.Fatalf("suggest: %+v", r)
 	}
 	for i, res := range r.Results {
 		if len(res.Windows) == 0 || len(res.Lines) == 0 || len(res.Itineraries) == 0 {
@@ -649,13 +665,16 @@ func TestSuggestLines(t *testing.T) {
 
 	// Bad input is rejected.
 	nowhere := map[string]any{"from": map[string]any{"lat": -20, "lon": 130}, "to": []any{laneCove}}
-	if rec := h.do(t, "POST", "/api/suggest-lines", token, nowhere); rec.Code != 400 {
-		t.Errorf("no stops nearby: %d %s", rec.Code, rec.Body)
+	if got := string(runSuggest(t, h, nowhere)); !strings.Contains(got, `"state":"failed"`) || !strings.Contains(got, "no stops") {
+		t.Errorf("no stops nearby: %s", got)
+	}
+	if rec := h.do(t, "GET", "/api/suggest-lines/nope", token, nil); rec.Code != 404 {
+		t.Errorf("unknown job: %d", rec.Code)
 	}
 	for name, b := range map[string]map[string]any{
 		"no destination":  {"from": laneCove},
 		"empty list":      {"from": laneCove, "to": []any{}},
-		"too many":        {"from": laneCove, "to": []any{laneCove, laneCove, laneCove, laneCove, laneCove, laneCove, laneCove}},
+		"too many":        {"from": laneCove, "to": slices.Repeat([]any{laneCove}, 13)},
 		"not a list":      {"from": laneCove, "to": laneCove},
 		"huge radius":     {"from": laneCove, "to": []any{laneCove}, "radius_m": 99999},
 		"destination bad": {"from": laneCove, "to": []any{map[string]any{"lat": 200, "lon": 1}}},
@@ -664,9 +683,30 @@ func TestSuggestLines(t *testing.T) {
 			t.Errorf("%s: %d", name, rec.Code)
 		}
 	}
-	if rec := h.do(t, "POST", "/api/suggest-lines", "", body); rec.Code != 401 {
+	if rec := h.do(t, "POST", "/api/suggest-lines", "", body); rec.Code != 404 {
 		t.Errorf("suggest without a token: %d", rec.Code)
 	}
+}
+
+// runSuggest starts a line search and polls it until it finishes, returning the final status body.
+func runSuggest(t *testing.T, h *harness, body any) []byte {
+	t.Helper()
+	rec := h.do(t, "POST", "/api/suggest-lines", token, body)
+	var started struct{ Job string }
+	if _ = json.Unmarshal(rec.Body.Bytes(), &started); rec.Code != http.StatusAccepted || started.Job == "" {
+		t.Fatalf("starting a search: %d %s", rec.Code, rec.Body)
+	}
+	for deadline := time.Now().Add(2 * time.Minute); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		rec = h.do(t, "GET", "/api/suggest-lines/"+started.Job, token, nil)
+		if rec.Code != 200 {
+			t.Fatalf("job status: %d %s", rec.Code, rec.Body)
+		}
+		if !strings.Contains(rec.Body.String(), `"state":"running"`) {
+			return rec.Body.Bytes()
+		}
+	}
+	t.Fatal("the search didn't finish")
+	return nil
 }
 
 func TestStopsNearWorksBeforeAnyLinesAreChosen(t *testing.T) {

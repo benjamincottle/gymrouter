@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
 import { clock, countdown, delay, duration, placeName, riskLabel } from '../format.ts'
 import { useNow, useVisible } from '../hooks.ts'
-import { assess, instruction, phaseAt, replanOrigin, spareToBoard, tripsFrom, type Assessment, type Position } from '../intrip.ts'
-import type { WalkTraces } from '../settings.ts'
+import { assess, instruction, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, type Assessment, type Position } from '../intrip.ts'
 import type { Option, PlanRequest } from '../types.ts'
+import { mmss, type Walk } from '../walkmeasure.ts'
+import { existing, segments, walkSecs, type PlaceRef, type Retime, type Segment, type TimedWalk } from '../walks.ts'
 import { MapSheet, Strip } from './board.tsx'
+import { WalkTimer } from './walktimer.tsx'
 
 /** Everything needed to resume a trip after a reload; kept on this device only. */
 export interface ActiveTrip {
@@ -15,7 +17,7 @@ export interface ActiveTrip {
   plannedArrive: string
   request: PlanRequest // the original request (from/to/prefs)
   lines: string[] // the gym's lines: what the map draws
-  traces?: WalkTraces // measured walks to draw on the map
+  ends?: { start: PlaceRef; end: PlaceRef } // the home or gym at each end, for timing walks to and from them
   title: string
   origin: [number, number]
   destination: [number, number]
@@ -27,21 +29,27 @@ export const TRIP_KEY = 'gymrouter.trip'
 
 const REPLAN_MS = 30_000
 
-export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
+export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd, onAuthError }: {
   trip: ActiveTrip
   token: string
+  walks: TimedWalk[]
+  retime: Retime
   onUpdate: (t: ActiveTrip) => void
+  onSaveWalk: (s: Segment, w: Walk, replace: boolean) => void
   onEnd: () => void
   onAuthError: () => void
 }) {
   const now = useNow(1000)
   const visible = useVisible()
   const [pos, setPos] = useState<Position | null>(null)
-  const [locState, setLocState] = useState<'off' | 'on' | 'denied'>('off')
+  // Location is on for the whole trip (it's what makes the map and "time to spare" useful); it stays on this device.
+  const [locState, setLocState] = useState<'on' | 'denied'>(() => (navigator.geolocation ? 'on' : 'denied'))
   const [check, setCheck] = useState<Assessment | null>(null)
   const [checkedAt, setCheckedAt] = useState(0)
   const [error, setError] = useState('')
   const [mapOpen, setMapOpen] = useState(false)
+  const [timing, setTiming] = useState<Segment | null>(null)
+  const [saved, setSaved] = useState('')
   const o = trip.option
   const phase = phaseAt(o, now)
   const posRef = useRef(pos)
@@ -67,7 +75,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
     if (locState !== 'on' || !navigator.geolocation) return
     const id = navigator.geolocation.watchPosition(
       (p) => setPos({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy }),
-      () => setLocState('denied'),
+      (e) => e.code === e.PERMISSION_DENIED && setLocState('denied'),
       { enableHighAccuracy: true, maximumAge: 10_000, timeout: 30_000 },
     )
     return () => navigator.geolocation.clearWatch(id)
@@ -77,11 +85,13 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   useEffect(() => {
     let live = true
     const run = async () => {
-      const ph = phaseAt(trip.option, Date.now())
-      const from = replanOrigin(trip.option, ph, posRef.current, trip.request.from)
+      const nowMs = Date.now()
+      const ph = phaseAt(trip.option, nowMs)
+      const from = replanOrigin(trip.option, ph, posRef.current, trip.request.from, nowMs)
       if (!from || (ph.kind !== 'before' && ph.kind !== 'riding')) return
+      const time = from.on_trip ? undefined : replanTime(trip.option, ph, nowMs)
       try {
-        const res = await api.plan(token, { from, to: trip.request.to, lines: trip.request.lines, window_min: 45, prefs: trip.request.prefs })
+        const res = await api.plan(token, { from, to: trip.request.to, lines: trip.request.lines, time, window_min: 45, prefs: trip.request.prefs })
         if (!live) return
         const a = assess(tripsFrom(trip.option, ph.ride), res.options, trip.plannedArrive)
         setCheck(a)
@@ -112,7 +122,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
     setCheck(null)
   }
 
-  const ins = instruction(o, phase)
+  const ins = instruction(o, phase, trip.ends?.end.name)
   const lateBy = check && check.status !== 'missed' ? check.lateBy : 0
   const nextRide = phase.kind === 'before' ? o.legs[phase.ride] : undefined
   const spare = nextRide ? spareToBoard(nextRide, pos, now, trip.walkSpeedMps) : null
@@ -178,6 +188,11 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
       <section class="now">
         <p class="label">Now</p>
         <p class="now-main">{ins.now}</p>
+        {now < start - 60_000 && (
+          <p>
+            Leave at <strong>{clock(o.leave_at)}</strong> ({countdown(o.leave_at, now)})
+          </p>
+        )}
         {ins.detail && phase.kind === 'before' && (
           <p>
             {ins.detail.line?.name} leaves {clock(ins.detail.dep)} ({countdown(ins.detail.dep, now).replace(/^in /, 'in ')})
@@ -208,6 +223,29 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
         </section>
       )}
 
+      {timing ? (
+        <WalkTimer
+          from={timing.from}
+          to={timing.to}
+          earlier={existing(walks, timing)?.times ?? []}
+          estimateS={timing.estimateS}
+          retime={retime}
+          onSave={(w, replace) => {
+            onSaveWalk(timing, w, replace)
+            setSaved(`Saved: ${timing.label}. It's used from now on.`)
+            setTiming(null)
+          }}
+          onCancel={() => setTiming(null)}
+        />
+      ) : (
+        <TimeAWalk segs={segments(o, trip.ends?.start, trip.ends?.end)} current={currentLeg(o, phase)} walks={walks} onTime={setTiming} />
+      )}
+      {saved && !timing && (
+        <p class="notice" role="status">
+          {saved}
+        </p>
+      )}
+
       <div class="progress">
         <Strip option={o} start={start} end={end} now={now} />
       </div>
@@ -216,9 +254,9 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
         <button class="ghost" onClick={() => setMapOpen(true)}>
           Show on map
         </button>
-        {locState === 'off' && (
+        {locState === 'denied' && navigator.geolocation && (
           <button class="ghost" onClick={() => setLocState('on')}>
-            Use my location
+            Try my location again
           </button>
         )}
       </div>
@@ -231,23 +269,80 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
 
       {mapOpen && (
         <MapSheet
-          options={[o]}
           live
           serviceDate={trip.serviceDate}
           token={token}
-          lines={trip.lines}
-          traces={trip.traces}
+          me={pos}
+          walks={walks}
+          places={{ start: trip.ends?.start.key, end: trip.ends?.end.key }}
           origin={trip.origin}
           destination={trip.destination}
           title={trip.title}
-          transfers={[]}
-          onSetTransfer={() => undefined}
           option={o}
           now={now}
           onClose={() => setMapOpen(false)}
         />
       )}
     </div>
+  )
+}
+
+/** The walk leg (or for a change, the ride changed onto) that the trip is at: what "time this walk" offers first. */
+function currentLeg(o: Option, phase: ReturnType<typeof phaseAt>): number {
+  switch (phase.kind) {
+    case 'before': {
+      const first = o.legs.findIndex((l) => l.kind === 'ride')
+      return phase.ride === first ? 0 : phase.ride
+    }
+    case 'final-walk':
+    case 'arrived':
+      return o.legs.length - 1
+    default:
+      return -1
+  }
+}
+
+/** Offers to time the walk you're on (or about to start), and any other walk of the trip. */
+function TimeAWalk({ segs, current, walks, onTime }: {
+  segs: Segment[]
+  current: number
+  walks: TimedWalk[]
+  onTime: (s: Segment) => void
+}) {
+  if (segs.length === 0) return null
+  const now = segs.find((s) => s.leg === current)
+  const others = segs.filter((s) => s !== now)
+  const timed = (s: Segment) => {
+    const w = existing(walks, s)
+    return w ? ` (timed ${mmss(walkSecs(w))})` : ''
+  }
+  return (
+    <section class="time-walk">
+      {now && (
+        <button class="primary" onClick={() => onTime(now)}>
+          Time this walk: {now.label}
+          <span class="sub">{timed(now)}</span>
+        </button>
+      )}
+      {others.length > 0 && (
+        <details>
+          <summary>{now ? 'Time another walk in this trip' : 'Time a walk in this trip'}</summary>
+          <ul class="list">
+            {others.map((s) => (
+              <li>
+                <span>
+                  {s.label}
+                  <span class="muted small">{timed(s)}</span>
+                </span>
+                <button class="link" onClick={() => onTime(s)}>
+                  Time it
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
   )
 }
 

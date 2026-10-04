@@ -20,6 +20,12 @@ export function duration(secs: number): string {
   return r === 0 ? `${h} h` : `${h} h ${r} min`
 }
 
+/** Compact, for narrow columns: "45m", "1h05". */
+export function shortDuration(secs: number): string {
+  const m = Math.round(secs / 60)
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`
+}
+
 /** Countdown to leaving: "now", "in 6 min", "in 1 h 5 min", "left 2 min ago". */
 export function countdown(leaveIso: string, nowMs: number): string {
   const secs = Math.round((new Date(leaveIso).getTime() - nowMs) / 1000)

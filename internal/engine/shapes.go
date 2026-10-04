@@ -3,7 +3,6 @@ package engine
 import (
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/benjamincottle/gymrouter/internal/geo"
@@ -53,9 +52,9 @@ func (e *Engine) LoadShapes() {
 	e.log.Info("shapes loaded", "shapes", len(all), "took", e.now().Sub(start).Round(time.Millisecond).String())
 }
 
-// LegGeometry returns the path of a trip between two of its stops: along the route shape when
-// known, otherwise straight lines between its stops.
-func (e *Engine) LegGeometry(s *Snapshot, tripID, fromStop, toStop string) ([]geo.Point, bool) {
+// LegGeometry returns the path of a trip between two of its stops (along the route shape when known,
+// otherwise straight lines between its stops) and the positions of the stops it calls at in between.
+func (e *Engine) LegGeometry(s *Snapshot, tripID, fromStop, toStop string) (path, stops []geo.Point, ok bool) {
 	d := s.Day
 	var trip *gtfs.Trip
 	for _, ti := range d.TripIndex[tripID] {
@@ -65,20 +64,14 @@ func (e *Engine) LegGeometry(s *Snapshot, tripID, fromStop, toStop string) ([]ge
 		}
 	}
 	if trip == nil {
-		return nil, false
+		return nil, nil, false
 	}
-	fi, ti := -1, -1
-	for i, st := range trip.StopTimes {
-		id := d.Stops[st.Stop].ID
-		if fi < 0 && id == fromStop {
-			fi = i
-		} else if fi >= 0 && id == toStop {
-			ti = i
-			break
-		}
+	fi, ti := callRange(d, trip, fromStop, toStop)
+	if fi < 0 {
+		return nil, nil, false
 	}
-	if fi < 0 || ti < 0 {
-		return nil, false
+	for _, st := range trip.StopTimes[fi+1 : ti] {
+		stops = append(stops, d.Stops[st.Stop].Pos)
 	}
 	from, to := d.Stops[trip.StopTimes[fi].Stop].Pos, d.Stops[trip.StopTimes[ti].Stop].Pos
 	if shapes := e.shapes.Load(); shapes != nil {
@@ -87,75 +80,30 @@ func (e *Engine) LegGeometry(s *Snapshot, tripID, fromStop, toStop string) ([]ge
 			b := geo.Nearest(pts, to, a)
 			if b > a {
 				out := append([]geo.Point{from}, pts[a:b+1]...)
-				return append(out, to), true
+				return append(out, to), stops, true
 			}
 		}
 	}
-	out := make([]geo.Point, 0, ti-fi+1)
+	path = make([]geo.Point, 0, ti-fi+1)
 	for _, st := range trip.StopTimes[fi : ti+1] {
-		out = append(out, d.Stops[st.Stop].Pos)
+		path = append(path, d.Stops[st.Stop].Pos)
 	}
-	return out, true
+	return path, stops, true
 }
 
-// LineShape is the geometry of one line for drawing the gym's network.
-type LineShape struct {
-	Line   lines.Key
-	Color  string
-	Coords [][]geo.Point
-}
-
-// LineShapes returns, for each line in set, its most common shapes today (up to 2 per direction),
-// simplified further for overview drawing.
-func (e *Engine) LineShapes(set lines.Set) []LineShape {
-	s := e.today.Load()
-	shapes := e.shapes.Load()
-	if s == nil || shapes == nil {
-		return nil
-	}
-	d := s.Static.Day
-	type key struct {
-		line  lines.Key
-		shape string
-	}
-	count := map[key]int{}
-	color := map[lines.Key]string{}
-	for _, t := range d.Trips {
-		r := d.Routes[t.Route]
-		k := lines.Of(r.Type, r.ShortName)
-		if !set[k] || t.Shape == "" {
-			continue
-		}
-		count[key{k, t.Shape}]++
-		color[k] = r.Color
-	}
-	byLine := map[lines.Key][]key{}
-	for k := range count {
-		byLine[k.line] = append(byLine[k.line], k)
-	}
-	var out []LineShape
-	for line, ks := range byLine {
-		sort.Slice(ks, func(a, b int) bool {
-			if count[ks[a]] != count[ks[b]] {
-				return count[ks[a]] > count[ks[b]]
-			}
-			return ks[a].shape < ks[b].shape
-		})
-		ls := LineShape{Line: line, Color: color[line]}
-		for _, k := range ks {
-			if len(ls.Coords) >= 4 {
-				break
-			}
-			if pts, ok := (*shapes)[k.shape]; ok {
-				ls.Coords = append(ls.Coords, geo.Simplify(pts, 15))
-			}
-		}
-		if len(ls.Coords) > 0 {
-			out = append(out, ls)
+// callRange finds where a ride boards and gets off: the call indexes of fromStop and of the first toStop after it,
+// or -1, -1 if the trip doesn't make that journey.
+func callRange(d *gtfs.Day, trip *gtfs.Trip, fromStop, toStop string) (int, int) {
+	fi := -1
+	for i, st := range trip.StopTimes {
+		id := d.Stops[st.Stop].ID
+		if fi < 0 && id == fromStop {
+			fi = i
+		} else if fi >= 0 && id == toStop {
+			return fi, i
 		}
 	}
-	sort.Slice(out, func(a, b int) bool { return out[a].Line.String() < out[b].Line.String() })
-	return out
+	return -1, -1
 }
 
 // MapFile returns the path of the self-hosted basemap (PMTiles), if present.

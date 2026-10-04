@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"sort"
 	"time"
 
 	"github.com/benjamincottle/gymrouter/internal/engine"
@@ -19,6 +18,7 @@ import (
 // Request limits.
 const (
 	maxAccess    = 20
+	maxWalks     = 40
 	maxTransfers = 100
 	maxWalkS     = 3600
 	maxRadiusM   = 2000
@@ -35,6 +35,9 @@ type placeReq struct {
 	Lat    *float64    `json:"lat,omitempty"`
 	Lon    *float64    `json:"lon,omitempty"`
 	Access []accessReq `json:"access,omitempty"`
+	// Walks are walks the traveller has timed between this place and particular stops (stop or station IDs). They
+	// beat any other time for that stop, and make it usable even if it isn't otherwise one of the place's stops.
+	Walks  []accessReq `json:"walks,omitempty"`
 	OnTrip *onTripReq  `json:"on_trip,omitempty"`
 }
 
@@ -101,6 +104,7 @@ type legResp struct {
 	Status   string     `json:"status,omitempty"` // scheduled | predicted | added
 	DelayS   *int32     `json:"delay_s,omitempty"`
 	SchedDep *time.Time `json:"sched_dep,omitempty"`
+	Stops    int32      `json:"stops,omitempty"` // ride legs: stops travelled, counting the one you get off at
 	// Path is the walk along the streets, [lon, lat] pairs, for the first and last legs when known.
 	Path [][2]float64 `json:"path,omitempty"`
 }
@@ -304,7 +308,7 @@ func boarded(snap *engine.Snapshot, ot *onTripReq, now int32) (*plan.Onboard, er
 
 func checkPlace(p placeReq) error {
 	if p.OnTrip != nil {
-		if p.Lat != nil || p.Lon != nil || len(p.Access) > 0 || p.OnTrip.TripID == "" || p.OnTrip.FromStop == "" ||
+		if p.Lat != nil || p.Lon != nil || len(p.Access) > 0 || len(p.Walks) > 0 || p.OnTrip.TripID == "" || p.OnTrip.FromStop == "" ||
 			len(p.OnTrip.TripID)+len(p.OnTrip.FromStop) > 200 {
 			return badf("on_trip needs trip_id and from_stop, and nothing else")
 		}
@@ -319,9 +323,15 @@ func checkPlace(p placeReq) error {
 	if len(p.Access) > maxAccess {
 		return badf("at most %d access stops", maxAccess)
 	}
-	for _, a := range p.Access {
+	if len(p.Walks) > maxWalks {
+		return badf("at most %d walks", maxWalks)
+	}
+	for _, a := range append(p.Access, p.Walks...) {
 		if a.WalkS < 0 || a.WalkS > maxWalkS {
 			return badf("walk_s must be 0..%d", maxWalkS)
+		}
+		if a.Stop == "" || len(a.Stop) > 64 {
+			return badf("each walk needs a stop")
 		}
 	}
 	return nil
@@ -386,8 +396,55 @@ func validatePrefs(p prefsReq) error {
 }
 
 // access resolves a place to stops with walking times: curated stops if given, otherwise nearby stops
-// reached along the streets (or by a straight-line estimate until the street network exists).
+// reached along the streets (or by a straight-line estimate until the street network exists). Timed walks
+// then override those times and add their stops.
 func (s *Server) access(snap *engine.Snapshot, p placeReq, maxWalk float64, o raptor.Options) ([]raptor.Access, engine.Approach, error) {
+	out, ap, err := s.baseAccess(snap, p, maxWalk, o)
+	if len(p.Walks) == 0 {
+		return out, ap, err
+	}
+	timed := withWalks(snap.Day, out, p.Walks)
+	if len(timed) == 0 {
+		return nil, ap, err
+	}
+	if len(out) == 0 && ap.Access == nil { // only timed stops: draw the street routes anyway
+		ap = s.eng.PathsFrom(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, math.Min(maxWalk*3, 6000))
+	}
+	return timed, ap, nil
+}
+
+// withWalks applies timed walks (by stop or parent station ID) to access stops, adding stops not yet there.
+func withWalks(d *gtfs.Day, access []raptor.Access, walks []accessReq) []raptor.Access {
+	secs := map[string]int32{}
+	for _, w := range walks {
+		secs[w.Stop] = w.WalkS
+	}
+	timed := func(si int32) (int32, bool) {
+		st := d.Stops[si]
+		if v, ok := secs[st.ID]; ok {
+			return v, true
+		}
+		v, ok := secs[st.Parent]
+		return v, ok && st.Parent != ""
+	}
+	out := make([]raptor.Access, 0, len(access)+len(walks))
+	have := map[int32]bool{}
+	for _, a := range access {
+		if v, ok := timed(a.Stop); ok {
+			a.Secs = v
+		}
+		out = append(out, a)
+		have[a.Stop] = true
+	}
+	for si, st := range d.Stops {
+		if v, ok := timed(int32(si)); ok && !have[int32(si)] && st.LocationType != "1" { // board at platforms, not the station
+			out = append(out, raptor.Access{Stop: int32(si), Secs: v})
+		}
+	}
+	return out
+}
+
+func (s *Server) baseAccess(snap *engine.Snapshot, p placeReq, maxWalk float64, o raptor.Options) ([]raptor.Access, engine.Approach, error) {
 	if len(p.Access) > 0 {
 		var out []raptor.Access
 		for _, a := range p.Access {
@@ -470,6 +527,7 @@ func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32, fromAp, toAp
 			lr.Line = &lineResp{Mode: string(k.Mode), Name: k.Name, Color: r.Color, TextColor: r.TextColor}
 			t := &d.Trips[l.Trip]
 			lr.TripID, lr.Headsign = t.ID, t.Headsign
+			lr.Stops = l.AlightIdx - l.BoardIdx
 			switch t.Status {
 			case gtfs.Predicted:
 				lr.Status = "predicted"
@@ -603,79 +661,6 @@ func suggestPlace(p suggestPlaceReq) (engine.SuggestPlace, error) {
 		out.Access = append(out.Access, engine.StopWalk{Stop: a.Stop, WalkS: a.WalkS})
 	}
 	return out, nil
-}
-
-// suggestLines finds candidate lines from one place to each of several. It loads the whole network, so it
-// takes several seconds and only one runs at a time.
-func (s *Server) suggestLines(w http.ResponseWriter, r *http.Request) {
-	var req suggestReq
-	if err := decode(w, r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if len(req.To) == 0 || len(req.To) > engine.MaxSuggestTargets {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("to needs 1 to %d destinations", engine.MaxSuggestTargets))
-		return
-	}
-	from, err := suggestPlace(req.From)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	targets := make([]engine.SuggestPlace, len(req.To))
-	for i, t := range req.To {
-		if targets[i], err = suggestPlace(t); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-	}
-	if req.RadiusM < 0 || req.RadiusM > maxRadiusM {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("radius_m must be 0..%d", maxRadiusM))
-		return
-	}
-	if req.RadiusM == 0 {
-		req.RadiusM = suggestRadiusM
-	}
-	// The default write timeout is short for a search that reads the whole timetable.
-	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(2 * time.Minute))
-	results, err := s.eng.Suggest(r.Context(), from, targets, req.RadiusM)
-	switch {
-	case errors.Is(err, engine.ErrBusy):
-		w.Header().Set("Retry-After", "10")
-		writeError(w, http.StatusTooManyRequests, "already looking up lines; try again in a few seconds")
-		return
-	case errors.Is(err, engine.ErrNoStops):
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	case err != nil:
-		s.log.Error("suggest lines failed", "err", err)
-		writeError(w, http.StatusInternalServerError, "couldn't look up lines")
-		return
-	}
-	out := struct {
-		Results []suggestResultResp `json:"results"`
-	}{Results: make([]suggestResultResp, 0, len(results))}
-	for _, res := range results {
-		one := suggestResultResp{Windows: []suggestWindowResp{}, Lines: []suggestLineResp{}, Itineraries: []suggestItinResp{}}
-		for _, wn := range res.Windows {
-			one.Windows = append(one.Windows, suggestWindowResp{Label: wn.Label, Date: wn.Date.Format("2006-01-02"),
-				Departures: wn.Departures, TypicalS: wn.BestS})
-		}
-		for _, l := range res.Lines {
-			one.Lines = append(one.Lines, suggestLineResp{Line: l.Line.String(), Color: l.Color, Share: math.Round(l.Share*100) / 100,
-				Recommended: l.Recommended})
-		}
-		sort.SliceStable(res.Itineraries, func(a, b int) bool { return res.Itineraries[a].Seen > res.Itineraries[b].Seen })
-		for _, it := range res.Itineraries {
-			if len(one.Itineraries) >= maxSuggestItineraries {
-				break
-			}
-			one.Itineraries = append(one.Itineraries, suggestItinResp{Desc: it.Desc, Lines: it.Lines, MedianS: it.MedianS,
-				BestS: it.BestS, Seen: it.Seen, Of: it.Of, Window: it.Window})
-		}
-		out.Results = append(out.Results, one)
-	}
-	writeJSON(w, http.StatusOK, out)
 }
 
 // suggestRadiusM is how far (straight line) a suggestion search looks for stops at each end.

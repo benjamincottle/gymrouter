@@ -1,6 +1,7 @@
 # API
 
-All `/api/*` endpoints need `Authorization: Bearer <token>`. Request bodies are JSON
+All `/api/*` endpoints need `Authorization: Bearer <token>`. Without it (or with a wrong one) every path answers
+exactly like a page that doesn't exist: `404`, `text/plain`, `404 page not found`. The API's own 404s are JSON. Request bodies are JSON
 (`Content-Type: application/json`, max 64 KB, unknown fields rejected). Times are RFC 3339 in Sydney time.
 Personal data (home coordinates, walk times) is only sent in request bodies and is never logged or stored.
 
@@ -36,8 +37,11 @@ measured walks from the gym door.
 - `lines` (1–60, each `"<mode> <name>"`) is the set to route on, normally the gym's. The server loads timetable
   data for any line it hasn't seen yet, so the first request naming new lines takes a few seconds. There is a cap on
   the total the server will hold (400 Bad Request beyond it).
-- A place is `lat`/`lon`, optionally with curated `access` stops and measured walk times. Without
+- A place is `lat`/`lon`, optionally with curated `access` stops and walk times. Without
   them, stops within `max_walk_m` are used. Either end can be home or gym.
+- A place can also carry `walks` (up to 40, `[{"stop": "<stop or station ID>", "walk_s": 540}]`): walks the traveller
+  has timed between the place and a stop. They beat any other time for that stop (a station ID covers its platforms)
+  and add the stop if it isn't otherwise considered, curated or not. Not allowed with `on_trip`.
 - `time` is the earliest time to leave (default: now). Options leaving within `window_min` are returned.
 - `transfers` override walking/changing time between stops. A station ID covers all its platforms.
 - `"arrive_by": true` treats `time` as the latest arrival: options arriving by then, latest departure first.
@@ -55,7 +59,7 @@ Response:
      {"kind": "walk", "to": {"id": "…", "name": "…", "station": "…", "station_id": "…", "lat": 0, "lon": 0}, "dep": "…", "arr": "…"},
      {"kind": "ride", "from": {…}, "to": {…}, "dep": "…", "arr": "…",
       "line": {"mode": "metro", "name": "M1", "color": "168388", "text_color": "FFFFFF"},
-      "trip_id": "…", "headsign": "…", "status": "predicted", "delay_s": 60, "sched_dep": "…"}
+      "trip_id": "…", "headsign": "…", "status": "predicted", "delay_s": 60, "sched_dep": "…", "stops": 6}
    ],
    "transfers": [{"from_leg": 1, "to_leg": 3, "walk_s": 120, "slack_s": 95, "risk": "tight", "fallback_dep": "…"}]
  }]}
@@ -65,6 +69,7 @@ network), or `estimate` (straight line × a detour factor) while that network is
 walks apply either way. The first and last walk legs of an option carry a `path` (`[[lon, lat], …]`) along the streets
 when it is known. `max_walk_m` limits the straight-line distance to candidate stops; the walk along the streets may be longer.
 
+`stops` on a ride is the number of stops travelled, counting the one you get off at.
 `status` is `scheduled`, `predicted` (live data) or `added` (a realtime-only trip). `risk` is `safe`, `tight`,
 `at-risk` or `missed`. `fallback_dep` is the next service of the onward line from the same stop.
 
@@ -74,35 +79,39 @@ when it is known. `max_walk_m` limits the straight-line distance to candidate st
 before any lines are chosen. Also returns `"walking": "streets"|"estimate"`: with street data, `walk_s` follows the streets
 and stops that can't be reached on foot are left out. 503 (with `Retry-After`) for a few seconds after the server starts, while it reads the timetable.
 
-## `POST /api/suggest-lines`
-`{"from": {"lat", "lon", "access"?}, "to": [{"lat", "lon", "access"?}, …], "radius_m"?: 1200}` (1 to 6 destinations)
-→ for each destination, in order, the lines that appear in the best options from `from` over the whole network,
-searched at 10-minute steps on a typical weekday afternoon and a Sunday morning:
+## `POST /api/suggest-lines`, `GET /api/suggest-lines/{job}`
+`{"from": {"lat", "lon", "access"?}, "to": [{"lat", "lon", "access"?}, …], "radius_m"?: 1200}` (1 to 12 destinations)
+finds, for each destination, the lines that appear in the best options from `from` over the whole network, searched at
+10-minute steps on a typical weekday afternoon and a Sunday morning.
+
+It reads the whole timetable once per day searched (about 15 s, ~300 MB briefly, longer on a small server) however many
+destinations there are, which can outlast a proxy's or phone's patience, so it runs as a job: the POST answers
+`202 {"job": "<id>"}` straight away (400 for bad input; 429 with `Retry-After` while another search runs, since only one
+runs at a time). Poll `GET /api/suggest-lines/{job}` every second or two:
 ```json
-{"results": [{
+{"state": "running", "done": 3, "of": 12}
+{"state": "failed", "done": 1, "of": 12, "error": "no stops within 1200 m"}
+{"state": "done", "done": 12, "of": 12, "results": [{
   "windows": [{"label": "Weekday afternoon", "date": "2026-10-06", "departures": 19, "typical_s": 1490}],
   "lines": [{"line": "metro M1", "color": "168388", "share": 1.0, "recommended": true}],
   "itineraries": [{"desc": "metro M1 → […] → bus 533", "lines": ["metro M1", "bus 533"], "median_s": 1860,
                    "best_s": 1800, "seen": 13, "of": 19, "window": "Weekday afternoon"}]}]}
 ```
+`done`/`of` count steps (reading a day's timetable; searching one destination on it). `results` are in the order asked.
 `share` is the fraction of departure times at which the line appeared in an option; `recommended` means at least 30%.
-It reads the whole timetable once per day searched (about 15 s, ~300 MB briefly) however many destinations there are, so
-only one request runs at a time (429 with `Retry-After` otherwise). 400 if either end has no stops nearby.
-Coordinates are used in memory only.
+Finished jobs are kept for 10 minutes, then 404. Coordinates are used in memory only.
 
-## `GET /api/vehicles?lines=<list>`
+## `GET /api/vehicles?lines=<list>[&rides=<list>]`
 Live vehicles on the given lines, comma-separated (e.g. `lines=bus 288,train T9`; only fresh data):
 `{"vehicles": [{"id", "label", "line": "metro M1", "color", "trip_id", "lat", "lon", "bearing", "status", "ts"}]}`.
-Match `trip_id` against a ride leg's `trip_id` to highlight the vehicle you'd catch.
+With `rides` (up to 8, comma-separated, each `<trip_id>|<from stop_id>|<to stop_id>` from an option's ride legs), only
+the vehicles running those rides, and only while they're within 3 stops of the part ridden: on the way to where you
+get on, carrying you, or just past where you get off.
 
 ## `GET /api/shape?date=YYYY-MM-DD&trip=<trip_id>&from=<stop_id>&to=<stop_id>`
-Path of one ride leg (use a plan's `service_date` and the leg's `trip_id` and stop IDs):
-`{"coordinates": [[lon, lat], …]}`. Follows the route shape once shapes have loaded (a few seconds after
+Path of one ride leg (use a plan's `service_date` and the leg's `trip_id` and stop IDs) and the stops it calls at
+in between: `{"coordinates": [[lon, lat], …], "stops": [[lon, lat], …]}`. Follows the route shape once shapes have loaded (a few seconds after
 startup); until then, straight lines between the trip's stops.
-
-## `GET /api/shapes?lines=<list>`
-GeoJSON `FeatureCollection` of the given lines (`MultiLineString` per line, properties `line`, `mode`,
-`name`, `color`), for drawing the network faintly under a trip. Like `plan`, these load lines the server hasn't seen.
 
 ## `GET /api/map.pmtiles`
 The self-hosted basemap (PMTiles), served with HTTP range requests. 404 if not installed (see README).

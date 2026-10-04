@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'preact/hooks'
 import { api, AuthError } from './api.ts'
 import { save, type Settings } from './settings.ts'
 import type { DefaultsResponse } from './types.ts'
-import { Setup } from './views/setup.tsx'
+import { NotFound } from './views/notfound.tsx'
 import { Trip } from './views/trip.tsx'
 import { SettingsView } from './views/settings.tsx'
 import { InTrip, TRIP_KEY, type ActiveTrip } from './views/intrip.tsx'
+import { record } from './walks.ts'
 
 function loadTrip(storage: Storage | undefined): ActiveTrip | null {
   try {
@@ -35,6 +36,7 @@ export function App({ initial, imported, storage }: AppProps) {
   const [server, setServer] = useState<DefaultsResponse | null>(null)
   const [authFailed, setAuthFailed] = useState(false)
   const [notice, setNotice] = useState(imported ? 'Settings saved on this device.' : '')
+  const [restarts, setRestarts] = useState(0) // bumping this starts the trip screen afresh
   const [storageOk, setStorageOk] = useState(true)
   const [trip, setTripState] = useState<ActiveTrip | null>(() => loadTrip(storage))
   const setTrip = useCallback(
@@ -79,22 +81,22 @@ export function App({ initial, imported, storage }: AppProps) {
     }
   }, [settings.token])
 
-  if (!settings.token || authFailed) {
-    return (
-      <Setup
-        revoked={authFailed}
-        onToken={(token) => {
-          setAuthFailed(false)
-          setSettings({ ...settings, token })
-        }}
-      />
-    )
-  }
+  // No access (never set up, or the token was changed on the server): there's nothing here.
+  if (!settings.token || authFailed) return <NotFound />
 
   if (trip) {
     return (
       <div class="app">
-        <InTrip trip={trip} token={settings.token} onUpdate={setTrip} onEnd={() => setTrip(null)} onAuthError={onAuthError} />
+        <InTrip
+          trip={trip}
+          token={settings.token}
+          walks={settings.walks}
+          retime={settings.retime ?? 'average'}
+          onUpdate={setTrip}
+          onSaveWalk={(seg, w, replace) => setSettings({ ...settings, walks: record(settings.walks, seg, w, replace ? 'replace' : 'average') })}
+          onEnd={() => setTrip(null)}
+          onAuthError={onAuthError}
+        />
       </div>
     )
   }
@@ -102,12 +104,20 @@ export function App({ initial, imported, storage }: AppProps) {
   return (
     <div class="app">
       <header class="topbar">
-        <h1>Gym Router</h1>
-        <nav>
-          <button class={view === 'trip' ? 'tab active' : 'tab'} onClick={() => setView('trip')}>
-            Trips
+        <h1>
+          <button
+            class="home-link"
+            onClick={() => {
+              setView('trip')
+              setRestarts((n) => n + 1)
+            }}
+          >
+            <img src="/icon.svg" alt="" width={28} height={28} />
+            Gym Router
           </button>
-          <button class={view === 'settings' ? 'tab active' : 'tab'} onClick={() => setView('settings')}>
+        </h1>
+        <nav>
+          <button class={view === 'settings' ? 'tab active' : 'tab'} aria-pressed={view === 'settings'} onClick={() => setView('settings')}>
             Settings
           </button>
         </nav>
@@ -125,6 +135,7 @@ export function App({ initial, imported, storage }: AppProps) {
       <main>
         {view === 'trip' ? (
           <Trip
+            key={restarts}
             settings={settings}
             setSettings={setSettings}
             server={server}

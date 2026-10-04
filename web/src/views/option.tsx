@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks'
 import { clock, delay, placeName, platform, riskLabel } from '../format.ts'
-import type { TransferTime } from '../settings.ts'
+import { findChange, walkSecs, type TimedWalk } from '../walks.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 
 const hex = (c?: string) => (c && /^[0-9a-fA-F]{6}$/.test(c) ? `#${c}` : undefined)
@@ -16,8 +16,8 @@ export function LineChip({ line }: { line: Line }) {
 }
 
 export function Timeline({
-  option: o, transfers, onSetTransfer,
-}: { option: Option; transfers: TransferTime[]; onSetTransfer: (t: TransferTime) => void }) {
+  option: o, destination, walks, onSetChange,
+}: { option: Option; destination: string; walks: TimedWalk[]; onSetChange: (a: StopRef, b: StopRef, secs: number) => void }) {
   const into = new Map<number, Transfer>(o.transfers.map((t) => [t.to_leg, t]))
   return (
     <ol class="timeline">
@@ -26,8 +26,8 @@ export function Timeline({
         const prevRide = t ? o.legs[t.from_leg] : undefined
         return (
           <>
-            {t && prevRide && <TransferRow t={t} from={prevRide.to} to={leg.from} transfers={transfers} onSet={onSetTransfer} />}
-            <LegRow leg={leg} last={i === o.legs.length - 1} />
+            {t && prevRide && <TransferRow t={t} from={prevRide.to} to={leg.from} walks={walks} onSet={onSetChange} />}
+            <LegRow leg={leg} last={i === o.legs.length - 1} destination={destination} />
           </>
         )
       })}
@@ -39,12 +39,12 @@ export function Timeline({
   )
 }
 
-function LegRow({ leg, last }: { leg: Leg; last: boolean }) {
+function LegRow({ leg, last, destination }: { leg: Leg; last: boolean; destination: string }) {
   const mins = Math.max(1, Math.round((Date.parse(leg.arr) - Date.parse(leg.dep)) / 60000))
   if (leg.kind === 'walk') {
     // Walking between two rides is shown as part of the change.
     if (leg.from && leg.to) return null
-    const target = leg.to ? `to ${placeName(leg.to)}` : last ? 'to your destination' : ''
+    const target = leg.to ? `to ${placeName(leg.to)}` : last ? `to ${destination}` : ''
     return (
       <li class="step walk">
         <span class="time">{clock(leg.dep)}</span>
@@ -71,31 +71,36 @@ function LegRow({ leg, last }: { leg: Leg; last: boolean }) {
           {pf && ` · ${pf}`}
         </div>
         <div class="muted small">
-          to {placeName(leg.to)} at {clock(leg.arr)} ({mins} min)
+          to {placeName(leg.to)} at {clock(leg.arr)} ({mins} min{leg.stops ? `, ${leg.stops} stop${leg.stops === 1 ? '' : 's'}` : ''})
         </div>
       </div>
     </li>
   )
 }
 
-function stationKey(s: StopRef | undefined): string | undefined {
-  return s?.station_id || s?.id
+/** Interchange: two arrows passing each other, as on station signs. */
+function ChangeIcon() {
+  return (
+    <svg class="change-icon" viewBox="0 0 24 24" width="22" height="22" aria-label="Change" role="img">
+      <path d="M4 8h14m-4-4 4 4-4 4M20 16H6m4-4-4 4 4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  )
 }
 
 function TransferRow({
-  t, from, to, transfers, onSet,
-}: { t: Transfer; from?: StopRef; to?: StopRef; transfers: TransferTime[]; onSet: (t: TransferTime) => void }) {
+  t, from, to, walks, onSet,
+}: { t: Transfer; from?: StopRef; to?: StopRef; walks: TimedWalk[]; onSet: (a: StopRef, b: StopRef, secs: number) => void }) {
   const [editing, setEditing] = useState(false)
-  const fromKey = stationKey(from)
-  const toKey = stationKey(to)
-  const mine = transfers.find((x) => x.from === fromKey && x.to === toKey)
-  const [mins, setMins] = useState(String(Math.round((mine?.secs ?? t.walk_s) / 60)))
+  const mine = from && to ? findChange(walks, from, to)?.walk : undefined
+  const [mins, setMins] = useState(String(Math.round((mine ? walkSecs(mine) : t.walk_s) / 60)))
   const where = placeName(from) === placeName(to) ? placeName(from) : `${placeName(from)} → ${placeName(to)}`
   const spare = t.slack_s >= 60 ? `${Math.floor(t.slack_s / 60)} min ${t.slack_s % 60}s spare` : `${t.slack_s}s spare`
 
   return (
     <li class={`step change risk-${t.risk}`}>
-      <span class="time" />
+      <span class="time">
+        <ChangeIcon />
+      </span>
       <div>
         <div>
           <span class={`badge risk-${t.risk}`}>{riskLabel(t.risk)}</span> Change at {where}: {Math.round(t.walk_s / 60)} min
@@ -103,7 +108,7 @@ function TransferRow({
         </div>
         <div class="muted small">
           {t.fallback_dep ? `If missed, next one at ${clock(t.fallback_dep)}` : 'No later service on this line'}
-          {fromKey && toKey && !editing && (
+          {from && to && !editing && (
             <>
               {' · '}
               <button class="link" onClick={() => setEditing(true)}>
@@ -112,14 +117,14 @@ function TransferRow({
             </>
           )}
         </div>
-        {editing && fromKey && toKey && (
+        {editing && from && to && (
           <form
             class="inline-form"
             onSubmit={(e) => {
               e.preventDefault()
               const m = Number(mins)
               if (Number.isFinite(m) && m >= 0 && m <= 60) {
-                onSet({ from: fromKey, to: toKey, secs: Math.round(m * 60), label: where })
+                onSet(from, to, Math.round(m * 60))
                 setEditing(false)
               }
             }}

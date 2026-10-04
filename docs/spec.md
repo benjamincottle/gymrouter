@@ -62,9 +62,9 @@ Non-goals (v1)
   (e.g. through the Johnson factory at Lane Cove) and miss shortcuts that exist (e.g. cutting through the
   plumbing-supply site). Walks to and from stops, and between stops when changing, are routed over a pedestrian network built from OpenStreetMap
   (footpaths, steps, streets; private and no-foot ways excluded). A curated access stop with a measured walk time
-  overrides the routed one, which is how the OSM data's mistakes get corrected. Walks are measured in the app: a timer with a
-  GPS trace (stand at the door, start, walk, "I'm here") for any walk from a home or gym to one of its stops. Repeat walks
-  average (most recent five); the traced route replaces the street-map route on the map. Traces and times stay on the device. Until the network has been built
+  overrides the routed one, which is how the OSM data's mistakes get corrected. Walks are measured in the app during a trip: a timer
+  with a GPS trace (start, walk, "I'm here") for the walk to the first stop, each change, or the walk from the last stop.
+  Repeat walks average (most recent five) or replace, by preference; the traced route replaces the street-map route on the map. Traces and times stay on the device. Until the network has been built
   (first start), walks fall back to straight line × detour and the app says so. Transfers between stops are timed along the
   streets too (cached per stop; pairs that can't be walked within a sensible detour, e.g. across a river, are dropped);
   GTFS pathways inside stations still win, and a personal transfer time wins over both.
@@ -96,10 +96,9 @@ Non-goals (v1)
 - MapLibre GL JS + **self-hosted OpenStreetMap vector extract** (PMTiles file for the Sydney area, served
   by the app, refreshed occasionally). Nothing sent to third parties; OSM attribution shown.
 - The map source sits behind a small interface so Google Maps could be swapped in later.
-- Overlays: option legs (vehicle legs along GTFS shapes; walking legs as the curated path if configured,
-  otherwise a dashed straight line),
-  stops, and **all live vehicles on the selected gym's lines**, with **the selected trip's vehicles
-  clearly highlighted** (colour, size, label); the rest muted.
+- Overlays: only the option itself: the parts of each line ridden (along GTFS shapes) with the stops passed as small
+  outlined dots, walking legs as the traced or street route, **the vehicles running your rides** (colour, size, label)
+  while they're within about 3 stops of the part you ride, and, during a trip, you.
 - Vehicle positions refresh by client polling (~10–15 s) from the server cache.
 
 ## 8. UI / UX
@@ -127,9 +126,9 @@ Non-goals (v1)
   - `GET  /api/defaults` — routing/risk defaults and the known gyms.
   - `POST /api/plan` — {from, to: place (lat/lon + optional access stops), lines, mode, time, prefs} → options.
   - `POST /api/stops/near` — {lat, lon} → nearby stops (all lines serving them) with estimated walk times.
-  - `POST /api/suggest-lines` — {from, to: [places]} → per destination, candidate lines with how often they appear in the best options.
-  - `GET  /api/vehicles?lines=<list>` — live vehicles on those lines (+ trip ids for highlighting).
-  - `GET  /api/shapes?lines=<list>` — line shapes for drawing.
+  - `POST /api/suggest-lines` — {from, to: [places]} → a job id; `GET /api/suggest-lines/{job}` → progress, then per destination the candidate lines with how often they appear in the best options.
+  - `GET  /api/vehicles?lines=<list>&rides=<list>` — live vehicles running your rides, near the part ridden.
+  - `GET  /api/shape?…` — one ride's path and the stops it passes, for drawing.
   - `GET  /api/status` — detailed health (auth). Implemented API: see `docs/api.md`.
   - `GET  /healthz` — liveness, feed ages, config warnings (no sensitive detail).
 
@@ -138,7 +137,8 @@ Non-goals (v1)
 - **Setup-link token**: secret in Ansible Vault → env; server compares in constant time against its hash.
   First device: `docker compose exec app gymrouter setup-link` prints `https://<host>/#setup=<token>`.
   The app saves the token and removes it from the URL. More devices: "Share setup" link/QR.
-  Revoke = rotate the secret.
+  Revoke = rotate the secret. Without a token there's no sign of an app: the page shows a plain "404 page not found"
+  (as Go and Traefik do) and the API answers unauthenticated requests the same way.
 - No personal data on the server; private settings travel in POST bodies; request bodies and
   query strings with coordinates are never logged.
 - **Key protection**: the server alone polls TfNSW; client requests never trigger upstream calls.
@@ -303,3 +303,27 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   stop. The server only ever sees the resulting number (as before); traces never leave the device. Found while testing: the
   street graph routes Lane Cove's Epping Rd stops the long way round the factory block (~17 min), and the real shortcut
   through the plumbing supplier is about 10 min, which is exactly what this is for.
+- 2026-10-04: After field use, the map shows only the trip (supersedes "all vehicles on the gym's lines, the rest muted"
+  and the faint network): the sections ridden with their stops, your own vehicles only from ~3 stops before you board to
+  ~3 stops after you get off (the server filters by the feed's current stop, else the nearest call), and your position as
+  soon as the map opens during a trip (location is on by default in a trip). `GET /api/shapes` is gone. Trips planned with
+  Leave at / Arrive by can be started too; until it's about to leave, in-trip checks plan from the trip's own start and time.
+- 2026-10-04: Line suggestions run as a server-side job that the app polls (with a progress percentage), because adding all
+  five built-in gyms in one request timed out in the field (three then two worked). Splitting per gym was rejected: reading the
+  timetable is most of the cost (~12 of ~14 s locally for one gym, ~1 s per extra gym), so it would multiply the work. One job
+  at a time, up to 12 destinations, kept 10 minutes after finishing; a dropped poll is retried.
+- 2026-10-04: Walk timing moves from home/gym settings into the live trip (supersedes the per-stop timer of 2026-10-03). In
+  a trip, "Time this walk" offers the walk you're on (to the first stop, a change, or from the last stop) and any other walk
+  of the trip. Timed walks are their own list on the device, keyed by place (a built-in gym by its ref, so re-adding it keeps
+  them) and stop or station, and count in both directions. The first timing replaces the default time and its GPS trace is
+  drawn from then on; later timings average (last five) or replace, by a setting, with the other offered when saving.
+  Plan requests carry a place's timed walks as `walks`, which beat curated and street times and add stops that aren't ticked
+  under the home or gym (they weren't usable before, which is likely why saving such a walk seemed not to work). Timed
+  changes are sent as transfer times both ways. Older per-stop timings and "Set my time" change times are migrated.
+- 2026-10-04: No visible front door. A browser without a token sees a page indistinguishable from a plain-text "404 page not
+  found" (no icon, manifest or service worker), and unauthenticated API requests (and non-GETs to the site) get Go's own
+  404 instead of 401 JSON, which the app recognises by its plain-text body. The paste-a-setup-link form is gone; a setup link
+  is the only way in. The page itself is still served with 200 (the app's HTML must load to read the token from storage).
+- 2026-10-04: Two more built-in gyms, ClimbFit Macquarie and ClimbFit St Leonards (lines found as for Waterloo/Alexandria).
+  Built-in gyms carry a `brand`, and the gym lists show that brand's small logo (`web/public/brands/`, 64 px PNGs from the
+  brands' own sites; ClimbFit's reduced to its teal mountain mark so it reads at 32 px on light and dark).

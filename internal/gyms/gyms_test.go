@@ -13,7 +13,7 @@ func TestBuiltInGymsAreValid(t *testing.T) {
 	for _, x := range g {
 		have[x.ID] = true
 	}
-	for _, id := range []string{"lanecove", "chatswood", "rydalmere", "waterloo", "alexandria"} {
+	for _, id := range []string{"lanecove", "chatswood", "rydalmere", "waterloo", "alexandria", "climbfit-macquarie", "climbfit-stleonards"} {
 		if !have[id] {
 			t.Errorf("missing gym %q", id)
 		}
@@ -36,6 +36,7 @@ func TestValidation(t *testing.T) {
 		"no position": {strings.Replace(strings.Replace(ok, "lat = -33.8", "lat = 0", 1), "lon = 151.1", "lon = 0", 1), "lat/lon"},
 		"bad access":  {ok + "[[gym.access]]\nstop = \"1\"\nwalk_s = 10\n", "access entries"},
 		"unknown key": {ok + "colour = 1\n", "unknown keys"},
+		"bad brand":   {strings.Replace(ok, `name = "Gym"`, "name = \"Gym\"\nbrand = \"acme\"", 1), "unknown brand"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := Parse(tc.text); err == nil || !strings.Contains(err.Error(), tc.want) {
