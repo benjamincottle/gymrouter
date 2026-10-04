@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'preact/hooks'
 import { api, AuthError } from './api.ts'
 import { save, type Settings } from './settings.ts'
 import type { DefaultsResponse } from './types.ts'
-import { NotFound } from './views/notfound.tsx'
+import { Landing } from './views/landing.tsx'
 import { Trip } from './views/trip.tsx'
 import { SettingsView } from './views/settings.tsx'
 import { InTrip, TRIP_KEY, type ActiveTrip } from './views/intrip.tsx'
@@ -90,8 +90,8 @@ export function App({ initial, imported, storage }: AppProps) {
     }
   }, [settings.token])
 
-  // No access (never set up, or the token was changed on the server): there's nothing here.
-  if (!settings.token || authFailed) return <NotFound />
+  // No access (never set up, or the token was changed on the server): just the name.
+  if (!settings.token || authFailed) return <Landing />
 
   if (trip) {
     return (

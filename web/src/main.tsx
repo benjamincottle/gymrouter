@@ -38,7 +38,7 @@ window.addEventListener('hashchange', async () => {
   window.location.reload()
 })
 
-// Only a set-up device gets the app's extras; anyone else sees a plain 404 page (views/notfound.tsx).
+// Only a set-up device gets the app's extras; anyone else sees just the name (views/landing.tsx).
 if (settings.token) {
   // Ask the browser not to evict our storage (mainly matters on iOS).
   navigator.storage?.persist?.().catch(() => undefined)
