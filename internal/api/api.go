@@ -47,7 +47,8 @@ type Engine interface {
 	Walker() *walk.Graph
 	PathsFrom(net *raptor.Network, p geo.Point, maxM float64) engine.Approach
 	WalkPath(a, b geo.Point) ([]geo.Point, bool)
-	Suggest(ctx context.Context, from engine.SuggestPlace, targets []engine.SuggestPlace, radiusM float64) ([]*engine.SuggestResult, error)
+	Suggest(ctx context.Context, from engine.SuggestPlace, targets []engine.SuggestPlace, radiusM float64,
+		progress func(done, of int)) ([]*engine.SuggestResult, error)
 }
 
 // maxBody bounds request bodies.
@@ -59,6 +60,7 @@ type Server struct {
 	auth *Auth
 	log  *slog.Logger
 	web  fs.FS // static frontend; may be nil
+	jobs jobStore
 }
 
 // New returns the API server.
@@ -74,6 +76,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("POST /api/plan", s.plan)
 	api.HandleFunc("POST /api/stops/near", s.stopsNear)
 	api.HandleFunc("POST /api/suggest-lines", s.suggestLines)
+	api.HandleFunc("GET /api/suggest-lines/{id}", s.suggestStatus)
 	api.HandleFunc("GET /api/vehicles", s.vehicles)
 	api.HandleFunc("GET /api/status", s.status)
 	api.HandleFunc("POST /api/geocode", s.geocode)

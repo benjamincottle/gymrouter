@@ -44,6 +44,6 @@ feedback left a choice open; say if any are wrong.
 
 ## Setup
 
-- [ ] **Adding many built-in gyms timed out** (5 at once failed; 3 then 2 worked): one long request per
-      batch. Look up lines one gym per request with progress ("2 of 5"), so no request runs long and a
-      failure for one gym doesn't lose the others.
+- [x] **Adding many built-in gyms timed out** (5 at once failed; 3 then 2 worked): one long request per
+      batch. Now a server-side job the app polls, with a progress percentage, so no request runs long.
+      (Splitting per gym would have multiplied the work: reading the timetable is most of the cost.)

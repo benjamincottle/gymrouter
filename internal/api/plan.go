@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"sort"
 	"time"
 
 	"github.com/benjamincottle/gymrouter/internal/engine"
@@ -605,79 +604,6 @@ func suggestPlace(p suggestPlaceReq) (engine.SuggestPlace, error) {
 		out.Access = append(out.Access, engine.StopWalk{Stop: a.Stop, WalkS: a.WalkS})
 	}
 	return out, nil
-}
-
-// suggestLines finds candidate lines from one place to each of several. It loads the whole network, so it
-// takes several seconds and only one runs at a time.
-func (s *Server) suggestLines(w http.ResponseWriter, r *http.Request) {
-	var req suggestReq
-	if err := decode(w, r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if len(req.To) == 0 || len(req.To) > engine.MaxSuggestTargets {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("to needs 1 to %d destinations", engine.MaxSuggestTargets))
-		return
-	}
-	from, err := suggestPlace(req.From)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	targets := make([]engine.SuggestPlace, len(req.To))
-	for i, t := range req.To {
-		if targets[i], err = suggestPlace(t); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-	}
-	if req.RadiusM < 0 || req.RadiusM > maxRadiusM {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("radius_m must be 0..%d", maxRadiusM))
-		return
-	}
-	if req.RadiusM == 0 {
-		req.RadiusM = suggestRadiusM
-	}
-	// The default write timeout is short for a search that reads the whole timetable.
-	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(2 * time.Minute))
-	results, err := s.eng.Suggest(r.Context(), from, targets, req.RadiusM)
-	switch {
-	case errors.Is(err, engine.ErrBusy):
-		w.Header().Set("Retry-After", "10")
-		writeError(w, http.StatusTooManyRequests, "already looking up lines; try again in a few seconds")
-		return
-	case errors.Is(err, engine.ErrNoStops):
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	case err != nil:
-		s.log.Error("suggest lines failed", "err", err)
-		writeError(w, http.StatusInternalServerError, "couldn't look up lines")
-		return
-	}
-	out := struct {
-		Results []suggestResultResp `json:"results"`
-	}{Results: make([]suggestResultResp, 0, len(results))}
-	for _, res := range results {
-		one := suggestResultResp{Windows: []suggestWindowResp{}, Lines: []suggestLineResp{}, Itineraries: []suggestItinResp{}}
-		for _, wn := range res.Windows {
-			one.Windows = append(one.Windows, suggestWindowResp{Label: wn.Label, Date: wn.Date.Format("2006-01-02"),
-				Departures: wn.Departures, TypicalS: wn.BestS})
-		}
-		for _, l := range res.Lines {
-			one.Lines = append(one.Lines, suggestLineResp{Line: l.Line.String(), Color: l.Color, Share: math.Round(l.Share*100) / 100,
-				Recommended: l.Recommended})
-		}
-		sort.SliceStable(res.Itineraries, func(a, b int) bool { return res.Itineraries[a].Seen > res.Itineraries[b].Seen })
-		for _, it := range res.Itineraries {
-			if len(one.Itineraries) >= maxSuggestItineraries {
-				break
-			}
-			one.Itineraries = append(one.Itineraries, suggestItinResp{Desc: it.Desc, Lines: it.Lines, MedianS: it.MedianS,
-				BestS: it.BestS, Seen: it.Seen, Of: it.Of, Window: it.Window})
-		}
-		out.Results = append(out.Results, one)
-	}
-	writeJSON(w, http.StatusOK, out)
 }
 
 // suggestRadiusM is how far (straight line) a suggestion search looks for stops at each end.

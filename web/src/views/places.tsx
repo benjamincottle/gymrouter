@@ -296,6 +296,7 @@ function LinesSection({
   const [homeId, setHomeId] = useState(homes[0]?.id ?? '')
   const [result, setResult] = useState<SuggestResult | null>(null)
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState(0)
   const [error, setError] = useState('')
   const [mode, setMode] = useState<string>('bus')
   const [name, setName] = useState('')
@@ -309,9 +310,10 @@ function LinesSection({
     const c = new AbortController()
     ctrl.current = c
     setBusy(true)
+    setProgress(0)
     setError('')
     try {
-      const r = (await api.suggestLines(token, placeRequest(home), [placeRequest(gym)], c.signal)).results[0]
+      const r = (await api.suggestLines(token, placeRequest(home), [placeRequest(gym)], c.signal, setProgress)).results[0]
       if (c.signal.aborted) return
       setResult(r)
       onSuggested(r, home.id) // keeps what's already chosen and adds what the search recommends
@@ -354,7 +356,7 @@ function LinesSection({
             </label>
           )}
           <button onClick={find} disabled={busy}>
-            {busy ? 'Reading the timetable…' : result ? `Search again from ${home?.name}` : `Suggest lines from ${home?.name}`}
+            {busy ? `Reading the timetable… ${Math.round(progress * 100)}%` : result ? `Search again from ${home?.name}` : `Suggest lines from ${home?.name}`}
           </button>
           {busy && <p class="muted small">Checking trips at many departure times. This can take up to a minute.</p>}
         </div>
@@ -464,6 +466,7 @@ export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCus
   const [picked, setPicked] = useState<Set<string> | null>(null)
   const sel = picked ?? new Set(available.map((k) => k.id)) // everything ticked until the person says otherwise
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState(0)
   const [error, setError] = useState('')
   const ctrl = useRef<AbortController | null>(null)
   useEffect(() => () => ctrl.current?.abort(), [])
@@ -483,9 +486,10 @@ export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCus
       const c = new AbortController()
       ctrl.current = c
       setBusy(true)
+      setProgress(0)
       setError('')
       try {
-        const res = await api.suggestLines(token, placeRequest(home), gyms.map((g) => placeRequest(g)), c.signal)
+        const res = await api.suggestLines(token, placeRequest(home), gyms.map((g) => placeRequest(g)), c.signal, setProgress)
         if (c.signal.aborted) return
         gyms = gyms.map((g, i) => (res.results[i] ? withSuggested(g, res.results[i], home.id) : g))
       } catch (e) {
@@ -532,7 +536,7 @@ export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCus
       <div class="actions">
         {available.length > 0 && (
           <button class="primary" disabled={busy || sel.size === 0} onClick={add}>
-            {busy ? 'Finding lines…' : sel.size === 1 ? 'Add gym' : `Add ${sel.size} gyms`}
+            {busy ? `Finding lines… ${Math.round(progress * 100)}%` : sel.size === 1 ? 'Add gym' : `Add ${sel.size} gyms`}
           </button>
         )}
         <button disabled={busy} onClick={onCustom}>

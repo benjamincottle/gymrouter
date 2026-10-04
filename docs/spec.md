@@ -126,7 +126,7 @@ Non-goals (v1)
   - `GET  /api/defaults` — routing/risk defaults and the known gyms.
   - `POST /api/plan` — {from, to: place (lat/lon + optional access stops), lines, mode, time, prefs} → options.
   - `POST /api/stops/near` — {lat, lon} → nearby stops (all lines serving them) with estimated walk times.
-  - `POST /api/suggest-lines` — {from, to: [places]} → per destination, candidate lines with how often they appear in the best options.
+  - `POST /api/suggest-lines` — {from, to: [places]} → a job id; `GET /api/suggest-lines/{job}` → progress, then per destination the candidate lines with how often they appear in the best options.
   - `GET  /api/vehicles?lines=<list>&rides=<list>` — live vehicles running your rides, near the part ridden.
   - `GET  /api/shape?…` — one ride's path and the stops it passes, for drawing.
   - `GET  /api/status` — detailed health (auth). Implemented API: see `docs/api.md`.
@@ -307,3 +307,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   ~3 stops after you get off (the server filters by the feed's current stop, else the nearest call), and your position as
   soon as the map opens during a trip (location is on by default in a trip). `GET /api/shapes` is gone. Trips planned with
   Leave at / Arrive by can be started too; until it's about to leave, in-trip checks plan from the trip's own start and time.
+- 2026-10-04: Line suggestions run as a server-side job that the app polls (with a progress percentage), because adding all
+  five built-in gyms in one request timed out in the field (three then two worked). Splitting per gym was rejected: reading the
+  timetable is most of the cost (~12 of ~14 s locally for one gym, ~1 s per extra gym), so it would multiply the work. One job
+  at a time, up to 12 destinations, kept 10 minutes after finishing; a dropped poll is retried.

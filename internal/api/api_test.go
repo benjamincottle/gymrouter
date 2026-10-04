@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -612,7 +613,6 @@ func TestSuggestLines(t *testing.T) {
 		"from": map[string]any{"lat": -33.7727, "lon": 151.0821},
 		"to":   []any{laneCove, chatswood},
 	}
-	rec := h.do(t, "POST", "/api/suggest-lines", token, body)
 	type result struct {
 		Windows []struct {
 			Label      string
@@ -629,10 +629,14 @@ func TestSuggestLines(t *testing.T) {
 			Seen  int
 		}
 	}
-	var r struct{ Results []result }
-	_ = json.Unmarshal(rec.Body.Bytes(), &r)
-	if rec.Code != 200 || len(r.Results) != 2 {
-		t.Fatalf("suggest: %d %.400s", rec.Code, rec.Body)
+	var r struct {
+		State    string
+		Done, Of int
+		Results  []result
+	}
+	_ = json.Unmarshal(runSuggest(t, h, body), &r)
+	if r.State != "done" || len(r.Results) != 2 || r.Done != r.Of || r.Of != 6 {
+		t.Fatalf("suggest: %+v", r)
 	}
 	for i, res := range r.Results {
 		if len(res.Windows) == 0 || len(res.Lines) == 0 || len(res.Itineraries) == 0 {
@@ -659,13 +663,16 @@ func TestSuggestLines(t *testing.T) {
 
 	// Bad input is rejected.
 	nowhere := map[string]any{"from": map[string]any{"lat": -20, "lon": 130}, "to": []any{laneCove}}
-	if rec := h.do(t, "POST", "/api/suggest-lines", token, nowhere); rec.Code != 400 {
-		t.Errorf("no stops nearby: %d %s", rec.Code, rec.Body)
+	if got := string(runSuggest(t, h, nowhere)); !strings.Contains(got, `"state":"failed"`) || !strings.Contains(got, "no stops") {
+		t.Errorf("no stops nearby: %s", got)
+	}
+	if rec := h.do(t, "GET", "/api/suggest-lines/nope", token, nil); rec.Code != 404 {
+		t.Errorf("unknown job: %d", rec.Code)
 	}
 	for name, b := range map[string]map[string]any{
 		"no destination":  {"from": laneCove},
 		"empty list":      {"from": laneCove, "to": []any{}},
-		"too many":        {"from": laneCove, "to": []any{laneCove, laneCove, laneCove, laneCove, laneCove, laneCove, laneCove}},
+		"too many":        {"from": laneCove, "to": slices.Repeat([]any{laneCove}, 13)},
 		"not a list":      {"from": laneCove, "to": laneCove},
 		"huge radius":     {"from": laneCove, "to": []any{laneCove}, "radius_m": 99999},
 		"destination bad": {"from": laneCove, "to": []any{map[string]any{"lat": 200, "lon": 1}}},
@@ -677,6 +684,27 @@ func TestSuggestLines(t *testing.T) {
 	if rec := h.do(t, "POST", "/api/suggest-lines", "", body); rec.Code != 401 {
 		t.Errorf("suggest without a token: %d", rec.Code)
 	}
+}
+
+// runSuggest starts a line search and polls it until it finishes, returning the final status body.
+func runSuggest(t *testing.T, h *harness, body any) []byte {
+	t.Helper()
+	rec := h.do(t, "POST", "/api/suggest-lines", token, body)
+	var started struct{ Job string }
+	if _ = json.Unmarshal(rec.Body.Bytes(), &started); rec.Code != http.StatusAccepted || started.Job == "" {
+		t.Fatalf("starting a search: %d %s", rec.Code, rec.Body)
+	}
+	for deadline := time.Now().Add(2 * time.Minute); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		rec = h.do(t, "GET", "/api/suggest-lines/"+started.Job, token, nil)
+		if rec.Code != 200 {
+			t.Fatalf("job status: %d %s", rec.Code, rec.Body)
+		}
+		if !strings.Contains(rec.Body.String(), `"state":"running"`) {
+			return rec.Body.Bytes()
+		}
+	}
+	t.Fatal("the search didn't finish")
+	return nil
 }
 
 func TestStopsNearWorksBeforeAnyLinesAreChosen(t *testing.T) {

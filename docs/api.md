@@ -75,21 +75,27 @@ when it is known. `max_walk_m` limits the straight-line distance to candidate st
 before any lines are chosen. Also returns `"walking": "streets"|"estimate"`: with street data, `walk_s` follows the streets
 and stops that can't be reached on foot are left out. 503 (with `Retry-After`) for a few seconds after the server starts, while it reads the timetable.
 
-## `POST /api/suggest-lines`
-`{"from": {"lat", "lon", "access"?}, "to": [{"lat", "lon", "access"?}, …], "radius_m"?: 1200}` (1 to 6 destinations)
-→ for each destination, in order, the lines that appear in the best options from `from` over the whole network,
-searched at 10-minute steps on a typical weekday afternoon and a Sunday morning:
+## `POST /api/suggest-lines`, `GET /api/suggest-lines/{job}`
+`{"from": {"lat", "lon", "access"?}, "to": [{"lat", "lon", "access"?}, …], "radius_m"?: 1200}` (1 to 12 destinations)
+finds, for each destination, the lines that appear in the best options from `from` over the whole network, searched at
+10-minute steps on a typical weekday afternoon and a Sunday morning.
+
+It reads the whole timetable once per day searched (about 15 s, ~300 MB briefly, longer on a small server) however many
+destinations there are, which can outlast a proxy's or phone's patience, so it runs as a job: the POST answers
+`202 {"job": "<id>"}` straight away (400 for bad input; 429 with `Retry-After` while another search runs, since only one
+runs at a time). Poll `GET /api/suggest-lines/{job}` every second or two:
 ```json
-{"results": [{
+{"state": "running", "done": 3, "of": 12}
+{"state": "failed", "done": 1, "of": 12, "error": "no stops within 1200 m"}
+{"state": "done", "done": 12, "of": 12, "results": [{
   "windows": [{"label": "Weekday afternoon", "date": "2026-10-06", "departures": 19, "typical_s": 1490}],
   "lines": [{"line": "metro M1", "color": "168388", "share": 1.0, "recommended": true}],
   "itineraries": [{"desc": "metro M1 → […] → bus 533", "lines": ["metro M1", "bus 533"], "median_s": 1860,
                    "best_s": 1800, "seen": 13, "of": 19, "window": "Weekday afternoon"}]}]}
 ```
+`done`/`of` count steps (reading a day's timetable; searching one destination on it). `results` are in the order asked.
 `share` is the fraction of departure times at which the line appeared in an option; `recommended` means at least 30%.
-It reads the whole timetable once per day searched (about 15 s, ~300 MB briefly) however many destinations there are, so
-only one request runs at a time (429 with `Retry-After` otherwise). 400 if either end has no stops nearby.
-Coordinates are used in memory only.
+Finished jobs are kept for 10 minutes, then 404. Coordinates are used in memory only.
 
 ## `GET /api/vehicles?lines=<list>[&rides=<list>]`
 Live vehicles on the given lines, comma-separated (e.g. `lines=bus 288,train T9`; only fresh data):
