@@ -218,7 +218,10 @@ function LegRow({ leg, last, destination, rail, onTime }: {
           {pf && ` · ${pf}`}
         </div>
         <div class="muted small">
-          to {placeName(leg.to)} at {clock(leg.arr)} ({mins} min{leg.stops ? `, ${leg.stops} stop${leg.stops === 1 ? '' : 's'}` : ''})
+          to {placeName(leg.to)} at {clock(leg.arr)}
+        </div>
+        <div class="muted small">
+          {leg.stops ? `${leg.stops} stop${leg.stops === 1 ? '' : 's'} (${mins} min)` : `${mins} min`}
         </div>
       </div>
     </li>

@@ -53,7 +53,8 @@ func (e *Engine) LoadShapes() {
 }
 
 // LegGeometry returns the path of a trip between two of its stops (along the route shape when known,
-// otherwise straight lines between its stops) and the positions of the stops it calls at in between.
+// otherwise straight lines between its stops) and the positions of the stops it calls at in between (placed on the
+// path when it follows the shape).
 func (e *Engine) LegGeometry(s *Snapshot, tripID, fromStop, toStop string) (path, stops []geo.Point, ok bool) {
 	d := s.Day
 	var trip *gtfs.Trip
@@ -81,7 +82,14 @@ func (e *Engine) LegGeometry(s *Snapshot, tripID, fromStop, toStop string) (path
 			a := geo.Project(pts, from, geo.Along{})
 			b := geo.Project(pts, to, a)
 			if a.Before(b) {
-				return geo.Cut(pts, a, b), stops, true
+				path = geo.Cut(pts, a, b)
+				// Stop positions are at the kerb; put each one on the line, in order, so the map draws it on the line.
+				at := geo.Along{}
+				for i, p := range stops {
+					at = geo.Project(path, p, at)
+					stops[i] = at.Pt
+				}
+				return path, stops, true
 			}
 		}
 	}

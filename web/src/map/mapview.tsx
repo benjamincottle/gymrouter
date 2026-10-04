@@ -42,6 +42,8 @@ function style(token: string, dark: boolean): StyleSpecification {
   }
 }
 
+const RIDE_W = 6 // a ride's line on the map, in pixels; the stops along it are as wide
+
 const hex = (c?: string) => (c && /^[0-9a-fA-F]{6}$/.test(c) ? `#${c}` : '#5e6670')
 
 /** Black or white, whichever reads better on the line colour (some lines are pale, e.g. yellow). */
@@ -140,7 +142,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
       })
       m.addLayer({
         id: 'route-ride', type: 'line', source: 'route', filter: ['==', ['get', 'kind'], 'ride'],
-        paint: { 'line-color': ['get', 'color'], 'line-width': 6 },
+        paint: { 'line-color': ['get', 'color'], 'line-width': RIDE_W },
         layout: { 'line-cap': 'round', 'line-join': 'round' },
       })
       m.addLayer({
@@ -148,13 +150,13 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         paint: { 'line-color': dark ? '#e9ece8' : '#1f2328', 'line-width': 3, 'line-dasharray': [0.5, 2] },
         layout: { 'line-cap': 'round' },
       })
-      // The stops passed on the way: white dots set into the line (narrower than it), with a faint edge so they look
-      // cut in rather than stuck on.
+      // The stops passed on the way: white dots on the line, as wide as it, inside a thin clear ring that lets the
+      // line's colour show either side, so each one sits cupped in the line.
       m.addLayer({
         id: 'route-via', type: 'circle', source: 'route', filter: ['==', ['get', 'kind'], 'via'],
         paint: {
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 1.4, 15, 2.1],
-          'circle-color': '#ffffff', 'circle-stroke-color': 'rgba(0, 0, 0, 0.3)', 'circle-stroke-width': 0.6,
+          'circle-radius': RIDE_W / 2 - 0.75, 'circle-color': '#ffffff',
+          'circle-stroke-width': 0.75, 'circle-stroke-color': 'rgba(0, 0, 0, 0)',
         },
       })
       m.addLayer({

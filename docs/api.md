@@ -114,7 +114,7 @@ get on, carrying you, or just past where you get off.
 ## `GET /api/shape?date=YYYY-MM-DD&trip=<trip_id>&from=<stop_id>&to=<stop_id>`
 Path of one ride leg (use a plan's `service_date` and the leg's `trip_id` and stop IDs) and the stops it calls at
 in between: `{"coordinates": [[lon, lat], …], "stops": [[lon, lat], …]}`. Follows the route shape once shapes have loaded (a few seconds after
-startup); until then, straight lines between the trip's stops.
+startup), with each stop placed on the line; until then, straight lines between the trip's stops.
 
 ## `GET /api/map.pmtiles`
 The self-hosted basemap (PMTiles), served with HTTP range requests. 404 if not installed (see README).

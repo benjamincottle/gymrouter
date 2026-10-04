@@ -48,8 +48,9 @@ Line colours come from the feed. Text on a line colour is ink or white, whicheve
 taken from the feed's `text_color`. A line without a colour uses one fallback grey, `#5e6670`, everywhere.
 
 The map's own paint (casing, walk lines, stop dots) and the MapLibre controls (zoom, locate, attribution) use these
-tokens too, in both themes. Controls are square, 44px, edge-outlined, and have no shadow. Stops passed on a ride are white
-dots narrower than the line, with a faint 0.6px edge, so they look cut into it.
+tokens too, in both themes. Controls are square, 44px, edge-outlined, and have no shadow. Stops passed on a ride sit on the
+line's centre (the server places them on the shape): white dots as wide as the line inside a thin clear ring, so
+the line's colour cups each one.
 
 ### Type
 
@@ -154,6 +155,8 @@ Each exists once in code and is reused. Don't restyle one locally; add a variant
 - **Timeline:** time | rail | description, sharing columns through subgrid.
   - Rides: a thick line in the line colour that fills its row, stopping about 2px short of the rules above and below,
     with the mode disc at its top (where you get on) and a dot inside its bottom end (where you get off).
+  - A ride's description: line chip, headsign and status; "from" the stop (and platform); "to" the stop at its
+    time; then, on a line of its own, `3 stops (7 min)` (or just `7 min` when the stop count isn't known).
   - Walks: whole round dots (4.5px, about 10px apart, spaced out to fit; never cut off), stopping as short of the rules
     as a ride does. A walk or change step has a walker (heading right) in the middle instead of a dot. From the house,
     the dots run to just above the rule; into the hold, from just below it. Changes get a `--panel` row with a risk
