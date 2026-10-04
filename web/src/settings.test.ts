@@ -59,7 +59,7 @@ test('gyms keep their lines and drop malformed ones', () => {
   })
   assert.equal(s.gyms.length, 1)
   assert.deepEqual(s.gyms[0].lines, ['bus 288', 'light-rail L4'])
-  assert.equal(sanitize({ ...sample, gyms: undefined }).gyms.length, 0, 'old backups have no gyms')
+  assert.equal(sanitize({ ...sample, gyms: undefined }).gyms.length, 0, 'gyms are optional')
   assert.equal(sanitize({ ...sample, gyms: Array.from({ length: 30 }, (_, i) => ({ ...sample.gyms[0], id: `g${i}` })) }).gyms.length, 12)
 })
 
@@ -151,29 +151,6 @@ test('requests carry curated access and preferences', () => {
   // A home's timed walks go with it; suggestions (placeRequest) never carry them.
   assert.deepEqual(planPlace('home', sample.homes[0], sample.walks).walks, [{ stop: '2077', walk_s: 510 }])
   assert.equal(planPlace('gym', { ...sample.gyms[0], ref: 'lane-cove' }, sample.walks).walks, undefined)
-})
-
-test('walks timed with older versions move to the walk list', () => {
-  const trace = [[151.15, -33.8], [151.151, -33.801]]
-  const old = {
-    version: 1, token: TOKEN,
-    homes: [{ id: 'h1', name: 'Home', lat: -33.8, lon: 151.1, access: [
-      { stop: 'p1', name: 'Epping Station', walk_s: 600, times: [590, 610], trace },
-      { stop: 'p2', name: 'Epping Station', walk_s: 600, times: [590, 610], trace },
-      { stop: 'b1', name: 'Bus stop', walk_s: 120 },
-    ] }],
-    gyms: [{ ...sample.gyms[0], ref: 'lane-cove', access: [{ stop: 's', name: 'Mars Rd', walk_s: 300, times: [300, 'x', -1] }] }],
-    transfers: [{ from: '2121', to: '2122', secs: 150, label: 'Epping' }],
-  }
-  const s = sanitize(old)
-  assert.deepEqual(s.homes[0].access[0], { stop: 'p1', name: 'Epping Station', walk_s: 600 }, 'the stop keeps only its typed time')
-  assert.deepEqual(s.walks, [
-    { kind: 'access', place: 'home:h1', stop: ['p1', 'p2'], label: 'Home – Epping Station', times: [590, 610], trace },
-    { kind: 'access', place: 'gym:lane-cove', stop: ['s'], label: '9 Degrees Lane Cove – Mars Rd', times: [300] },
-    { kind: 'change', from: ['2121'], to: ['2122'], label: 'Epping', times: [150] },
-  ])
-  assert.deepEqual(sanitize(s), s, 'migrating twice changes nothing')
-  assert.deepEqual(sanitize({ ...old, walks: s.walks }).walks, s.walks, 'already-migrated walks are not duplicated')
 })
 
 test('formatting', () => {

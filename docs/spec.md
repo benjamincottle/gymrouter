@@ -340,5 +340,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   time"). The trip's map shows the same description under it, scrolling on its own, so both fit on one screen.
 - 2026-10-04: Walk times only come from recordings made on a trip. "Set my time" (typing a change time) and the minutes typed
   per stop in the home/gym editor are gone: a recording has a route, which is what matters (shortcuts the street map doesn't
-  know); for ordinary walks the street routing is right. Ticked stops take the street map's estimate. Change times typed in
-  earlier versions stay as timed walks until removed in Settings.
+  know); for ordinary walks the street routing is right. Ticked stops take the street map's estimate.
+- 2026-10-04: Greenfield: no support for data from earlier versions of the app. The settings migrations (old per-stop
+  timings, hand-set change times) and other fallbacks for older data and servers are removed; stored data that doesn't
+  match the current shape is simply dropped by validation.

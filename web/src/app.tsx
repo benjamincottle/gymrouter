@@ -14,7 +14,7 @@ function loadTrip(storage: Storage | undefined): ActiveTrip | null {
     if (!raw) return null
     const t = JSON.parse(raw) as ActiveTrip
     // Drop trips that ended more than an hour ago.
-    return t?.option?.arrive && Array.isArray(t.lines) && Date.parse(t.option.arrive) > Date.now() - 3600_000 ? t : null
+    return t?.option?.arrive && t.ends && Date.parse(t.option.arrive) > Date.now() - 3600_000 ? t : null
   } catch {
     return null
   }

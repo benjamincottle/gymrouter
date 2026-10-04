@@ -36,7 +36,6 @@ test('stops and changes summary', () => {
   assert.equal(stopCount(option('08:00', a, b)), 8)
   assert.equal(changesAndStops(option('08:00', a, b)), '1 change, 8 stops')
   assert.equal(changesAndStops(option('08:00', b)), 'no changes, 1 stop')
-  assert.equal(changesAndStops(option('08:00', ride('t1', 'A', '08:05', '08:30'))), 'no changes') // older server
 })
 
 test('the description rows and where you are on them', () => {

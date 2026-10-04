@@ -116,15 +116,6 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
   const timedOf = (g: StopGroup) =>
     walks.find((w): w is AccessWalk => w.kind === 'access' && w.place === key && w.stop.some((id) => id === g.key || g.ids.includes(id)))
 
-  // Ticked stops take the street map's time, refreshed each time the stops load (times were once typed in here).
-  const withEstimates = (place: Gym): Gym => ({
-    ...place,
-    access: place.access.map((a) => {
-      const g = groups.find((x) => x.ids.includes(a.stop))
-      return g ? { ...a, walk_s: g.walk_s } : a
-    }),
-  })
-
   const canSave = hasLocation && p.name.trim() !== '' && (!gym || p.lines.length > 0)
 
   return (
@@ -228,7 +219,7 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
       )}
 
       <div class="actions">
-        <button class="primary" disabled={!canSave} onClick={() => onSave(withEstimates({ ...p, name: p.name.trim() }))}>
+        <button class="primary" disabled={!canSave} onClick={() => onSave({ ...p, name: p.name.trim() })}>
           Save {kind}
         </button>
         <button onClick={onCancel}>Cancel</button>

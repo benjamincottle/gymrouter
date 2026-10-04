@@ -215,7 +215,7 @@ function cleanTrace(v: unknown): LonLat[] | undefined {
   return ok ? (v as LonLat[]) : undefined
 }
 
-export function cleanTimes(v: unknown): number[] {
+function cleanTimes(v: unknown): number[] {
   return Array.isArray(v) ? v.filter((t): t is number => isNum(t, 1, 3600)).slice(-MAX_SAMPLES).map(Math.round) : []
 }
 

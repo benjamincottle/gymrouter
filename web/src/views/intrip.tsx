@@ -17,8 +17,7 @@ export interface ActiveTrip {
   option: Option // the option as currently committed (updated with live times)
   plannedArrive: string
   request: PlanRequest // the original request (from/to/prefs)
-  lines: string[] // the gym's lines: what the map draws
-  ends?: { start: PlaceRef; end: PlaceRef } // the home or gym at each end, for timing walks to and from them
+  ends: { start: PlaceRef; end: PlaceRef } // the home or gym at each end, for timing walks to and from them
   title: string
   origin: [number, number]
   destination: [number, number]
@@ -125,12 +124,12 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
     setCheck(null)
   }
 
-  const ins = instruction(o, phase, trip.ends?.end.name)
-  const destination = trip.ends?.end.name ?? 'your destination'
+  const ins = instruction(o, phase, trip.ends.end.name)
+  const destination = trip.ends.end.name
   // The trip's description: you on its rail, and its walks to time (from the map, timing goes back to this screen).
   const track: Tracking = {
     now,
-    segs: segments(o, trip.ends?.start, trip.ends?.end),
+    segs: segments(o, trip.ends.start, trip.ends.end),
     onTime: (s) => {
       setMapOpen(false)
       setSaved('')
@@ -287,7 +286,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           token={token}
           me={pos}
           walks={walks}
-          places={{ start: trip.ends?.start.key, end: trip.ends?.end.key }}
+          places={{ start: trip.ends.start.key, end: trip.ends.end.key }}
           origin={trip.origin}
           destination={trip.destination}
           title={trip.title}

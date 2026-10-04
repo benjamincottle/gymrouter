@@ -1,7 +1,7 @@
 // Device-side settings: everything personal lives here, never on the server.
 
 import type { KnownGym, PlaceRequest, PlanRequest, SuggestResult } from './types.ts'
-import { changeTimes, cleanTimes, MAX_WALKS, placeKey, placeWalks, sanitizeWalks, type PlaceRef, type Retime, type TimedWalk } from './walks.ts'
+import { changeTimes, placeKey, placeWalks, sanitizeWalks, type PlaceRef, type Retime, type TimedWalk } from './walks.ts'
 
 export interface AccessStop {
   stop: string
@@ -70,36 +70,20 @@ export function isLine(v: unknown): v is string {
   return i > 0 && v.slice(i + 1).trim() !== '' && (LINE_MODES as readonly string[]).includes(v.slice(0, i))
 }
 
-/**
- * Validates a place. Walks timed with the old per-stop timer (times and a trace on the stop) are moved to `walks`,
- * one per stop name (a station's platforms shared one walk).
- */
-function sanitizePlace(input: unknown, key: (p: Place & { ref?: string }) => string, walks: TimedWalk[]): Place | null {
+function sanitizePlace(input: unknown): Place | null {
   if (typeof input !== 'object' || input === null) return null
   const r = input as Record<string, unknown>
   if (!isStr(r.id, 40) || !isStr(r.name, 60) || !isNum(r.lat, -90, 90) || !isNum(r.lon, -180, 180)) return null
   const access: AccessStop[] = []
-  const timed = new Map<string, TimedWalk & { kind: 'access' }>()
   if (Array.isArray(r.access)) {
     for (const a of r.access.slice(0, 20)) {
       const x = a as Record<string, unknown>
       if (x && isStr(x.stop, 40) && isStr(x.name, 120) && isNum(x.walk_s, 0, 3600)) {
         access.push({ stop: x.stop, name: x.name, walk_s: Math.round(x.walk_s) })
-        const times = cleanTimes(x.times)
-        if (times.length === 0) continue
-        const prev = timed.get(x.name)
-        if (prev) prev.stop.push(x.stop)
-        else {
-          const old = sanitizeWalks([{ kind: 'access', place: '-', stop: [x.stop], label: x.name, times, trace: x.trace }])[0]
-          if (old) timed.set(x.name, { ...(old as TimedWalk & { kind: 'access' }), label: `${r.name} – ${x.name}` })
-        }
       }
     }
   }
-  const p: Place = { id: r.id, name: r.name, lat: r.lat, lon: r.lon, access }
-  const k = key({ ...p, ref: isStr(r.ref, 40) ? r.ref : undefined })
-  for (const w of timed.values()) walks.push({ ...w, place: k })
-  return p
+  return { id: r.id, name: r.name, lat: r.lat, lon: r.lon, access }
 }
 
 /** Validates untrusted settings (from storage, an import file or a link), dropping anything malformed. */
@@ -109,16 +93,15 @@ export function sanitize(input: unknown): Settings {
   const s = input as Record<string, unknown>
   if (isStr(s.token, 200) && /^[A-Za-z0-9_-]{32,}$/.test(s.token)) out.token = s.token
   out.walks = sanitizeWalks(s.walks)
-  const migrated: TimedWalk[] = [] // from older versions, added unless already there
   if (Array.isArray(s.homes)) {
     for (const h of s.homes.slice(0, 10)) {
-      const p = sanitizePlace(h, (x) => placeKey('home', x), migrated)
+      const p = sanitizePlace(h)
       if (p) out.homes.push(p)
     }
   }
   if (Array.isArray(s.gyms)) {
     for (const g of s.gyms.slice(0, MAX_GYMS)) {
-      const p = sanitizePlace(g, (x) => placeKey('gym', x), migrated)
+      const p = sanitizePlace(g)
       if (!p) continue
       const r = g as Record<string, unknown>
       const ls = Array.isArray(r.lines) ? r.lines.filter(isLine).slice(0, MAX_LINES) : []
@@ -145,21 +128,6 @@ export function sanitize(input: unknown): Settings {
   }
   if (s.retime === 'average' || s.retime === 'replace') out.retime = s.retime
   if ((HIGHLIGHTS as readonly unknown[]).includes(s.highlight) && s.highlight !== 'black') out.highlight = s.highlight as Highlight
-  // Change times set by hand in older versions.
-  if (Array.isArray(s.transfers)) {
-    for (const t of s.transfers.slice(0, 100)) {
-      const x = t as Record<string, unknown>
-      if (x && isStr(x.from, 40) && isStr(x.to, 40) && isNum(x.secs, 1, 3600) && isStr(x.label, 120)) {
-        migrated.push({ kind: 'change', from: [x.from], to: [x.to], label: x.label, times: [Math.round(x.secs)] })
-      }
-    }
-  }
-  for (const w of migrated) {
-    const dup = out.walks.some((x) =>
-      w.kind === 'access' ? x.kind === 'access' && x.place === w.place && x.stop.some((id) => w.stop.includes(id))
-        : x.kind === 'change' && x.from.join() === w.from.join() && x.to.join() === w.to.join())
-    if (!dup && out.walks.length < MAX_WALKS) out.walks.push(w)
-  }
   return out
 }
 
