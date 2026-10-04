@@ -66,7 +66,11 @@ func (e *Engine) provisionLoop(ctx context.Context) {
 		if e.now().Before(next[name]) || !due() {
 			return
 		}
-		if err := run(ctx); err != nil {
+		var err error
+		if perr := e.guard(name, func() { err = run(ctx) }); perr != nil {
+			err = perr
+		}
+		if err != nil {
 			if ctx.Err() != nil {
 				return
 			}

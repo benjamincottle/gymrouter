@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -242,7 +243,7 @@ func (e *Engine) Ensure(set lines.Set) error {
 	case e.wake <- struct{}{}:
 	default:
 	}
-	go e.LoadShapes()
+	go e.guard("route shapes", e.LoadShapes)
 	e.used(set)
 	return nil
 }
@@ -310,15 +311,28 @@ func (e *Engine) Start(ctx context.Context) error {
 		return err
 	}
 	if fi, err := os.Stat(e.paths.Complete); err == nil && e.now().Sub(fi.ModTime()) > 20*time.Hour {
-		go e.refreshStatic(ctx) // stale after downtime; don't wait for the daily refresh
+		go e.guard("timetable refresh", func() { e.refreshStatic(ctx) }) // stale after downtime; don't wait for the daily refresh
 	}
-	go e.LoadShapes()
-	go e.BuildCatalog(ctx)
+	go e.guard("route shapes", e.LoadShapes)
+	go e.guard("stop catalogue", func() { e.BuildCatalog(ctx) })
 	if e.cfg.Data.AutoDownload {
 		go e.provisionLoop(ctx)
 	}
 	go e.staticLoop(ctx)
 	go e.pollLoop(ctx)
+	return nil
+}
+
+// guard runs background work, turning a panic into a logged error instead of letting it stop the server: nothing
+// else recovers outside a request. Loops guard each turn, so the work is simply tried again on the next one.
+func (e *Engine) guard(task string, f func()) (err error) {
+	defer func() {
+		if v := recover(); v != nil {
+			e.log.Error("background work panicked", "task", task, "err", fmt.Sprint(v), "stack", string(debug.Stack()))
+			err = fmt.Errorf("%s: internal error: %v", task, v)
+		}
+	}()
+	f()
 	return nil
 }
 
@@ -505,19 +519,21 @@ func (e *Engine) staticLoop(ctx context.Context) {
 			return
 		case <-t.C:
 		}
-		now := e.now().In(e.loc)
-		if s := e.today.Load(); s != nil && !s.Date.Equal(e.LocalDate(now)) {
-			e.PruneLines()
-			if err := e.reloadToday(); err != nil {
-				e.log.Error("day rollover failed", "err", err)
-			} else {
-				go e.LoadShapes()
+		_ = e.guard("timetable refresh", func() {
+			now := e.now().In(e.loc)
+			if s := e.today.Load(); s != nil && !s.Date.Equal(e.LocalDate(now)) {
+				e.PruneLines()
+				if err := e.reloadToday(); err != nil {
+					e.log.Error("day rollover failed", "err", err)
+				} else {
+					go e.guard("route shapes", e.LoadShapes)
+				}
 			}
-		}
-		if today := e.LocalDate(now); !today.Equal(lastRefresh) && now.Hour() >= e.cfg.Server.StaticRefreshH {
-			lastRefresh = today
-			e.refreshStatic(ctx)
-		}
+			if today := e.LocalDate(now); !today.Equal(lastRefresh) && now.Hour() >= e.cfg.Server.StaticRefreshH {
+				lastRefresh = today
+				e.refreshStatic(ctx)
+			}
+		})
 	}
 }
 
@@ -533,7 +549,7 @@ func (e *Engine) pollLoop(ctx context.Context) {
 		case <-e.wake:
 		}
 		if e.active() {
-			e.PollOnce(ctx)
+			_ = e.guard("realtime polling", func() { e.PollOnce(ctx) })
 		}
 	}
 }
