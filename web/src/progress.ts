@@ -133,7 +133,15 @@ export const BOARDED_M = 120
 const AT_STOP_M = 40
 
 /** What you're doing, from where you are on the steps: walking to a ride or waiting for it, on it, or the last walk. */
-export function phaseOf(o: Option, rs: Row[], at: At, lines: LonLat[][], pos: { lat: number; lon: number; accuracy: number } | null): Phase {
+export function phaseOf(
+  o: Option, rs: Row[], at: At, lines: LonLat[][], pos: { lat: number; lon: number; accuracy: number } | null,
+  aboard: (ride: number) => boolean = () => false, // seen moving with the vehicle of legs[ride] (boarding.ts)
+): Phase {
+  const ph = phaseFromSteps(o, rs, at, lines, pos)
+  return ph.kind === 'before' && aboard(ph.ride) ? { kind: 'riding', ride: ph.ride } : ph
+}
+
+function phaseFromSteps(o: Option, rs: Row[], at: At, lines: LonLat[][], pos: { lat: number; lon: number; accuracy: number } | null): Phase {
   const r = rs[at.row]
   const nextRide = (from: number) => o.legs.findIndex((l, j) => j >= from && l.kind === 'ride')
   const waiting = (ride: number) => {

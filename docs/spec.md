@@ -365,3 +365,8 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   progress only goes forward unless you're more than 150 m back from where you were placed; with no usable fix you stay put
   and only a ride you're on carries on by the clock. Without any location the clock decides, as before. Next: matching
   your movement with your vehicle's live position to confirm boarding sooner.
+- 2026-10-04: Vehicle matching. While you wait for or ride a vehicle, its live position is polled every 10 s and compared
+  with where you were at the same moment (your fixes, interpolated): with it (within 50 m plus your GPS accuracy) at two
+  reports between which it moved 50 m or more means you're aboard, sooner and surer than the 120 m along-the-line rule; it
+  moving off more than 150 m from you while you stay put means it left without you, and the trip is re-checked straight
+  away. Once you're aboard and your own fix goes stale (a tunnel), the vehicle's position stands in for yours.
