@@ -1,5 +1,23 @@
 # TODO: field-test feedback (2026-10-04)
 
+## Round 2 (before pushing)
+
+- [x] **Unauthenticated visits look like nothing's there.** Without a token the app shows a plain
+      "404 page not found" like Go/Traefik's own, and the API answers unauthenticated requests the same way
+      (instead of 401 JSON). A setup link is the only way in; the paste-a-link setup form goes.
+- [ ] **Two more built-in gyms:** ClimbFit Macquarie and ClimbFit St Leonards.
+- [ ] **A small colour logo of the gym's brand** (9 Degrees, ClimbFit) to the left of each gym in the list.
+- [ ] **An app icon** next to the "Gym Router" title, and the same mark as the favicon / home-screen icon
+      (the current one is a placeholder).
+- [ ] **"Earlier trips" / "Later trips"** in place of the first/last times above the option list, moving the
+      window by 30 minutes.
+- [ ] **Start a trip from the map** without closing it first.
+- [ ] **Name the destination in the last walk:** "Walk 5 min to 9 Degrees Parramatta", not "to your destination".
+- [ ] **A started trip always uses location** (falling back to the timetable if it isn't available).
+- [ ] **A change icon** in the time column of a change in the trip description.
+
+## Round 1
+
 Worked in this order (quick fixes first, the walk-timing overhaul last). Assumptions are noted where the
 feedback left a choice open; say if any are wrong.
 

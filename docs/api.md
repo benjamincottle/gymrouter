@@ -1,6 +1,7 @@
 # API
 
-All `/api/*` endpoints need `Authorization: Bearer <token>`. Request bodies are JSON
+All `/api/*` endpoints need `Authorization: Bearer <token>`. Without it (or with a wrong one) every path answers
+exactly like a page that doesn't exist: `404`, `text/plain`, `404 page not found`. The API's own 404s are JSON. Request bodies are JSON
 (`Content-Type: application/json`, max 64 KB, unknown fields rejected). Times are RFC 3339 in Sydney time.
 Personal data (home coordinates, walk times) is only sent in request bodies and is never logged or stored.
 

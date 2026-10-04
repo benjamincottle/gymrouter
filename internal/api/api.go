@@ -89,8 +89,7 @@ func (s *Server) Handler() http.Handler {
 		files := http.FileServerFS(s.web)
 		mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet && r.Method != http.MethodHead {
-				w.Header().Set("Allow", "GET, HEAD")
-				writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+				http.NotFound(w, r) // nothing here takes anything else; look like it
 				return
 			}
 			if strings.HasPrefix(r.URL.Path, "/assets/") {

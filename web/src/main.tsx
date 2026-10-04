@@ -34,11 +34,13 @@ window.addEventListener('hashchange', async () => {
   window.location.reload()
 })
 
-// Ask the browser not to evict our storage (mainly matters on iOS).
-navigator.storage?.persist?.().catch(() => undefined)
-
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  navigator.serviceWorker.register('/sw.js').catch(() => undefined)
+// Only a set-up device gets the app's extras; anyone else sees a plain 404 page (views/notfound.tsx).
+if (settings.token) {
+  // Ask the browser not to evict our storage (mainly matters on iOS).
+  navigator.storage?.persist?.().catch(() => undefined)
+  if ('serviceWorker' in navigator && import.meta.env.PROD) {
+    navigator.serviceWorker.register('/sw.js').catch(() => undefined)
+  }
 }
 
 render(<App initial={settings} imported={imported} storage={storage()} />, document.getElementById('app')!)

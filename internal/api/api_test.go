@@ -101,13 +101,15 @@ func (h *harness) do(t *testing.T, method, path, auth string, body any) *httptes
 
 func TestAuth(t *testing.T) {
 	h := newHarness(t)
-	if rec := h.do(t, "GET", "/api/defaults", "", nil); rec.Code != 401 {
-		t.Errorf("no token: %d", rec.Code)
+	// Without the token there's nothing here: the same plain 404 as Go's (and Traefik's) for a missing page.
+	if rec := h.do(t, "GET", "/api/defaults", "", nil); rec.Code != 404 || rec.Body.String() != "404 page not found\n" ||
+		!strings.HasPrefix(rec.Header().Get("Content-Type"), "text/plain") || rec.Header().Get("WWW-Authenticate") != "" {
+		t.Errorf("no token: %d %q %q", rec.Code, rec.Body, rec.Header())
 	}
-	if rec := h.do(t, "GET", "/api/defaults", token+"x", nil); rec.Code != 401 {
+	if rec := h.do(t, "GET", "/api/defaults", token+"x", nil); rec.Code != 404 {
 		t.Errorf("wrong token: %d", rec.Code)
 	}
-	if rec := h.do(t, "GET", "/api/nonexistent", "", nil); rec.Code != 401 {
+	if rec := h.do(t, "GET", "/api/nonexistent", "", nil); rec.Code != 404 {
 		t.Errorf("unknown API paths must also need the token: %d", rec.Code)
 	}
 	rec := h.do(t, "GET", "/api/defaults", token, nil)
@@ -411,10 +413,10 @@ func TestServesFrontendAlongsideAPI(t *testing.T) {
 	if rec.Code != 200 || !strings.Contains(rec.Header().Get("Cache-Control"), "immutable") {
 		t.Errorf("asset: %d %q", rec.Code, rec.Header().Get("Cache-Control"))
 	}
-	if rec := h.do(t, "POST", "/", "", "{}"); rec.Code != 405 {
+	if rec := h.do(t, "POST", "/", "", "{}"); rec.Code != 404 || rec.Body.String() != "404 page not found\n" {
 		t.Errorf("POST /: %d", rec.Code)
 	}
-	if rec := h.do(t, "GET", "/api/defaults", "", nil); rec.Code != 401 {
+	if rec := h.do(t, "GET", "/api/defaults", "", nil); rec.Code != 404 {
 		t.Errorf("API still needs the token next to the frontend: %d", rec.Code)
 	}
 	if rec := h.do(t, "GET", "/api/defaults", token, nil); rec.Code != 200 {
@@ -488,7 +490,7 @@ func TestLegShapeAndMap(t *testing.T) {
 	if rr.Code != 206 || rr.Body.String() != "PMTiles" || !strings.Contains(rr.Header().Get("Cache-Control"), "private") {
 		t.Errorf("range request: %d %q %q", rr.Code, rr.Body, rr.Header().Get("Cache-Control"))
 	}
-	if rec := h.do(t, "GET", "/api/map.pmtiles", "", nil); rec.Code != 401 {
+	if rec := h.do(t, "GET", "/api/map.pmtiles", "", nil); rec.Code != 404 {
 		t.Errorf("map without token: %d", rec.Code)
 	}
 }
@@ -681,7 +683,7 @@ func TestSuggestLines(t *testing.T) {
 			t.Errorf("%s: %d", name, rec.Code)
 		}
 	}
-	if rec := h.do(t, "POST", "/api/suggest-lines", "", body); rec.Code != 401 {
+	if rec := h.do(t, "POST", "/api/suggest-lines", "", body); rec.Code != 404 {
 		t.Errorf("suggest without a token: %d", rec.Code)
 	}
 }

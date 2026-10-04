@@ -841,15 +841,28 @@ label.walk input {
   height: auto;
 }
 
-.setup {
-  padding-top: 56px;
+/* the page for a browser without access: exactly what a browser shows for a plain-text 404 */
+html.not-found {
+  color-scheme: light dark;
 }
 
-.setup h1 {
-  font-stretch: var(--narrow);
-  font-size: 3rem;
-  line-height: 1;
-  margin-bottom: 16px;
+html.not-found,
+html.not-found body {
+  background: Canvas;
+  background-image: none;
+  color: CanvasText;
+}
+
+html.not-found body {
+  margin: 8px;
+  font: 13px monospace;
+  line-height: normal;
+  font-variant-numeric: normal;
+}
+
+html.not-found pre {
+  margin: 1em 0;
+  font: inherit;
 }
 
 @media (prefers-reduced-motion: reduce) {

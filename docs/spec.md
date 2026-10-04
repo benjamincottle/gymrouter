@@ -137,7 +137,8 @@ Non-goals (v1)
 - **Setup-link token**: secret in Ansible Vault → env; server compares in constant time against its hash.
   First device: `docker compose exec app gymrouter setup-link` prints `https://<host>/#setup=<token>`.
   The app saves the token and removes it from the URL. More devices: "Share setup" link/QR.
-  Revoke = rotate the secret.
+  Revoke = rotate the secret. Without a token there's no sign of an app: the page shows a plain "404 page not found"
+  (as Go and Traefik do) and the API answers unauthenticated requests the same way.
 - No personal data on the server; private settings travel in POST bodies; request bodies and
   query strings with coordinates are never logged.
 - **Key protection**: the server alone polls TfNSW; client requests never trigger upstream calls.
@@ -319,3 +320,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   Plan requests carry a place's timed walks as `walks`, which beat curated and street times and add stops that aren't ticked
   under the home or gym (they weren't usable before, which is likely why saving such a walk seemed not to work). Timed
   changes are sent as transfer times both ways. Older per-stop timings and "Set my time" change times are migrated.
+- 2026-10-04: No visible front door. A browser without a token sees a page indistinguishable from a plain-text "404 page not
+  found" (no icon, manifest or service worker), and unauthenticated API requests (and non-GETs to the site) get Go's own
+  404 instead of 401 JSON, which the app recognises by its plain-text body. The paste-a-setup-link form is gone; a setup link
+  is the only way in. The page itself is still served with 200 (the app's HTML must load to read the token from storage).
