@@ -2,7 +2,7 @@
 // shared time axis, so when each leaves and arrives can be compared at a glance.
 import { useEffect, useState } from 'preact/hooks'
 import type { ComponentType } from 'preact'
-import { clock, countdown, delay, duration, placeName, riskLabel, shortDuration } from '../format.ts'
+import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, shortDuration } from '../format.ts'
 import { useNow } from '../hooks.ts'
 import type { TimedWalk } from '../walks.ts'
 import type { Leg, Option, StopRef } from '../types.ts'
@@ -29,17 +29,14 @@ interface Props {
   onShift: Shift
 }
 
-/** Moves the window of options: -1 earlier, +1 later. `canEarlier` is false when the window already starts now. */
-export interface Shift {
-  (dir: -1 | 1): void
-  canEarlier: boolean
-}
+/** Moves the window of options: -1 earlier, +1 later. */
+export type Shift = (dir: -1 | 1) => void
 
 /** "Earlier trips" and "Later trips", above the list of options (or in place of it when nothing leaves). */
 export function WindowShift({ shift }: { shift: Shift }) {
   return (
     <div class="shift">
-      <button class="link" disabled={!shift.canEarlier} onClick={() => shift(-1)}>
+      <button class="link" onClick={() => shift(-1)}>
         Earlier trips
       </button>
       <button class="link" onClick={() => shift(1)}>
@@ -126,7 +123,7 @@ function Hero({ option: o, live, now }: { option: Option; live: boolean; now: nu
   const cd = countdown(o.leave_at, now)
   return (
     <section class="hero" aria-live="polite">
-      <p class="hero-label">{live ? 'Leave' : 'Leave at'}</p>
+      <p class="hero-label">{live ? 'Leave' : dayOf(o.leave_at, now) ? `Leave ${dayOf(o.leave_at, now)} at` : 'Leave at'}</p>
       <p class="hero-time">{live ? cd.replace(/^in /, '') : clock(o.leave_at)}</p>
       {ride && (
         <p class="hero-sub">
@@ -209,7 +206,7 @@ export function MapSheet({ option, now, onClose, onStart, token, walks, places, 
       <footer class={onStart ? 'sheet-summary with-start' : 'sheet-summary'}>
         <div>
           <p>
-            <span class="sheet-leave">{live ? `Leave ${countdown(option.leave_at, now)}` : `Leave ${clock(option.leave_at)}`}</span>
+            <span class="sheet-leave">{live ? `Leave ${countdown(option.leave_at, now)}` : `Leave ${[dayOf(option.leave_at, now), clock(option.leave_at)].filter(Boolean).join(' ')}`}</span>
             <span>arrive {clock(option.arrive)}</span>
           </p>
           <Strip option={option} start={start} end={end} />

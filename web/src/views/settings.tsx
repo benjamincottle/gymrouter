@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { encode } from 'uqr'
-import { emptySettings, MAX_GYMS, sanitize, settingsLink, type Gym, type Home, type Settings } from '../settings.ts'
+import { emptySettings, HIGHLIGHTS, MAX_GYMS, sanitize, settingsLink, type Gym, type Home, type Settings } from '../settings.ts'
+import { HOLD, IconColour, IconDevices, IconGym, IconHome, IconPhone, IconRisk, IconTimer, IconWalk } from './icons.tsx'
 import type { DefaultsResponse } from '../types.ts'
 import { mmss } from '../walkmeasure.ts'
 import { walkSecs } from '../walks.ts'
@@ -80,7 +81,9 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
   return (
     <div class="stack">
       <section class="card">
-        <h2>Homes</h2>
+        <h2>
+          <IconHome /> Homes
+        </h2>
         <p class="muted small">Stored only on this device.</p>
         <ul class="list">
           {settings.homes.map((h) => (
@@ -114,7 +117,9 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
       </section>
 
       <section class="card">
-        <h2>Gyms</h2>
+        <h2>
+          <IconGym /> Gyms
+        </h2>
         <p class="muted small">Stored only on this device, with the lines used to get to each one.</p>
         {warning && (
           <p class="notice warn" role="status">
@@ -156,7 +161,9 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
       </section>
 
       <section class="card">
-        <h2>Walking and changes</h2>
+        <h2>
+          <IconWalk /> Walking and changes
+        </h2>
         <NumberField
           label="Walking speed (km/h)"
           value={settings.walkSpeedMps !== undefined ? round1(settings.walkSpeedMps * 3.6) : undefined}
@@ -190,7 +197,9 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
       </section>
 
       <section class="card">
-        <h2>Connection risk</h2>
+        <h2>
+          <IconRisk /> Connection risk
+        </h2>
         <p class="muted small">How much spare time a change needs to count as safe or tight. Below "tight" it's at risk.</p>
         <NumberField
           label="Safe from (min)"
@@ -220,7 +229,9 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
       </section>
 
       <section class="card">
-        <h2>Timed walks</h2>
+        <h2>
+          <IconTimer /> Timed walks
+        </h2>
         <p class="muted small">
           Walks and changes you've timed during trips (tap "Time this walk" while travelling). They're used whenever the same
           walk comes up, either way round, and the route you walked is drawn on the map.
@@ -272,10 +283,41 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
         </fieldset>
       </section>
 
+      <section class="card">
+        <h2>
+          <IconColour /> Highlight colour
+        </h2>
+        <p class="muted small">For underlines and what's selected. The grade colours at 9 Degrees.</p>
+        <ul class="swatches" role="radiogroup" aria-label="Highlight colour">
+          {HIGHLIGHTS.map((c) => {
+            const on = (settings.highlight ?? 'black') === c
+            return (
+              <li>
+                <button
+                  class="swatch"
+                  data-hl={c}
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setSettings({ ...settings, highlight: c === 'black' ? undefined : c })}
+                >
+                  <svg viewBox="3 2.5 18 15" aria-hidden="true">
+                    <path class="hold" d={HOLD} />
+                    <circle class="bolt" cx="12" cy="10.5" r="1.5" />
+                  </svg>
+                  {c[0].toUpperCase() + c.slice(1)}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </section>
+
       <Backup settings={settings} setSettings={setSettings} />
 
       <section class="card">
-        <h2>This device</h2>
+        <h2>
+          <IconPhone /> This device
+        </h2>
         <button
           class="danger"
           onClick={() => {
@@ -363,7 +405,9 @@ function Backup({ settings, setSettings }: { settings: Settings; setSettings: (s
 
   return (
     <section class="card">
-      <h2>Backup and other devices</h2>
+      <h2>
+        <IconDevices /> Backup and other devices
+      </h2>
       <p class="muted small">
         Backups and setup links include your access token and homes. Treat them like a password.
       </p>

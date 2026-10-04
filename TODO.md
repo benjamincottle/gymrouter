@@ -1,5 +1,18 @@
 # TODO: field-test feedback (2026-10-04)
 
+## Round 3
+
+- [x] **The map keeps your view.** Live refreshes no longer re-fit the map once you've zoomed or moved it.
+- [x] **No rule under the header.** "Gym Router" is underlined when it's the screen you're on, like Settings.
+- [x] **Icons for the Settings sections** (homes, gyms, walking and changes, …).
+- [x] **A highlight colour** in Settings, for underlines and selection marks: the nine 9 Degrees grade colours
+      (green, blue, teal, pink, red, black, purple, white, yellow). Black is the default (the current ink).
+- [x] **Door-to-door in the option list always in minutes** ("80m", not "1h20"). The summary stays as it is.
+- [x] **"Earlier trips" works with Leave now** too (showing trips that have just gone).
+- [x] **Leave now / Leave at / Arrive by above To the gym / Home.**
+- [x] **Simpler date and time:** a day list (Today (4th), Tomorrow (5th), then the next few days, about a week)
+      and a 24-hour time, instead of the browser's (American-format) date picker. Times on other days say which day.
+
 ## Round 2 (before pushing)
 
 - [x] **Unauthenticated visits look like nothing's there.** Without a token the app shows a plain

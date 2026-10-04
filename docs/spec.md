@@ -327,3 +327,9 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - 2026-10-04: Two more built-in gyms, ClimbFit Macquarie and ClimbFit St Leonards (lines found as for Waterloo/Alexandria).
   Built-in gyms carry a `brand`, and the gym lists show that brand's small logo (`web/public/brands/`, 64 px PNGs from the
   brands' own sites; ClimbFit's reduced to its teal mountain mark so it reads at 32 px on light and dark).
+- 2026-10-04: A highlight colour (Settings), one of the nine 9 Degrees grade colours, for underlines and selection marks
+  only (the current screen, the chosen gym's strip, the chosen option's bar, an accent in each Settings icon); structural
+  rules stay ink. Black (the ink) is the default. The header loses its rule: the current screen is underlined instead.
+  Dates are chosen as a day ("Today (4th)", "Tomorrow (5th)", … about a week) and a 24-hour time in five-minute steps,
+  never the browser's locale-dependent picker, and times on another day name it. The map stops re-fitting itself once
+  you've moved or zoomed it. "Earlier trips" works from Leave now too.

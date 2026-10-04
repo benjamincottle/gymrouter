@@ -2,7 +2,7 @@
 // you are (or the vehicle you're on), and suggests a switch when something slips.
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
-import { clock, countdown, delay, duration, placeName, riskLabel } from '../format.ts'
+import { clock, countdown, dayOf, delay, duration, placeName, riskLabel } from '../format.ts'
 import { useNow, useVisible } from '../hooks.ts'
 import { assess, instruction, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, type Assessment, type Position } from '../intrip.ts'
 import type { Option, PlanRequest } from '../types.ts'
@@ -190,7 +190,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
         <p class="now-main">{ins.now}</p>
         {now < start - 60_000 && (
           <p>
-            Leave at <strong>{clock(o.leave_at)}</strong> ({countdown(o.leave_at, now)})
+            Leave {dayOf(o.leave_at, now) && `${dayOf(o.leave_at, now)} `}at <strong>{clock(o.leave_at)}</strong> ({countdown(o.leave_at, now)})
           </p>
         )}
         {ins.detail && phase.kind === 'before' && (

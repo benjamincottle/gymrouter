@@ -62,6 +62,12 @@ export function App({ initial, imported, storage }: AppProps) {
 
   const onAuthError = useCallback(() => setAuthFailed(true), [])
 
+  // The highlight colour is a CSS token on the root (style.css maps each name to light and dark values).
+  useEffect(() => {
+    if (settings.highlight) document.documentElement.dataset.hl = settings.highlight
+    else delete document.documentElement.dataset.hl
+  }, [settings.highlight])
+
   useEffect(() => {
     if (!settings.token) return
     let live = true
@@ -106,7 +112,8 @@ export function App({ initial, imported, storage }: AppProps) {
       <header class="topbar">
         <h1>
           <button
-            class="home-link"
+            class={view === 'trip' ? 'home-link active' : 'home-link'}
+            aria-current={view === 'trip' ? 'page' : undefined}
             onClick={() => {
               setView('trip')
               setRestarts((n) => n + 1)

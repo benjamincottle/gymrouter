@@ -16,7 +16,32 @@
   --missed: #b42318;
   --narrow: 68%;
   --semi: 84%;
+  /* highlight: underlines and selection marks (Settings > Highlight colour); the edge keeps pale ones visible */
+  --hl: var(--ink);
+  --hl-edge: transparent;
   color-scheme: light;
+}
+
+/* the 9 Degrees grade colours */
+.swatch[data-hl='black'] { --hl: var(--ink); --hl-edge: transparent; }
+:root[data-hl='green'], .swatch[data-hl='green'] { --hl: #2f9e44; --hl-edge: transparent; }
+:root[data-hl='blue'], .swatch[data-hl='blue'] { --hl: #1c64d6; --hl-edge: transparent; }
+:root[data-hl='teal'], .swatch[data-hl='teal'] { --hl: #0f9f9f; --hl-edge: transparent; }
+:root[data-hl='pink'], .swatch[data-hl='pink'] { --hl: #e2418f; --hl-edge: transparent; }
+:root[data-hl='red'], .swatch[data-hl='red'] { --hl: #d62f2f; --hl-edge: transparent; }
+:root[data-hl='purple'], .swatch[data-hl='purple'] { --hl: #7b3fc4; --hl-edge: transparent; }
+:root[data-hl='white'], .swatch[data-hl='white'] { --hl: #ffffff; --hl-edge: #9aa2a9; }
+:root[data-hl='yellow'], .swatch[data-hl='yellow'] { --hl: #f5c400; --hl-edge: #b38f00; }
+
+@media (prefers-color-scheme: dark) {
+  :root[data-hl='blue'], .swatch[data-hl='blue'] { --hl: #4d8df0; }
+  :root[data-hl='red'], .swatch[data-hl='red'] { --hl: #ef5350; }
+  :root[data-hl='purple'], .swatch[data-hl='purple'] { --hl: #a074e8; }
+  :root[data-hl='white'], .swatch[data-hl='white'],
+  :root[data-hl='yellow'], .swatch[data-hl='yellow'] { --hl-edge: transparent; }
+  /* black means the ink, which is pale here; the swatch still shows a black hold */
+  .swatch[data-hl='black'] .hold { fill: #0d0f10; stroke: #6b737a; }
+  :root { --icon-edge: #3a4046; }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -210,15 +235,26 @@ label.inline {
   justify-content: space-between;
   padding: calc(8px + env(safe-area-inset-top)) 0 8px;
   background: var(--wall);
-  border-bottom: 3px solid var(--ink);
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+}
+
+/* no rule under the header: what scrolls beneath it fades out instead */
+.topbar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 12px;
+  background: linear-gradient(var(--wall), transparent);
+  pointer-events: none;
 }
 
 .home-link {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0;
+  padding: 8px 0;
   border: 0;
   font-weight: inherit;
   text-align: left;
@@ -226,6 +262,7 @@ label.inline {
 
 .home-link img {
   flex: none;
+  box-shadow: 0 0 0 1px var(--icon-edge, transparent);
   border-radius: 7px; /* the icon's own corner, kept crisp at this size */
 }
 
@@ -239,9 +276,10 @@ label.inline {
   color: var(--pencil);
 }
 
-.tab.active {
+.tab.active,
+.home-link.active {
   color: var(--ink);
-  box-shadow: inset 0 -3px 0 var(--ink);
+  box-shadow: inset 0 -3px 0 var(--hl), inset 0 -4px 0 var(--hl-edge);
 }
 
 .stack > * + * {
@@ -305,9 +343,26 @@ label.inline {
   flex: 1 1 14rem;
 }
 
-.when input {
-  flex: 1 1 12rem;
+.daytime {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  gap: 6px;
+}
+
+.daytime select {
   width: auto;
+  font-stretch: var(--semi);
+  font-variant-numeric: tabular-nums;
+}
+
+.daytime select.day {
+  flex: 1;
+  min-width: 0;
+}
+
+.daytime span {
+  font-weight: 700;
 }
 
 .gyms {
@@ -339,7 +394,8 @@ label.inline {
 }
 
 .gym.selected::before {
-  background: var(--ink);
+  background: var(--hl);
+  box-shadow: 0 0 0 1px var(--hl-edge);
 }
 
 .gym .brand {
@@ -451,9 +507,6 @@ label.inline {
   color: var(--pencil);
 }
 
-.shift button.link:disabled {
-  visibility: hidden;
-}
 
 .strips {
   list-style: none;
@@ -480,7 +533,7 @@ label.inline {
 }
 
 .strip-row.selected {
-  box-shadow: inset 4px 0 0 var(--ink);
+  box-shadow: inset 4px 0 0 var(--hl), inset 5px 0 0 var(--hl-edge);
   background: var(--panel);
   padding-left: 8px;
 }
@@ -811,11 +864,6 @@ label.inline {
   border-top: 3px solid var(--ink);
 }
 
-/* the header's rule already sits above the first section */
-main > .stack > .card:first-child {
-  padding-top: 0;
-  border-top: 0;
-}
 
 .list {
   list-style: none;
@@ -1112,4 +1160,84 @@ fieldset.choice label.check {
   display: flex;
   gap: 8px;
   padding: 6px 0;
+}
+
+/* ---- settings: section icons and the highlight colour ---- */
+
+.card > h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon {
+  flex: none;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon .acc {
+  fill: var(--hl);
+}
+
+.icon .acc-line {
+  stroke: var(--hl);
+  stroke-width: 2.2;
+}
+
+.icon .ink {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.icon .risk-safe-fill { fill: var(--safe); stroke: none; }
+.icon .risk-tight-fill { fill: var(--tight); stroke: none; }
+.icon .risk-risk-fill { fill: var(--risk); stroke: none; }
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.4rem, 1fr));
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* each colour is a hold, as on the wall */
+.swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 0;
+  padding: 8px 4px 6px;
+  border: 1.5px solid transparent;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.swatch svg {
+  width: 40px;
+  height: 36px;
+}
+
+.swatch .hold {
+  fill: var(--hl);
+  stroke: var(--hl-edge);
+  stroke-width: 0.8;
+}
+
+.swatch .bolt {
+  fill: var(--wall);
+}
+
+.swatch[aria-checked='true'] {
+  border-color: var(--ink);
+  background: var(--panel);
+  font-weight: 700;
 }

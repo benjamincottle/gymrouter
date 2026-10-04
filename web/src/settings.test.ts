@@ -4,7 +4,7 @@ import {
   applyFragment, emptySettings, gymFromKnown, isLine, withSuggested, load, parseFragment, placeRequest, planPlace, prefs, sanitize, save, settingsLink,
   type Settings,
 } from './settings.ts'
-import { countdown, delay, duration, fromLocalInput, platform, toLocalInput } from './format.ts'
+import { addDays, countdown, dayLabel, dayOf, delay, duration, fromLocalInput, ordinal, platform, roundUp, shortDuration, toLocalInput } from './format.ts'
 
 const TOKEN = 'abcdefghijklmnopqrstuvwxyz0123456789_-ABCDEF'
 
@@ -197,4 +197,19 @@ test('datetime-local conversion uses Sydney time across daylight saving', () => 
   assert.equal(toLocalInput(new Date('2026-07-01T06:30:00Z')), '2026-07-01T16:30') // AEST +10
   assert.equal(fromLocalInput('2026-10-08T16:30'), '2026-10-08T16:30:00+11:00')
   assert.equal(fromLocalInput('2026-07-01T16:30'), '2026-07-01T16:30:00+10:00')
+  assert.equal(roundUp('2026-10-08T16:31'), '2026-10-08T16:35')
+  assert.equal(roundUp('2026-10-08T23:58'), '2026-10-09T00:00')
+  assert.equal(shortDuration(80 * 60), '80m')
+})
+
+test('days, the Australian way', () => {
+  assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 31].map(ordinal), ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '23rd', '31st'])
+  assert.equal(addDays('2026-10-31', 1), '2026-11-01')
+  assert.equal(dayLabel('2026-10-04', '2026-10-04'), 'Today (4th)')
+  assert.equal(dayLabel('2026-10-04', '2026-10-05'), 'Tomorrow (5th)')
+  assert.equal(dayLabel('2026-10-04', '2026-10-06'), 'Tuesday (6th)')
+  const now = Date.parse('2026-10-04T15:00:00+11:00')
+  assert.equal(dayOf('2026-10-04T23:30:00+11:00', now), '')
+  assert.equal(dayOf('2026-10-05T00:10:00+11:00', now), 'tomorrow')
+  assert.equal(dayOf('2026-10-06T08:00:00+11:00', now), 'Tuesday 6th')
 })
