@@ -7,6 +7,11 @@
 - [x] **A bigger "you" marker on the rail:** a blue circle with a white outline and a thin downward arrowhead.
 - [x] **The marker follows where you actually are**, placed on the trip's line from your location; the clock is only
       the fallback (no location, or well off the route). (Now / Then still follow the clock and live times.)
+- [x] **Now / Then follow where you are too** (basic version): the same "where are you" as the marker. Walking to the
+      stop, waiting at it ("Wait for the 52"), on board once you've moved ~120 m along the ride, the last walk. Forward
+      only; with no fix you stay put, and only a ride you're on moves on by the clock. Clock-only without any location.
+- [ ] **Vehicle matching:** your location moving with your vehicle's live position confirms you're on board sooner
+      and more surely.
 - [x] **Ride lines stop at the stop:** the 52 to 9 Degrees Parramatta ran past its last stop and doubled back.
 
 ## Round 6

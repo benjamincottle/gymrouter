@@ -4,14 +4,14 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel } from '../format.ts'
 import { useNow, useVisible } from '../hooks.ts'
-import { assess, instruction, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, type Assessment, type Position } from '../intrip.ts'
+import { assess, instruction, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, type Assessment, type Phase, type Position } from '../intrip.ts'
 import type { Option, PlanRequest } from '../types.ts'
 import type { Walk } from '../walkmeasure.ts'
 import { existing, segments, type PlaceRef, type Retime, type Segment, type TimedWalk } from '../walks.ts'
 import { MapSheet } from './board.tsx'
 import { Timeline, type Tracking } from './option.tsx'
 import { position, rows } from '../options.ts'
-import { locate, rowLines, shapeKey, type LonLat } from '../progress.ts'
+import { advance, phaseOf, rowLines, shapeKey, type At, type LonLat } from '../progress.ts'
 import { WalkTimer } from './walktimer.tsx'
 
 /** Everything needed to resume a trip after a reload; kept on this device only. */
@@ -55,9 +55,43 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   const timerRef = useRef<HTMLDivElement>(null)
   useEffect(() => timerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), [timing])
   const o = trip.option
-  const phase = phaseAt(o, now)
   const posRef = useRef(pos)
   posRef.current = pos
+
+  // Where you are on the steps: from your location along each step's line, the clock only as a fallback.
+  const [shapes, setShapes] = useState<Record<string, LonLat[]>>({})
+  const rides = o.legs.filter((l) => l.kind === 'ride' && l.trip_id && l.from && l.to)
+  useEffect(() => {
+    let live = true
+    for (const l of rides) {
+      const k = shapeKey(l)
+      if (shapes[k]) continue
+      api
+        .shape(token, trip.serviceDate, l.trip_id!, l.from!.id, l.to!.id)
+        .then((s) => live && setShapes((cur) => ({ ...cur, [k]: s.coordinates })))
+        .catch(() => undefined) // straight between the stops will do
+    }
+    return () => {
+      live = false
+    }
+  }, [rides.map(shapeKey).join(',')])
+  const steps = useMemo(() => rows(o, true), [o])
+  const stepLines = useMemo(() => rowLines(steps, o, trip.origin, trip.destination, shapes), [steps, shapes])
+  // Where you are and what you're doing, from your location: the marker, Now / Then and the re-checks all use this.
+  // Without any location (refused or unavailable) the clock decides, as the timetable has it.
+  const lastAt = useRef<{ key: string; at: At } | null>(null)
+  const stepsKey = steps.map((r) => r.kind).join(',') + tripsFrom(o, 0).join(',')
+  const clockAt = position(steps, now)
+  let at: At = clockAt
+  let phase: Phase = phaseAt(o, now)
+  if (pos) {
+    at = advance(lastAt.current?.key === stepsKey ? lastAt.current.at : null, stepLines, pos, clockAt)
+    lastAt.current = { key: stepsKey, at }
+    phase = phaseOf(o, steps, at, stepLines, pos)
+  }
+  const phaseRef = useRef(phase)
+  phaseRef.current = phase
+
   const checkedRef = useRef(false)
 
   // Open at the top: the planning screen may have been scrolled down to its Start button.
@@ -93,7 +127,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
     let live = true
     const run = async () => {
       const nowMs = Date.now()
-      const ph = phaseAt(trip.option, nowMs)
+      const ph = phaseRef.current
       const from = replanOrigin(trip.option, ph, posRef.current, trip.request.from, nowMs)
       if (!from || (ph.kind !== 'before' && ph.kind !== 'riding')) return
       const time = from.on_trip ? undefined : replanTime(trip.option, ph, nowMs)
@@ -123,7 +157,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   }, [visible, trip.plannedArrive, tripsFrom(trip.option, 0).join(',')])
 
   const switchTo = (s: Option) => {
-    const ph = phaseAt(o, Date.now())
+    const ph = phaseRef.current
     const keep = ph.kind === 'riding' || ph.kind === 'before' ? ph.ride : o.legs.length
     onUpdate({ ...trip, option: merge(o, keep, s), plannedArrive: s.arrive })
     setCheck(null)
@@ -132,26 +166,6 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   const ins = instruction(o, phase, trip.ends.end.name)
   const destination = trip.ends.end.name
   // The trip's description: you on its rail, and its walks to time (from the map, timing goes back to this screen).
-  // Where you are on the steps: from your location along each step's line, the clock only as a fallback.
-  const [shapes, setShapes] = useState<Record<string, LonLat[]>>({})
-  const rides = o.legs.filter((l) => l.kind === 'ride' && l.trip_id && l.from && l.to)
-  useEffect(() => {
-    let live = true
-    for (const l of rides) {
-      const k = shapeKey(l)
-      if (shapes[k]) continue
-      api
-        .shape(token, trip.serviceDate, l.trip_id!, l.from!.id, l.to!.id)
-        .then((s) => live && setShapes((cur) => ({ ...cur, [k]: s.coordinates })))
-        .catch(() => undefined) // straight between the stops will do
-    }
-    return () => {
-      live = false
-    }
-  }, [rides.map(shapeKey).join(',')])
-  const steps = useMemo(() => rows(o, true), [o])
-  const stepLines = useMemo(() => rowLines(steps, o, trip.origin, trip.destination, shapes), [steps, shapes])
-  const at = pos ? locate(stepLines, pos, position(steps, now).row) : null
 
   const track: Tracking = {
     now,
@@ -228,16 +242,18 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
       <section class="now">
         <p class="label">Now</p>
         <p class="now-main">{ins.now}</p>
-        {now < start - 60_000 && (
+        {steps[at.row]?.kind === 'start' && now < start - 60_000 && (
           <p>
             Leave {dayOf(o.leave_at, now) && `${dayOf(o.leave_at, now)} `}at <strong>{clock(o.leave_at)}</strong> ({countdown(o.leave_at, now)})
           </p>
         )}
         {ins.detail && phase.kind === 'before' && (
           <p>
-            {ins.detail.line?.name} leaves {clock(ins.detail.dep)} ({countdown(ins.detail.dep, now).replace(/^in /, 'in ')})
+            {Date.parse(ins.detail.dep) < now - 30_000
+              ? `${ins.detail.line?.name} was due ${clock(ins.detail.dep)} (${countdown(ins.detail.dep, now).replace(/^left /, '')})`
+              : `${ins.detail.line?.name} leaves ${clock(ins.detail.dep)} (${countdown(ins.detail.dep, now)})`}
             {ins.detail.status === 'predicted' && `, ${delay(ins.detail.delay_s)}`}
-            {spare !== null && (
+            {spare !== null && !(phase.kind === 'before' && phase.waiting) && (
               <span class={spare < 0 ? 'spare bad' : spare < 60 ? 'spare tight' : 'spare'}>
                 {spare < 0 ? ` You need to hurry: ${Math.ceil(-spare / 60)} min short at walking pace.` : ` ${Math.floor(spare / 60)} min to spare from here.`}
               </span>

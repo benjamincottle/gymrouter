@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { rows } from './options.ts'
-import { locate, onLine, rowLines, shapeKey, type LonLat } from './progress.ts'
+import { advance, locate, onLine, phaseOf, rowLines, shapeKey, type LonLat } from './progress.ts'
 import type { Leg, Option } from './types.ts'
 
 // A trip along a straight east–west line: home, walk 300 m to stop A, bus 2 km to stop B, walk 300 m to the gym.
@@ -48,4 +48,39 @@ test('you are placed by where you are, not by the clock', () => {
 test('too vague, or well off the route: no answer (the clock is used)', () => {
   assert.equal(locate(lines, here(150, 0, 250), 1), null)
   assert.equal(locate(lines, here(1000, 2000), 2), null)
+})
+
+test('moving on along the trip: forward only, holding without a fix, the clock only within a ride', () => {
+  const clock = (row: number, frac = 0) => ({ row, frac })
+  // First fix: placed by it (at home), whatever the clock says.
+  let at = advance(null, lines, here(0), clock(2))
+  assert.deepEqual(at, { row: 0, frac: 0 })
+  // Walking: on the walk.
+  at = advance(at, lines, here(200), clock(2))
+  assert.equal(at.row, 1)
+  // GPS wobbles back 30 m: stay put.
+  const wobble = advance(at, lines, here(170), clock(2))
+  assert.deepEqual(wobble, at)
+  // On the bus, then into a tunnel (no usable fix): the ride carries on by the clock, but not past its end.
+  at = advance(at, lines, here(800, 20), clock(2))
+  assert.equal(at.row, 2)
+  const tunnel = advance(at, lines, here(800, 20, 500), clock(2, 0.6))
+  assert.deepEqual(tunnel, { row: 2, frac: 0.6 })
+  assert.deepEqual(advance(tunnel, lines, here(800, 20, 500), clock(3, 0.5)), tunnel, 'the clock alone never moves you to the next step')
+  // Really gone back (well away from where you were): the location wins.
+  assert.equal(advance({ row: 3, frac: 0.5 }, lines, here(100), clock(3)).row, 1)
+})
+
+test('what you are doing, from where you are', () => {
+  const ph = (x: number, y = 0) => {
+    const p = here(x, y)
+    return phaseOf(o, rs, locate(lines, p, 1)!, lines, p)
+  }
+  assert.deepEqual(ph(0), { kind: 'before', ride: 1, waiting: false }, 'at home: get to the stop')
+  assert.deepEqual(ph(150), { kind: 'before', ride: 1, waiting: false }, 'walking there')
+  assert.deepEqual(ph(300), { kind: 'before', ride: 1, waiting: true }, 'at the stop: waiting')
+  assert.deepEqual(ph(360, 2), { kind: 'before', ride: 1, waiting: true }, 'pulling away: not yet sure you are aboard')
+  assert.deepEqual(ph(900, 25), { kind: 'riding', ride: 1 }, 'well along the route: aboard')
+  assert.deepEqual(ph(2450), { kind: 'final-walk' })
+  assert.deepEqual(ph(2600), { kind: 'arrived' })
 })

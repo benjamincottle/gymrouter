@@ -10,7 +10,7 @@ export interface Position {
 }
 
 export type Phase =
-  | { kind: 'before'; ride: number } // walking to / waiting for the ride at legs[ride]
+  | { kind: 'before'; ride: number; waiting?: boolean } // walking to the ride at legs[ride], or waiting for it at the stop
   | { kind: 'riding'; ride: number } // on the vehicle of legs[ride]
   | { kind: 'final-walk' } // off the last vehicle, walking to the destination
   | { kind: 'arrived' }
@@ -117,7 +117,8 @@ export function instruction(o: Option, phase: Phase, destination = 'your destina
   switch (phase.kind) {
     case 'before': {
       const l = o.legs[phase.ride]
-      return { now: `Get to ${l.from?.station || l.from?.name || 'the stop'} for the ${l.line?.name ?? ''}`, detail: l }
+      const where = l.from?.station || l.from?.name || 'the stop'
+      return { now: phase.waiting ? `Wait for the ${l.line?.name ?? ''} at ${where}` : `Get to ${where} for the ${l.line?.name ?? ''}`, detail: l }
     }
     case 'riding': {
       const l = o.legs[phase.ride]

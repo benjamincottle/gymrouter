@@ -360,3 +360,8 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   vaguer than 100 m or you're more than 150 m (or twice the accuracy) off the route. Now / Then still follow the clock and
   live times. Ride shapes are cut where each stop projects onto the line, not at the nearest corner, so a line no longer
   runs past its last stop and back.
+- 2026-10-04: Now / Then follow where you are, not the clock (one calculation shared with the marker and the re-checks).
+  You're "waiting" within 40 m of the stop you're boarding at, and "on board" once you've moved 120 m along the ride's line;
+  progress only goes forward unless you're more than 150 m back from where you were placed; with no usable fix you stay put
+  and only a ride you're on carries on by the clock. Without any location the clock decides, as before. Next: matching
+  your movement with your vehicle's live position to confirm boarding sooner.
