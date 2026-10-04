@@ -10,10 +10,13 @@ import (
 func TestTimedWalksOverrideAndAddStops(t *testing.T) {
 	d := &gtfs.Day{Stops: []gtfs.Stop{
 		{ID: "bus1"}, {ID: "bus2"}, {ID: "stn", LocationType: "1"}, {ID: "stn-p1", Parent: "stn"}, {ID: "stn-p2", Parent: "stn"}, {ID: "far"},
+		{ID: "stn-standA", Parent: "stn"},
 	}}
-	got := withWalks(d, []raptor.Access{{Stop: 0, Secs: 300}, {Stop: 1, Secs: 400}, {Stop: 3, Secs: 500}},
+	rail := []bool{false, false, false, true, true, false, false}
+	got := withWalks(d, rail, []raptor.Access{{Stop: 0, Secs: 300}, {Stop: 1, Secs: 400}, {Stop: 3, Secs: 500}, {Stop: 6, Secs: 450}},
 		[]accessReq{{Stop: "bus2", WalkS: 200}, {Stop: "stn", WalkS: 600}, {Stop: "far", WalkS: 900}})
-	want := map[int32]int32{0: 300, 1: 200, 3: 600, 4: 600, 5: 900} // a station's walk covers all its platforms
+	// A station's walk covers its rail platforms, not the bus stand that belongs to it.
+	want := map[int32]int32{0: 300, 1: 200, 3: 600, 4: 600, 5: 900, 6: 450}
 	if len(got) != len(want) {
 		t.Fatalf("got %v", got)
 	}

@@ -38,7 +38,7 @@ export function changesAndStops(o: Option): string {
 /** One step of an option as the description shows it, with the stretch of time it covers. */
 export type Row =
   | { kind: 'leg'; leg: Leg; i: number; start: number; end: number }
-  | { kind: 'change'; t: Transfer; from?: StopRef; to?: StopRef; start: number; end: number }
+  | { kind: 'change'; t: Transfer; from?: StopRef; to?: StopRef; modes: [string?, string?]; start: number; end: number }
   | { kind: 'arrive'; start: number; end: number }
 
 /** The steps of an option, each with the stretch of time it covers (for placing you on the rail). */
@@ -48,7 +48,9 @@ export function rows(o: Option): Row[] {
   for (const [i, leg] of o.legs.entries()) {
     const t = into.get(i)
     const prev = t ? o.legs[t.from_leg] : undefined
-    if (t && prev) out.push({ kind: 'change', t, from: prev.to, to: leg.from, start: ms(prev.arr), end: ms(leg.dep) })
+    if (t && prev) {
+      out.push({ kind: 'change', t, from: prev.to, to: leg.from, modes: [prev.line?.mode, leg.line?.mode], start: ms(prev.arr), end: ms(leg.dep) })
+    }
     if (leg.kind === 'walk' && leg.from && leg.to) continue // walking between two rides is part of the change
     out.push({ kind: 'leg', leg, i, start: ms(leg.dep), end: ms(leg.arr) })
   }

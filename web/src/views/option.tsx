@@ -57,7 +57,7 @@ export function Timeline({
         if (r.kind === 'change') {
           const s = seg(r.t.to_leg)
           return (
-            <TransferRow t={r.t} from={r.from} to={r.to} walks={walks} rail={rail(r, k)}
+            <TransferRow t={r.t} from={r.from} to={r.to} modes={r.modes} walks={walks} rail={rail(r, k)}
               onTime={s && track ? () => track.onTime(s) : undefined} />
           )
         }
@@ -144,16 +144,17 @@ function ChangeIcon() {
 }
 
 function TransferRow({
-  t, from, to, walks, rail, onTime,
+  t, from, to, modes, walks, rail, onTime,
 }: {
   t: Transfer
   from?: StopRef
   to?: StopRef
+  modes: [string?, string?] // of the rides either side
   walks: TimedWalk[]
   rail?: ComponentChildren
   onTime?: () => void
 }) {
-  const mine = from && to ? findChange(walks, from, to) : undefined
+  const mine = from && to ? findChange(walks, { stop: from, mode: modes[0] }, { stop: to, mode: modes[1] }) : undefined
   const where = placeName(from) === placeName(to) ? placeName(from) : `${placeName(from)} → ${placeName(to)}`
   const spare = t.slack_s >= 60 ? `${Math.floor(t.slack_s / 60)} min ${t.slack_s % 60}s spare` : `${t.slack_s}s spare`
 

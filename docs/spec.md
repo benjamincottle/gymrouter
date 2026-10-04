@@ -344,3 +344,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - 2026-10-04: Greenfield: no support for data from earlier versions of the app. The settings migrations (old per-stop
   timings, hand-set change times) and other fallbacks for older data and servers are removed; stored data that doesn't
   match the current shape is simply dropped by validation.
+- 2026-10-04: Which stop a timed walk belongs to depends on the mode. A train, metro or light-rail platform is keyed by its
+  station (any platform counts: they're inside, a minute apart); a bus or coach stop is keyed by itself, including stands that
+  belong to a station (the stand across the road is a different walk). The server applies a station-keyed walk or change
+  time to the station's rail platforms only. A walk still counts both ways for the same stop.

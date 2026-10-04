@@ -98,7 +98,13 @@ func TestTransferRiskAndFallback(t *testing.T) {
 func TestPersonalTransferOverride(t *testing.T) {
 	n := testNet(t)
 	r := req(n, 800, 0)
-	r.Overrides = []TransferOverride{{From: "X", To: "X", Secs: 150}} // station-level: X1→X2 takes 2.5 min
+	// A station ID stands for its rail platforms only: it doesn't reach the bus stop X1 that belongs to the station.
+	r.Overrides = []TransferOverride{{From: "X", To: "X", Secs: 150}}
+	if opts := Plan(n, r); opts[0].Arrive == 2360 {
+		t.Fatal("a station-level change time applied to a bus stop of the station")
+	}
+	// The bus stop by its own ID, the train by its station: X1→X2 takes 2.5 min.
+	r.Overrides = []TransferOverride{{From: "X1", To: "X", Secs: 150}}
 	opts := Plan(n, r)
 	// 1300 + 150 > 1400: train-a can't be made; best two-ride option now uses train-b (arr 2360),
 	// which beats nothing on arrival vs bus9 (2560) → both kept.
