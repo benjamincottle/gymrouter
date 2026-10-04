@@ -148,12 +148,13 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         paint: { 'line-color': dark ? '#e9ece8' : '#1f2328', 'line-width': 3, 'line-dasharray': [0.5, 2] },
         layout: { 'line-cap': 'round' },
       })
-      // The stops passed on the way: small dots in the line's colour, outlined so they stand off the line.
+      // The stops passed on the way: white dots set into the line (narrower than it), with a faint edge so they look
+      // cut in rather than stuck on.
       m.addLayer({
         id: 'route-via', type: 'circle', source: 'route', filter: ['==', ['get', 'kind'], 'via'],
         paint: {
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 15, 4.5],
-          'circle-color': ['get', 'color'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5,
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 1.4, 15, 2.1],
+          'circle-color': '#ffffff', 'circle-stroke-color': 'rgba(0, 0, 0, 0.3)', 'circle-stroke-width': 0.6,
         },
       })
       m.addLayer({

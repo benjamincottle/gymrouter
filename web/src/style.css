@@ -759,7 +759,7 @@ label.inline {
    get off (a dot inside its end) */
 .rail .line {
   position: absolute;
-  top: 14px;
+  top: 12px;
   bottom: 2px;
   left: calc(50% - 7px);
   width: 14px;
@@ -769,7 +769,7 @@ label.inline {
 
 .rail .board {
   position: absolute;
-  top: 3px;
+  top: 1px;
   left: calc(50% - 11px);
   display: grid;
   place-items: center;
