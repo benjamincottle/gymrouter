@@ -26,6 +26,7 @@ export interface Gym extends Place {
   lines: string[] // e.g. "bus 288", "train T9"
   ref?: string // the built-in gym this was added from
   homeId?: string // the home whose nearby lines were last suggested for it
+  uses?: number // how many times it has been chosen to plan a trip: the most used are listed first
 }
 
 export interface Settings {
@@ -111,6 +112,7 @@ export function sanitize(input: unknown): Settings {
         lines: [...new Set(ls)],
         ...(isStr(r.ref, 40) && r.ref ? { ref: r.ref } : {}),
         ...(isStr(r.homeId, 40) && r.homeId ? { homeId: r.homeId } : {}),
+        ...(isNum(r.uses, 1, 1e6) ? { uses: Math.round(r.uses) } : {}),
       })
     }
   }
@@ -240,6 +242,16 @@ export function prefs(s: Settings): PlanRequest['prefs'] {
   const transfers = changeTimes(s.walks)
   if (transfers.length > 0) p.transfers = transfers
   return p
+}
+
+/** Gyms with the most used first; until they've been used, in the order they were added. */
+export function byUse<T extends { uses?: number }>(gyms: T[]): T[] {
+  return gyms.map((g, i) => ({ g, i })).sort((a, b) => (b.g.uses ?? 0) - (a.g.uses ?? 0) || a.i - b.i).map((x) => x.g)
+}
+
+/** Counts a gym as used. */
+export function usedGym(s: Settings, id: string): Settings {
+  return { ...s, gyms: s.gyms.map((g) => (g.id === id ? { ...g, uses: (g.uses ?? 0) + 1 } : g)) }
 }
 
 export function newId(): string {

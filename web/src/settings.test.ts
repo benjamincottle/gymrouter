@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  applyFragment, emptySettings, gymFromKnown, isLine, withSuggested, load, parseFragment, placeRequest, planPlace, prefs, sanitize, save, settingsLink,
+  applyFragment, byUse, emptySettings, gymFromKnown, usedGym, isLine, withSuggested, load, parseFragment, placeRequest, planPlace, prefs, sanitize, save, settingsLink,
   type Settings,
 } from './settings.ts'
 import { addDays, countdown, dayLabel, dayOf, delay, duration, fromLocalInput, ordinal, platform, roundUp, shortDuration, toLocalInput } from './format.ts'
@@ -189,4 +189,13 @@ test('days, the Australian way', () => {
   assert.equal(dayOf('2026-10-04T23:30:00+11:00', now), '')
   assert.equal(dayOf('2026-10-05T00:10:00+11:00', now), 'tomorrow')
   assert.equal(dayOf('2026-10-06T08:00:00+11:00', now), 'Tuesday 6th')
+})
+
+test('gyms are listed most used first, otherwise as added', () => {
+  const g = (id: string, uses?: number) => ({ ...sample.gyms[0], id, ...(uses ? { uses } : {}) })
+  assert.deepEqual(byUse([g('a'), g('b'), g('c')]).map((x) => x.id), ['a', 'b', 'c'])
+  assert.deepEqual(byUse([g('a', 1), g('b', 5), g('c'), g('d', 1)]).map((x) => x.id), ['b', 'a', 'd', 'c'])
+  const s = usedGym(usedGym({ ...sample, gyms: [g('a'), g('b')] }, 'b'), 'b')
+  assert.deepEqual(s.gyms.map((x) => x.uses), [undefined, 2])
+  assert.equal(sanitize(s).gyms[1].uses, 2, 'kept on the device')
 })

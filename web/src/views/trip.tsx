@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
 import { addDays, dayLabel, fromLocalInput, roundUp, toLocalInput } from '../format.ts'
 import { usePolling, useVisible } from '../hooks.ts'
-import { placeRef, planPlace, prefs, type Settings } from '../settings.ts'
+import { byUse, placeRef, planPlace, prefs, usedGym, type Settings } from '../settings.ts'
 import type { DefaultsResponse, PlanRequest } from '../types.ts'
 import { Board, WindowShift, type Shift } from './board.tsx'
 import { BrandLogo } from './brand.tsx'
@@ -28,6 +28,13 @@ type When = 'now' | 'leave' | 'arrive'
 export function Trip({ settings, setSettings, server, onAuthError, goToSettings, onStartTrip }: Props) {
   const [direction, setDirection] = useState<Direction>('to-gym')
   const [gymId, setGymId] = useState<string | null>(null)
+  // The most used gyms first, in the order they had when this screen opened (choosing one doesn't reshuffle the list).
+  const [order] = useState(() => byUse(settings.gyms).map((g) => g.id))
+  const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length)
+  const chooseGym = (id: string | null) => {
+    setGymId(id)
+    if (id) setSettings(usedGym(settings, id))
+  }
   const [when, setWhen] = useState<When>('now')
   const [at, setAt] = useState(() => roundUp(toLocalInput(new Date()))) // "YYYY-MM-DDTHH:MM", Sydney time
   // Choosing a time starts from now if the one last chosen has passed.
@@ -137,12 +144,12 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
       )}
 
       <div class="gyms">
-        {(gym ? [gym] : settings.gyms).map((g) => (
+        {(gym ? [gym] : [...settings.gyms].sort((a, b) => rank(a.id) - rank(b.id))).map((g) => (
           <button
             class={g.id === gymId ? 'gym selected' : 'gym'}
             aria-pressed={g.id === gymId}
             aria-label={g.id === gymId ? `${g.name}: choose a different gym` : undefined}
-            onClick={() => setGymId(g.id === gymId ? null : g.id)}
+            onClick={() => chooseGym(g.id === gymId ? null : g.id)}
           >
             <BrandLogo brand={server.gyms.find((k) => k.id === g.ref)?.brand} />
             <span class="gym-name">{g.name}</span>
