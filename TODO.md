@@ -5,9 +5,9 @@
 - [x] **The trip's rail centred** between the time column and the descriptions: there's a bigger gap on the left now.
 - [x] **The same description with its rail when choosing a trip:** the summary under the options looks exactly like
       the started trip's, without the "you" marker.
-- [ ] **Gyms: reset the order** back to the order they were added (clears the use counts), a small link like
+- [x] **Gyms: reset the order** back to the order they were added (clears the use counts), a small link like
       "Measure my pace".
-- [ ] **Settings as a cog** in the top right instead of the word.
+- [x] **Settings as a cog** in the top right instead of the word.
 
 # Earlier rounds (2026-10-04)
 

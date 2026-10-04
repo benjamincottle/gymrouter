@@ -5,6 +5,7 @@ import type { DefaultsResponse } from './types.ts'
 import { Landing } from './views/landing.tsx'
 import { Trip } from './views/trip.tsx'
 import { SettingsView } from './views/settings.tsx'
+import { IconSettings } from './views/icons.tsx'
 import { InTrip, TRIP_KEY, type ActiveTrip } from './views/intrip.tsx'
 import { record } from './walks.ts'
 import { applyTheme } from './theme.ts'
@@ -127,8 +128,14 @@ export function App({ initial, imported, storage }: AppProps) {
           </button>
         </h1>
         <nav>
-          <button class={view === 'settings' ? 'tab active' : 'tab'} aria-pressed={view === 'settings'} onClick={() => setView('settings')}>
-            Settings
+          <button
+            class={view === 'settings' ? 'tab cog active' : 'tab cog'}
+            aria-label="Settings"
+            title="Settings"
+            aria-pressed={view === 'settings'}
+            onClick={() => setView('settings')}
+          >
+            <IconSettings />
           </button>
         </nav>
       </header>

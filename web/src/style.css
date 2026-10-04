@@ -282,6 +282,16 @@ label.inline {
   color: var(--pencil);
 }
 
+.tab.cog {
+  display: grid;
+  place-items: center;
+  padding: 8px 9px;
+}
+
+.tab.cog .icon {
+  stroke: currentColor;
+}
+
 .tab.active,
 .home-link.active {
   color: var(--ink);
