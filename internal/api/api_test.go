@@ -413,6 +413,11 @@ func TestServesFrontendAlongsideAPI(t *testing.T) {
 	if rec.Code != 200 || !strings.Contains(rec.Header().Get("Cache-Control"), "immutable") {
 		t.Errorf("asset: %d %q", rec.Code, rec.Header().Get("Cache-Control"))
 	}
+	for _, dir := range []string{"/assets/", "/assets"} {
+		if rec := h.do(t, "GET", dir, "", nil); rec.Code != 404 || rec.Body.String() != "404 page not found\n" {
+			t.Errorf("directory %s is listed: %d %q", dir, rec.Code, rec.Body)
+		}
+	}
 	if rec := h.do(t, "POST", "/", "", "{}"); rec.Code != 404 || rec.Body.String() != "404 page not found\n" {
 		t.Errorf("POST /: %d", rec.Code)
 	}

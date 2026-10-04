@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/benjamincottle/gymrouter/internal/walk"
@@ -183,14 +184,17 @@ func (e *Engine) RefreshMap(ctx context.Context) error {
 	return last
 }
 
-// download fetches a URL (https only) to dest, refusing anything larger than maxBytes.
+// download fetches a URL (https only, redirects included) to dest, refusing anything larger than maxBytes.
 func download(ctx context.Context, url, dest string, maxBytes int64) error {
+	if !strings.HasPrefix(url, "https://") {
+		return fmt.Errorf("refusing to download over plain http")
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("User-Agent", "gymrouter (self-hosted; https://github.com/benjamincottle/gymrouter)")
-	c := &http.Client{Timeout: 20 * time.Minute}
+	c := &http.Client{Timeout: 20 * time.Minute, CheckRedirect: httpsRedirects}
 	resp, err := c.Do(req)
 	if err != nil {
 		return err
@@ -217,4 +221,15 @@ func download(ctx context.Context, url, dest string, maxBytes int64) error {
 		os.Remove(dest)
 	}
 	return err
+}
+
+// httpsRedirects follows a few redirects, but never to plain http.
+func httpsRedirects(req *http.Request, via []*http.Request) error {
+	if req.URL.Scheme != "https" {
+		return fmt.Errorf("refusing redirect to %s", req.URL.Scheme)
+	}
+	if len(via) >= 10 {
+		return errors.New("too many redirects")
+	}
+	return nil
 }
