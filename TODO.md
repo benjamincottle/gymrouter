@@ -9,7 +9,7 @@
 - [x] **A small colour logo of the gym's brand** (9 Degrees, ClimbFit) to the left of each gym in the list.
 - [x] **An app icon** next to the "Gym Router" title, and the same mark as the favicon / home-screen icon
       (the current one is a placeholder).
-- [ ] **"Earlier trips" / "Later trips"** in place of the first/last times above the option list, moving the
+- [x] **"Earlier trips" / "Later trips"** in place of the first/last times above the option list, moving the
       window by 30 minutes.
 - [ ] **Start a trip from the map** without closing it first.
 - [ ] **Name the destination in the last walk:** "Walk 5 min to 9 Degrees Parramatta", not "to your destination".

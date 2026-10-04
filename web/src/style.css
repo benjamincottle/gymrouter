@@ -439,12 +439,20 @@ label.inline {
   margin: 8px 0 0;
 }
 
-.axis {
+.shift {
   display: flex;
   justify-content: space-between;
-  padding: 0 calc(6rem + 42px) 4px calc(3.4rem + 10px);
-  font-size: 0.75rem;
+  margin-bottom: 4px;
+}
+
+.shift button.link {
+  padding: 6px 0;
+  font-size: 0.9rem;
   color: var(--pencil);
+}
+
+.shift button.link:disabled {
+  visibility: hidden;
 }
 
 .strips {

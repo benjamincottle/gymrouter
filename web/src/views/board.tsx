@@ -25,6 +25,27 @@ interface Props {
   title: string
   onSetChange: (a: StopRef, b: StopRef, secs: number) => void
   onStart?: (o: Option) => void
+  onShift: Shift
+}
+
+/** Moves the window of options: -1 earlier, +1 later. `canEarlier` is false when the window already starts now. */
+export interface Shift {
+  (dir: -1 | 1): void
+  canEarlier: boolean
+}
+
+/** "Earlier trips" and "Later trips", above the list of options (or in place of it when nothing leaves). */
+export function WindowShift({ shift }: { shift: Shift }) {
+  return (
+    <div class="shift">
+      <button class="link" disabled={!shift.canEarlier} onClick={() => shift(-1)}>
+        Earlier trips
+      </button>
+      <button class="link" onClick={() => shift(1)}>
+        Later trips
+      </button>
+    </div>
+  )
 }
 
 export function Board(p: Props) {
@@ -51,10 +72,7 @@ export function Board(p: Props) {
   return (
     <div class="board">
       <Hero option={sel} live={p.live} now={now} />
-      <div class="axis" aria-hidden="true">
-        <span>{clock(new Date(start).toISOString())}</span>
-        <span>{clock(new Date(end).toISOString())}</span>
-      </div>
+      <WindowShift shift={p.onShift} />
       <ol class="strips" aria-label="Options">
         {opts.map((o, i) => (
           <li>
@@ -151,7 +169,7 @@ export function Strip({ option: o, start, end, now }: { option: Option; start: n
   )
 }
 
-type MapSheetProps = Omit<Props, 'onStart' | 'onSetChange' | 'options'> & { option: Option; now: number; onClose: () => void; me?: MapViewProps['me'] }
+type MapSheetProps = Omit<Props, 'onStart' | 'onSetChange' | 'options' | 'onShift'> & { option: Option; now: number; onClose: () => void; me?: MapViewProps['me'] }
 
 export function MapSheet({ option, now, onClose, token, walks, places, serviceDate, origin, destination, title, live, me }: MapSheetProps) {
   const [View, setView] = useState<ComponentType<MapViewProps> | null>(null)
