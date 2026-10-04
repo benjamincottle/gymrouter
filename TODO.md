@@ -1,5 +1,14 @@
 # TODO: field-test feedback (2026-10-04)
 
+## Round 7
+
+- [x] **Starting a trip opens at the top**, not scrolled down to the trip's steps.
+- [x] **More space above the location/checked line** under "Show on map".
+- [x] **A bigger "you" marker on the rail:** a blue circle with a white outline and a thin downward arrowhead.
+- [x] **The marker follows where you actually are**, placed on the trip's line from your location; the clock is only
+      the fallback (no location, or well off the route). (Now / Then still follow the clock and live times.)
+- [x] **Ride lines stop at the stop:** the 52 to 9 Degrees Parramatta ran past its last stop and doubled back.
+
 ## Round 6
 
 - [x] **"Gym Router" underline** like the Settings one (it curled up at the ends: the button's rounded corners).

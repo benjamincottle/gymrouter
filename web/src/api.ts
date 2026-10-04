@@ -94,6 +94,11 @@ interface SuggestJob {
 }
 
 export const api = {
+  /** One ride's route and the stops it passes ([lon, lat]). */
+  shape: (t: string, date: string, trip: string, from: string, to: string) =>
+    call<{ coordinates: [number, number][]; stops: [number, number][] }>(
+      t, 'GET', `/api/shape?${new URLSearchParams({ date, trip, from, to })}`,
+    ),
   defaults: (t: string) => call<DefaultsResponse>(t, 'GET', '/api/defaults'),
   plan: (t: string, req: PlanRequest, signal?: AbortSignal) => call<PlanResponse>(t, 'POST', '/api/plan', req, signal),
   stopsNear: (t: string, lat: number, lon: number, radius_m: number) =>

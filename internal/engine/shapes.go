@@ -76,11 +76,12 @@ func (e *Engine) LegGeometry(s *Snapshot, tripID, fromStop, toStop string) (path
 	from, to := d.Stops[trip.StopTimes[fi].Stop].Pos, d.Stops[trip.StopTimes[ti].Stop].Pos
 	if shapes := e.shapes.Load(); shapes != nil {
 		if pts, ok := (*shapes)[trip.Shape]; ok && len(pts) > 1 {
-			a := geo.Nearest(pts, from, 0)
-			b := geo.Nearest(pts, to, a)
-			if b > a {
-				out := append([]geo.Point{from}, pts[a:b+1]...)
-				return append(out, to), stops, true
+			// Cut the shape where each stop sits beside it, not at the nearest corner: shapes are simplified, so the
+			// nearest corner can be past the stop and the line would run on and double back.
+			a := geo.Project(pts, from, geo.Along{})
+			b := geo.Project(pts, to, a)
+			if a.Before(b) {
+				return geo.Cut(pts, a, b), stops, true
 			}
 		}
 	}

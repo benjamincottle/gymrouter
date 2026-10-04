@@ -1,6 +1,6 @@
 // In-trip mode: follows the chosen option, re-checks it against live data every 30 s from wherever
 // you are (or the vehicle you're on), and suggests a switch when something slips.
-import { useEffect, useRef, useState } from 'preact/hooks'
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel } from '../format.ts'
 import { useNow, useVisible } from '../hooks.ts'
@@ -10,6 +10,8 @@ import type { Walk } from '../walkmeasure.ts'
 import { existing, segments, type PlaceRef, type Retime, type Segment, type TimedWalk } from '../walks.ts'
 import { MapSheet } from './board.tsx'
 import { Timeline, type Tracking } from './option.tsx'
+import { position, rows } from '../options.ts'
+import { locate, rowLines, shapeKey, type LonLat } from '../progress.ts'
 import { WalkTimer } from './walktimer.tsx'
 
 /** Everything needed to resume a trip after a reload; kept on this device only. */
@@ -57,6 +59,9 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   const posRef = useRef(pos)
   posRef.current = pos
   const checkedRef = useRef(false)
+
+  // Open at the top: the planning screen may have been scrolled down to its Start button.
+  useEffect(() => window.scrollTo(0, 0), [])
 
   // Keep the screen on while travelling.
   useEffect(() => {
@@ -127,8 +132,30 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   const ins = instruction(o, phase, trip.ends.end.name)
   const destination = trip.ends.end.name
   // The trip's description: you on its rail, and its walks to time (from the map, timing goes back to this screen).
+  // Where you are on the steps: from your location along each step's line, the clock only as a fallback.
+  const [shapes, setShapes] = useState<Record<string, LonLat[]>>({})
+  const rides = o.legs.filter((l) => l.kind === 'ride' && l.trip_id && l.from && l.to)
+  useEffect(() => {
+    let live = true
+    for (const l of rides) {
+      const k = shapeKey(l)
+      if (shapes[k]) continue
+      api
+        .shape(token, trip.serviceDate, l.trip_id!, l.from!.id, l.to!.id)
+        .then((s) => live && setShapes((cur) => ({ ...cur, [k]: s.coordinates })))
+        .catch(() => undefined) // straight between the stops will do
+    }
+    return () => {
+      live = false
+    }
+  }, [rides.map(shapeKey).join(',')])
+  const steps = useMemo(() => rows(o, true), [o])
+  const stepLines = useMemo(() => rowLines(steps, o, trip.origin, trip.destination, shapes), [steps, shapes])
+  const at = pos ? locate(stepLines, pos, position(steps, now).row) : null
+
   const track: Tracking = {
     now,
+    at,
     from: { name: trip.ends.start.name, home: trip.ends.start.key.startsWith('home:') },
     segs: segments(o, trip.ends.start, trip.ends.end),
     onTime: (s) => {

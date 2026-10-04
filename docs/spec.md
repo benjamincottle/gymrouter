@@ -353,3 +353,10 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   to the whole trip. Settings: Auto / Light / Dark appearance (driven by `<html data-theme>`, set before first paint), icon
   buttons to edit and delete, and "Measure my pace": a minute or two of ordinary walking with GPS, counting only the time
   spent moving (readings under 0.5 m/s are standing still), at least 60 s and 100 m, 0.6–2.5 m/s to count as walking.
+- 2026-10-04: During a trip, the "you" marker on the description is placed from your location, not the clock: each step has
+  a line on the ground (the walk's path, the ride's route shape, or straight between stops) and you're put on the nearest,
+  favouring the step the clock expects (40 m per step away) so a nearby part of the route can't steal you. At the meeting
+  of two steps you stay on the earlier one (still at home; waiting at the stop). The clock is the fallback when location is
+  vaguer than 100 m or you're more than 150 m (or twice the accuracy) off the route. Now / Then still follow the clock and
+  live times. Ride shapes are cut where each stop projects onto the line, not at the nearest corner, so a line no longer
+  runs past its last stop and back.

@@ -192,7 +192,15 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
       })
       map.current = m
     })
+    // The map's box can change size after it's made (the steps under it lay out, the phone turns): follow it, and
+    // re-fit the trip unless you've moved the map yourself.
+    const sized = new ResizeObserver(() => {
+      m.resize()
+      frame(m, false)
+    })
+    sized.observe(el.current)
     return () => {
+      sized.disconnect()
       map.current = null
       m.remove()
     }
@@ -226,13 +234,9 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         let coords: [number, number][] = [a, b]
         let via: [number, number][] = []
         try {
-          const q = new URLSearchParams({ date: serviceDate, trip: l.trip_id!, from: l.from!.id, to: l.to!.id })
-          const r = await fetch(`/api/shape?${q}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
-          if (r.ok) {
-            const shape = await r.json()
-            coords = shape.coordinates
-            via = shape.stops ?? []
-          }
+          const shape = await api.shape(token, serviceDate, l.trip_id!, l.from!.id, l.to!.id)
+          coords = shape.coordinates
+          via = shape.stops ?? []
         } catch {
           /* keep the straight line */
         }
