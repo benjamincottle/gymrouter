@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { encode } from 'uqr'
 import { emptySettings, HIGHLIGHTS, MAX_GYMS, sanitize, settingsLink, type Gym, type Home, type Settings } from '../settings.ts'
+import type { ComponentChildren } from 'preact'
+import { PaceTest } from './pacetest.tsx'
 import { DeleteButton, EditButton, HOLD, IconColour, IconDevices, IconGym, IconHome, IconPhone, IconRisk, IconTimer, IconWalk } from './icons.tsx'
 import type { DefaultsResponse } from '../types.ts'
 import { mmss } from '../walkmeasure.ts'
@@ -26,6 +28,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
     settings.homes.length === 0 ? editNew('home') : settings.gyms.length === 0 ? { kind: 'choose-gyms' } : null,
   )
   const [warning, setWarning] = useState('')
+  const [paceTest, setPaceTest] = useState(false)
   const d = server?.defaults
   const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
 
@@ -162,8 +165,26 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
           placeholder={d ? String(round1(d.walk_speed_mps * 3.6)) : ''}
           step="0.1"
           onChange={(v) => setSettings({ ...settings, walkSpeedMps: v === undefined ? undefined : v / 3.6 })}
-          hint="Used to estimate walks to and from stops you haven't timed."
+          hint={
+            <>
+              Used for walks you haven't timed.{' '}
+              {!paceTest && (
+                <button class="link small" onClick={() => setPaceTest(true)}>
+                  Measure my pace
+                </button>
+              )}
+            </>
+          }
         />
+        {paceTest && (
+          <PaceTest
+            onClose={() => setPaceTest(false)}
+            onUse={(mps) => {
+              setSettings({ ...settings, walkSpeedMps: Math.round(mps * 100) / 100 })
+              setPaceTest(false)
+            }}
+          />
+        )}
         <NumberField
           label="Change buffer at the same stop (min)"
           value={settings.minChangeS !== undefined ? settings.minChangeS / 60 : undefined}
@@ -346,7 +367,7 @@ function NumberField(props: {
   value: number | undefined
   placeholder?: string
   step: string
-  hint?: string
+  hint?: ComponentChildren
   onChange: (v: number | undefined) => void
 }) {
   return (

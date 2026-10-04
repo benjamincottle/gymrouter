@@ -12,7 +12,7 @@
 - [x] **Gyms ordered by use:** as added at first, then the most used at the top.
 - [x] **Settings: edit and delete icons** instead of the Edit / Remove links.
 - [x] **Settings: light / dark / system** appearance.
-- [ ] **Measure my walking speed:** a short timed walk from Settings works it out.
+- [x] **Measure my walking speed:** a short timed walk from Settings works it out.
 
 ## Round 5
 

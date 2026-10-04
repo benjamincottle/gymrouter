@@ -137,3 +137,39 @@ export function mmss(secs: number): string {
   const s = Math.abs(Math.round(secs)) % 60
   return `${m}:${String(s).padStart(2, '0')}`
 }
+
+// --- Walking pace: a short walk, timed only while moving ---
+
+/** Slower than this between two readings is standing still (lights, a crossing), not walking. */
+export const MOVING_MPS = 0.5
+/** A pace test needs at least this much walking to mean anything. */
+export const PACE_MIN_S = 60
+export const PACE_MIN_M = 100
+
+export interface Pace {
+  mps: number // metres per second, while moving
+  movingS: number
+  metres: number
+}
+
+/**
+ * Walking pace from a recording: distance over time, counting only the stretches between readings where you were
+ * moving, so stops at crossings don't drag it down. Null if there isn't enough walking, or it isn't walking pace.
+ */
+export function pace(rec: Recording): Pace | null {
+  let metres = 0
+  let secs = 0
+  for (let i = 1; i < rec.fixes.length; i++) {
+    const a = rec.fixes[i - 1]
+    const b = rec.fixes[i]
+    const dt = (b.t - a.t) / 1000
+    const d = distanceM(a, b)
+    if (dt > 0 && d / dt >= MOVING_MPS) {
+      metres += d
+      secs += dt
+    }
+  }
+  if (secs < PACE_MIN_S || metres < PACE_MIN_M) return null
+  const mps = metres / secs
+  return mps >= 0.6 && mps <= 2.5 ? { mps, movingS: Math.round(secs), metres: Math.round(metres) } : null
+}

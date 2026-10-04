@@ -1351,6 +1351,17 @@ fieldset.choice label.check {
 .icon .risk-tight-fill { fill: var(--tight); stroke: none; }
 .icon .risk-risk-fill { fill: var(--risk); stroke: none; }
 
+.pace {
+  margin: 4px 0 12px;
+  padding: 12px;
+  background: var(--panel);
+  border-left: 4px solid var(--hl);
+}
+
+.pace .timer-clock {
+  font-size: 3rem;
+}
+
 .card h3 {
   margin: 18px 0 2px;
   font-size: 1rem;
