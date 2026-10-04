@@ -217,7 +217,6 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   }
 
   const ins = instruction(o, phase, trip.ends.end.name)
-  const destination = trip.ends.end.name
   // The trip's description: you on its rail, and its walks to time (from the map, timing goes back to this screen).
 
   const track: Tracking = {
@@ -372,7 +371,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
       </p>
 
       <section class="steps" aria-label="The trip">
-        <Timeline option={o} from={trip.ends.start} destination={destination} walks={walks} track={track} />
+        <Timeline option={o} ends={trip.ends} walks={walks} track={track} />
       </section>
 
       {mapOpen && (
@@ -389,7 +388,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           option={o}
           now={now}
           onClose={() => setMapOpen(false)}
-          steps={{ from: trip.ends.start, destination, track }}
+          steps={{ ends: trip.ends, track }}
         />
       )}
     </div>

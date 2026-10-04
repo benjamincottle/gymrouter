@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import type { ComponentType } from 'preact'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, shortDuration } from '../format.ts'
 import { useNow } from '../hooks.ts'
-import type { PlaceRef, TimedWalk } from '../walks.ts'
+import type { TimedWalk } from '../walks.ts'
 import type { Leg, Option } from '../types.ts'
-import { Timeline, type Tracking } from './option.tsx'
+import { Timeline, type Ends, type Tracking } from './option.tsx'
 import { changesAndStops, reselect, tripKey } from '../options.ts'
 import type { MapViewProps } from '../map/mapview.tsx'
 
@@ -23,8 +23,7 @@ interface Props {
   origin: [number, number]
   destination: [number, number]
   title: string
-  from: PlaceRef // the home or gym the trip starts at: the top of the description's rail
-  destinationName: string // the gym or home the trip ends at
+  ends: Ends // the home or gym at each end: the ends of the description's rail
   onStart?: (o: Option) => void
   onShift: Shift
 }
@@ -105,7 +104,7 @@ export function Board(p: Props) {
             </button>
           </span>
         </div>
-        <Timeline option={sel} from={p.from} destination={p.destinationName} walks={p.walks} />
+        <Timeline option={sel} ends={p.ends} walks={p.walks} />
       </div>
       {mapOpen && (
         <MapSheet {...p} option={sel} now={now} onClose={() => setMapOpen(false)} onStart={p.onStart && (() => p.onStart!(sel))} />
@@ -168,13 +167,13 @@ export function Strip({ option: o, start, end }: { option: Option; start: number
   )
 }
 
-type MapSheetProps = Omit<Props, 'onStart' | 'options' | 'onShift' | 'from' | 'destinationName'> & {
+type MapSheetProps = Omit<Props, 'onStart' | 'options' | 'onShift' | 'ends'> & {
   option: Option
   now: number
   onClose: () => void
   onStart?: () => void // offered on the map so a trip can start without closing it
   me?: MapViewProps['me']
-  steps?: { from: PlaceRef; destination: string; track: Tracking } // during a trip: the trip's description under the map
+  steps?: { ends: Ends; track: Tracking } // during a trip: the trip's description under the map
 }
 
 export function MapSheet({ option, now, onClose, onStart, token, walks, places, serviceDate, origin, destination, title, live, me, steps }: MapSheetProps) {
@@ -230,7 +229,7 @@ export function MapSheet({ option, now, onClose, onStart, token, walks, places, 
           )}
           {steps ? (
             <div class="sheet-steps" ref={stepsRef}>
-              <Timeline option={option} from={steps.from} destination={steps.destination} walks={walks} track={steps.track} />
+              <Timeline option={option} ends={steps.ends} walks={walks} track={steps.track} />
             </div>
           ) : (
             <Strip option={option} start={start} end={end} />

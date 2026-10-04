@@ -1,5 +1,13 @@
 # TODO: field-test feedback (2026-10-05)
 
+## Round 9
+
+- [x] **The trip's rail, refined** (choosing a trip, a started trip, and under the map):
+  - **Arrive** at the gym's hold (or the house, going home), as at the start, instead of a filled square.
+  - **A thicker line** for each ride, about as wide as the stop circles were.
+  - **The circles move to the ends of the line:** where you get on, a circle a little wider than the line with a
+    small train or bus in it; where you get off, a small white dot inside the line.
+
 ## Round 8
 
 - [x] **The trip's rail centred** between the time column and the descriptions: there's a bigger gap on the left now.
