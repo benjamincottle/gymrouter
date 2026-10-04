@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  applyFragment, byUse, emptySettings, gymFromKnown, usedGym, isLine, withSuggested, load, parseFragment, placeRequest, planPlace, prefs, sanitize, save, settingsLink,
+  applyFragment, byUse, importNeedsConfirm, importQuestion, emptySettings, gymFromKnown, usedGym, isLine, withSuggested, load, parseFragment, placeRequest, planPlace, prefs, sanitize, save, settingsLink,
   type Settings,
 } from './settings.ts'
 import { addDays, countdown, dayLabel, dayOf, delay, duration, fromLocalInput, ordinal, platform, roundUp, shortDuration, toLocalInput } from './format.ts'
@@ -198,4 +198,19 @@ test('gyms are listed most used first, otherwise as added', () => {
   const s = usedGym(usedGym({ ...sample, gyms: [g('a'), g('b')] }, 'b'), 'b')
   assert.deepEqual(s.gyms.map((x) => x.uses), [undefined, 2])
   assert.equal(sanitize(s).gyms[1].uses, 2, 'kept on the device')
+})
+
+test('a link asks first when it would change the token or replace saved data', () => {
+  const other = 'B'.repeat(43)
+  const fresh = emptySettings()
+  const token = (t: string) => ({ kind: 'token' as const, token: t })
+  const settings = (s: Partial<typeof sample>) => ({ kind: 'settings' as const, settings: { ...emptySettings(), ...s } })
+  assert.equal(importNeedsConfirm(fresh, token(TOKEN)), false, 'setting up a fresh device')
+  assert.equal(importNeedsConfirm(sample, token(sample.token!)), false, 'the same token again')
+  assert.equal(importNeedsConfirm(sample, token(other)), true, 'a different token')
+  assert.equal(importNeedsConfirm(fresh, settings(sample)), false, 'settings onto an empty device')
+  assert.equal(importNeedsConfirm({ ...fresh, token: TOKEN }, settings({ token: other })), true, 'settings with another token')
+  assert.equal(importNeedsConfirm(sample, settings({})), true, 'settings over saved homes')
+  assert.match(importQuestion(sample, settings({ token: other })), /1 home, 1 gym\b.* and its access token/)
+  assert.match(importQuestion(sample, token(other)), /access token/)
 })

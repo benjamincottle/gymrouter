@@ -214,6 +214,29 @@ export function applyFragment(cur: Settings, f: FragmentData): Settings {
   return { ...f.settings, token: f.settings.token ?? cur.token }
 }
 
+/**
+ * Whether a link would change this device's token or replace what's saved on it. Then the app asks first: anyone can
+ * send a link to this origin, and one opened by mistake mustn't log the device out or wipe its homes, gyms and walks.
+ */
+export function importNeedsConfirm(cur: Settings, f: FragmentData): boolean {
+  const token = f.kind === 'token' ? f.token : f.settings.token
+  if (cur.token && token && token !== cur.token) return true
+  return f.kind === 'settings' && (cur.homes.length > 0 || cur.gyms.length > 0 || cur.walks.length > 0)
+}
+
+const count = (n: number, one: string) => (n === 0 ? '' : `${n} ${one}${n === 1 ? '' : 's'}`)
+
+/** What to ask before applying a link that importNeedsConfirm flags. */
+export function importQuestion(cur: Settings, f: FragmentData): string {
+  if (f.kind === 'token') {
+    return "This link changes this device's access token. Only use it if it came from your own server. Use it?"
+  }
+  const have = [count(cur.homes.length, 'home'), count(cur.gyms.length, 'gym'), count(cur.walks.length, 'timed walk')].filter(Boolean)
+  const token = f.settings.token && cur.token && f.settings.token !== cur.token ? ' and its access token' : ''
+  const what = have.length > 0 ? ` (${have.join(', ')})` : ''
+  return `This link replaces everything saved on this device${what}${token}. Only use it if you made it. Replace?`
+}
+
 // --- Requests ---
 
 export function placeRequest(h: Place): PlaceRequest {
