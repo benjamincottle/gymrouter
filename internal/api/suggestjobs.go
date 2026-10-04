@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"runtime/debug"
 	"sort"
 	"sync"
 	"time"
@@ -131,6 +132,16 @@ func (s *Server) suggestStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) runSuggest(job *suggestJob, from engine.SuggestPlace, targets []engine.SuggestPlace, radiusM float64) {
+	// This runs outside any handler, so the recover middleware doesn't cover it: a panic here would stop the server.
+	defer func() {
+		if v := recover(); v != nil {
+			s.log.Error("suggest lines panicked", "err", fmt.Sprint(v), "stack", string(debug.Stack()))
+			s.jobs.update(job, func(j *suggestJob) {
+				j.ended = time.Now()
+				j.State, j.Error = "failed", "couldn't look up lines"
+			})
+		}
+	}()
 	ctx, cancel := context.WithTimeout(context.Background(), jobTimeout)
 	defer cancel()
 	progress := func(done, of int) { s.jobs.update(job, func(j *suggestJob) { j.Done, j.Of = done, of }) }

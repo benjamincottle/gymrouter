@@ -30,7 +30,7 @@ type Server struct {
 	Listen    string `toml:"listen"`
 	DataDir   string `toml:"data_dir"`
 	PublicURL string `toml:"public_url"` // used to build setup links
-	// TrustProxy makes the server log the client IP from X-Forwarded-For (set by Traefik).
+	// TrustProxy makes the server log the client IP from the last X-Forwarded-For entry (added by Traefik).
 	TrustProxy bool `toml:"trust_proxy"`
 	// StaticRefreshH is the local hour for the daily timetable download.
 	StaticRefreshH int `toml:"static_refresh_hour"`

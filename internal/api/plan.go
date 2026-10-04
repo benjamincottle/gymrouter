@@ -366,7 +366,7 @@ func parseLines(ss []string) (lines.Set, error) {
 // ensure makes the server cover the lines, which can take a few seconds the first time.
 func (s *Server) ensure(set lines.Set) error {
 	err := s.eng.Ensure(set)
-	if errors.Is(err, engine.ErrTooManyLines) {
+	if errors.Is(err, engine.ErrTooManyLines) || errors.Is(err, engine.ErrUnknownLine) {
 		return badf("%v", err)
 	}
 	return err

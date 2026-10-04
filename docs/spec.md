@@ -137,8 +137,8 @@ Non-goals (v1)
 - **Setup-link token**: secret in Ansible Vault → env; server compares in constant time against its hash.
   First device: `docker compose exec app gymrouter setup-link` prints `https://<host>/#setup=<token>`.
   The app saves the token and removes it from the URL. More devices: "Share setup" link/QR.
-  Revoke = rotate the secret. Without a token there's no sign of an app: the page shows a plain "404 page not found"
-  (as Go and Traefik do) and the API answers unauthenticated requests the same way.
+  Revoke = rotate the secret. Without a token the page shows only the name and the mark (nothing to press), and the API
+  answers unauthenticated requests with a plain "404 page not found" (as Go and Traefik do).
 - No personal data on the server; private settings travel in POST bodies; request bodies and
   query strings with coordinates are never logged.
 - **Key protection**: the server alone polls TfNSW; client requests never trigger upstream calls.
@@ -370,3 +370,9 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   reports between which it moved 50 m or more means you're aboard, sooner and surer than the 120 m along-the-line rule; it
   moving off more than 150 m from you while you stay put means it left without you, and the trip is re-checked straight
   away. Once you're aboard and your own fix goes stale (a tunnel), the vehicle's position stands in for yours.
+- 2026-10-04: A landing page instead of the fake 404, and a new mark. A browser without a token sees the wordmark under the
+  mark at page scale: the orange line runs in from the screen edge along a row of bolt holes, with a stop every other hole,
+  to the foot of a faceted climbing volume bolted into the wall (it draws itself once on load; still under reduced motion).
+  Still no controls, and the API's unauthenticated 404s are unchanged. The icon is the same drawing on a graphite tile
+  (holes every 12 of its 64 units, the grid the landing page uses too), replacing the faceted hold that read as a nut.
+  Setup links, backups and stealth API behaviour are as before; links that would change saved data now ask first.

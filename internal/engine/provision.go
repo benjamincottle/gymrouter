@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/benjamincottle/gymrouter/internal/walk"
@@ -65,7 +66,11 @@ func (e *Engine) provisionLoop(ctx context.Context) {
 		if e.now().Before(next[name]) || !due() {
 			return
 		}
-		if err := run(ctx); err != nil {
+		var err error
+		if perr := e.guard(name, func() { err = run(ctx) }); perr != nil {
+			err = perr
+		}
+		if err != nil {
 			if ctx.Err() != nil {
 				return
 			}
@@ -125,7 +130,7 @@ func (e *Engine) buildWalk(ctx context.Context) (*walk.Graph, error) {
 	src := filepath.Join(dir, "walk-source.osm.pbf")
 	defer os.Remove(src)
 	e.log.Info("downloading the street map", "from", e.cfg.Data.WalkSource)
-	if err := download(ctx, e.cfg.Data.WalkSource, src, maxWalkSource); err != nil {
+	if err := download(ctx, e.transport, e.cfg.Data.WalkSource, src, maxWalkSource); err != nil {
 		return nil, fmt.Errorf("downloading street map: %w", err)
 	}
 	g, err := walk.FromPBF(src)
@@ -183,14 +188,18 @@ func (e *Engine) RefreshMap(ctx context.Context) error {
 	return last
 }
 
-// download fetches a URL (https only) to dest, refusing anything larger than maxBytes.
-func download(ctx context.Context, url, dest string, maxBytes int64) error {
+// download fetches a URL (https only, redirects included) to dest, refusing anything larger than maxBytes.
+// tr is the transport to use; nil means the default.
+func download(ctx context.Context, tr http.RoundTripper, url, dest string, maxBytes int64) error {
+	if !strings.HasPrefix(url, "https://") {
+		return fmt.Errorf("refusing to download over plain http")
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("User-Agent", "gymrouter (self-hosted; https://github.com/benjamincottle/gymrouter)")
-	c := &http.Client{Timeout: 20 * time.Minute}
+	c := &http.Client{Transport: tr, Timeout: 20 * time.Minute, CheckRedirect: httpsRedirects}
 	resp, err := c.Do(req)
 	if err != nil {
 		return err
@@ -217,4 +226,15 @@ func download(ctx context.Context, url, dest string, maxBytes int64) error {
 		os.Remove(dest)
 	}
 	return err
+}
+
+// httpsRedirects follows a few redirects, but never to plain http.
+func httpsRedirects(req *http.Request, via []*http.Request) error {
+	if req.URL.Scheme != "https" {
+		return fmt.Errorf("refusing redirect to %s", req.URL.Scheme)
+	}
+	if len(via) >= 10 {
+		return errors.New("too many redirects")
+	}
+	return nil
 }

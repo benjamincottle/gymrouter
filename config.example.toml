@@ -12,7 +12,7 @@
 listen = ":8080"
 data_dir = "/data"
 public_url = "https://gym.example.com"   # used by `gymrouter setup-link`
-trust_proxy = true                       # log the client IP from X-Forwarded-For (set by Traefik)
+trust_proxy = true                       # log the client IP from the last X-Forwarded-For entry (added by Traefik)
 static_refresh_hour = 5                  # local time for the daily timetable download
 
 [realtime]

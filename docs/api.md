@@ -35,8 +35,9 @@ measured walks from the gym door.
 }
 ```
 - `lines` (1–60, each `"<mode> <name>"`) is the set to route on, normally the gym's. The server loads timetable
-  data for any line it hasn't seen yet, so the first request naming new lines takes a few seconds. There is a cap on
-  the total the server will hold (400 Bad Request beyond it).
+  data for any line it hasn't seen yet, so the first request naming new lines takes a few seconds. A line the timetable
+  doesn't have is a 400, and so is going over the cap on the total the server will hold. Lines no request has named
+  for two weeks are dropped again at the next day rollover (the built-in gyms' lines always stay).
 - A place is `lat`/`lon`, optionally with curated `access` stops and walk times. Without
   them, stops within `max_walk_m` are used. Either end can be home or gym.
 - A place can also carry `walks` (up to 40, `[{"stop": "<stop or station ID>", "walk_s": 540}]`): walks the traveller

@@ -1133,28 +1133,114 @@ label.check input {
   height: auto;
 }
 
-/* the page for a browser without access: exactly what a browser shows for a plain-text 404 */
-html.not-found {
-  color-scheme: light dark;
+/* ---- landing: a browser without access sees the name and the mark ----
+   Everything is placed in icon units (--u) from the middle of the screen, which sits at icon point (40, 46): the
+   volume's centre line, a little below its base. Holes are every 12 units on the icon's grid (8 + 12k), so the
+   wall's background is offset to match, the line runs along the row at y = 44 and the bolt sits in the hole at
+   (44, 32). */
+.landing {
+  --u: clamp(3.2px, 0.5vw + 1.8px, 6px);
+  --line: #f99d1c;
+  --hole: rgba(30, 34, 38, 0.13);
+  --lit: #5d666e;
+  --side: #3b4249;
+  --base: #1e2226;
+  --washer: #c9cfc9;
+  --bolt: #1e2226;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background-color: var(--wall);
+  background-image: radial-gradient(circle, var(--hole) calc(var(--u) * 0.36), transparent calc(var(--u) * 0.36 + 0.75px));
+  background-size: calc(var(--u) * 12) calc(var(--u) * 12);
+  background-position: calc(50% + var(--u) * 4) calc(50% - var(--u) * 2);
 }
 
-html.not-found,
-html.not-found body {
-  background: Canvas;
-  background-image: none;
-  color: CanvasText;
+[data-theme='dark'] .landing {
+  --hole: rgba(232, 235, 231, 0.08);
+  --lit: #e8ebe7;
+  --side: #b4bcb4;
+  --base: #7d867e;
+  --washer: #3b4249;
+  --bolt: #1b1e21;
 }
 
-html.not-found body {
-  margin: 8px;
-  font: 13px monospace;
-  line-height: normal;
-  font-variant-numeric: normal;
+/* the line, from off the left edge to the volume's foot (x = 20, plus its round end) */
+.landing-run {
+  position: absolute;
+  left: 0;
+  top: calc(50% - var(--u) * 9);
+  width: calc(50% - var(--u) * 16.5);
+  height: calc(var(--u) * 10.5);
+  animation: landing-run 1.15s cubic-bezier(0.25, 0.7, 0.15, 1) both;
 }
 
-html.not-found pre {
-  margin: 1em 0;
-  font: inherit;
+.landing-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--u) * 7);
+  border-radius: 0 calc(var(--u) * 3.5) calc(var(--u) * 3.5) 0;
+  background: var(--line);
+}
+
+/* a stop at every other hole, the nearest at x = 8 */
+.landing-stops {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(100% - var(--u) * 13.5);
+  height: calc(var(--u) * 7);
+  background: repeating-linear-gradient(to left, var(--line) 0 calc(var(--u) * 4), transparent calc(var(--u) * 4) calc(var(--u) * 24));
+}
+
+.landing-volume {
+  position: absolute;
+  left: calc(50% - var(--u) * 20);
+  top: calc(50% - var(--u) * 40);
+  width: calc(var(--u) * 40);
+  height: calc(var(--u) * 40);
+  overflow: visible;
+  /* it settles onto its bolt */
+  transform-origin: 60% 65%;
+  animation: landing-volume 0.45s cubic-bezier(0.3, 1.5, 0.5, 1) 0.85s both;
+}
+
+.landing-volume .lit { fill: var(--lit); stroke: var(--lit); }
+.landing-volume .side { fill: var(--side); stroke: var(--side); }
+.landing-volume .base { fill: var(--base); stroke: var(--base); }
+.landing-volume .washer { fill: var(--washer); }
+.landing-volume .bolt { fill: var(--bolt); }
+
+.landing-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% + var(--u) * 7.5);
+  text-align: center;
+  font-size: calc(var(--u) * 17);
+  line-height: 1;
+  font-weight: 800;
+  font-stretch: 62%;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  animation: landing-name 0.6s ease-out 1.05s both;
+}
+
+@keyframes landing-run {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes landing-volume {
+  from { opacity: 0; transform: scale(0.82); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes landing-name {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1162,7 +1248,10 @@ html.not-found pre {
     scroll-behavior: auto !important;
   }
 
-  .rail .you {
+  .rail .you,
+  .landing-run,
+  .landing-volume,
+  .landing-name {
     animation: none;
   }
 }

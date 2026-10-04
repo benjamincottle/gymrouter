@@ -26,6 +26,8 @@ type CatalogStop struct {
 type Catalog struct {
 	Date  time.Time
 	Stops []CatalogStop
+	// Lines is every public line in the timetable, whether or not it runs on Date.
+	Lines lines.Set
 }
 
 // NearStop is a catalogue stop with the estimated walk to it.
@@ -68,7 +70,10 @@ func NewCatalog(d *gtfs.Day) *Catalog {
 			perStop[st.Stop][k] = true
 		}
 	}
-	c := &Catalog{Date: d.Date}
+	c := &Catalog{Date: d.Date, Lines: lines.Set{}}
+	for _, k := range routeLine {
+		c.Lines[k] = true
+	}
 	for si, set := range perStop {
 		if len(set) == 0 {
 			continue

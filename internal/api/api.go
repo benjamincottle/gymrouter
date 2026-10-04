@@ -86,7 +86,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/api/", s.auth.Require(s.touch(api)))
 	mux.HandleFunc("GET /healthz", s.healthz)
 	if s.web != nil {
-		files := http.FileServerFS(s.web)
+		files := http.FileServerFS(noDirs{s.web})
 		mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet && r.Method != http.MethodHead {
 				http.NotFound(w, r) // nothing here takes anything else; look like it
@@ -106,6 +106,21 @@ func (s *Server) Handler() http.Handler {
 		})
 	}
 	return s.recover(s.logRequests(securityHeaders(mux)))
+}
+
+// noDirs hides every directory but the root, so the file server never lists one (the root serves index.html).
+type noDirs struct{ fs.FS }
+
+func (n noDirs) Open(name string) (fs.File, error) {
+	f, err := n.FS.Open(name)
+	if err != nil || name == "." {
+		return f, err
+	}
+	if fi, err := f.Stat(); err != nil || fi.IsDir() {
+		f.Close()
+		return nil, fs.ErrNotExist
+	}
+	return f, nil
 }
 
 func (s *Server) touch(h http.Handler) http.Handler {
@@ -157,11 +172,19 @@ func (s *Server) logRequests(h http.Handler) http.Handler {
 	})
 }
 
+// clientIP is the address the trusted proxy saw: the last X-Forwarded-For entry, which the proxy added. Earlier
+// entries are whatever the client sent.
 func clientIP(r *http.Request, trustProxy bool) string {
 	if trustProxy {
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			first, _, _ := strings.Cut(xff, ",")
-			return strings.TrimSpace(first)
+		xff := r.Header.Values("X-Forwarded-For")
+		if len(xff) > 0 {
+			last := xff[len(xff)-1]
+			if i := strings.LastIndex(last, ","); i >= 0 {
+				last = last[i+1:]
+			}
+			if ip := strings.TrimSpace(last); ip != "" {
+				return ip
+			}
 		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)

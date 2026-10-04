@@ -284,6 +284,7 @@ func TestPlanValidation(t *testing.T) {
 		"no lines":        map[string]any{"from": place, "to": laneCove},
 		"empty lines":     with("lines", []string{}),
 		"bad line":        with("lines", []string{"tram 1"}),
+		"unknown line":    with("lines", []string{"bus 288", "bus nosuch"}),
 		"too many lines":  with("lines", many),
 		"long line":       with("lines", []string{"bus " + strings.Repeat("x", 60)}),
 		"unknown field":   with("extra", 1),
@@ -412,6 +413,11 @@ func TestServesFrontendAlongsideAPI(t *testing.T) {
 	rec = h.do(t, "GET", "/assets/app-abc.js", "", nil)
 	if rec.Code != 200 || !strings.Contains(rec.Header().Get("Cache-Control"), "immutable") {
 		t.Errorf("asset: %d %q", rec.Code, rec.Header().Get("Cache-Control"))
+	}
+	for _, dir := range []string{"/assets/", "/assets"} {
+		if rec := h.do(t, "GET", dir, "", nil); rec.Code != 404 || rec.Body.String() != "404 page not found\n" {
+			t.Errorf("directory %s is listed: %d %q", dir, rec.Code, rec.Body)
+		}
 	}
 	if rec := h.do(t, "POST", "/", "", "{}"); rec.Code != 404 || rec.Body.String() != "404 page not found\n" {
 		t.Errorf("POST /: %d", rec.Code)
