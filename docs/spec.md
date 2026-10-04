@@ -102,7 +102,8 @@ Non-goals (v1)
 - Vehicle positions refresh by client polling (~10–15 s) from the server cache.
 
 ## 8. UI / UX
-- Mobile-first responsive PWA (installable); works on desktop.
+- Visual design, components and UX conventions: see [DESIGN.md](DESIGN.md).
+- Mobile-first responsive PWA (installable); on desktop (1024px and up) the trip and the map sit side by side.
 - **Home screen**: one button per gym, plus a direction toggle (to gym / home). Tapping one runs "Leave now".
 - **Results**: ranked option cards. Each shows departure, arrival, legs, transfer count, connection-risk
   badges, and a **leave-by countdown** on the top option (auto-refreshing). Time controls for Depart at / Arrive by.
@@ -376,3 +377,13 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   Still no controls, and the API's unauthenticated 404s are unchanged. The icon is the same drawing on a graphite tile
   (holes every 12 of its 64 units, the grid the landing page uses too), replacing the faceted hold that read as a nut.
   Setup links, backups and stealth API behaviour are as before; links that would change saved data now ask first.
+- 2026-10-05: UI consistency pass, step 1–2 (audit, then direction). The audit found ~17 greys, 18 font sizes, 6 weights,
+  22 spacing values, 5 callout styles and 51 computed button styles, no desktop layout, dead-end error states, native
+  confirm dialogs, mixed 12/24-hour times and five duration formats. Direction: refine the current look (variant A:
+  countdown hero, options board, steps), written down as docs/DESIGN.md. Decided: a two-pane desktop layout (trip beside
+  an always-visible map); one callout with four tones taken from the risk colours; one time format per kind (24-hour
+  clocks; minutes for predictions, compact only in the board; whole-minute spare time; stopwatch for measured walks);
+  in-app confirmation only (inline for one item and End trip, a dialog sheet for whole-device actions); the gym leads the
+  trip screen with a reverse button instead of the To the gym / Home toggle; the commit action in a bar pinned to the
+  bottom; a darker edge colour for control outlines; details on a second line instead of middle dots; defaults shown one
+  way ("Empty uses the default"); End trip moved away from the map's Back. Disabled buttons: a thin greyed outline.
