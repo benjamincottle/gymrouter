@@ -112,7 +112,7 @@ function ModeGlyph({ mode }: { mode?: string }) {
 
 /**
  * One step's piece of the line down the middle: a thick line in the ride's colour (the vehicle where you get on, a
- * white dot where you get off), dotted for walking, the home or gym at either end, and you if you're here.
+ * white dot where you get off), dotted with a walker for walking, the home or gym at either end, and you if you're here.
  */
 function Rail({ kind, place, line, me }: {
   kind: 'ride' | 'walk' | 'start' | 'arrive'
@@ -131,6 +131,13 @@ function Rail({ kind, place, line, me }: {
           </i>
           <i class="alight" />
         </>
+      )}
+      {kind === 'walk' && (
+        <svg class="walker" viewBox="0 0 24 24" width="18" height="18">
+          {/* someone walking, heading right (on down the trip) */}
+          <circle cx="13.6" cy="4" r="2" />
+          <path d="M12.8 7.6 L11.2 13.2 L14.2 16.2 L15.2 20.6 M11.2 13.2 L9.8 17 L7.2 20.2 M12.4 8.6 L14.6 11.6 L16.8 12.4 M12.4 8.6 L9.8 10.4 L8.6 13" />
+        </svg>
       )}
       {(kind === 'start' || kind === 'arrive') && (
         <svg class={`origin ${place === 'home' ? 'house' : 'hold'}`} viewBox="0 0 24 24" width="22" height="22">

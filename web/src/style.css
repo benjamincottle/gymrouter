@@ -711,15 +711,43 @@ label.inline {
   margin: -11px 0 -10px; /* through the row's padding and rule, so the pieces join up */
 }
 
-/* walking: a column of round dots, 4.5px every 10px */
-.rail::before {
+/* walking: a column of whole round dots (4.5px, about 10px apart, spaced out to fit), stopping as short of the rules
+   as a ride does; a walk's step has a walker in the middle */
+.rail::before,
+.rail.walk::after {
   content: '';
   position: absolute;
-  top: 0;
+  top: 1px;
   bottom: 0;
   left: calc(50% - 2.5px);
   width: 5px;
-  background: radial-gradient(circle at 2.5px 2.5px, var(--pencil) 2px, transparent 2.5px) 0 2px / 5px 10px repeat-y;
+  background: radial-gradient(circle at 2.5px 5px, var(--pencil) 2px, transparent 2.5px) 0 0 / 5px 10px;
+  background-repeat: no-repeat space;
+}
+
+.rail.walk::before {
+  bottom: calc(50% + 9px);
+}
+
+.rail.walk::after {
+  top: calc(50% + 9px);
+  background-position: 0 100%; /* a lone dot sits by the rule, not by the walker */
+}
+
+.rail .walker {
+  position: absolute;
+  top: calc(50% - 9px);
+  left: calc(50% - 9px);
+  fill: none;
+  stroke: var(--pencil);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rail .walker circle {
+  fill: var(--pencil);
+  stroke: none;
 }
 
 /* a ride fills its row, stopping just short of the rules above and below */
@@ -773,12 +801,13 @@ label.inline {
 
 /* the home or gym at either end, with the walk dotted away below it (or up to it) */
 .rail.start::before {
-  top: 30px;
+  top: 26px;
+  background-position: 0 100%;
 }
 
 .rail.arrive::before {
   bottom: auto;
-  height: 12px;
+  height: 10px;
 }
 
 .rail .origin {
