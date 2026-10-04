@@ -27,7 +27,7 @@ func TestSimplifyKeepsShape(t *testing.T) {
 	}
 }
 
-func TestGridWithinAndNearest(t *testing.T) {
+func TestGridWithin(t *testing.T) {
 	pts := []Point{{-33.8, 151.0}, {-33.801, 151.0}, {-33.9, 151.0}}
 	g := NewGrid(pts, 500)
 	var got []int32
@@ -35,7 +35,31 @@ func TestGridWithinAndNearest(t *testing.T) {
 	if len(got) != 2 {
 		t.Errorf("within: %v", got)
 	}
-	if Nearest(pts, Point{-33.899, 151.0}, 0) != 2 || Nearest(pts, Point{-33.8, 151.0}, 1) != 1 {
-		t.Error("nearest")
+}
+
+func TestProjectAndCutStopBesideTheLine(t *testing.T) {
+	// A straight road east with corners every ~1 km; a stop beside it 300 m before the third corner.
+	m := 1.0 / 111320
+	k := math.Cos(-33.8 * math.Pi / 180)
+	at := func(x, y float64) Point { return Point{Lat: -33.8 + y*m, Lon: 151 + x*m/k} }
+	road := []Point{at(0, 0), at(1000, 0), at(2000, 0), at(3000, 0)}
+	from := Project(road, at(250, 8), Along{})
+	to := Project(road, at(1700, -6), from)
+	if from.Seg != 0 || math.Abs(from.T-0.25) > 0.01 || to.Seg != 1 || math.Abs(to.T-0.7) > 0.01 || !from.Before(to) {
+		t.Fatalf("projections %+v %+v", from, to)
+	}
+	cut := Cut(road, from, to)
+	if len(cut) != 3 || DistanceM(cut[2], at(1700, 0)) > 1 {
+		t.Fatalf("cut %v", cut)
+	}
+	// The cut never goes past the stop and back: each point is further east than the last.
+	for i := 1; i < len(cut); i++ {
+		if cut[i].Lon <= cut[i-1].Lon {
+			t.Fatalf("doubles back at %d: %v", i, cut)
+		}
+	}
+	// Looking only after a point: a stop "behind" it lands on that point, not earlier.
+	if back := Project(road, at(100, 0), to); back.Before(to) {
+		t.Errorf("projected before the starting point: %+v", back)
 	}
 }

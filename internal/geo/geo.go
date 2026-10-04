@@ -104,13 +104,50 @@ func crossTrackM(p, a, b Point) float64 {
 	return math.Sqrt(ex*ex+ey*ey) * 111320
 }
 
-// Nearest returns the index of the point in pts[from:] closest to p.
-func Nearest(pts []Point, p Point, from int) int {
+// Along is a place on a line: segment Seg (pts[Seg] to pts[Seg+1]), T of the way along it (0..1), at Pt.
+type Along struct {
+	Seg int
+	T   float64
+	Pt  Point
+}
+
+// Before reports whether a comes before b on the line.
+func (a Along) Before(b Along) bool { return a.Seg < b.Seg || (a.Seg == b.Seg && a.T < b.T) }
+
+// Project finds the point on the line pts nearest to p, looking only at or after `from` (equirectangular; fine at
+// city scale). A line of fewer than two points has no segments: it returns the first point.
+func Project(pts []Point, p Point, from Along) Along {
 	best, bestD := from, math.Inf(1)
-	for i := from; i < len(pts); i++ {
-		if d := DistanceM(p, pts[i]); d < bestD {
-			best, bestD = i, d
+	if len(pts) < 2 {
+		if len(pts) == 1 {
+			best.Pt = pts[0]
+		}
+		return best
+	}
+	for i := max(0, from.Seg); i < len(pts)-1; i++ {
+		a, b := pts[i], pts[i+1]
+		k := math.Cos(a.Lat * math.Pi / 180)
+		dx, dy := (b.Lon-a.Lon)*k, b.Lat-a.Lat
+		t := 0.0
+		if l := dx*dx + dy*dy; l > 0 {
+			t = math.Max(0, math.Min(1, ((p.Lon-a.Lon)*k*dx+(p.Lat-a.Lat)*dy)/l))
+		}
+		if i == from.Seg && t < from.T {
+			t = from.T
+		}
+		q := Point{Lat: a.Lat + t*(b.Lat-a.Lat), Lon: a.Lon + t*(b.Lon-a.Lon)}
+		if d := DistanceM(p, q); d < bestD {
+			best, bestD = Along{Seg: i, T: t, Pt: q}, d
 		}
 	}
 	return best
+}
+
+// Cut returns the part of the line from a to b (a before b).
+func Cut(pts []Point, a, b Along) []Point {
+	out := []Point{a.Pt}
+	for i := a.Seg + 1; i <= b.Seg; i++ {
+		out = append(out, pts[i])
+	}
+	return append(out, b.Pt)
 }

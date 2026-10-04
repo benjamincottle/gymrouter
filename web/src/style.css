@@ -772,11 +772,7 @@ label.inline {
 
 .rail.home .you,
 .rail.gym .you {
-  left: 2px;
-  width: 12px;
-  height: 12px;
-  margin-top: 15px; /* inside the house (or on the hold): you're there */
-  border-width: 2px;
+  margin-top: 6px; /* over the house (or the hold), drawn in the marker: you're there */
 }
 
 .rail.end::before {
@@ -802,17 +798,27 @@ label.inline {
 /* you: the same blue dot as on the map */
 .rail .you {
   position: absolute;
-  left: -3px;
+  left: -6px;
   z-index: 1;
-  width: 22px;
-  height: 22px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
   box-sizing: border-box;
-  margin-top: -11px;
+  margin-top: -14px;
   border: 3px solid #ffffff;
   border-radius: 50%;
   background: #2457d6;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   animation: you-here 2.4s ease-out infinite;
+}
+
+.rail .you svg {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .rail.end .you {
@@ -1290,6 +1296,10 @@ details > summary {
 }
 
 /* timing a walk during a trip */
+.intrip .actions + .muted.small {
+  margin-top: 10px;
+}
+
 .intrip .steps {
   margin-top: 8px;
 }

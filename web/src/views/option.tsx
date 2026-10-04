@@ -20,6 +20,7 @@ export function LineChip({ line }: { line: Line }) {
 /** During a trip: where you are, and the walks you can time (see walks.ts segments). */
 export interface Tracking {
   now: number
+  at?: { row: number; frac: number } | null // where your location puts you on the steps (else the clock decides)
   from: { name: string; home: boolean } // where the trip starts: shown at the top of the rail
   segs: Segment[]
   onTime: (s: Segment) => void
@@ -34,7 +35,7 @@ export function Timeline({
   track?: Tracking // during a trip: the rail with you on it, and "Time my walk" (walk times only come from recordings)
 }) {
   const rs = rows(o, !!track)
-  const me = track && position(rs, track.now)
+  const me = track && (track.at ?? position(rs, track.now))
   const seg = (leg: number) => track?.segs.find((s) => s.leg === leg)
   const rail = (r: Row, k: number) =>
     track && (
@@ -97,7 +98,20 @@ function Rail({ kind, color, me }: { kind: 'ride' | 'walk' | 'end' | 'home' | 'g
           {kind === 'home' ? <path d="M3.5 11 L12 4 L20.5 11 M5.5 9.5 V20 H18.5 V9.5 M10 20 V14 H14 V20" /> : <path d={HOLD} />}
         </svg>
       )}
-      {me !== undefined && <i class="you" style={{ top: `${me * 100}%` }} />}
+      {me !== undefined && (
+        <i class="you" style={{ top: `${me * 100}%` }}>
+          {/* heading on down the trip; at the start, the place you're leaving from */}
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            {kind === 'home' ? (
+              <path d="M5 11.5 L12 5.5 L19 11.5 M7 10 V18.5 H17 V10" />
+            ) : kind === 'gym' ? (
+              <path d={HOLD} transform="translate(2.4 2.4) scale(0.8)" />
+            ) : (
+              <path d="M6.5 9.5 L12 15 L17.5 9.5" />
+            )}
+          </svg>
+        </i>
+      )}
     </span>
   )
 }

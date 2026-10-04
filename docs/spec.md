@@ -353,3 +353,20 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   to the whole trip. Settings: Auto / Light / Dark appearance (driven by `<html data-theme>`, set before first paint), icon
   buttons to edit and delete, and "Measure my pace": a minute or two of ordinary walking with GPS, counting only the time
   spent moving (readings under 0.5 m/s are standing still), at least 60 s and 100 m, 0.6–2.5 m/s to count as walking.
+- 2026-10-04: During a trip, the "you" marker on the description is placed from your location, not the clock: each step has
+  a line on the ground (the walk's path, the ride's route shape, or straight between stops) and you're put on the nearest,
+  favouring the step the clock expects (40 m per step away) so a nearby part of the route can't steal you. At the meeting
+  of two steps you stay on the earlier one (still at home; waiting at the stop). The clock is the fallback when location is
+  vaguer than 100 m or you're more than 150 m (or twice the accuracy) off the route. Now / Then still follow the clock and
+  live times. Ride shapes are cut where each stop projects onto the line, not at the nearest corner, so a line no longer
+  runs past its last stop and back.
+- 2026-10-04: Now / Then follow where you are, not the clock (one calculation shared with the marker and the re-checks).
+  You're "waiting" within 40 m of the stop you're boarding at, and "on board" once you've moved 120 m along the ride's line;
+  progress only goes forward unless you're more than 150 m back from where you were placed; with no usable fix you stay put
+  and only a ride you're on carries on by the clock. Without any location the clock decides, as before. Next: matching
+  your movement with your vehicle's live position to confirm boarding sooner.
+- 2026-10-04: Vehicle matching. While you wait for or ride a vehicle, its live position is polled every 10 s and compared
+  with where you were at the same moment (your fixes, interpolated): with it (within 50 m plus your GPS accuracy) at two
+  reports between which it moved 50 m or more means you're aboard, sooner and surer than the 120 m along-the-line rule; it
+  moving off more than 150 m from you while you stay put means it left without you, and the trip is re-checked straight
+  away. Once you're aboard and your own fix goes stale (a tunnel), the vehicle's position stands in for yours.
