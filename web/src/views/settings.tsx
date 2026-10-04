@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { encode } from 'uqr'
 import { emptySettings, HIGHLIGHTS, MAX_GYMS, sanitize, settingsLink, type Gym, type Home, type Settings } from '../settings.ts'
-import { HOLD, IconColour, IconDevices, IconGym, IconHome, IconPhone, IconRisk, IconTimer, IconWalk } from './icons.tsx'
+import { DeleteButton, EditButton, HOLD, IconColour, IconDevices, IconGym, IconHome, IconPhone, IconRisk, IconTimer, IconWalk } from './icons.tsx'
 import type { DefaultsResponse } from '../types.ts'
 import { mmss } from '../walkmeasure.ts'
 import { walkSecs } from '../walks.ts'
@@ -95,20 +95,16 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
                   · {stopCount(h)}
                 </span>
               </span>
-              <span>
-                <button class="link" onClick={() => setEditing({ kind: 'home', place: { ...h, lines: [] }, isNew: false })}>
-                  Edit
-                </button>
-                <button
-                  class="link danger"
+              <span class="row-actions">
+                <EditButton label={`Edit ${h.name}`} onClick={() => setEditing({ kind: 'home', place: { ...h, lines: [] }, isNew: false })} />
+                <DeleteButton
+                  label={`Delete ${h.name}`}
                   onClick={() => {
-                    if (!confirm(`Remove ${h.name}?`)) return
+                    if (!confirm(`Delete ${h.name}?`)) return
                     const homes = settings.homes.filter((x) => x.id !== h.id)
                     setSettings({ ...settings, homes, activeHome: homes[0]?.id })
                   }}
-                >
-                  Remove
-                </button>
+                />
               </span>
             </li>
           ))}
@@ -137,18 +133,14 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
                   {!g.homeId && home ? ` · none near ${home.name} yet` : ''}
                 </span>
               </span>
-              <span>
-                <button class="link" onClick={() => setEditing({ kind: 'gym', place: g, isNew: false })}>
-                  {!g.homeId && home ? 'Add lines' : 'Edit'}
-                </button>
-                <button
-                  class="link danger"
+              <span class="row-actions">
+                <EditButton label={`Edit ${g.name}`} onClick={() => setEditing({ kind: 'gym', place: g, isNew: false })} />
+                <DeleteButton
+                  label={`Delete ${g.name}`}
                   onClick={() => {
-                    if (confirm(`Remove ${g.name}?`)) setSettings({ ...settings, gyms: settings.gyms.filter((x) => x.id !== g.id) })
+                    if (confirm(`Delete ${g.name}?`)) setSettings({ ...settings, gyms: settings.gyms.filter((x) => x.id !== g.id) })
                   }}
-                >
-                  Remove
-                </button>
+                />
               </span>
             </li>
           ))}
@@ -250,12 +242,12 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
                     {w.trace ? ', traced' : ''}
                   </span>
                 </span>
-                <button
-                  class="link danger"
-                  onClick={() => setSettings({ ...settings, walks: settings.walks.filter((x) => x !== w) })}
-                >
-                  Remove
-                </button>
+                <span class="row-actions">
+                  <DeleteButton
+                    label={`Delete the timed walk ${w.label}`}
+                    onClick={() => setSettings({ ...settings, walks: settings.walks.filter((x) => x !== w) })}
+                  />
+                </span>
               </li>
             ))}
           </ul>
@@ -285,8 +277,16 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
 
       <section class="card">
         <h2>
-          <IconColour /> Highlight colour
+          <IconColour /> Appearance
         </h2>
+        <div class="segmented small" role="group" aria-label="Light or dark">
+          {([[undefined, 'Auto'], ['light', 'Light'], ['dark', 'Dark']] as const).map(([t, label]) => (
+            <button aria-pressed={settings.theme === t} onClick={() => setSettings({ ...settings, theme: t })}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <h3>Highlight colour</h3>
         <p class="muted small">For underlines and what's selected. The grade colours at 9 Degrees.</p>
         <ul class="swatches" role="radiogroup" aria-label="Highlight colour">
           {HIGHLIGHTS.map((c) => {

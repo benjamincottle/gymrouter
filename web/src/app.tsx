@@ -7,6 +7,7 @@ import { Trip } from './views/trip.tsx'
 import { SettingsView } from './views/settings.tsx'
 import { InTrip, TRIP_KEY, type ActiveTrip } from './views/intrip.tsx'
 import { record } from './walks.ts'
+import { applyTheme } from './theme.ts'
 
 function loadTrip(storage: Storage | undefined): ActiveTrip | null {
   try {
@@ -61,6 +62,8 @@ export function App({ initial, imported, storage }: AppProps) {
   )
 
   const onAuthError = useCallback(() => setAuthFailed(true), [])
+
+  useEffect(() => applyTheme(settings.theme), [settings.theme])
 
   // The highlight colour is a CSS token on the root (style.css maps each name to light and dark values).
   useEffect(() => {

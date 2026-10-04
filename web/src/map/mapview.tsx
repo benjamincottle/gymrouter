@@ -8,6 +8,7 @@ import { FetchSource, PMTiles, Protocol } from 'pmtiles'
 import { layers, namedFlavor } from '@protomaps/basemaps'
 import { ApiError, api } from '../api.ts'
 import { legTrace, type TimedWalk } from '../walks.ts'
+import { isDark } from '../theme.ts'
 import type { Leg, Option } from '../types.ts'
 
 maplibregl.setWorkerUrl(workerUrl)
@@ -107,7 +108,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
   // Create the map once.
   useEffect(() => {
     if (!el.current) return
-    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const dark = isDark()
     const m = new maplibregl.Map({
       container: el.current,
       style: style(token, dark),

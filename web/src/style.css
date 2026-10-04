@@ -33,32 +33,37 @@
 :root[data-hl='white'], .swatch[data-hl='white'] { --hl: #ffffff; --hl-edge: #9aa2a9; }
 :root[data-hl='yellow'], .swatch[data-hl='yellow'] { --hl: #f5c400; --hl-edge: #b38f00; }
 
-@media (prefers-color-scheme: dark) {
-  :root[data-hl='blue'], .swatch[data-hl='blue'] { --hl: #4d8df0; }
-  :root[data-hl='red'], .swatch[data-hl='red'] { --hl: #ef5350; }
-  :root[data-hl='purple'], .swatch[data-hl='purple'] { --hl: #a074e8; }
-  :root[data-hl='white'], .swatch[data-hl='white'],
-  :root[data-hl='yellow'], .swatch[data-hl='yellow'] { --hl-edge: transparent; }
-  /* black means the ink, which is pale here; the swatch still shows a black hold */
-  .swatch[data-hl='black'] .hold { fill: #0d0f10; stroke: #6b737a; }
-  :root { --icon-edge: #3a4046; }
+/* dark: grade colours that need lifting off the dark wall */
+:root[data-theme='dark'][data-hl='blue'], [data-theme='dark'] .swatch[data-hl='blue'] { --hl: #4d8df0; }
+:root[data-theme='dark'][data-hl='red'], [data-theme='dark'] .swatch[data-hl='red'] { --hl: #ef5350; }
+:root[data-theme='dark'][data-hl='purple'], [data-theme='dark'] .swatch[data-hl='purple'] { --hl: #a074e8; }
+:root[data-theme='dark'][data-hl='white'], [data-theme='dark'] .swatch[data-hl='white'],
+:root[data-theme='dark'][data-hl='yellow'], [data-theme='dark'] .swatch[data-hl='yellow'] { --hl-edge: transparent; }
+/* black means the ink, which is pale here; the swatch still shows a black hold */
+[data-theme='dark'] .swatch[data-hl='black'] .hold { fill: #0d0f10; stroke: #6b737a; }
+
+/* Dark: chosen in Settings, or following the system (theme.ts sets data-theme either way). */
+:root[data-theme='dark'] {
+  --wall: #1b1e21;
+  --panel: #23272b;
+  --ink: #e8ebe7;
+  --pencil: #9aa2a9;
+  --rule: #383e44;
+  --dot: rgba(232, 235, 231, 0.06);
+  --on-ink: #1b1e21;
+  --focus: #7aa2ff;
+  --safe: #5cc285;
+  --tight: #e0a53a;
+  --risk: #f08a4b;
+  --missed: #f2766b;
+  --icon-edge: #3a4046;
+  color-scheme: dark;
 }
 
+/* before the script has set a theme, don't flash a light page on a dark system */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --wall: #1b1e21;
-    --panel: #23272b;
-    --ink: #e8ebe7;
-    --pencil: #9aa2a9;
-    --rule: #383e44;
-    --dot: rgba(232, 235, 231, 0.06);
-    --on-ink: #1b1e21;
-    --focus: #7aa2ff;
-    --safe: #5cc285;
-    --tight: #e0a53a;
-    --risk: #f08a4b;
-    --missed: #f2766b;
-    color-scheme: dark;
+  html:not([data-theme]) {
+    background: #1b1e21;
   }
 }
 
@@ -1036,6 +1041,30 @@ button.link.small {
   border-bottom: 1px solid var(--rule);
 }
 
+.row-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+}
+
+.icon-btn:hover {
+  background: var(--panel);
+}
+
+.icon-btn.danger .icon {
+  stroke: var(--missed);
+}
+
 .list.pick li {
   justify-content: flex-start;
 }
@@ -1321,6 +1350,11 @@ fieldset.choice label.check {
 .icon .risk-safe-fill { fill: var(--safe); stroke: none; }
 .icon .risk-tight-fill { fill: var(--tight); stroke: none; }
 .icon .risk-risk-fill { fill: var(--risk); stroke: none; }
+
+.card h3 {
+  margin: 18px 0 2px;
+  font-size: 1rem;
+}
 
 .swatches {
   display: grid;

@@ -43,6 +43,7 @@ export interface Settings {
   walks: TimedWalk[] // walks and changes timed during trips
   retime?: Retime // timing a walk again: average with the earlier ones (default) or replace them
   highlight?: Highlight // the colour of underlines and selection marks; black (the ink) if unset
+  theme?: 'light' | 'dark' // unset: follow the system
 }
 
 /** The 9 Degrees grade colours, offered as the highlight colour. */
@@ -129,6 +130,7 @@ export function sanitize(input: unknown): Settings {
     }
   }
   if (s.retime === 'average' || s.retime === 'replace') out.retime = s.retime
+  if (s.theme === 'light' || s.theme === 'dark') out.theme = s.theme
   if ((HIGHLIGHTS as readonly unknown[]).includes(s.highlight) && s.highlight !== 'black') out.highlight = s.highlight as Highlight
   return out
 }

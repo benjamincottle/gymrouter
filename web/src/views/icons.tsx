@@ -73,3 +73,24 @@ export const IconPhone = () => (
     <circle class="acc" cx="12" cy="17.5" r="1.3" />
   </Icon>
 )
+
+/** Small icon buttons for list rows: edit (pencil) and delete (bin). */
+export function EditButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button class="icon-btn" aria-label={label} title={label} onClick={onClick}>
+      <svg class="icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <path d="M4 20 L4.8 16.2 L15.6 5.4 a2 2 0 0 1 2.8 0 l0.2 0.2 a2 2 0 0 1 0 2.8 L7.8 19.2 Z M13.8 7.2 L16.8 10.2" />
+      </svg>
+    </button>
+  )
+}
+
+export function DeleteButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button class="icon-btn danger" aria-label={label} title={label} onClick={onClick}>
+      <svg class="icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <path d="M4.5 6.5 H19.5 M9.5 6.5 V4.5 H14.5 V6.5 M6.5 6.5 L7.5 20 H16.5 L17.5 6.5 M10.3 10 V16.5 M13.7 10 V16.5" />
+      </svg>
+    </button>
+  )
+}
