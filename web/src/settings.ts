@@ -274,6 +274,11 @@ export function byUse<T extends { uses?: number }>(gyms: T[]): T[] {
   return gyms.map((g, i) => ({ g, i })).sort((a, b) => (b.g.uses ?? 0) - (a.g.uses ?? 0) || a.i - b.i).map((x) => x.g)
 }
 
+/** Forgets how often each gym has been used, so they're listed as added again. */
+export function resetGymOrder(s: Settings): Settings {
+  return { ...s, gyms: s.gyms.map(({ uses: _, ...g }) => g) }
+}
+
 /** Counts a gym as used. */
 export function usedGym(s: Settings, id: string): Settings {
   return { ...s, gyms: s.gyms.map((g) => (g.id === id ? { ...g, uses: (g.uses ?? 0) + 1 } : g)) }
