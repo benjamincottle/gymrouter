@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  applyFragment, byUse, importNeedsConfirm, importQuestion, emptySettings, gymFromKnown, usedGym, isLine, withSuggested, load, parseFragment, placeRequest, planPlace, prefs, sanitize, save, settingsLink,
+  applyFragment, byUse, resetGymOrder, importNeedsConfirm, importQuestion, emptySettings, gymFromKnown, usedGym, isLine, withSuggested, load, parseFragment, placeRequest, planPlace, prefs, sanitize, save, settingsLink,
   type Settings,
 } from './settings.ts'
 import { addDays, countdown, dayLabel, dayOf, delay, duration, fromLocalInput, ordinal, platform, roundUp, shortDuration, toLocalInput } from './format.ts'
@@ -198,6 +198,8 @@ test('gyms are listed most used first, otherwise as added', () => {
   const s = usedGym(usedGym({ ...sample, gyms: [g('a'), g('b')] }, 'b'), 'b')
   assert.deepEqual(s.gyms.map((x) => x.uses), [undefined, 2])
   assert.equal(sanitize(s).gyms[1].uses, 2, 'kept on the device')
+  assert.deepEqual(byUse(resetGymOrder(s).gyms).map((x) => x.id), ['a', 'b'], 'reset: as added again')
+  assert.ok(resetGymOrder(s).gyms.every((x) => !('uses' in x)))
 })
 
 test('a link asks first when it would change the token or replace saved data', () => {

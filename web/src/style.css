@@ -282,6 +282,16 @@ label.inline {
   color: var(--pencil);
 }
 
+.tab.cog {
+  display: grid;
+  place-items: center;
+  padding: 8px 9px;
+}
+
+.tab.cog .icon {
+  stroke: currentColor;
+}
+
 .tab.active,
 .home-link.active {
   color: var(--ink);
@@ -648,16 +658,21 @@ label.inline {
 
 /* ---- timeline of one option ---- */
 
+/* the steps share their columns (subgrid): the time column is as wide as the times, so the line down the middle
+   sits as far from the times as from the descriptions */
 .timeline {
+  display: grid;
+  grid-template-columns: max-content 16px 1fr;
+  column-gap: 12px;
   list-style: none;
   margin: 12px 0 0;
   padding: 0;
 }
 
 .step {
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 3.4rem 1fr;
-  gap: 10px;
+  grid-template-columns: subgrid;
   padding: 10px 0;
   border-top: 1px solid var(--rule);
 }
@@ -666,6 +681,7 @@ label.inline {
   font-stretch: var(--narrow);
   font-weight: 700;
   font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .step.walk {
@@ -673,37 +689,22 @@ label.inline {
 }
 
 .step.arrive {
-  border-top: 3px solid var(--ink);
   font-weight: 700;
 }
 
 .step .change-icon {
   display: block;
-  margin-top: 1px;
+  margin: 1px auto 0;
   color: var(--pencil);
 }
 
 .step.change {
   font-size: 0.92rem;
   background: var(--panel);
-  padding-left: 8px;
   padding-right: 8px;
 }
 
-/* during a trip: a line down the left in each leg's colours, with you on it */
-.timeline.tracked .step {
-  grid-template-columns: 3.4rem 16px 1fr;
-}
-
-.timeline.tracked .step.arrive {
-  border-top: 1px solid var(--rule);
-}
-
-.timeline.tracked .step.change {
-  padding-left: 0;
-  padding-right: 8px;
-}
-
+/* a line down the middle in each leg's colours (and you on it, during a trip) */
 .rail {
   position: relative;
   align-self: stretch;

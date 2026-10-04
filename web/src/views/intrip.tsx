@@ -223,7 +223,6 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   const track: Tracking = {
     now,
     at,
-    from: { name: trip.ends.start.name, home: trip.ends.start.key.startsWith('home:') },
     segs: segments(o, trip.ends.start, trip.ends.end),
     onTime: (s) => {
       setMapOpen(false)
@@ -373,7 +372,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
       </p>
 
       <section class="steps" aria-label="The trip">
-        <Timeline option={o} destination={destination} walks={walks} track={track} />
+        <Timeline option={o} from={trip.ends.start} destination={destination} walks={walks} track={track} />
       </section>
 
       {mapOpen && (
@@ -390,7 +389,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           option={o}
           now={now}
           onClose={() => setMapOpen(false)}
-          steps={{ destination, track }}
+          steps={{ from: trip.ends.start, destination, track }}
         />
       )}
     </div>

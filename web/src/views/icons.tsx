@@ -74,6 +74,14 @@ export const IconPhone = () => (
   </Icon>
 )
 
+/** Settings, in the header: a cog. */
+export const IconSettings = () => (
+  <svg class="icon" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+    <path d="M9.75 4.74 L10.01 2.2 L13.99 2.2 L14.25 4.74 L15.55 5.28 L17.53 3.67 L20.33 6.47 L18.72 8.45 L19.26 9.75 L21.8 10.01 L21.8 13.99 L19.26 14.25 L18.72 15.55 L20.33 17.53 L17.53 20.33 L15.55 18.72 L14.25 19.26 L13.99 21.8 L10.01 21.8 L9.75 19.26 L8.45 18.72 L6.47 20.33 L3.67 17.53 L5.28 15.55 L4.74 14.25 L2.2 13.99 L2.2 10.01 L4.74 9.75 L5.28 8.45 L3.67 6.47 L6.47 3.67 L8.45 5.28 Z" />
+    <circle cx="12" cy="12" r="3.3" />
+  </svg>
+)
+
 /** Small icon buttons for list rows: edit (pencil) and delete (bin). */
 export function EditButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (

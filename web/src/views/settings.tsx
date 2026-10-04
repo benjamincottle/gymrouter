@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { encode } from 'uqr'
-import { emptySettings, HIGHLIGHTS, MAX_GYMS, sanitize, settingsLink, type Gym, type Home, type Settings } from '../settings.ts'
+import { emptySettings, HIGHLIGHTS, MAX_GYMS, resetGymOrder, sanitize, settingsLink, type Gym, type Home, type Settings } from '../settings.ts'
 import type { ComponentChildren } from 'preact'
 import { PaceTest } from './pacetest.tsx'
 import { DeleteButton, EditButton, HOLD, IconColour, IconDevices, IconGym, IconHome, IconPhone, IconRisk, IconTimer, IconWalk } from './icons.tsx'
@@ -148,6 +148,16 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
             </li>
           ))}
         </ul>
+        {settings.gyms.length > 1 && (
+          <p class="muted small">
+            Trips put your most used gyms first.{' '}
+            {settings.gyms.some((g) => g.uses) && (
+              <button class="link small" onClick={() => setSettings(resetGymOrder(settings))}>
+                Reset the order
+              </button>
+            )}
+          </p>
+        )}
         <div class="actions">
           <button disabled={settings.gyms.length >= MAX_GYMS} onClick={() => setEditing({ kind: 'choose-gyms' })}>
             Add gym
