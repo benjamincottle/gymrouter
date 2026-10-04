@@ -1,5 +1,16 @@
 # TODO: field-test feedback (2026-10-04)
 
+## Round 4
+
+- [x] **The trip description in a started trip.** The same summary as under the option list, with a bar down the
+      left in each leg's colours (dashed for walking) and you on it, moving down as the trip goes. The summary at the
+      top and the "you won't make this connection" switch stay; the horizontal progress strip goes.
+- [x] **"Time my walk" in the description:** a small link on each walk and change you can time, replacing the big
+      "Time this walk" button. (In the option list before a trip, changes keep "Set my time": a walk can only be timed
+      while you're doing it.)
+- [x] **The same description under the map during a trip**, in place of the horizontal strip, so the map and the
+      steps fit on one screen.
+
 ## Round 3
 
 - [x] **The map keeps your view.** Live refreshes no longer re-fit the map once you've zoomed or moved it.

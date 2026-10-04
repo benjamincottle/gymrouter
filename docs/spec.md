@@ -333,3 +333,8 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   Dates are chosen as a day ("Today (4th)", "Tomorrow (5th)", … about a week) and a 24-hour time in five-minute steps,
   never the browser's locale-dependent picker, and times on another day name it. The map stops re-fitting itself once
   you've moved or zoomed it. "Earlier trips" works from Leave now too.
+- 2026-10-04: A started trip shows the option's full description (as under the option list) with a rail down the left in
+  each leg's colours (dotted for walking, stops as on the map) and you on it as the blue dot, placed by how far through
+  the current step the clock is. It replaces the horizontal progress strip; the summary and switch alerts stay above it.
+  Walks are timed from small "Time my walk" links on each walk and change in it (before a trip, changes keep "Set my
+  time"). The trip's map shows the same description under it, scrolling on its own, so both fit on one screen.

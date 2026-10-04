@@ -1,12 +1,12 @@
 // Trip results: the chosen option's countdown, then every option as a strip of "tape" on one
 // shared time axis, so when each leaves and arrives can be compared at a glance.
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import type { ComponentType } from 'preact'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, shortDuration } from '../format.ts'
 import { useNow } from '../hooks.ts'
 import type { TimedWalk } from '../walks.ts'
 import type { Leg, Option, StopRef } from '../types.ts'
-import { Timeline } from './option.tsx'
+import { Timeline, type Tracking } from './option.tsx'
 import { changesAndStops, reselect, tripKey } from '../options.ts'
 import type { MapViewProps } from '../map/mapview.tsx'
 
@@ -121,10 +121,12 @@ function firstRide(o: Option): Leg | undefined {
 function Hero({ option: o, live, now }: { option: Option; live: boolean; now: number }) {
   const ride = firstRide(o)
   const cd = countdown(o.leave_at, now)
+  const gone = cd.startsWith('left ') // an earlier trip, already on its way
+  const label = live ? (gone ? 'Left' : 'Leave') : dayOf(o.leave_at, now) ? `Leave ${dayOf(o.leave_at, now)} at` : 'Leave at'
   return (
     <section class="hero" aria-live="polite">
-      <p class="hero-label">{live ? 'Leave' : dayOf(o.leave_at, now) ? `Leave ${dayOf(o.leave_at, now)} at` : 'Leave at'}</p>
-      <p class="hero-time">{live ? cd.replace(/^in /, '') : clock(o.leave_at)}</p>
+      <p class="hero-label">{label}</p>
+      <p class="hero-time">{live ? cd.replace(/^(in|left) /, '') : clock(o.leave_at)}</p>
       {ride && (
         <p class="hero-sub">
           for the {ride.line?.name} at {clock(ride.dep)} from {placeName(ride.from)}
@@ -139,12 +141,11 @@ function Hero({ option: o, live, now }: { option: Option; live: boolean; now: nu
 }
 
 /** One option as tape segments on the shared axis: dashed for walking, line colours for rides. */
-export function Strip({ option: o, start, end, now }: { option: Option; start: number; end: number; now?: number }) {
+export function Strip({ option: o, start, end }: { option: Option; start: number; end: number }) {
   const span = Math.max(1, end - start)
   const pct = (t: number) => `${((t - start) / span) * 100}%`
   return (
     <span class="strip" aria-label={o.lines.join(', ')}>
-      {now !== undefined && now >= start && now <= end && <span class="now-mark" style={{ left: pct(now) }} />}
       {o.legs.map((l) => {
         const left = pct(ms(l.dep))
         const width = `${Math.max(0.8, ((ms(l.arr) - ms(l.dep)) / span) * 100)}%`
@@ -173,9 +174,13 @@ type MapSheetProps = Omit<Props, 'onStart' | 'onSetChange' | 'options' | 'onShif
   onClose: () => void
   onStart?: () => void // offered on the map so a trip can start without closing it
   me?: MapViewProps['me']
+  steps?: { destination: string; track: Tracking } // during a trip: the trip's description under the map
 }
 
-export function MapSheet({ option, now, onClose, onStart, token, walks, places, serviceDate, origin, destination, title, live, me }: MapSheetProps) {
+export function MapSheet({ option, now, onClose, onStart, token, walks, places, serviceDate, origin, destination, title, live, me, steps }: MapSheetProps) {
+  // Open with the step you're on in view.
+  const stepsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => stepsRef.current?.querySelector('.you')?.scrollIntoView({ block: 'center' }), [])
   const [View, setView] = useState<ComponentType<MapViewProps> | null>(null)
   const [failed, setFailed] = useState(false)
   useEffect(() => {
@@ -205,11 +210,31 @@ export function MapSheet({ option, now, onClose, onStart, token, walks, places, 
       )}
       <footer class={onStart ? 'sheet-summary with-start' : 'sheet-summary'}>
         <div>
-          <p>
-            <span class="sheet-leave">{live ? `Leave ${countdown(option.leave_at, now)}` : `Leave ${[dayOf(option.leave_at, now), clock(option.leave_at)].filter(Boolean).join(' ')}`}</span>
-            <span>arrive {clock(option.arrive)}</span>
-          </p>
-          <Strip option={option} start={start} end={end} />
+          {steps ? (
+            // Under way: what matters is when you get there.
+            <p>
+              <span class="sheet-leave">Arrive {clock(option.arrive)}</span>
+              <span>{countdown(option.arrive, now).replace(/^left .*/, 'arrived')}</span>
+            </p>
+          ) : (
+            <p>
+              <span class="sheet-leave">
+                {live
+                  ? Date.parse(option.leave_at) < now - 60_000
+                    ? `Left ${countdown(option.leave_at, now).replace(/^left /, '')}`
+                    : `Leave ${countdown(option.leave_at, now)}`
+                  : `Leave ${[dayOf(option.leave_at, now), clock(option.leave_at)].filter(Boolean).join(' ')}`}
+              </span>
+              <span>arrive {clock(option.arrive)}</span>
+            </p>
+          )}
+          {steps ? (
+            <div class="sheet-steps" ref={stepsRef}>
+              <Timeline option={option} destination={steps.destination} walks={walks} track={steps.track} />
+            </div>
+          ) : (
+            <Strip option={option} start={start} end={end} />
+          )}
         </div>
         {onStart && (
           <button class="primary start" onClick={onStart}>

@@ -684,6 +684,111 @@ label.inline {
   padding-right: 8px;
 }
 
+/* during a trip: a line down the left in each leg's colours, with you on it */
+.timeline.tracked .step {
+  grid-template-columns: 3.4rem 16px 1fr;
+}
+
+.timeline.tracked .step.change {
+  padding-left: 0;
+  padding-right: 8px;
+}
+
+.rail {
+  position: relative;
+  align-self: stretch;
+  margin: -11px 0 -10px; /* through the row's padding and rule, so the pieces join up */
+}
+
+.rail::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 6px;
+  background: var(--c, #5e6670);
+}
+
+.rail.walk::before {
+  left: 7px;
+  width: 0;
+  background: none;
+  border-left: 3px dotted var(--pencil);
+}
+
+/* where you get on (top) and off (bottom): stops drawn as on the map */
+.rail.ride::after,
+.rail .stop {
+  content: '';
+  position: absolute;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border: 3px solid var(--c, #5e6670);
+  border-radius: 50%;
+  background: var(--wall);
+}
+
+.rail.ride::after {
+  top: 15px;
+}
+
+.rail .stop.off {
+  bottom: 8px;
+}
+
+.rail.end::before {
+  bottom: auto;
+  height: 18px;
+  left: 7px;
+  width: 0;
+  background: none;
+  border-left: 3px dotted var(--pencil);
+}
+
+.rail.end::after {
+  content: '';
+  position: absolute;
+  top: 16px;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--ink);
+}
+
+/* you: the same blue dot as on the map */
+.rail .you {
+  position: absolute;
+  left: -3px;
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  margin-top: -11px;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  background: #2457d6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  animation: you-here 2.4s ease-out infinite;
+}
+
+.rail.end .you {
+  margin-top: 13px;
+}
+
+@keyframes you-here {
+  0% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(36, 87, 214, 0.45); }
+  70% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 10px rgba(36, 87, 214, 0); }
+  100% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(36, 87, 214, 0); }
+}
+
+button.link.small {
+  font-size: 0.85rem;
+}
+
 .ride-head {
   display: flex;
   align-items: center;
@@ -848,6 +953,19 @@ label.inline {
   min-width: 0;
 }
 
+/* during a trip the description sits under the map, scrolling on its own */
+.sheet-steps {
+  max-height: 38vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 -16px;
+  padding: 0 16px;
+}
+
+.sheet-steps .timeline {
+  margin-top: 4px;
+}
+
 .sheet-summary .start {
   min-width: 6.5rem;
   padding: 0 18px;
@@ -979,6 +1097,10 @@ html.not-found pre {
   * {
     scroll-behavior: auto !important;
   }
+
+  .rail .you {
+    animation: none;
+  }
 }
 
 /* ---- in-trip ---- */
@@ -1048,23 +1170,7 @@ html.not-found pre {
   color: var(--missed);
 }
 
-.progress {
-  padding: 16px 0;
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
-  margin-bottom: 16px;
-}
 
-.now-mark {
-  position: absolute;
-  top: -5px;
-  bottom: -5px;
-  width: 3px;
-  margin-left: -1px;
-  border-radius: 1px;
-  background: var(--ink);
-  z-index: 1;
-}
 
 .details-head .actions {
   flex-wrap: nowrap;
@@ -1126,18 +1232,8 @@ details > summary {
 }
 
 /* timing a walk during a trip */
-.time-walk {
-  padding: 12px 0;
-  border-top: 1px solid var(--rule);
-}
-
-.time-walk > button {
-  width: 100%;
-  text-align: left;
-}
-
-.time-walk .sub {
-  font-weight: 500;
+.intrip .steps {
+  margin-top: 8px;
 }
 
 .intrip .timer {

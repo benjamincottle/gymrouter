@@ -1,7 +1,9 @@
 import { useState } from 'preact/hooks'
 import { clock, delay, placeName, platform, riskLabel } from '../format.ts'
-import { findChange, walkSecs, type TimedWalk } from '../walks.ts'
+import type { ComponentChildren } from 'preact'
+import { findChange, walkSecs, type Segment, type TimedWalk } from '../walks.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
+import { position, rows, type Row } from '../options.ts'
 
 const hex = (c?: string) => (c && /^[0-9a-fA-F]{6}$/.test(c) ? `#${c}` : undefined)
 
@@ -15,41 +17,96 @@ export function LineChip({ line }: { line: Line }) {
   )
 }
 
+/** During a trip: where you are, and the walks you can time (see walks.ts segments). */
+export interface Tracking {
+  now: number
+  segs: Segment[]
+  onTime: (s: Segment) => void
+}
+
 export function Timeline({
-  option: o, destination, walks, onSetChange,
-}: { option: Option; destination: string; walks: TimedWalk[]; onSetChange: (a: StopRef, b: StopRef, secs: number) => void }) {
-  const into = new Map<number, Transfer>(o.transfers.map((t) => [t.to_leg, t]))
+  option: o, destination, walks, onSetChange, track,
+}: {
+  option: Option
+  destination: string
+  walks: TimedWalk[]
+  onSetChange?: (a: StopRef, b: StopRef, secs: number) => void // before a trip: type a change time
+  track?: Tracking // during a trip: the rail with you on it, and "Time my walk"
+}) {
+  const rs = rows(o)
+  const me = track && position(rs, track.now)
+  const seg = (leg: number) => track?.segs.find((s) => s.leg === leg)
+  const rail = (r: Row, k: number) =>
+    track && (
+      <Rail
+        kind={r.kind === 'arrive' ? 'end' : r.kind === 'change' || r.leg.kind === 'walk' ? 'walk' : 'ride'}
+        color={r.kind === 'leg' ? hex(r.leg.line?.color) : undefined}
+        me={me && me.row === k ? me.frac : undefined}
+      />
+    )
   return (
-    <ol class="timeline">
-      {o.legs.map((leg, i) => {
-        const t = into.get(i)
-        const prevRide = t ? o.legs[t.from_leg] : undefined
+    <ol class={track ? 'timeline tracked' : 'timeline'}>
+      {rs.map((r, k) => {
+        if (r.kind === 'arrive') {
+          return (
+            <li class="step arrive">
+              <span class="time">{clock(o.arrive)}</span>
+              {rail(r, k)}
+              <span>Arrive</span>
+            </li>
+          )
+        }
+        if (r.kind === 'change') {
+          const s = seg(r.t.to_leg)
+          return (
+            <TransferRow t={r.t} from={r.from} to={r.to} walks={walks} onSet={onSetChange} rail={rail(r, k)}
+              onTime={s && track ? () => track.onTime(s) : undefined} />
+          )
+        }
+        const s = r.leg.kind === 'walk' ? seg(r.i) : undefined
         return (
-          <>
-            {t && prevRide && <TransferRow t={t} from={prevRide.to} to={leg.from} walks={walks} onSet={onSetChange} />}
-            <LegRow leg={leg} last={i === o.legs.length - 1} destination={destination} />
-          </>
+          <LegRow leg={r.leg} last={r.i === o.legs.length - 1} destination={destination} rail={rail(r, k)}
+            onTime={s && track ? () => track.onTime(s) : undefined} />
         )
       })}
-      <li class="step arrive">
-        <span class="time">{clock(o.arrive)}</span>
-        <span>Arrive</span>
-      </li>
     </ol>
   )
 }
 
-function LegRow({ leg, last, destination }: { leg: Leg; last: boolean; destination: string }) {
+/** One step's piece of the line down the left: the leg's colour for a ride, dotted for walking, you if you're here. */
+function Rail({ kind, color, me }: { kind: 'ride' | 'walk' | 'end'; color?: string; me?: number }) {
+  return (
+    <span class={`rail ${kind}`} style={color ? { '--c': color } : undefined} aria-hidden="true">
+      {kind === 'ride' && <i class="stop off" />}
+      {me !== undefined && <i class="you" style={{ top: `${me * 100}%` }} />}
+    </span>
+  )
+}
+
+function LegRow({ leg, last, destination, rail, onTime }: {
+  leg: Leg
+  last: boolean
+  destination: string
+  rail?: ComponentChildren
+  onTime?: () => void
+}) {
   const mins = Math.max(1, Math.round((Date.parse(leg.arr) - Date.parse(leg.dep)) / 60000))
   if (leg.kind === 'walk') {
-    // Walking between two rides is shown as part of the change.
-    if (leg.from && leg.to) return null
     const target = leg.to ? `to ${placeName(leg.to)}` : last ? `to ${destination}` : ''
     return (
       <li class="step walk">
         <span class="time">{clock(leg.dep)}</span>
+        {rail}
         <span>
           Walk {mins} min {target}
+          {onTime && (
+            <>
+              {' '}
+              <button class="link small" onClick={onTime}>
+                Time my walk
+              </button>
+            </>
+          )}
         </span>
       </li>
     )
@@ -60,6 +117,7 @@ function LegRow({ leg, last, destination }: { leg: Leg; last: boolean; destinati
   return (
     <li class="step ride">
       <span class="time">{clock(leg.dep)}</span>
+      {rail}
       <div>
         <div class="ride-head">
           {leg.line && <LineChip line={leg.line} />}
@@ -88,8 +146,16 @@ function ChangeIcon() {
 }
 
 function TransferRow({
-  t, from, to, walks, onSet,
-}: { t: Transfer; from?: StopRef; to?: StopRef; walks: TimedWalk[]; onSet: (a: StopRef, b: StopRef, secs: number) => void }) {
+  t, from, to, walks, onSet, rail, onTime,
+}: {
+  t: Transfer
+  from?: StopRef
+  to?: StopRef
+  walks: TimedWalk[]
+  onSet?: (a: StopRef, b: StopRef, secs: number) => void
+  rail?: ComponentChildren
+  onTime?: () => void
+}) {
   const [editing, setEditing] = useState(false)
   const mine = from && to ? findChange(walks, from, to)?.walk : undefined
   const [mins, setMins] = useState(String(Math.round((mine ? walkSecs(mine) : t.walk_s) / 60)))
@@ -101,6 +167,7 @@ function TransferRow({
       <span class="time">
         <ChangeIcon />
       </span>
+      {rail}
       <div>
         <div>
           <span class={`badge risk-${t.risk}`}>{riskLabel(t.risk)}</span> Change at {where}: {Math.round(t.walk_s / 60)} min
@@ -108,16 +175,25 @@ function TransferRow({
         </div>
         <div class="muted small">
           {t.fallback_dep ? `If missed, next one at ${clock(t.fallback_dep)}` : 'No later service on this line'}
-          {from && to && !editing && (
+          {onTime ? (
             <>
               {' · '}
-              <button class="link" onClick={() => setEditing(true)}>
-                Set my time
+              <button class="link" onClick={onTime}>
+                Time my walk
               </button>
             </>
+          ) : (
+            onSet && from && to && !editing && (
+              <>
+                {' · '}
+                <button class="link" onClick={() => setEditing(true)}>
+                  Set my time
+                </button>
+              </>
+            )
           )}
         </div>
-        {editing && from && to && (
+        {editing && onSet && from && to && (
           <form
             class="inline-form"
             onSubmit={(e) => {
