@@ -112,6 +112,7 @@ export function App({ initial, imported, storage }: AppProps) {
               setRestarts((n) => n + 1)
             }}
           >
+            <img src="/icon.svg" alt="" width={28} height={28} />
             Gym Router
           </button>
         </h1>
