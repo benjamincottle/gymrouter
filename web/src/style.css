@@ -662,7 +662,7 @@ label.inline {
    sits as far from the times as from the descriptions */
 .timeline {
   display: grid;
-  grid-template-columns: max-content 16px 1fr;
+  grid-template-columns: max-content 22px 1fr;
   column-gap: 12px;
   list-style: none;
   margin: 12px 0 0;
@@ -704,66 +704,81 @@ label.inline {
   padding-right: 8px;
 }
 
-/* a line down the middle in each leg's colours (and you on it, during a trip) */
+/* a line down the middle in each leg's colours (and you on it, during a trip); everything on it is centred */
 .rail {
   position: relative;
   align-self: stretch;
   margin: -11px 0 -10px; /* through the row's padding and rule, so the pieces join up */
 }
 
+/* walking: dotted (also behind a ride, showing above and below its line) */
 .rail::before {
   content: '';
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 5px;
-  width: 6px;
+  left: calc(50% - 1.5px);
+  border-left: 3px dotted var(--pencil);
+}
+
+/* a ride: a thick line from where you get on (the vehicle, in a disc a little wider than the line) to where you
+   get off (a dot inside its end) */
+.rail .line {
+  position: absolute;
+  top: 22px;
+  bottom: 8px;
+  left: calc(50% - 7px);
+  width: 14px;
+  border-radius: 7px;
   background: var(--c, #5e6670);
 }
 
-.rail.walk::before {
-  left: 7px;
-  width: 0;
-  background: none;
-  border-left: 3px dotted var(--pencil);
-}
-
-/* where you get on (top) and off (bottom): stops drawn as on the map */
-.rail.ride::after,
-.rail .stop {
-  content: '';
+.rail .board {
   position: absolute;
-  left: 1px;
-  width: 14px;
-  height: 14px;
+  top: 11px;
+  left: calc(50% - 11px);
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
   box-sizing: border-box;
-  border: 3px solid var(--c, #5e6670);
+  border: 2px solid var(--wall);
   border-radius: 50%;
-  background: var(--wall);
+  background: var(--c, #5e6670);
 }
 
-.rail.ride::after {
-  top: 15px;
+.rail .board svg {
+  fill: none;
+  stroke: var(--t, #ffffff);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.rail .stop.off {
-  bottom: 8px;
+.rail .alight {
+  position: absolute;
+  bottom: 12px;
+  left: calc(50% - 3px);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--t, #ffffff);
 }
 
-/* where you set off from: home (or the gym), with the walk dotted away below it */
-.rail.home::before,
-.rail.gym::before {
-  top: 32px;
-  left: 7px;
-  width: 0;
-  background: none;
-  border-left: 3px dotted var(--pencil);
+/* the home or gym at either end, with the walk dotted away below it (or up to it) */
+.rail.start::before {
+  top: 30px;
+}
+
+.rail.arrive::before {
+  bottom: auto;
+  height: 12px;
 }
 
 .rail .origin {
   position: absolute;
   top: 8px;
-  left: -3px;
+  left: calc(50% - 11px);
   fill: var(--wall);
   stroke: var(--ink);
   stroke-width: 2;
@@ -771,35 +786,24 @@ label.inline {
   stroke-linejoin: round;
 }
 
-.rail.home .you,
-.rail.gym .you {
-  margin-top: 6px; /* over the house (or the hold), drawn in the marker: you're there */
+.rail .origin.hold path {
+  fill: var(--hl);
 }
 
-.rail.end::before {
-  bottom: auto;
-  height: 18px;
-  left: 7px;
-  width: 0;
-  background: none;
-  border-left: 3px dotted var(--pencil);
+.rail .origin.hold circle {
+  fill: var(--wall);
+  stroke: none;
 }
 
-.rail.end::after {
-  content: '';
-  position: absolute;
-  top: 16px;
-  left: 0;
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  background: var(--ink);
+.rail.start .you,
+.rail.arrive .you {
+  margin-top: 5px; /* over the house (or the hold), drawn in the marker: you're there */
 }
 
 /* you: the same blue dot as on the map */
 .rail .you {
   position: absolute;
-  left: -6px;
+  left: calc(50% - 14px);
   z-index: 1;
   display: grid;
   place-items: center;
@@ -820,10 +824,6 @@ label.inline {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.rail.end .you {
-  margin-top: 13px;
 }
 
 @keyframes you-here {
