@@ -120,8 +120,9 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
 
 ## Components
 
-Each exists once in code and is reused: `web/src/views/ui.tsx` (Button, TextButton, Segmented, Section, Field,
-Callout), the tokens in `web/src/style.css`, and data colours in `web/src/colour.ts`. Don't restyle one locally; add a variant here if one is really needed.
+Each exists once in code and is reused: `web/src/views/ui.tsx` (Button, TextButton, IconButton, Segmented, Section,
+Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onRadioKeys`), the tokens in
+`web/src/style.css`, data colours in `web/src/colour.ts`, and error wording in `problem()` (`web/src/api.ts`). Don't restyle one locally; add a variant here if one is really needed.
 
 - **Button**, four looks at one size:
   - default: ink outline, transparent;
@@ -133,11 +134,13 @@ Callout), the tokens in `web/src/style.css`, and data colours in `web/src/colour
   through `::after`. Use it for things like "Earlier trips", "Time my walk" and "Measure my pace".
 - **Icon button:** 44×44, no outline, `--panel` on hover. The `danger` variant colours the icon `--missed`. Always has
   an `aria-label`.
-- **Segmented control:** one size (16px/600, 44px). The pressed option is filled with ink. Don't use `.small` on it.
+- **Segmented control:** one size (16px/600, 44px), a radio group (one tab stop, arrow keys). The chosen option is
+  filled with ink.
 - **Field:** a label (600) above, then a 44px input in `--panel` with a 1.5px `--edge` outline that turns ink on focus,
   then an optional hint (14px pencil, 400).
   - Defaults: an empty field means "use the default", and its hint says what the default is ("Empty uses the default,
-    4.7"). A changed field shows its value and offers "Use the default (3)".
+    4.7"). A changed field shows its value and offers "Use the default (3)". Settings save as they change and say
+    "Saved." in the hint for two seconds (`NumberField` in Settings).
 - **Callout:** a `--panel` fill with a 4px left bar. Tones:
   - neutral (ink) for information and confirmations;
   - `good` (`--safe`) for a better option;
@@ -214,7 +217,7 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
 
 ### Errors, empty and loading
 
-- **Errors** are a `bad` callout that:
+- **Errors** are a `bad` callout (wording from `problem()`, never a raw exception) that:
   - says what happened in plain words (never a raw exception or server string);
   - says what still works ("Your last plan from 09:31 is below");
   - offers Try again where retrying can help.
@@ -223,21 +226,22 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
 - **Degraded but working** (timetable only, walks estimated, location off) is a `caution` callout or the status line.
   It's not an error.
 - **Empty states** say what to do and offer the action as a primary button ("Add a gym").
-- **Loading:** show what's coming in place, as a skeleton of rows or the board's ruled lines, rather than a bare
-  "Loading…". Long jobs (suggesting lines) show progress beside the job, not only inside the button label.
+- **Loading:** show what's coming in place, as a skeleton of rows or the board's ruled lines (`.skeleton`), rather
+  than a bare "Loading…". Long jobs (suggesting lines) show progress beside the job, not only inside the button label.
 - **After an action, confirm it in a neutral callout**, using the action's own verb: "Saved", "Deleted", "Settings
   saved on this device". Settings that save as you type show a brief "Saved" beside the field.
 
 ### Keyboard and focus
 
 - Every interactive element shows the 3px `--focus` ring with a 2px offset.
-- Dialogs (map sheet, dialog sheet):
+- Dialogs (map sheet, dialog sheet) use `useDialog`, which does all of this:
   - move focus into the dialog on open;
   - keep focus inside;
   - make the page behind `inert`;
   - close on Escape;
   - return focus to the control that opened them.
-- Groups of choices (options board, swatches, segmented controls) are radio groups: one tab stop, arrow keys inside.
+- Groups of choices (options board, swatches, segmented controls) are radio groups: one tab stop, arrow keys inside
+  (`role="radio"`, `aria-checked`, `tabIndex` 0 only on the chosen one, `onRadioKeys` on the group).
 
 ### Copy
 
