@@ -172,7 +172,10 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Trackwork:** a `caution` callout above the board for each line whose trains the options replace with buses: the
   line's chip, "**Trackwork:** buses replace some trains. Their signs say 20T4 or 23T4." The buses keep their own names
   and colour everywhere (chip, tape, map): they're the names on the buses' signs.
-- **Server status** (the footer, above the data credits): a status dot and one short line, so a problem on the server
+- **Footer:** a hairline, then the server status; it sits at the bottom edge of the screen when the content is shorter
+  than the screen. The data credits ("Contains Transport for NSW data…") are only on Settings, at the end, above the
+  footer.
+- **Server status** (the footer): a status dot and one short line, so a problem on the server
   gets noticed without anyone checking it. The dot uses the status colours: `--safe` "Server OK", `--tight` "Server
   working, needs a look", `--missed` "Server can't plan" or "Can't reach the server". Each issue follows on its own line
   in plain words. Only what's actionable and usually absent turns it orange (not lines that don't run on a weekend).

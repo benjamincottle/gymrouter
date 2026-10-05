@@ -333,6 +333,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
           </ConfirmSheet>
         )}
       </Section>
+      <p class="credits">Contains Transport for NSW data (CC BY 4.0). Map data © OpenStreetMap contributors.</p>
     </div>
   )
 }

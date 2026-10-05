@@ -216,7 +216,6 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
       {linkSheet}
       <footer class="footer">
         <ServerStatusLine token={settings.token} />
-        <p>Contains Transport for NSW data (CC BY 4.0). Map data © OpenStreetMap contributors.</p>
       </footer>
     </div>
   )
