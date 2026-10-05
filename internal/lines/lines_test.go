@@ -48,7 +48,7 @@ func TestSetHelpers(t *testing.T) {
 func TestReplacementBuses(t *testing.T) {
 	for name, want := range map[string]string{
 		"23T4": "train T4", "3AT4": "train T4", "10T9": "train T9", "12CN": "train CCN", "33BM": "train BMT",
-		"27SC": "train SCO", "10HU": "train HUN",
+		"27SC": "train SCO", "10HU": "train HUN", "7BM": "train BMT", "10M": "metro M1", "12M": "metro M1", "10M1": "metro M1",
 	} {
 		got, ok := Key{ReplacementBus, name}.Replaces()
 		if !ok || got.String() != want {
@@ -64,7 +64,8 @@ func TestReplacementBuses(t *testing.T) {
 		t.Error("only replacement buses replace lines")
 	}
 	if !(Key{ReplacementBus, "771V8"}).UnknownTrackwork() || (Key{ReplacementBus, "5B"}).UnknownTrackwork() ||
-		(Key{ReplacementBus, "23T4"}).UnknownTrackwork() {
+		(Key{ReplacementBus, "23T4"}).UnknownTrackwork() || !(Key{Bus, "10M"}).UnknownTrackwork() ||
+		(Key{Bus, "288"}).UnknownTrackwork() || (Key{Bus, "160X"}).UnknownTrackwork() {
 		t.Error("UnknownTrackwork")
 	}
 	if got := MustSet("replacement-bus 23T4", "replacement-bus 5B", "bus 392").Chosen().Strings(); !reflect.DeepEqual(got,

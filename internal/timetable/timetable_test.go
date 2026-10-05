@@ -34,10 +34,11 @@ func TestUnknownTrackwork(t *testing.T) {
 		Stops: []gtfs.Stop{{ID: "A"}, {ID: "A1", Parent: "A"}, {ID: "A-stand", Parent: "A"}, {ID: "B-stand", Parent: "B"}},
 		Routes: []gtfs.Route{
 			{ShortName: "T4", Type: 2},
-			{ShortName: "12M1", Type: 714}, // an unknown code, at our station
-			{ShortName: "13M1", Type: 714}, // an unknown code, elsewhere
+			{ShortName: "12X9", Type: 714}, // an unknown code, at our station
+			{ShortName: "13X9", Type: 714}, // an unknown code, elsewhere
 			{ShortName: "5B", Type: 714},   // an event shuttle
 			{ShortName: "23T4", Type: 714}, // known
+			{ShortName: "10M", Type: 700},  // named like a metro replacement bus, typed as an ordinary bus
 		},
 		Trips: []gtfs.Trip{
 			{Route: 0, StopTimes: []gtfs.StopTime{{Stop: 1}}},
@@ -45,10 +46,11 @@ func TestUnknownTrackwork(t *testing.T) {
 			{Route: 2, StopTimes: []gtfs.StopTime{{Stop: 3}}},
 			{Route: 3, StopTimes: []gtfs.StopTime{{Stop: 2}}},
 			{Route: 4, StopTimes: []gtfs.StopTime{{Stop: 2}}},
+			{Route: 5, StopTimes: []gtfs.StopTime{{Stop: 2}}},
 		},
 	}
 	got := UnknownTrackwork(d, lines.MustSet("train T4"))
-	if len(got) != 1 || got[0].String() != "replacement-bus 12M1" {
-		t.Errorf("UnknownTrackwork = %v, want [replacement-bus 12M1]", got)
+	if len(got) != 2 || got[0].String() != "bus 10M" || got[1].String() != "replacement-bus 12X9" {
+		t.Errorf("UnknownTrackwork = %v, want [bus 10M replacement-bus 12X9]", got)
 	}
 }

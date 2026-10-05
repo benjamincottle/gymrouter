@@ -69,15 +69,32 @@ func (k Key) String() string { return string(k.Mode) + " " + k.Name }
 // line they stand in for ("23T4", "3AT4", "12CN"). Event shuttles are numbers alone ("8", "5B").
 var trackworkName = regexp.MustCompile(`^\d+[A-Z]?([A-Z][A-Z0-9])$`)
 
-// trackworkCodes maps the line codes at the end of trackwork bus names to the train lines they stand in for.
+// metroName matches metro replacement buses, which have been named with a bare M ("10M", "11M"); an M with the
+// line's number ("10M1") is allowed for when there's more than one metro line.
+var metroName = regexp.MustCompile(`^\d+(M\d?)$`)
+
+// trackworkCodes maps the line codes at the end of trackwork bus names to the lines they stand in for.
 var trackworkCodes = map[string]Key{
 	"CN": {Train, "CCN"}, "BM": {Train, "BMT"}, "SC": {Train, "SCO"}, "HU": {Train, "HUN"},
+	"M": {Metro, "M1"}, // the only metro line so far
 }
 
 func init() {
 	for i := 1; i <= 9; i++ {
 		trackworkCodes[fmt.Sprintf("T%d", i)] = Key{Train, fmt.Sprintf("T%d", i)}
+		trackworkCodes[fmt.Sprintf("M%d", i)] = Key{Metro, fmt.Sprintf("M%d", i)}
 	}
+}
+
+// trackworkCode returns the line code at the end of a trackwork bus's name, or "" if it isn't named like one.
+func trackworkCode(name string) string {
+	if m := metroName.FindStringSubmatch(name); m != nil {
+		return m[1]
+	}
+	if m := trackworkName.FindStringSubmatch(name); m != nil {
+		return m[1]
+	}
+	return ""
 }
 
 // Replaces returns the line a rail replacement bus stands in for, read from the end of its name. TfNSW names
@@ -86,19 +103,16 @@ func (k Key) Replaces() (Key, bool) {
 	if k.Mode != ReplacementBus {
 		return Key{}, false
 	}
-	m := trackworkName.FindStringSubmatch(k.Name)
-	if m == nil {
-		return Key{}, false
-	}
-	l, ok := trackworkCodes[m[1]]
+	l, ok := trackworkCodes[trackworkCode(k.Name)]
 	return l, ok
 }
 
-// UnknownTrackwork reports a replacement bus named like a trackwork bus whose line code isn't known, so
-// it can't be matched to the line it stands in for.
+// UnknownTrackwork reports a bus named like a trackwork bus that can't be matched to the line it stands in for:
+// a replacement bus whose line code isn't known, or one typed as an ordinary bus (no ordinary bus is named like that;
+// it's how metro replacement buses might turn up).
 func (k Key) UnknownTrackwork() bool {
 	_, ok := k.Replaces()
-	return k.Mode == ReplacementBus && !ok && trackworkName.MatchString(k.Name)
+	return (k.Mode == ReplacementBus || k.Mode == Bus) && !ok && trackworkCode(k.Name) != ""
 }
 
 // Parse reads a key written as "<mode> <name>", e.g. "bus 288" or "light-rail L4".

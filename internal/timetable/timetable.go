@@ -66,8 +66,9 @@ func Missing(d *gtfs.Day, set lines.Set) []lines.Key {
 	return out
 }
 
-// UnknownTrackwork reports trackwork buses running on the day that call at a station of one of the lines in set but
-// can't be matched to the line they stand in for (their line code is new), so they'd be left out of searches.
+// UnknownTrackwork reports buses running on the day, named like trackwork buses, that call at a station of one of the
+// lines in set but can't be matched to the line they stand in for (see lines.Key.UnknownTrackwork), so they'd be left
+// out of searches.
 func UnknownTrackwork(d *gtfs.Day, set lines.Set) []lines.Key {
 	station := func(si int32) string {
 		if p := d.Stops[si].Parent; p != "" {
