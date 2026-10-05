@@ -114,7 +114,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   const places = { start: ends?.start.key, end: ends?.end.key }
   const title = gym && (direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`)
   const brandOf = (g: Gym) => server.gyms.find((k) => k.id === g.ref)?.brand
-  // Ends with no stop within the longest walk, which the server planned from the nearest stops instead.
+  // Ends whose nearest stop is beyond the longest walk (on foot), which the server planned from anyway.
   const sw = plan.data?.stretched_walk
   const stretched = gym && sw
     ? ([[direction === 'to-gym' ? home : gym, sw.from_m], [direction === 'to-gym' ? gym : home, sw.to_m]] as const)
@@ -196,8 +196,8 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
           ))}
           {stretched.map((s) => (
             <Callout>
-              <strong>Longer walk:</strong> no stops on these lines within{' '}
-              {distance(settings.maxWalkM ?? server.defaults.max_walk_m)} of {s.name}. The nearest is {distance(s.m)} away.
+              <strong>Longer walk:</strong> no stops on these lines within a{' '}
+              {distance(settings.maxWalkM ?? server.defaults.max_walk_m)} walk of {s.name}. The nearest is a {distance(s.m)} walk.
             </Callout>
           ))}
           {!plan.data && plan.loading && <BoardSkeleton />}
