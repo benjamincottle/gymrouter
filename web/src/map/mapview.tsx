@@ -150,13 +150,12 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         paint: { 'line-color': dark ? '#e9ece8' : '#1f2328', 'line-width': 3, 'line-dasharray': [0.5, 2] },
         layout: { 'line-cap': 'round' },
       })
-      // The stops passed on the way: white dots on the line, as wide as it, inside a thin clear ring that lets the
-      // line's colour show either side, so each one sits cupped in the line.
+      // The stops passed on the way: white dots on the line with a 1px ink outline, as wide as the line.
       m.addLayer({
         id: 'route-via', type: 'circle', source: 'route', filter: ['==', ['get', 'kind'], 'via'],
         paint: {
-          'circle-radius': RIDE_W / 2 - 0.75, 'circle-color': '#ffffff',
-          'circle-stroke-width': 0.75, 'circle-stroke-color': 'rgba(0, 0, 0, 0)',
+          'circle-radius': RIDE_W / 2 - 1, 'circle-color': '#ffffff',
+          'circle-stroke-width': 1, 'circle-stroke-color': '#1e2226',
         },
       })
       m.addLayer({

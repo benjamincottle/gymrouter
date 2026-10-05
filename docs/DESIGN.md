@@ -49,8 +49,7 @@ taken from the feed's `text_color`. A line without a colour uses one fallback gr
 
 The map's own paint (casing, walk lines, stop dots) and the MapLibre controls (zoom, locate, attribution) use these
 tokens too, in both themes. Controls are square, 44px, edge-outlined, and have no shadow. Stops passed on a ride sit on the
-line's centre (the server places them on the shape): white dots as wide as the line inside a thin clear ring, so
-the line's colour cups each one.
+line's centre (the server places them on the shape): white dots with a 1px ink outline, as wide as the line.
 
 ### Type
 
