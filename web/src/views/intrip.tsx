@@ -280,7 +280,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           role="alert"
           action={
             check.suggestion && (
-              <Button variant="primary" onClick={() => switchTo(check.suggestion!)}>
+              <Button onClick={() => switchTo(check.suggestion!)}>
                 Switch to this
               </Button>
             )
@@ -303,7 +303,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           tone="good"
           role="status"
           action={
-            <Button variant="primary" onClick={() => switchTo(check.suggestion)}>
+            <Button onClick={() => switchTo(check.suggestion)}>
               Switch to this
             </Button>
           }

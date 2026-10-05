@@ -102,7 +102,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
     return (
       <div class="empty">
         <p>{home ? 'Add a gym to plan trips to.' : 'Add your home and a gym, so trips can start (or end) there.'}</p>
-        <Button variant="primary" onClick={goToSettings}>
+        <Button onClick={goToSettings}>
           {home ? 'Add a gym' : 'Get started'}
         </Button>
       </div>

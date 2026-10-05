@@ -30,11 +30,10 @@ raw colour, size or spacing value in a component. Use a token, or add one here f
 |---|---|---|---|
 | `--wall` | `#ebeeea` | `#1b1e21` | page background (with `--dot` holes every 24px) |
 | `--panel` | `#f7f8f6` | `#23272b` | field fill, selected row, callout and change-step fill |
-| `--ink` | `#1e2226` | `#e8ebe7` | text, primary buttons, heavy rules, icons |
+| `--ink` | `#1e2226` | `#e8ebe7` | text, button outlines, heavy rules, icons |
 | `--pencil` | `#59616a` | `#9aa2a9` | secondary text, walking steps, quiet actions |
 | `--rule` | `#c9cfc9` | `#383e44` | hairline dividers between rows; disabled outlines. Never the outline of a working control |
 | `--edge` | `#7c837e` | `#6b737a` | outlines of fields and controls (≥3:1 on wall and panel) |
-| `--on-ink` | `#f7f8f6` | `#1b1e21` | text on ink |
 | `--dot` | ink at 9% | ink at 6% | the wall's bolt holes |
 | `--focus`, `--you` | `#2457d6` | `#7aa2ff` / `#4d8df0` | the focus ring; the "you" marker on the rail and the map |
 | `--safe` | `#2a6e45` | `#5cc285` | safe connections, on time, good-news callouts |
@@ -126,9 +125,8 @@ Each exists once in code and is reused: `web/src/views/ui.tsx` (Button, TextButt
 Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onRadioKeys`), the tokens in
 `web/src/style.css`, data colours in `web/src/colour.ts`, and error wording in `problem()` (`web/src/api.ts`). Don't restyle one locally; add a variant here if one is really needed.
 
-- **Button**, four looks at one size:
+- **Button**, outline only (no button is ever filled), three looks at one size:
   - default: ink outline, transparent;
-  - `primary`: ink fill, `--on-ink` text;
   - `danger`: `--missed` outline and text;
   - **disabled**: a thin `--rule` outline, `--pencil` text, no fill.
   - There's no "ghost" variant. A row of buttons puts the commit action last.
@@ -136,8 +134,9 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   through `::after`. Use it for things like "Earlier trips", "Time my walk" and "Measure my pace".
 - **Icon button:** 44×44, no outline, `--panel` on hover. The `danger` variant colours the icon `--missed`. Always has
   an `aria-label`.
-- **Segmented control:** one size (16px/600, 44px), a radio group (one tab stop, arrow keys). The chosen option is
-  filled with ink.
+- **Segmented control:** one size (16px/600, 44px), a radio group (one tab stop, arrow keys). The chosen option has
+  a 4px `--hl` bar along its bottom (inset, like the selected row on the board); the others stay ink, never greyed
+  (grey means disabled).
 - **Field:** a label (600) above, then a 44px input in `--panel` with a 1.5px `--edge` outline that turns ink on focus,
   then an optional hint (14px pencil, 400).
   - Defaults: an empty field means "use the default", and its hint says what the default is ("Empty uses the default,
@@ -235,7 +234,7 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
   - A server that can't be reached is an error, not "Loading…".
 - **Degraded but working** (timetable only, walks estimated, location off) is a `caution` callout or the status line.
   It's not an error.
-- **Empty states** say what to do and offer the action as a primary button ("Add a gym").
+- **Empty states** say what to do and offer the action as a button ("Add a gym").
 - **Loading:** show what's coming in place, as a skeleton of rows or the board's ruled lines (`.skeleton`), rather
   than a bare "Loading…". Long jobs (suggesting lines) show progress beside the job, not only inside the button label.
 - **Searching as you choose:** a pick (a gym, reversing the trip) searches at once; editing the time (the When choice,
