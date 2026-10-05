@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/benjamincottle/gymrouter/internal/lines"
@@ -50,11 +51,20 @@ func TestClientSendsKeyAndMapsErrors(t *testing.T) {
 	if _, err := c.Get(ctx, "/ok", 3); err == nil {
 		t.Error("want size-limit error")
 	}
-	if _, err := c.Get(ctx, "/limited", 100); !errors.Is(err, ErrLimited) {
-		t.Errorf("want ErrLimited, got %v", err)
+	if _, err := c.Get(ctx, "/limited", 100); !errors.Is(err, ErrLimited) || !strings.HasSuffix(err.Error(), ": Account Over Rate Limit") {
+		t.Errorf("want ErrLimited with its detail, got %v", err)
 	}
 	if _, err := c.Get(ctx, "/missing", 100); err == nil {
 		t.Error("want error for 404")
+	}
+}
+
+func TestErrorDetailTrimmed(t *testing.T) {
+	resp := &http.Response{Header: http.Header{}}
+	resp.Header.Set("X-Error-Detail", "over\tquota "+strings.Repeat("x", 500))
+	d := errorDetail(resp)
+	if strings.ContainsRune(d, '\t') || len([]rune(d)) != 121 || !strings.HasPrefix(d, "overquota x") {
+		t.Errorf("errorDetail = %q", d)
 	}
 }
 

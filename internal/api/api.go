@@ -134,7 +134,7 @@ func (s *Server) touch(h http.Handler) http.Handler {
 	})
 }
 
-// securityHeaders sets a strict policy: everything same-origin, MapLibre workers from blob:.
+// securityHeaders sets a strict policy: everything same-origin, MapLibre workers from blob:, HTTPS only.
 func securityHeaders(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hd := w.Header()
@@ -145,6 +145,10 @@ func securityHeaders(h http.Handler) http.Handler {
 		hd.Set("X-Frame-Options", "DENY")
 		hd.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)")
 		hd.Set("Cross-Origin-Opener-Policy", "same-origin")
+		hd.Set("Cross-Origin-Resource-Policy", "same-origin")
+		// The app is only reached over HTTPS (Traefik terminates TLS); browsers ignore this header on plain http,
+		// so local development is unaffected.
+		hd.Set("Strict-Transport-Security", "max-age=31536000")
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			hd.Set("Cache-Control", "no-store")
 		}

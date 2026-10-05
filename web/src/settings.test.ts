@@ -115,6 +115,15 @@ test('settings link round-trips through the fragment, compressed', async () => {
   assert.equal(await parseFragment('#z=notdeflate'), null)
 })
 
+test('a settings link that inflates past the limit is refused', async () => {
+  // A few kB of deflate that would expand to megabytes.
+  const bomb = `{"version":1,"x":"${'a'.repeat(4_000_000)}"}`
+  const packed = await new Response(new Blob([bomb]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer()
+  const b64 = Buffer.from(packed).toString('base64url')
+  assert.ok(b64.length < 20000)
+  assert.equal(await parseFragment(`#z=${b64}`), null)
+})
+
 test('setup link carries just the token', async () => {
   const f = await parseFragment(`#setup=${TOKEN}`)
   assert.deepEqual(f, { kind: 'token', token: TOKEN })
