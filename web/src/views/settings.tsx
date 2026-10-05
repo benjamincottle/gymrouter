@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { encode } from 'uqr'
-import { emptySettings, HIGHLIGHTS, MAX_GYMS, resetGymOrder, sanitize, settingsLink, type Gym, type Home, type Settings } from '../settings.ts'
+import { emptySettings, MAX_GYMS, resetGymOrder, sanitize, settingsLink, type Gym, type Home, type Settings } from '../settings.ts'
 import type { ComponentChildren } from 'preact'
 import { PaceTest } from './pacetest.tsx'
-import { DeleteButton, EditButton, HOLD, IconColour, IconDevices, IconGym, IconHome, IconPhone, IconRisk, IconTimer, IconWalk } from './icons.tsx'
+import { DeleteButton, EditButton, IconColour, IconDevices, IconGym, IconHome, IconPhone, IconRisk, IconTimer, IconWalk } from './icons.tsx'
 import type { DefaultsResponse } from '../types.ts'
 import { mmss } from '../walkmeasure.ts'
 import { walkSecs } from '../walks.ts'
 import { GymChooser, newGym, newHome, PlaceEditor, type EditorKind } from './places.tsx'
 import { BrandLogo } from './brand.tsx'
-import { Button, Callout, Confirm, ConfirmSheet, Field, onRadioKeys, Row, Section, Segmented, TextButton, type Tone } from './ui.tsx'
+import { Button, Callout, Confirm, ConfirmSheet, Field, Row, Section, Segmented, TextButton, type Tone } from './ui.tsx'
 
 interface Props {
   settings: Settings
@@ -316,31 +316,6 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
           value={settings.theme}
           onChange={(t) => setSettings({ ...settings, theme: t })}
         />
-        <h3>Highlight colour</h3>
-        <p class="meta">For underlines and what's selected. The grade colours at 9 Degrees.</p>
-        <ul class="swatches" role="radiogroup" aria-label="Highlight colour" onKeyDown={onRadioKeys}>
-          {HIGHLIGHTS.map((c) => {
-            const on = (settings.highlight ?? 'black') === c
-            return (
-              <li>
-                <button
-                  class="swatch"
-                  data-hl={c}
-                  role="radio"
-                  aria-checked={on}
-                  tabIndex={on ? 0 : -1}
-                  onClick={() => setSettings({ ...settings, highlight: c === 'black' ? undefined : c })}
-                >
-                  <svg viewBox="3 2.5 18 15" aria-hidden="true">
-                    <path class="hold" d={HOLD} />
-                    <circle class="bolt" cx="12" cy="10.5" r="1.5" />
-                  </svg>
-                  {c[0].toUpperCase() + c.slice(1)}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
       </Section>
 
       <Backup settings={settings} setSettings={setSettings} />

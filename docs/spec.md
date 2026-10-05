@@ -426,3 +426,6 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   don't (weekday-only buses are missing every weekend), nor does one failed poll before the next good one. The app checks
   on opening and every 5 minutes while open, and checking doesn't count as using the app, so it never keeps TfNSW polling
   running by itself.
+- 2026-10-05: The highlight colour setting is gone (supersedes "A highlight colour (Settings)"). It wasn't adding
+  anything: underlines, the selected row's bar, the route tape and the icons' filled parts are ink, black on the light
+  theme and white on the dark one. A saved highlight choice is simply dropped.

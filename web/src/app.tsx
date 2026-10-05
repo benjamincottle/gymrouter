@@ -72,12 +72,6 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
 
   useEffect(() => applyTheme(settings.theme), [settings.theme])
 
-  // The highlight colour is a CSS token on the root (style.css maps each name to light and dark values).
-  useEffect(() => {
-    if (settings.highlight) document.documentElement.dataset.hl = settings.highlight
-    else delete document.documentElement.dataset.hl
-  }, [settings.highlight])
-
   useEffect(() => {
     if (!settings.token) return
     let live = true

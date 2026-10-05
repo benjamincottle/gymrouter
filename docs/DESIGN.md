@@ -11,7 +11,6 @@ build it. If code and this file disagree, the code is wrong. The decisions behin
 - **Colour only means something.** Saturated colour is reserved for:
   - transit line colours;
   - connection risk: safe, tight, at risk, missed;
-  - the highlight colour, used only for selection marks and the current-screen underline;
   - the focus ring and the "you" marker, in blue.
 - **Times read like a departure board.** Times are set in condensed Archivo numerals.
 - **The tape strips are the signature.** Options are tape strips on one shared time axis, and the trip's steps hang off
@@ -41,7 +40,6 @@ raw colour, size or spacing value in a component. Use a token, or add one here f
 | `--risk` | `#b13a0a` | `#f08a4b` | at-risk connections |
 | `--missed` | `#b42318` | `#f2766b` | missed or late, errors, danger actions |
 | `--on-tone` | `#ffffff` | `#1b1e21` | text on a risk colour (badges) |
-| `--hl` | `--ink` or a grade colour | | Settings > Highlight colour: underlines and selection marks only |
 
 Line colours come from the feed. Text on a line colour is ink or white, whichever contrasts better; it is computed, never
 taken from the feed's `text_color`. A line without a colour uses one fallback grey, `#5e6670`, everywhere.
@@ -97,7 +95,7 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
 ## Layout
 
 - **Phone (below 1024px):** one column, at most 34rem wide, with `--s4` gutters. The header is sticky, with no rule;
-  the current screen is underlined in `--hl`.
+  the current screen is underlined in ink.
 - **Desktop (1024px and up):** the header spans the page (fixed, `--header-h`) over two panes. The trip pane on the
   left is `--pane-w` (460px) and scrolls with the page; the map (`.map-pane`, fixed) fills the rest and always shows the
   selected option, or says what will appear there before there is one. There's no "Show on map" button on desktop.
@@ -135,9 +133,8 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Icon button:** 44×44, no outline, `--panel` on hover. The `danger` variant colours the icon `--missed`. Always has
   an `aria-label`.
 - **Segmented control:** one size (16px/600, 44px), a radio group (one tab stop, arrow keys). The chosen option has
-  a 4px ink bar along its bottom (inset), the same ink as the control's outline so it reads as part of the frame,
-  whatever the highlight colour; the others stay ink, never greyed (grey means disabled). Not `--hl`: a coloured bar
-  clashed with the ink outline, and outlining controls in `--hl` would make it a button accent colour.
+  a 4px ink bar along its bottom (inset), the same ink as the control's outline so it reads as part of the frame;
+  the others stay ink, never greyed (grey means disabled).
 - **Field:** a label (600) above, then a 44px input in `--panel` with a 1.5px `--edge` outline that turns ink on focus,
   then an optional hint (14px pencil, 400).
   - Defaults: an empty field means "use the default", and its hint says what the default is ("Empty uses the default,
@@ -150,15 +147,15 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   - `bad` (`--missed`) for failed or missed.
   - At most one action. A dismiss × only if it can safely be ignored.
   - Panels with their own job (pace test, walk timer) are sections, not callouts.
-- **Section:** a heavy top rule (except the first section on Settings and the screens opened from it, right under the header), then a title (20px/800/semi) with an optional 24px icon (ink lines, one `--hl` part).
+- **Section:** a heavy top rule (except the first section on Settings and the screens opened from it, right under the header), then a title (20px/800/semi) with an optional 24px icon (ink lines, one part filled).
   An intro line in 14px pencil may follow.
 - **Pick rows:** a search result is a whole-row button with a `›` at the end, not a link.
 - **Rows:** a hairline-separated list, min 56px tall. The main text sits on line 1 and details on a second 14px pencil
   line. **Never join details with middle dots.** Actions (icon buttons) go on the right.
-- **Route row** (trip screen): a tape in `--hl`, the gym's logo, the gym's name (18px/800/semi, a button that changes
+- **Route row** (trip screen): an ink tape, the gym's logo, the gym's name (18px/800/semi, a button that changes
   the gym, with a chevron), "from Home" beneath it, and a reverse button (⇅) on the right.
 - **Options board:** one row per option: leave, tape strip, arrive, risk mark, compact duration.
-  - The selected row gets a `--panel` fill and an inset 4px `--hl` bar. Its content doesn't move.
+  - The selected row gets a `--panel` fill and an inset 4px ink bar. Its content doesn't move.
   - Tape labels appear only where the whole line name fits.
   - The board is one tab stop; arrow keys move between options (radio group).
 - **Timeline:** time | rail | description, sharing columns through subgrid.
@@ -253,7 +250,7 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
   - make the page behind `inert`;
   - close on Escape;
   - return focus to the control that opened them.
-- Groups of choices (options board, swatches, segmented controls) are radio groups: one tab stop, arrow keys inside
+- Groups of choices (options board, segmented controls) are radio groups: one tab stop, arrow keys inside
   (`role="radio"`, `aria-checked`, `tabIndex` 0 only on the chosen one, `onRadioKeys` on the group).
 
 ### Copy
@@ -273,7 +270,7 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
 
 - Rounded card stacks, drop shadows, gradients as decoration.
 - A single accent colour for buttons or links.
-- Colour that doesn't mean a line, a risk level or status, the highlight or focus.
+- Colour that doesn't mean a line, a risk level or status, or focus. Selection marks and underlines are ink.
 - Middle-dot meta strings, all-caps labels, `→` appended to buttons or links.
 - Native `alert()`, `confirm()` or `prompt()`.
 - One-off sizes, spacings or radii in a component.
