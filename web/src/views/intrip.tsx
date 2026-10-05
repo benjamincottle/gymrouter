@@ -1,7 +1,7 @@
 // In-trip mode: follows the chosen option, re-checks it against live data every 30 s from wherever
 // you are (or the vehicle you're on), and suggests a switch when something slips.
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
-import { api, AuthError } from '../api.ts'
+import { api, AuthError, problem } from '../api.ts'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, spare, statusTime } from '../format.ts'
 import { useNow, useVisible, useWide } from '../hooks.ts'
 import { assess, instruction, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, type Assessment, type Phase, type Position } from '../intrip.ts'
@@ -199,7 +199,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
         }
       } catch (e) {
         if (e instanceof AuthError) onAuthError()
-        else if (live) setError(e instanceof Error ? e.message : String(e))
+        else if (live) setError(`Couldn't re-check the trip: ${problem(e)}`)
       }
     }
     recheck.current = run

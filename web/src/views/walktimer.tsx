@@ -152,7 +152,7 @@ export function WalkTimer({ from, to, earlier, estimateS, retime, onSave, onCanc
             {walk.distanceM > 0 ? `${walk.distanceM} m walked. ` : ''}
             {estimateS > 0 && `The trip assumed ${mmss(estimateS)}.`}
           </p>
-          {walk.secs < MIN_WALK_S && <p class="status late">That was very short. Cancel and try again if it was a mistaken tap.</p>}
+          {walk.secs < MIN_WALK_S && <p class="status late">That was very short. Try again if it was a mistaken tap.</p>}
           {(walk.startedNearM ?? 0) > 120 && (
             <Callout tone="caution">
               Your location was {walk.startedNearM} m from {from.name} when you started. If you weren't there, the route will be
@@ -172,7 +172,7 @@ export function WalkTimer({ from, to, earlier, estimateS, retime, onSave, onCanc
             </p>
           )}
           <div class="actions">
-            <Button onClick={onCancel}>Discard</Button>
+            <Button onClick={onCancel}>Cancel</Button>
             <Button onClick={reset}>Try again</Button>
             {earlier.length === 0 ? (
               <Button variant="primary" disabled={walk.secs < MIN_WALK_S} onClick={() => onSave(walk, true)}>

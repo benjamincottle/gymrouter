@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
-import { api, AuthError } from '../api.ts'
+import { api, AuthError, problem } from '../api.ts'
 import { addDays, dayLabel, fromLocalInput, roundUp, statusTime, toLocalInput } from '../format.ts'
 import { usePolling, useVisible, useWide } from '../hooks.ts'
 import { byUse, placeRef, planPlace, prefs, usedGym, type Gym, type Settings } from '../settings.ts'
@@ -22,11 +22,12 @@ interface Props {
   onAuthError: () => void
   goToSettings: () => void
   onStartTrip: (t: ActiveTrip) => void
+  serverError?: boolean // the app couldn't reach the server (it says so above, with Try again)
 }
 
 type When = 'now' | 'leave' | 'arrive'
 
-export function Trip({ settings, setSettings, server, onAuthError, goToSettings, onStartTrip }: Props) {
+export function Trip({ settings, setSettings, server, onAuthError, goToSettings, onStartTrip, serverError }: Props) {
   const [direction, setDirection] = useState<Direction>('to-gym')
   const [gymId, setGymId] = useState<string | null>(null)
   // The most used gyms first, in the order they had when this screen opened (choosing one doesn't reshuffle the list).
@@ -38,9 +39,11 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   }
   const [when, setWhen] = useState<When>('now')
   const [at, setAt] = useState(() => roundUp(toLocalInput(new Date()))) // "YYYY-MM-DDTHH:MM", Sydney time
-  // Choosing a time starts from now if the one last chosen has passed.
+  // Choosing a time starts from a sensible one if the one last chosen won't do: now for leaving, an hour from now for
+  // arriving (arriving by "now" would only offer trips that have already left).
   const chooseTime = (w: 'leave' | 'arrive') => {
-    if (Date.parse(fromLocalInput(at)) < Date.now()) setAt(roundUp(toLocalInput(new Date())))
+    const soonest = w === 'arrive' ? Date.now() + 30 * 60_000 : Date.now()
+    if (Date.parse(fromLocalInput(at)) < soonest) setAt(roundUp(toLocalInput(new Date(w === 'arrive' ? Date.now() + 60 * 60_000 : Date.now()))))
     setWhen(w)
   }
   const [moved, setMoved] = useState<number | null>(null) // "Leave now", moved earlier or later: where the window starts
@@ -89,7 +92,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   }, [plan.error, onAuthError])
 
 
-  if (!server) return <p class="loading">Loading…</p>
+  if (!server) return serverError ? null : <GymsSkeleton />
   if (!home || settings.gyms.length === 0) {
     return (
       <div class="empty">
@@ -169,10 +172,12 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
         <section class="results" aria-label={title}>
           <DataStatus realtime={plan.data?.realtime} loading={plan.loading} updatedAt={plan.updatedAt} walking={plan.data?.walking} />
           {plan.error !== null && !(plan.error instanceof AuthError) && (
-            <Callout tone="bad" role="alert">
-              {(plan.error as Error).message}
+            <Callout tone="bad" role="alert" action={<Button onClick={plan.refresh}>Try again</Button>}>
+              <strong>Couldn't plan this trip.</strong> {problem(plan.error)}
+              {plan.data ? ` The plan below is from ${statusTime(plan.updatedAt)}.` : ''}
             </Callout>
           )}
+          {!plan.data && plan.loading && <BoardSkeleton />}
           {plan.data && plan.data.options.length === 0 && <WindowShift shift={shift} />}
           {plan.data && plan.data.options.length === 0 && (
             <p class="meta">
@@ -183,7 +188,8 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
           )}
           {plan.data && plan.data.options.length > 0 && (
             <Board
-              options={plan.data.options}
+              options={[...plan.data.options].sort((a, b) => Date.parse(a.leave_at) - Date.parse(b.leave_at))}
+              preferLatest={when === 'arrive'}
               live={leaveAt === null}
               serviceDate={plan.data.service_date}
               token={settings.token!}
@@ -272,5 +278,38 @@ function DataStatus({
         </>
       )}
     </p>
+  )
+}
+
+/** While the first plan loads: the countdown and the board's rows, in outline. */
+function BoardSkeleton() {
+  return (
+    <div class="board-skeleton" aria-label="Planning…" role="status">
+      <span class="skeleton skeleton-hero" />
+      <div class="strips">
+        {[0, 1, 2, 3, 4].map(() => (
+          <div class="skeleton-row">
+            <span class="skeleton" />
+            <span class="skeleton" />
+            <span class="skeleton" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** While the app reaches the server: the gyms' rows, in outline. */
+function GymsSkeleton() {
+  return (
+    <div class="gyms" role="status" aria-label="Loading…">
+      {[0, 1, 2].map(() => (
+        <div class="gym">
+          <span class="skeleton" style={{ gridRow: 'span 2', width: '32px', height: '32px' }} />
+          <span class="skeleton" style={{ height: '16px', width: '60%' }} />
+          <span class="skeleton" style={{ height: '12px', width: '40%', marginTop: '6px' }} />
+        </div>
+      ))}
+    </div>
   )
 }

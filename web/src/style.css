@@ -339,7 +339,7 @@ select {
   border-left: 1.5px solid var(--ink);
 }
 
-.segmented button[aria-pressed='true'] {
+.segmented button[aria-checked='true'] {
   background: var(--ink);
   color: var(--on-ink);
 }
@@ -1819,4 +1819,80 @@ details > summary {
 
 .pick-row:hover {
   background: var(--panel);
+}
+
+/* ---- dialog sheet: whole-device actions ---- */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  background: rgba(20, 22, 24, 0.45);
+}
+
+.sheet-dialog {
+  width: min(100%, 30rem);
+  padding: var(--s5) var(--s4) calc(var(--s4) + env(safe-area-inset-bottom));
+  border-top: var(--heavy);
+  background: var(--wall);
+}
+
+.sheet-body {
+  margin: var(--s2) 0 var(--s4);
+}
+
+.sheet-body p + p {
+  margin-top: var(--s2);
+}
+
+.sheet-dialog .actions {
+  justify-content: flex-end;
+}
+
+@media (min-width: 640px) {
+  .scrim {
+    align-items: center;
+  }
+}
+
+/* ---- loading: the shape of what's coming ---- */
+
+.skeleton {
+  display: block;
+  border-radius: var(--r-mark);
+  background: var(--rule);
+  opacity: 0.6;
+}
+
+.skeleton-row {
+  display: grid;
+  grid-template-columns: 3.2rem 1fr 3.2rem;
+  align-items: center;
+  column-gap: var(--s3);
+  min-height: 48px;
+  padding: 0 var(--s2);
+  border-bottom: var(--hair);
+}
+
+.skeleton-row .skeleton {
+  height: 12px;
+}
+
+.skeleton-hero {
+  height: 56px;
+  width: 50%;
+  margin: var(--s3) 0 var(--s4);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton {
+    animation: skeleton 1.6s ease-in-out infinite;
+  }
+
+  @keyframes skeleton {
+    50% { opacity: 0.3; }
+  }
 }

@@ -56,6 +56,18 @@ const mapColours = () => {
   return { walk: rgb(ink), ink, stop: WHITE, you: token('--you') || '#2457d6' }
 }
 
+/**
+ * Whether a vehicle is close enough to the trip to be worth framing with it: within half the trip's size (at least
+ * about a kilometre) of its bounds. One still far off would shrink the trip to a corner of the map.
+ */
+function nearRoute(b: maplibregl.LngLatBounds, [lon, lat]: [number, number]): boolean {
+  const sw = b.getSouthWest()
+  const ne = b.getNorthEast()
+  const dx = Math.max(0.01, (ne.lng - sw.lng) / 2)
+  const dy = Math.max(0.01, (ne.lat - sw.lat) / 2)
+  return lon > sw.lng - dx && lon < ne.lng + dx && lat > sw.lat - dy && lat < ne.lat + dy
+}
+
 const RIDE_W = 6 // a ride's line on the map, in pixels; the stops along it are as wide
 
 
@@ -118,7 +130,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
   const frame = (m: maplibregl.Map, animate: boolean) => {
     if (!routeBounds.current || userMoved.current) return
     const b = new maplibregl.LngLatBounds(routeBounds.current.getSouthWest(), routeBounds.current.getNorthEast())
-    if (firstVehicle.current) b.extend(firstVehicle.current)
+    if (firstVehicle.current && nearRoute(b, firstVehicle.current)) b.extend(firstVehicle.current)
     // The trip fills the map: just enough room for the zoom and locate buttons on the right.
     m.fitBounds(b, { padding: { top: 36, bottom: 36, left: 28, right: 64 }, maxZoom: 16, duration: animate ? 600 : 0 })
   }

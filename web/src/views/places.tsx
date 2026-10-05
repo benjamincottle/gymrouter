@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
-import { api, ApiError, AuthError } from '../api.ts'
+import { api, ApiError, AuthError, problem } from '../api.ts'
 import { gymFromKnown, isLine, LINE_MODES, MAX_LINES, newId, placeRequest, withSuggested, type Gym, type Home } from '../settings.ts'
 import { groupStops, relevantGroups, type StopGroup } from '../stops.ts'
 import type { GeocodeResult, KnownGym, NearStop, SuggestResult } from '../types.ts'
@@ -42,7 +42,8 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
   const fail = (e: unknown) => {
     setBusy('')
     if (e instanceof AuthError) onAuthError()
-    else setError(e instanceof Error ? e.message : String(e))
+    // the API's failures in words; location failures already are
+    else setError(e instanceof ApiError ? problem(e) : e instanceof Error ? e.message : String(e))
   }
 
   // The server reads the whole timetable shortly after it starts; wait for it rather than failing.
@@ -91,11 +92,11 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
   }
 
   const useMyLocation = () => {
-    if (!navigator.geolocation) return setError('Location is not available in this browser.')
+    if (!navigator.geolocation) return setError("This browser can't share your location.")
     setBusy('Getting your location…')
     navigator.geolocation.getCurrentPosition(
       (pos) => setLocation(pos.coords.latitude, pos.coords.longitude),
-      (err) => fail(new Error(err.message || 'Location unavailable')),
+      (err) => fail(new Error(err.code === err.PERMISSION_DENIED ? 'Location is turned off for this site.' : "Couldn't get your location.")),
       { enableHighAccuracy: true, timeout: 15000 },
     )
   }
@@ -270,7 +271,7 @@ function LinesSection({
     } catch (e) {
       if (c.signal.aborted) return
       if (e instanceof AuthError) onAuthError()
-      else setError(e instanceof Error ? e.message : String(e))
+      else setError(problem(e))
     } finally {
       if (!c.signal.aborted) setBusy(false)
     }
@@ -437,7 +438,7 @@ export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCus
       } catch (e) {
         if (c.signal.aborted) return
         if (e instanceof AuthError) return onAuthError()
-        warning = `Added, but couldn't find the lines near ${home.name}: ${e instanceof Error ? e.message : e}`
+        warning = `Added, but couldn't find the lines near ${home.name}. ${problem(e)} Edit a gym to try again.`
       }
       setBusy(false)
     } else {
@@ -487,7 +488,7 @@ export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCus
           </Button>
         )}
         <Button disabled={busy} onClick={onCustom}>
-          Another gym…
+          Add another gym
         </Button>
         {available.length > 0 && (
           <Button variant="primary" disabled={busy || sel.size === 0} onClick={add}>

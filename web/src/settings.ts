@@ -227,14 +227,19 @@ export function importNeedsConfirm(cur: Settings, f: FragmentData): boolean {
 const count = (n: number, one: string) => (n === 0 ? '' : `${n} ${one}${n === 1 ? '' : 's'}`)
 
 /** What to ask before applying a link that importNeedsConfirm flags. */
+/** The title of the sheet that asks before a link changes saved data (importQuestion is its body). */
+export function importTitle(f: FragmentData): string {
+  return f.kind === 'token' ? 'Use this access token?' : "Replace this device's settings?"
+}
+
 export function importQuestion(cur: Settings, f: FragmentData): string {
   if (f.kind === 'token') {
-    return "This link changes this device's access token. Only use it if it came from your own server. Use it?"
+    return "This link changes this device's access token. Only use it if it came from your own server."
   }
   const have = [count(cur.homes.length, 'home'), count(cur.gyms.length, 'gym'), count(cur.walks.length, 'timed walk')].filter(Boolean)
   const token = f.settings.token && cur.token && f.settings.token !== cur.token ? ' and its access token' : ''
   const what = have.length > 0 ? ` (${have.join(', ')})` : ''
-  return `This link replaces everything saved on this device${what}${token}. Only use it if you made it. Replace?`
+  return `This link replaces everything saved on this device${what}${token}. Only use it if you made it.`
 }
 
 // --- Requests ---

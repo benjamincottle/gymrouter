@@ -9,7 +9,7 @@ import type { Leg, Option } from '../types.ts'
 import { Timeline, type Ends, type Tracking } from './option.tsx'
 import { changesAndStops, reselect, tripKey } from '../options.ts'
 import type { MapViewProps } from '../map/mapview.tsx'
-import { ActionBar, Button, Callout, TextButton } from './ui.tsx'
+import { ActionBar, Button, Callout, onRadioKeys, TextButton, useDialog } from './ui.tsx'
 import { lineColour, textOn } from '../colour.ts'
 
 const ms = (iso: string) => Date.parse(iso)
@@ -27,6 +27,7 @@ interface Props {
   ends: Ends // the home or gym at each end: the ends of the description's rail
   onStart?: (o: Option) => void
   onShift: Shift
+  preferLatest?: boolean // arriving by a time: the latest option that makes it is chosen first
 }
 
 /** Moves the window of options: -1 earlier, +1 later. */
@@ -47,7 +48,8 @@ export function WindowShift({ shift }: { shift: Shift }) {
 }
 
 export function Board(p: Props) {
-  const [selected, setSelected] = useState(0)
+  const first = p.preferLatest ? p.options.length - 1 : 0
+  const [selected, setSelected] = useState(first)
   const [mapOpen, setMapOpen] = useState(false)
   const wide = useWide()
   const now = useNow(1000)
@@ -56,7 +58,7 @@ export function Board(p: Props) {
   // vehicles taken; failing that, the option leaving closest to the one chosen).
   const [selKey, setSelKey] = useState<{ trips: string; leave: number } | null>(null)
   useEffect(() => {
-    setSelected(selKey ? reselect(opts, selKey.trips, selKey.leave) : 0)
+    setSelected(selKey ? reselect(opts, selKey.trips, selKey.leave) : first)
   }, [opts])
 
   if (opts.length === 0) return null
@@ -72,10 +74,10 @@ export function Board(p: Props) {
     <div class="board">
       <Hero option={sel} live={p.live} now={now} />
       <WindowShift shift={p.onShift} />
-      <ol class="strips" aria-label="Options">
+      <ol class="strips" role="radiogroup" aria-label="Options" onKeyDown={onRadioKeys}>
         {opts.map((o, i) => (
           <li class={i === selected ? 'selected' : undefined}>
-            <button class="strip-row" aria-pressed={i === selected} onClick={() => choose(i)}>
+            <button class="strip-row" role="radio" aria-checked={i === selected} tabIndex={i === selected ? 0 : -1} onClick={() => choose(i)}>
               <span class="strip-leave">{clock(o.leave_at)}</span>
               <Strip option={o} start={start} end={end} />
               <span class="strip-arrive">{clock(o.arrive)}</span>
@@ -231,15 +233,12 @@ export function MapSheet({ option, now, onClose, onStart, title, live, steps, ..
   const stepsRef = useRef<HTMLDivElement>(null)
   useEffect(() => stepsRef.current?.querySelector('.you')?.scrollIntoView({ block: 'center' }), [])
   const map = useMapView()
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  const sheetRef = useRef<HTMLDivElement>(null)
+  useDialog(sheetRef, onClose) // focus starts on Back; Escape closes; the page behind is inert
   const start = ms(option.leave_at)
   const end = ms(option.arrive)
   return (
-    <div class="sheet" role="dialog" aria-modal="true" aria-label={`Map: ${title}`}>
+    <div ref={sheetRef} class="sheet" role="dialog" aria-modal="true" aria-label={`Map: ${title}`}>
       <header class="sheet-bar">
         <Button onClick={onClose}>
           <svg class="icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">

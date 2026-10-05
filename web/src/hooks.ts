@@ -43,7 +43,7 @@ export function usePolling<T>(
   fn: (signal: AbortSignal) => Promise<T>,
   ms: number,
   visible: boolean,
-): { data: T | null; error: unknown; loading: boolean; updatedAt: number } {
+): { data: T | null; error: unknown; loading: boolean; updatedAt: number; refresh: () => void } {
   const [state, setState] = useState<{ data: T | null; error: unknown; loading: boolean; updatedAt: number }>({
     data: null, error: null, loading: false, updatedAt: 0,
   })
@@ -83,5 +83,5 @@ export function usePolling<T>(
     return () => clearInterval(id)
   }, [key, ms, visible])
 
-  return state
+  return { ...state, refresh: run }
 }

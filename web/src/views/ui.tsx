@@ -1,6 +1,6 @@
 // The shared building blocks of every screen (docs/DESIGN.md, Components). Screens use these rather than writing the
 // markup themselves, so a change to how a button or a callout looks happens here and in style.css, once.
-import { useEffect, useRef } from 'preact/hooks'
+import { useEffect, useRef, type MutableRef } from 'preact/hooks'
 import type { ComponentChildren, JSX } from 'preact'
 
 type ButtonAttrs = Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, 'class'> & { class?: string }
@@ -24,7 +24,23 @@ export function IconButton({ label, danger, class: cls, children, ...rest }: But
   )
 }
 
-/** A row of options, one of them pressed. */
+/**
+ * Arrow keys inside a radio group: move to the next or previous option and choose it (the group is one tab stop:
+ * only the chosen option has tabIndex 0).
+ */
+export function onRadioKeys(e: KeyboardEvent) {
+  const step = ({ ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 } as Record<string, number>)[e.key]
+  if (!step) return
+  const items = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="radio"]')]
+  const i = items.indexOf(document.activeElement as HTMLElement)
+  if (i < 0) return
+  e.preventDefault()
+  const next = items[(i + step + items.length) % items.length]
+  next.focus()
+  next.click()
+}
+
+/** A row of options, one of them chosen: a radio group (one tab stop, arrow keys inside). */
 export function Segmented<T>({ label, options, value, onChange }: {
   label: string
   options: readonly (readonly [T, string])[]
@@ -32,9 +48,9 @@ export function Segmented<T>({ label, options, value, onChange }: {
   onChange: (v: T) => void
 }) {
   return (
-    <div class="segmented" role="group" aria-label={label}>
+    <div class="segmented" role="radiogroup" aria-label={label} onKeyDown={onRadioKeys}>
       {options.map(([v, text]) => (
-        <button aria-pressed={value === v} onClick={() => onChange(v)}>
+        <button role="radio" aria-checked={value === v} tabIndex={value === v ? 0 : -1} onClick={() => onChange(v)}>
           {text}
         </button>
       ))}
@@ -157,5 +173,90 @@ export function Confirm({ question, detail, confirm, keep = 'Keep', onConfirm, o
         </Button>
       </span>
     </El>
+  )
+}
+
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/**
+ * Makes an element behave as a modal dialog: focus moves into it (to `first`, or its first control), Tab stays inside,
+ * Escape closes it, the page behind is inert, and focus goes back to whatever opened it.
+ */
+export function useDialog(ref: MutableRef<HTMLElement | null>, onClose: () => void, first?: MutableRef<HTMLElement | null>) {
+  const close = useRef(onClose)
+  close.current = onClose
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const opener = document.activeElement as HTMLElement | null
+    // Everything else on the page, from the dialog up: inert while it's open.
+    const others: HTMLElement[] = []
+    for (let n: HTMLElement | null = el; n && n !== document.body; n = n.parentElement) {
+      for (const sib of n.parentElement?.children ?? []) {
+        if (sib !== n && sib instanceof HTMLElement && !sib.inert) {
+          sib.inert = true
+          others.push(sib)
+        }
+      }
+    }
+    ;(first?.current ?? el.querySelector<HTMLElement>(FOCUSABLE) ?? el).focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        close.current()
+      } else if (e.key === 'Tab') {
+        const items = [...el.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((x) => x.offsetParent !== null)
+        if (items.length === 0) return
+        const i = items.indexOf(document.activeElement as HTMLElement)
+        if (e.shiftKey && i <= 0) {
+          e.preventDefault()
+          items[items.length - 1].focus()
+        } else if (!e.shiftKey && i === items.length - 1) {
+          e.preventDefault()
+          items[0].focus()
+        }
+      }
+    }
+    el.addEventListener('keydown', onKey)
+    return () => {
+      el.removeEventListener('keydown', onKey)
+      for (const o of others) o.inert = false
+      opener?.focus?.()
+    }
+  }, [])
+}
+
+/**
+ * Asks before a whole-device action, in a sheet over the page: a title that says what will happen, what is lost, then
+ * Cancel (focused) and the action.
+ */
+export function ConfirmSheet({ title, children, confirm, danger = true, onConfirm, onCancel }: {
+  title: string
+  children: ComponentChildren
+  confirm: string
+  danger?: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  useDialog(ref, onCancel, cancelRef)
+  return (
+    <div class="scrim" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div ref={ref} class="sheet-dialog" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+        <h2 id="sheet-title" class="title">
+          {title}
+        </h2>
+        <div class="sheet-body">{children}</div>
+        <div class="actions">
+          <button ref={cancelRef} class="btn" onClick={onCancel}>
+            Cancel
+          </button>
+          <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
+            {confirm}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
