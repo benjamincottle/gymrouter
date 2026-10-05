@@ -123,7 +123,7 @@ func TestLimitAndSnap(t *testing.T) {
 func TestFromNearestStopsPastTheBand(t *testing.T) {
 	g := riverGraph(t)
 	across, near, band, beyond := at(20, 1), at(14, 0), at(10, 0), at(5, 0) // ~3.4 km, 600 m, 1 km, 1.5 km along the streets
-	r, ok := g.FromNearest(at(20, 0), []geo.Point{across, near, band, beyond}, 500, 7500)
+	r, ok := g.FromNearest(at(20, 0), []geo.Point{across, near, band, beyond}, 500, 0, 7500)
 	if !ok {
 		t.Fatal("origin not on the network")
 	}
@@ -147,6 +147,11 @@ func TestFromNearestStopsPastTheBand(t *testing.T) {
 	}
 	if len(r.nodes) >= len(all.nodes) {
 		t.Errorf("searched %d nodes; the whole limit is %d", len(r.nodes), len(all.nodes))
+	}
+	// A floor past the band: everything within it is final too.
+	r, _ = g.FromNearest(at(20, 0), []geo.Point{across, near, band, beyond}, 500, 1600, 7500)
+	if want, _ := all.Metres(beyond); math.Abs(m(beyond)-want) > 1 {
+		t.Errorf("within the floor: %.0f m, want %.0f", m(beyond), want)
 	}
 }
 

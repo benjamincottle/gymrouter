@@ -42,8 +42,8 @@ measured walks from the gym door.
   A train line brings the buses that replace its trains during trackwork (`replacement-bus 23T4` for the T4, matched by
   the line code at the end of the bus's name; `10M` for the metro); they aren't listed in `lines`.
 - A place is `lat`/`lon`, optionally with curated `access` stops and walk times. Without
-  them, stops within `max_walk_m` are used, or if there are none, the band: the nearest stop on the lines and any up to
-  500 m further (along the streets when known), within 3 km. Past that the plan is a 400 ("no stops on those lines
+  them, it uses every stop on the lines within `max_walk_m` or within 500 m of the nearest stop, whichever reaches
+  further, measured on foot along the streets when known (straight line otherwise), and none past 3 km in a straight line. Past that the plan is a 400 ("no stops on those lines
   within 3 km"). Either end can be home or gym.
 - A place can also carry `walks` (up to 40, `[{"stop": "<stop or station ID>", "walk_s": 540}]`): walks the traveller
   has timed between the place and a stop. They beat any other time for that stop (a station ID covers its rail platforms,
@@ -76,11 +76,11 @@ Response:
 `trackwork` (left out when empty) lists the lines whose trains the options replace with buses, and those buses' names
 (the names on their signs).
 `stretched_walk` (left out when neither end needed it) is `{"from_m"?: 1430, "to_m"?: …}`: for each end that had no stop
-within `max_walk_m` and used the band, the walk to its nearest stop in metres. An end with timed `walks` never reports it.
+within `max_walk_m` (even its nearest is further), the walk to that nearest stop in metres. An end with timed `walks` never reports it.
 `walking` is `streets` when walks to and from stops, and changes between stops, follow real streets and paths (the server's OpenStreetMap-based
 network), or `estimate` (straight line × a detour factor) while that network is still being prepared. Curated `access`
 walks apply either way. The first and last walk legs of an option carry a `path` (`[[lon, lat], …]`) along the streets
-when it is known. `max_walk_m` limits the straight-line distance to candidate stops; the walk along the streets may be longer.
+when it is known. `max_walk_m` is measured on foot (see the place rules above).
 
 `stops` on a ride is the number of stops travelled, counting the one you get off at.
 `status` is `scheduled`, `predicted` (live data) or `added` (a realtime-only trip). `risk` is `safe`, `tight`,
@@ -93,8 +93,7 @@ opens and whenever they change. Lines the timetable doesn't have are skipped; a 
 on the total the server will hold, is a 400. Asking counts as using the lines (see `lines` under `POST /api/plan`).
 
 ## `POST /api/stops/near`
-`{"lat": …, "lon": …, "radius_m": 800}` → stops near the point (within `radius_m`, or the band as for a plan when there
-are none) with every line that serves them, nearest first:
+`{"lat": …, "lon": …, "radius_m": 800}` → stops near the point (within `radius_m` or 500 m of the nearest, as for a plan) with every line that serves them, nearest first:
 `{"stops": [{"id", "name", "station", "lat", "lon", "walk_s", "lines": ["bus 288"]}]}`. Used to set up a home or gym,
 before any lines are chosen. Also returns `"walking": "streets"|"estimate"`: with street data, `walk_s` follows the streets
 and stops that can't be reached on foot are left out. 503 (with `Retry-After`) for a few seconds after the server starts, while it reads the timetable.
