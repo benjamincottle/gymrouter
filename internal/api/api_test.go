@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/benjamincottle/gymrouter/internal/api"
+	"github.com/benjamincottle/gymrouter/internal/engine"
 	"github.com/benjamincottle/gymrouter/internal/engine/enginetest"
 	"github.com/benjamincottle/gymrouter/internal/geo"
 	"github.com/benjamincottle/gymrouter/internal/walk/walktest"
@@ -624,6 +626,32 @@ func TestPlanLoadsLinesTheServerHasNotSeen(t *testing.T) {
 	rec = h.do(t, "GET", "/api/vehicles?lines=bus%20271", token, nil)
 	if rec.Code != 200 || len(h.env.Engine.Lines()) != len(laneCoveLines)+1 {
 		t.Errorf("vehicles for a new line: %d, lines %d", rec.Code, len(h.env.Engine.Lines()))
+	}
+}
+
+func TestLinesLoadAheadOfTheFirstSearch(t *testing.T) {
+	h := newHarnessEmpty(t)
+	rec := h.do(t, "POST", "/api/lines", token, map[string]any{"lines": laneCoveLines})
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("load lines: %d %s", rec.Code, rec.Body)
+	}
+	for deadline := time.Now().Add(30 * time.Second); len(h.env.Engine.Lines()) < len(laneCoveLines); time.Sleep(10 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("lines after asking: %v", h.env.Engine.Lines())
+		}
+	}
+	tooMany := make([]string, engine.MaxLoadedLines+1)
+	for i := range tooMany {
+		tooMany[i] = fmt.Sprintf("bus %d", i)
+	}
+	for name, body := range map[string]any{
+		"not a line": map[string]any{"lines": []string{"nonsense"}},
+		"too many":   map[string]any{"lines": tooMany},
+		"too long":   map[string]any{"lines": []string{"bus " + strings.Repeat("9", 50)}},
+	} {
+		if rec := h.do(t, "POST", "/api/lines", token, body); rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: %d %s", name, rec.Code, rec.Body)
+		}
 	}
 }
 

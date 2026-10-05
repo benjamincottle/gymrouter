@@ -382,6 +382,37 @@ func (s *Server) ensure(set lines.Set) error {
 	return err
 }
 
+// loadLines starts loading lines in the background so the first search naming them doesn't wait for the timetable
+// to be read (see Engine.Prefetch). It answers straight away.
+func (s *Server) loadLines(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Lines []string `json:"lines"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if len(req.Lines) > engine.MaxLoadedLines {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("at most %d lines", engine.MaxLoadedLines))
+		return
+	}
+	for _, l := range req.Lines {
+		if len(l) > maxLineLen {
+			writeError(w, http.StatusBadRequest, "line name too long")
+			return
+		}
+	}
+	set, err := lines.ParseSet(req.Lines...)
+	if err == nil {
+		err = s.eng.Prefetch(set)
+	}
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{})
+}
+
 func validatePrefs(p prefsReq) error {
 	switch {
 	case p.WalkSpeedMps < 0 || p.WalkSpeedMps > 3:

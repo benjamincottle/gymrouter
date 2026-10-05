@@ -40,7 +40,8 @@ Non-goals (v1)
   could reveal a home (test fixtures use gym-side or synthetic origins). Secret scanning in CI.
 - **Device storage (private data)**: home place(s), **gyms with their line sets and curated access stops**, home
   access stops + walk times, walking speed, personal transfer-time overrides, **connection-risk thresholds**
-  (start from server defaults; user-tunable), access token. Sent in POST bodies; never stored on the server.
+  (start from server defaults; user-tunable), access token. Sent in POST bodies; never stored on the server, except
+  the names of the lines requests have named (so a restart can load them; see §5), which aren't tied to any place.
 - Multiple homes = more entries in device storage; no code change.
 - Initial gyms (9 Degrees): **Lane Cove, Parramatta (Rydalmere), Chatswood** for v1;
   Waterloo and Alexandria were added after the first three. They are built in; others are added in the app (address search, then suggested lines).
@@ -50,9 +51,11 @@ Non-goals (v1)
   e.g. `["bus 370", "train T4", "metro M1"]`. The router finds the best options within that set, so timetable
   changes need no edits. The set lives on the device and is sent with every request.
 - GTFS static is filtered at ingest to the union of the line sets the server has been asked about → small
-  in-memory timetable. The server starts with only the known gyms' lines; a request naming lines it
-  hasn't loaded makes it reload with the union (a few seconds, once per new line). The union only grows until restart
-  and is capped. The union is never written to disk.
+  in-memory timetable. A request naming lines it hasn't loaded makes it reload with the union (a few seconds, once per
+  new line). The union is capped, and lines no request has named for two weeks drop out at the day rollover (the known
+  gyms' lines always stay). The union is kept in the data directory (`lines.json`: line names and when each was last
+  named), so a restart starts with it loaded. The app asks the server to load its gyms' lines in the background as soon
+  as it knows them (on opening, after setup, when a gym's lines change), so the first search doesn't wait for a reload.
 - A **stop catalogue** (every stop with the lines that serve it) is built from a full-network pass after each timetable
   download. It powers "nearby stops" in setup, which has to work before any lines are chosen.
 - Walking transfers between stops on those lines: GTFS transfers/pathways where present, otherwise
@@ -393,3 +396,8 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   alternatives) and the two ends' walks run on all cores, with results combined in a fixed order so the options are
   identical. On a laptop, a plan went from 230 ms to 13 ms on one core and ~5 ms on four. Benchmarks
   (`GYMROUTER_BENCH_DATA`) run over the real timetable and street network.
+- 2026-10-05: The loaded lines survive a restart and load ahead of the first search. After a restart (a deploy, a reboot)
+  the server had forgotten the lines requests had named, so the first search to each gym waited for the timetable to be
+  read again (seconds on the Pi). The union, with each line's last use, is now saved in the data directory (reverses
+  "never written to disk": line names aren't sensitive, and the volume is private). The app also sends its gyms' lines
+  to `POST /api/lines` whenever they become known or change, which loads them in the background.

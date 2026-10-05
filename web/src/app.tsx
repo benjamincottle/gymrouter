@@ -97,6 +97,16 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
     }
   }, [settings.token, retries])
 
+  // As soon as the gyms' lines are known (opening the app, setup, a suggestion, an edit), have the server load them,
+  // so the first search doesn't wait for it to read the timetable. Quick edits are sent together.
+  const gymLines = [...new Set(settings.gyms.flatMap((g) => g.lines))].sort().join(',')
+  useEffect(() => {
+    const token = settings.token
+    if (!token || !gymLines) return
+    const id = setTimeout(() => api.loadLines(token, gymLines.split(',')).catch(() => {}), 300) // only a head start
+    return () => clearTimeout(id)
+  }, [settings.token, gymLines])
+
   const linkSheet = pending && (
     <ConfirmSheet
       title={importTitle(pending)}
