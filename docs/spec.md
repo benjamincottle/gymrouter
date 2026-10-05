@@ -61,16 +61,18 @@ Non-goals (v1)
 - Walking transfers between stops on those lines: GTFS transfers/pathways where present, otherwise
   distance × walking factor; **personal overrides win**.
 - Access/egress: device-supplied home access stops + walk times; gym access stops from config.
-- **The longest walk is a preference, not a wall.** A place with no ticked stops uses the stops on the trip's lines
-  within the longest walk (Settings, default 1000 m, straight line). If there are none, it uses the **band** instead:
-  the nearest stop on those lines and every other one within 500 m further than it, measured along the streets when
-  the street network is there (a stop that's near in a straight line but across a river doesn't count as nearest).
-  Nothing past 3 km in a straight line counts; beyond that the place has no stops on those lines and the plan says so.
-  The router still chooses among the band's stops, so a station a little further beats the closest stop on a poor bus.
-  When an end used the band, the plan response says so (`stretched_walk`: which end, and metres to its nearest stop)
-  and the trip screen says the walk is longer than the setting (not once a walk from that place has been timed: the
-  traveller knows by then). Ticked stops and timed walks are unaffected (they already work at any distance). Line suggestions find a place's stops by the same rule and radius as the planner, so
-  every suggested line is one the planner can reach; setup's nearby-stops list falls back to the band too.
+- **The longest walk is a preference, not a wall, and it's measured on foot.** A place with no ticked stops uses every
+  stop on the trip's lines within the longest walk (Settings, default 1000 m) **or within 500 m of the nearest stop**,
+  whichever reaches further. Walks are measured along the streets when the street network is there (straight line
+  otherwise), so a stop that's close in a straight line but a long way round on foot (across a railway, a river or a
+  gully) doesn't crowd out one that's nearer to walk to. Nothing past 3 km in a straight line counts; beyond that the
+  place has no stops on those lines and the plan says so. The router chooses among the stops on time, so a station a
+  little further beats the closest stop on a poor bus. When even the nearest stop is beyond the longest walk, the plan
+  response says so (`stretched_walk`: which end, and the walk to its nearest stop) and the trip screen says the walk is
+  longer than the setting (not once a walk from that place has been timed: the traveller knows by then). Ticked stops
+  and timed walks are unaffected (they already work at any distance). Line suggestions find a place's stops by the same
+  rule and radius as the planner, so every suggested line is one the planner can reach; setup's nearby-stops list uses
+  the rule too.
 - **Walks follow real streets, and measured walks win.** General planners walk through places you can't
   (e.g. through the Johnson factory at Lane Cove) and miss shortcuts that exist (e.g. cutting through the
   plumbing-supply site). Walks to and from stops, and between stops when changing, are routed over a pedestrian network built from OpenStreetMap
@@ -448,3 +450,11 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   band costs the router next to nothing. Raising the default was rejected too: it widens every search for everyone to fix
   the rare far place. Line suggestions now use the planner's rule and radius (they used 1200 m against the planner's
   1000 m, so they could suggest a line from a stop the planner then wouldn't use).
+- 2026-10-05: The longest walk is measured on foot, and the 500 m band always applies (supersedes the band of the entry
+  above, which only applied when nothing was in range, and the straight-line limit). From a home in a gully the bus
+  stops were 650 m in a straight line but 22 minutes' walk, and the station 1.2 km in a straight line but 18 minutes. The
+  straight-line limit took the bus stops and never the station; once line suggestions (which couldn't reach the station
+  either) had added that bus to the gym's lines, the band never ran, and an evening with no bus planned nothing. Now a
+  place uses every stop within the longest walk on foot or within 500 m (on foot) of its nearest stop, whichever reaches
+  further. The setting is called "Longest walk to a stop", so on foot is what it always claimed to be. The note on the
+  trip screen still shows only when even the nearest stop is beyond the setting.
