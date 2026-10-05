@@ -60,6 +60,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
           have={settings.gyms}
           home={home}
           token={settings.token!}
+          maxWalkM={settings.maxWalkM}
           onAuthError={onAuthError}
           onCancel={settings.gyms.length > 0 ? () => setEditing(null) : undefined}
           onCustom={() => setEditing(editNew('gym'))}
@@ -84,6 +85,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
         token={settings.token!}
         homes={settings.homes}
         walks={settings.walks}
+        maxWalkM={settings.maxWalkM}
         onAuthError={onAuthError}
         onCancel={() => setEditing(null)}
         onSave={(g) => {

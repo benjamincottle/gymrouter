@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -47,34 +48,127 @@ func (e *Engine) loadWalkCache() {
 	}
 }
 
+const (
+	// BandM widens the longest walk when nothing is within it: the nearest stop is used, and any up to this much
+	// further (along the streets when they're known), so the router still has a choice.
+	BandM = 500
+	// BandCapM is as far as the band reaches (straight line). Past it a place has no stops.
+	BandCapM = 3000
+)
+
+// nearby is the outcome of picking the positions a place walks to.
+type nearby struct {
+	idx       []int     // the candidates kept
+	metres    []float64 // the walk to each: along the streets, or a straight line
+	streets   bool
+	reach     *walk.Reach
+	stretched float64 // metres to the nearest when nothing was within the longest walk (the band was used), else 0
+}
+
+// secs is the walking time to the kth kept candidate.
+func (n nearby) secs(k int, o raptor.Options) int32 {
+	if n.streets {
+		return int32(n.metres[k] / o.WalkSpeedMps)
+	}
+	return o.WalkSecs(n.metres[k])
+}
+
+// nearby picks which of the candidate positions a place walks to: those within maxWalkM (straight line) that can
+// be walked to, or if there are none, the band (see BandM). With the street network, walks follow the streets and
+// positions that can't be walked to are dropped; a place off the map falls back to straight lines.
+func (e *Engine) nearby(p geo.Point, cand []geo.Point, maxWalkM float64) nearby {
+	crow := make([]float64, len(cand))
+	for i, q := range cand {
+		crow[i] = geo.DistanceM(p, q)
+	}
+	if g := e.Walker(); g != nil {
+		if reach, ok := g.From(p, maxWalkM*walkLimitFactor); ok {
+			out := nearby{streets: true, reach: reach}
+			for i, q := range cand {
+				if crow[i] <= maxWalkM {
+					if m, ok := reach.Metres(q); ok {
+						out.idx, out.metres = append(out.idx, i), append(out.metres, m)
+					}
+				}
+			}
+			if len(out.idx) > 0 {
+				return out
+			}
+			var far []geo.Point
+			for i, q := range cand {
+				if crow[i] <= BandCapM {
+					far = append(far, q)
+				}
+			}
+			if len(far) == 0 {
+				return out
+			}
+			reach, _ = g.FromNearest(p, far, BandM, BandCapM*walkLimitFactor) // p is on the map: From found it
+			metres := make([]float64, len(cand))
+			best := math.Inf(1)
+			for i, q := range cand {
+				metres[i] = math.Inf(1)
+				if m, ok := reach.Metres(q); ok && crow[i] <= BandCapM {
+					metres[i], best = m, min(best, m)
+				}
+			}
+			return band(metres, best, nearby{streets: true, reach: reach})
+		}
+	}
+	out := nearby{}
+	best := math.Inf(1)
+	for i, d := range crow {
+		if d <= maxWalkM {
+			out.idx, out.metres = append(out.idx, i), append(out.metres, d)
+		}
+		if d <= BandCapM {
+			best = min(best, d)
+		}
+	}
+	if len(out.idx) > 0 {
+		return out
+	}
+	return band(crow, best, out)
+}
+
+// band keeps the candidates within BandM of the nearest (best metres away).
+func band(metres []float64, best float64, out nearby) nearby {
+	if math.IsInf(best, 1) {
+		return out
+	}
+	for i, m := range metres {
+		if m <= best+BandM {
+			out.idx, out.metres = append(out.idx, i), append(out.metres, m)
+		}
+	}
+	out.stretched = best
+	return out
+}
+
 // Approach is how a place connects to nearby stops: the stops with their walking times, and (when the street
 // network is available) the routes themselves for drawing.
 type Approach struct {
 	Access  []raptor.Access
 	Streets bool // times come from the street network, not a straight-line guess
-	reach   *walk.Reach
-	net     *raptor.Network
+	// StretchedM is the walk to the nearest stop when no stop was within the longest walk and the band was used.
+	StretchedM float64
+	reach      *walk.Reach
+	net        *raptor.Network
 }
 
-// Approach finds the stops within maxWalkM (straight line) of p and how long each takes to walk to. With the
-// street network, the walk follows streets and paths and stops that can't be reached on foot are dropped.
+// Approach finds the stops a place walks to (see nearby) and how long each walk takes.
 func (e *Engine) Approach(net *raptor.Network, p geo.Point, maxWalkM float64, o raptor.Options) Approach {
-	cand := net.StopsNear(p, maxWalkM, o)
-	g := e.Walker()
-	if g == nil {
-		return Approach{Access: cand, net: net}
+	cand := net.StopsNear(p, max(maxWalkM, BandCapM), o)
+	pos := make([]geo.Point, len(cand))
+	for i, a := range cand {
+		pos[i] = net.Day.Stops[a.Stop].Pos
 	}
-	reach, ok := g.From(p, maxWalkM*walkLimitFactor)
-	if !ok {
-		return Approach{Access: cand, net: net} // not on the map (outside the extract, or on water)
+	nb := e.nearby(p, pos, maxWalkM)
+	out := make([]raptor.Access, len(nb.idx))
+	for k, i := range nb.idx {
+		out[k] = raptor.Access{Stop: cand[i].Stop, Secs: nb.secs(k, o)}
 	}
-	out := make([]raptor.Access, 0, len(cand))
-	for _, a := range cand {
-		if m, ok := reach.Metres(net.Day.Stops[a.Stop].Pos); ok {
-			out = append(out, raptor.Access{Stop: a.Stop, Secs: int32(m / o.WalkSpeedMps)})
-		}
-	}
-	return Approach{Access: out, Streets: true, reach: reach, net: net}
+	return Approach{Access: out, Streets: nb.streets, StretchedM: nb.stretched, reach: nb.reach, net: net}
 }
 
 // Path returns the walk between the place and a stop along the streets, if known.
@@ -85,27 +179,22 @@ func (a Approach) Path(stop int32) ([]geo.Point, bool) {
 	return a.reach.Path(a.net.Day.Stops[stop].Pos)
 }
 
-// NearbyStops lists catalogue stops within radiusM (straight line) of p with their walking times, nearest first.
-// The second result says whether the times follow the streets.
+// NearbyStops lists the catalogue stops a place walks to (see nearby; radiusM is the longest walk) with their walking
+// times, nearest first. The second result says whether the times follow the streets.
 func (e *Engine) NearbyStops(c *Catalog, p geo.Point, radiusM float64, o raptor.Options) ([]NearStop, bool) {
-	near := c.Near(p, radiusM, o)
-	g := e.Walker()
-	if g == nil {
-		return near, false
+	cand := c.Near(p, max(radiusM, BandCapM), o)
+	pos := make([]geo.Point, len(cand))
+	for i, n := range cand {
+		pos[i] = n.Pos
 	}
-	reach, ok := g.From(p, radiusM*walkLimitFactor)
-	if !ok {
-		return near, false
-	}
-	out := near[:0]
-	for _, n := range near {
-		if m, ok := reach.Metres(n.Pos); ok {
-			n.WalkS = int32(m / o.WalkSpeedMps)
-			out = append(out, n)
-		}
+	nb := e.nearby(p, pos, radiusM)
+	out := make([]NearStop, len(nb.idx))
+	for k, i := range nb.idx {
+		out[k] = cand[i]
+		out[k].WalkS = nb.secs(k, o)
 	}
 	sort.SliceStable(out, func(a, b int) bool { return out[a].WalkS < out[b].WalkS })
-	return out, true
+	return out, nb.streets
 }
 
 // PathsFrom is for places whose walks are curated: the times are the person's own, but the route to each stop

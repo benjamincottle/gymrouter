@@ -120,6 +120,36 @@ func TestLimitAndSnap(t *testing.T) {
 	}
 }
 
+func TestFromNearestStopsPastTheBand(t *testing.T) {
+	g := riverGraph(t)
+	across, near, band, beyond := at(20, 1), at(14, 0), at(10, 0), at(5, 0) // ~3.4 km, 600 m, 1 km, 1.5 km along the streets
+	r, ok := g.FromNearest(at(20, 0), []geo.Point{across, near, band, beyond}, 500, 7500)
+	if !ok {
+		t.Fatal("origin not on the network")
+	}
+	m := func(q geo.Point) float64 {
+		if v, ok := r.Metres(q); ok {
+			return v
+		}
+		return math.Inf(1)
+	}
+	all, _ := g.From(at(20, 0), 7500)
+	for _, q := range []geo.Point{near, band} {
+		if want, _ := all.Metres(q); math.Abs(m(q)-want) > 1 {
+			t.Errorf("within the band: %.0f m, want %.0f", m(q), want)
+		}
+	}
+	// Across the river is nearest in a straight line, not on foot; it and the stop past the band read as further.
+	for _, q := range []geo.Point{across, beyond} {
+		if m(q) <= m(near)+500 {
+			t.Errorf("%.0f m is past the band (nearest %.0f m)", m(q), m(near))
+		}
+	}
+	if len(r.nodes) >= len(all.nodes) {
+		t.Errorf("searched %d nodes; the whole limit is %d", len(r.nodes), len(all.nodes))
+	}
+}
+
 func TestPath(t *testing.T) {
 	g := riverGraph(t)
 	r, _ := g.From(at(20, 0), 5000)

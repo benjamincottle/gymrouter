@@ -173,6 +173,10 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Trackwork:** a `caution` callout above the board for each line whose trains the options replace with buses: the
   line's chip, "**Trackwork:** buses replace some trains. Their signs say 20T4 or 23T4." The buses keep their own names
   and colour everywhere (chip, tape, map): they're the names on the buses' signs.
+- **Longer walk:** a neutral callout above the board for each end that has no stop on the gym's lines within the
+  longest walk (the server planned from the nearest stops instead): "**Longer walk:** no stops on these lines within
+  1 km of Home. The nearest is 1.4 km away." Distances read `800 m` (to 50 m) or `1.4 km`. It's information, not a
+  fault, so it isn't `caution`, and it goes once a walk from that place has been timed.
 - **Footer:** a hairline, then the server status; it sits at the bottom edge of the screen when the content is shorter
   than the screen. The data credits ("Contains Transport for NSW data…") are only on Settings, at the end, above the
   footer.

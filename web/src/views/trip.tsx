@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
-import { addDays, dayLabel, fromLocalInput, orList, roundUp, statusTime, toLocalInput } from '../format.ts'
+import { addDays, dayLabel, distance, fromLocalInput, orList, roundUp, statusTime, toLocalInput } from '../format.ts'
 import { usePolling, useSettled, useVisible, useWide } from '../hooks.ts'
 import { byUse, placeRef, planPlace, prefs, usedGym, type Gym, type Settings } from '../settings.ts'
 import type { DefaultsResponse, PlanRequest } from '../types.ts'
@@ -114,6 +114,12 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   const places = { start: ends?.start.key, end: ends?.end.key }
   const title = gym && (direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`)
   const brandOf = (g: Gym) => server.gyms.find((k) => k.id === g.ref)?.brand
+  // Ends with no stop within the longest walk, which the server planned from the nearest stops instead.
+  const sw = plan.data?.stretched_walk
+  const stretched = gym && sw
+    ? ([[direction === 'to-gym' ? home : gym, sw.from_m], [direction === 'to-gym' ? gym : home, sw.to_m]] as const)
+        .flatMap(([p, m]) => (m ? [{ name: p.name, m }] : []))
+    : []
 
   return (
     <div class="stack trip">
@@ -186,6 +192,12 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
             <Callout tone="caution">
               <LineChip line={t.line} /> <strong>Trackwork:</strong> buses replace some trains. Their signs say{' '}
               {orList(t.buses)}.
+            </Callout>
+          ))}
+          {stretched.map((s) => (
+            <Callout>
+              <strong>Longer walk:</strong> no stops on these lines within{' '}
+              {distance(settings.maxWalkM ?? server.defaults.max_walk_m)} of {s.name}. The nearest is {distance(s.m)} away.
             </Callout>
           ))}
           {!plan.data && plan.loading && <BoardSkeleton />}

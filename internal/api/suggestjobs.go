@@ -109,7 +109,7 @@ func (s *Server) suggestLines(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.RadiusM == 0 {
-		req.RadiusM = suggestRadiusM
+		req.RadiusM = s.eng.Config().Routing.MaxWalkM // the planner's longest walk
 	}
 	id, job, ok := s.jobs.start(time.Now())
 	if !ok {

@@ -68,8 +68,8 @@ Non-goals (v1)
   Nothing past 3 km in a straight line counts; beyond that the place has no stops on those lines and the plan says so.
   The router still chooses among the band's stops, so a station a little further beats the closest stop on a poor bus.
   When an end used the band, the plan response says so (`stretched_walk`: which end, and metres to its nearest stop)
-  and the trip screen says the walk is longer than the setting. Ticked stops and timed walks are unaffected (they
-  already work at any distance). Line suggestions find a place's stops by the same rule and radius as the planner, so
+  and the trip screen says the walk is longer than the setting (not once a walk from that place has been timed: the
+  traveller knows by then). Ticked stops and timed walks are unaffected (they already work at any distance). Line suggestions find a place's stops by the same rule and radius as the planner, so
   every suggested line is one the planner can reach; setup's nearby-stops list falls back to the band too.
 - **Walks follow real streets, and measured walks win.** General planners walk through places you can't
   (e.g. through the Johnson factory at Lane Cove) and miss shortcuts that exist (e.g. cutting through the

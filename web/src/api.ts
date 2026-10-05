@@ -84,15 +84,17 @@ const wait = (ms: number, signal?: AbortSignal) =>
 
 /**
  * Finds the lines from one place to each of several. The server runs it as a job (it reads the whole timetable, which
- * can outlast a request), so this starts it and polls; `onProgress` gets the fraction done.
+ * can outlast a request), so this starts it and polls; `onProgress` gets the fraction done. `radiusM` is the longest
+ * walk (the device's setting, else the server's), so the stops it starts from are the ones a plan would use.
  */
 async function suggestLines(
   t: string, from: PlaceRequest, to: PlaceRequest[], signal?: AbortSignal, onProgress?: (fraction: number) => void,
+  radiusM?: number,
 ): Promise<SuggestResponse> {
   let job: string
   for (let attempt = 0; ; attempt++) {
     try {
-      job = (await call<{ job: string }>(t, 'POST', '/api/suggest-lines', { from, to }, signal)).job
+      job = (await call<{ job: string }>(t, 'POST', '/api/suggest-lines', { from, to, radius_m: radiusM }, signal)).job
       break
     } catch (e) {
       // Another search is running (another device, or a retry): wait for it to finish.

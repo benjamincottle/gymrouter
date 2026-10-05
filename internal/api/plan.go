@@ -142,6 +142,14 @@ type planResp struct {
 	Options []optionResp `json:"options"`
 	// Trackwork lists the lines whose trains the options replace with buses.
 	Trackwork []trackworkResp `json:"trackwork,omitempty"`
+	// StretchedWalk is set when an end had no stop within the longest walk, so the nearest ones were used.
+	StretchedWalk *stretchedResp `json:"stretched_walk,omitempty"`
+}
+
+// stretchedResp gives, for each end that used stops beyond the longest walk, the walk to its nearest stop (metres).
+type stretchedResp struct {
+	FromM int `json:"from_m,omitempty"`
+	ToM   int `json:"to_m,omitempty"`
 }
 
 // trackworkResp is a line with trackwork: the buses replacing its trains, by the names on their signs.
@@ -290,6 +298,9 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 		Trackwork: trackwork(day, options)}
 	if s.eng.Walker() != nil {
 		resp.Walking = "streets"
+	}
+	if fromAp.StretchedM > 0 || toAp.StretchedM > 0 {
+		resp.StretchedWalk = &stretchedResp{FromM: int(math.Round(fromAp.StretchedM)), ToM: int(math.Round(toAp.StretchedM))}
 	}
 	if snap.Realtime {
 		at := snap.RealtimeAt
@@ -490,6 +501,8 @@ func (s *Server) access(snap *engine.Snapshot, p placeReq, maxWalk float64, o ra
 	if len(timed) == 0 {
 		return nil, ap, err
 	}
+	// The traveller has walked from here, so a long walk is no news.
+	ap.StretchedM = 0
 	if len(out) == 0 && ap.Access == nil { // only timed stops: draw the street routes anyway
 		ap = s.eng.PathsFrom(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, math.Min(maxWalk*3, 6000))
 	}
@@ -549,7 +562,7 @@ func (s *Server) baseAccess(snap *engine.Snapshot, p placeReq, maxWalk float64, 
 	}
 	ap := s.eng.Approach(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, maxWalk, o)
 	if len(ap.Access) == 0 {
-		return nil, ap, badf("no stops on those lines within %.0f m", maxWalk)
+		return nil, ap, badf("no stops on those lines within %.0f km", engine.BandCapM/1000.0)
 	}
 	return ap.Access, ap, nil
 }
@@ -746,9 +759,6 @@ func suggestPlace(p suggestPlaceReq) (engine.SuggestPlace, error) {
 	}
 	return out, nil
 }
-
-// suggestRadiusM is how far (straight line) a suggestion search looks for stops at each end.
-const suggestRadiusM = 1200
 
 // Hops shorter than this (platform to platform) aren't worth a route: a straight line is the walk.
 const minChangePathM = 40
