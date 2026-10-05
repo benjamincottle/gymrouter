@@ -9,6 +9,7 @@ import (
 
 	"github.com/benjamincottle/gymrouter/internal/gtfs"
 	"github.com/benjamincottle/gymrouter/internal/lines"
+	"github.com/benjamincottle/gymrouter/internal/par"
 	"github.com/benjamincottle/gymrouter/internal/raptor"
 )
 
@@ -181,10 +182,13 @@ func Plan(n *raptor.Network, req Request) []Option {
 			all = append(all, o)
 		}
 	}
-	for _, leave := range leaveTimes(n, req, base.BanRoute) {
-		q := base
-		q.Depart = leave
-		for _, j := range n.Run(q) {
+	// The searches for each leave time are independent: run them on all the cores, then take their results in
+	// leave-time order so the outcome doesn't depend on which finished first.
+	leaves := leaveTimes(n, req, base.BanRoute)
+	found := make([][]raptor.Journey, len(leaves))
+	par.Do(len(leaves), func(i int) { found[i] = n.Run(withDepart(base, leaves[i])) })
+	for i, leave := range leaves {
+		for _, j := range found[i] {
 			add(j, false)
 		}
 		if req.Onboard != nil { // staying on all the way is a journey with no further rides
@@ -305,6 +309,7 @@ func leaveTimes(n *raptor.Network, req Request, ban func(int32) bool) []int32 {
 
 // Alternatives re-runs q with the lines of each found journey excluded (up to two lines at a
 // time) and returns the distinct journeys arriving within slack of the best. maxRuns bounds the work.
+// Each level of exclusions (none, one line, two lines) is searched in parallel.
 func Alternatives(n *raptor.Network, q raptor.Query, slack int32, maxRuns int) []raptor.Journey {
 	keyOf := func(r int32) lines.Key { rt := n.Day.Routes[r]; return lines.Of(rt.Type, rt.ShortName) }
 	var out []raptor.Journey
@@ -314,47 +319,61 @@ func Alternatives(n *raptor.Network, q raptor.Query, slack int32, maxRuns int) [
 	queue := [][]lines.Key{nil}
 	baseBan := q.BanRoute
 	for runs := 0; len(queue) > 0 && runs < maxRuns; {
-		ban := queue[0]
-		queue = queue[1:]
-		names := make([]string, len(ban))
-		for i, k := range ban {
-			names[i] = k.String()
-		}
-		sort.Strings(names)
-		key := strings.Join(names, "|")
-		if tried[key] {
-			continue
-		}
-		tried[key] = true
-		runs++
-		banned := map[lines.Key]bool{}
-		for _, k := range ban {
-			banned[k] = true
-		}
-		q.BanRoute = func(r int32) bool { return (baseBan != nil && baseBan(r)) || banned[keyOf(r)] }
-		for _, j := range n.Run(q) {
-			if j.Arr < best {
-				best = j.Arr
+		// This level's searches: the queue in order, less exclusions already tried, within maxRuns in all.
+		var level [][]lines.Key
+		for _, ban := range queue {
+			if runs >= maxRuns {
+				break
 			}
-			if j.Arr > best+slack {
+			names := make([]string, len(ban))
+			for i, k := range ban {
+				names[i] = k.String()
+			}
+			sort.Strings(names)
+			key := strings.Join(names, "|")
+			if tried[key] {
 				continue
 			}
-			var ls []lines.Key
-			var sig strings.Builder
-			for _, l := range j.Legs {
-				if l.Kind == raptor.Ride {
-					ls = append(ls, keyOf(l.Route))
-					sig.WriteString(keyOf(l.Route).String() + ">" + strconv.Itoa(int(l.From)) + ">" + strconv.Itoa(int(l.To)) + ";")
+			tried[key] = true
+			runs++
+			level = append(level, ban)
+		}
+		found := make([][]raptor.Journey, len(level))
+		par.Do(len(level), func(i int) {
+			banned := map[lines.Key]bool{}
+			for _, k := range level[i] {
+				banned[k] = true
+			}
+			lq := q
+			lq.BanRoute = func(r int32) bool { return (baseBan != nil && baseBan(r)) || banned[keyOf(r)] }
+			found[i] = n.Run(lq)
+		})
+		queue = nil
+		for i, ban := range level {
+			for _, j := range found[i] {
+				if j.Arr < best {
+					best = j.Arr
 				}
-			}
-			if seen[sig.String()] {
-				continue
-			}
-			seen[sig.String()] = true
-			out = append(out, j)
-			if len(ban) < 2 {
-				for _, l := range ls {
-					queue = append(queue, append(append([]lines.Key{}, ban...), l))
+				if j.Arr > best+slack {
+					continue
+				}
+				var ls []lines.Key
+				var sig strings.Builder
+				for _, l := range j.Legs {
+					if l.Kind == raptor.Ride {
+						ls = append(ls, keyOf(l.Route))
+						sig.WriteString(keyOf(l.Route).String() + ">" + strconv.Itoa(int(l.From)) + ">" + strconv.Itoa(int(l.To)) + ";")
+					}
+				}
+				if seen[sig.String()] {
+					continue
+				}
+				seen[sig.String()] = true
+				out = append(out, j)
+				if len(ban) < 2 {
+					for _, l := range ls {
+						queue = append(queue, append(append([]lines.Key{}, ban...), l))
+					}
 				}
 			}
 		}

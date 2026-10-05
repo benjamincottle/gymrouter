@@ -1,8 +1,6 @@
 package walk
 
 import (
-	"container/heap"
-
 	"github.com/benjamincottle/gymrouter/internal/geo"
 )
 
@@ -11,22 +9,58 @@ type Reach struct {
 	g      *Graph
 	origin geo.Point
 	snap   float64 // straight-line metres from the origin to its street node (already weighted)
-	dist   map[int32]float32
-	prev   map[int32]int32
+	nodes  map[int32]reached
 	node   int32
+}
+
+// reached is a street node's walking cost from the origin and the node before it on the way.
+type reached struct {
+	d    float32
+	prev int32
 }
 
 type item struct {
 	d float32
 	n int32
 }
+
+// pq is a binary min-heap on d (container/heap's algorithm, typed so a push doesn't allocate).
 type pq []item
 
-func (h pq) Len() int           { return len(h) }
-func (h pq) Less(i, j int) bool { return h[i].d < h[j].d }
-func (h pq) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
-func (h *pq) Push(x any)        { *h = append(*h, x.(item)) }
-func (h *pq) Pop() any          { o := *h; n := len(o); x := o[n-1]; *h = o[:n-1]; return x }
+func (h *pq) push(x item) {
+	*h = append(*h, x)
+	q := *h
+	for j := len(q) - 1; j > 0; {
+		i := (j - 1) / 2
+		if i == j || !(q[j].d < q[i].d) {
+			break
+		}
+		q[i], q[j] = q[j], q[i]
+		j = i
+	}
+}
+
+func (h *pq) pop() item {
+	q := *h
+	n := len(q) - 1
+	q[0], q[n] = q[n], q[0]
+	for i := 0; ; {
+		j := 2*i + 1
+		if j >= n || j < 0 {
+			break
+		}
+		if j2 := j + 1; j2 < n && q[j2].d < q[j].d {
+			j = j2
+		}
+		if !(q[j].d < q[i].d) {
+			break
+		}
+		q[i], q[j] = q[j], q[i]
+		i = j
+	}
+	*h = q[:n]
+	return q[n]
+}
 
 // From finds how far each street node within maxM (effective metres, including the walk onto the street) is from p.
 // ok is false when p is too far from any street (outside the extract, or on water).
@@ -35,29 +69,26 @@ func (g *Graph) From(p geo.Point, maxM float64) (*Reach, bool) {
 	if !ok {
 		return nil, false
 	}
-	r := &Reach{g: g, origin: p, snap: d * snapDetour, dist: map[int32]float32{}, prev: map[int32]int32{}, node: n}
+	r := &Reach{g: g, origin: p, snap: d * snapDetour, nodes: map[int32]reached{}, node: n}
 	limit := float32(maxM - r.snap)
 	if limit < 0 {
 		return r, true
 	}
-	r.dist[n] = 0
-	h := &pq{{0, n}}
-	done := map[int32]bool{}
-	for h.Len() > 0 {
-		it := heap.Pop(h).(item)
-		if done[it.n] {
-			continue
+	r.nodes[n] = reached{0, -1}
+	h := pq{{0, n}}
+	for len(h) > 0 {
+		it := h.pop()
+		if it.d > r.nodes[it.n].d {
+			continue // a stale entry: the node was reached more cheaply since
 		}
-		done[it.n] = true
-		for e := r.g.start[it.n]; e < r.g.start[it.n+1]; e++ {
+		for e := g.start[it.n]; e < g.start[it.n+1]; e++ {
 			nd := it.d + g.cost[e]
 			if nd > limit {
 				continue
 			}
-			if old, seen := r.dist[g.to[e]]; !seen || nd < old {
-				r.dist[g.to[e]] = nd
-				r.prev[g.to[e]] = it.n
-				heap.Push(h, item{nd, g.to[e]})
+			if old, seen := r.nodes[g.to[e]]; !seen || nd < old.d {
+				r.nodes[g.to[e]] = reached{nd, it.n}
+				h.push(item{nd, g.to[e]})
 			}
 		}
 	}
@@ -71,11 +102,11 @@ func (r *Reach) Metres(q geo.Point) (float64, bool) {
 	if !ok {
 		return 0, false
 	}
-	dd, ok := r.dist[n]
+	rn, ok := r.nodes[n]
 	if !ok {
 		return 0, false
 	}
-	return r.snap + float64(dd) + d*snapDetour, true
+	return r.snap + float64(rn.d) + d*snapDetour, true
 }
 
 // Path returns the streets walked from the origin to q as a polyline (origin and q included).
@@ -84,7 +115,7 @@ func (r *Reach) Path(q geo.Point) ([]geo.Point, bool) {
 	if !ok {
 		return nil, false
 	}
-	if _, ok := r.dist[n]; !ok {
+	if _, ok := r.nodes[n]; !ok {
 		return nil, false
 	}
 	var rev []geo.Point
@@ -93,7 +124,7 @@ func (r *Reach) Path(q geo.Point) ([]geo.Point, bool) {
 		if cur == r.node {
 			break
 		}
-		cur = r.prev[cur]
+		cur = r.nodes[cur].prev
 	}
 	out := make([]geo.Point, 0, len(rev)+2)
 	out = append(out, r.origin)
