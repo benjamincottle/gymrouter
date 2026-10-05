@@ -332,9 +332,9 @@ select {
   border-left: 1.5px solid var(--ink);
 }
 
-/* the chosen option: a bar in the highlight colour along its bottom, like the selected row on the board */
+/* the chosen option: a bar along its bottom in the control's own ink, part of its frame */
 .segmented button[aria-checked='true'] {
-  box-shadow: inset 0 calc(-1 * var(--bar)) 0 var(--hl), inset 0 calc(-1 * var(--bar) - 1px) 0 var(--hl-edge);
+  box-shadow: inset 0 calc(-1 * var(--bar)) 0 var(--ink);
 }
 
 /* ---- fields ---- */

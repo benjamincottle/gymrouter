@@ -135,8 +135,9 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Icon button:** 44×44, no outline, `--panel` on hover. The `danger` variant colours the icon `--missed`. Always has
   an `aria-label`.
 - **Segmented control:** one size (16px/600, 44px), a radio group (one tab stop, arrow keys). The chosen option has
-  a 4px `--hl` bar along its bottom (inset, like the selected row on the board); the others stay ink, never greyed
-  (grey means disabled).
+  a 4px ink bar along its bottom (inset), the same ink as the control's outline so it reads as part of the frame,
+  whatever the highlight colour; the others stay ink, never greyed (grey means disabled). Not `--hl`: a coloured bar
+  clashed with the ink outline, and outlining controls in `--hl` would make it a button accent colour.
 - **Field:** a label (600) above, then a 44px input in `--panel` with a 1.5px `--edge` outline that turns ink on focus,
   then an optional hint (14px pencil, 400).
   - Defaults: an empty field means "use the default", and its hint says what the default is ("Empty uses the default,
