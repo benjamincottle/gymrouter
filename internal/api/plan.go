@@ -11,6 +11,7 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/geo"
 	"github.com/benjamincottle/gymrouter/internal/gtfs"
 	"github.com/benjamincottle/gymrouter/internal/lines"
+	"github.com/benjamincottle/gymrouter/internal/par"
 	"github.com/benjamincottle/gymrouter/internal/plan"
 	"github.com/benjamincottle/gymrouter/internal/raptor"
 )
@@ -218,24 +219,32 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 		maxWalk = req.Prefs.MaxWalkM
 	}
 	var ob *plan.Onboard
-	var access []raptor.Access
+	var access, egress []raptor.Access
 	var fromAp, toAp engine.Approach
-	if onboard {
-		ob, err = boarded(snap, req.From.OnTrip, snap.Secs(leave))
-		if err != nil {
-			return nil, err
+	var fromErr, toErr error
+	// The two ends are independent, and each can be a search over the streets: do them at once.
+	par.Do(2, func(i int) {
+		switch {
+		case i == 1:
+			egress, toAp, toErr = s.access(snap, req.To, maxWalk, opts)
+		case !onboard:
+			access, fromAp, fromErr = s.access(snap, req.From, maxWalk, opts)
+		default:
+			if ob, fromErr = boarded(snap, req.From.OnTrip, snap.Secs(leave)); fromErr == nil {
+				if access = plan.OnboardAccess(snap.Net, ob, snap.Secs(leave)); len(access) == 0 {
+					fromErr = badf("that trip has already finished")
+				}
+			}
 		}
-		access = plan.OnboardAccess(snap.Net, ob, snap.Secs(leave))
-		if len(access) == 0 {
-			return nil, badf("that trip has already finished")
-		}
-		window = 0
-	} else if access, fromAp, err = s.access(snap, req.From, maxWalk, opts); err != nil {
-		return nil, err
+	})
+	if fromErr != nil {
+		return nil, fromErr
 	}
-	egress, toAp, err := s.access(snap, req.To, maxWalk, opts)
-	if err != nil {
-		return nil, err
+	if toErr != nil {
+		return nil, toErr
+	}
+	if onboard {
+		window = 0
 	}
 	th := plan.Thresholds{Safe: cfg.Risk.SafeS, Tight: cfg.Risk.TightS}
 	if rk := req.Prefs.Risk; rk != nil {
@@ -268,7 +277,7 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 		options = plan.Plan(snap.Net, preq)
 	}
 
-	resp := &planResp{ServiceDate: snap.Date.Format("2006-01-02"), Realtime: snap.Realtime, Options: []optionResp{}, Walking: "estimate"}
+	resp := &planResp{ServiceDate: snap.Date.Format("2006-01-02"), Realtime: snap.Realtime, Walking: "estimate"}
 	if s.eng.Walker() != nil {
 		resp.Walking = "streets"
 	}
@@ -280,9 +289,10 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	if onboard {
 		buffer = 0 // already on the way
 	}
-	for _, o := range options {
-		resp.Options = append(resp.Options, optionJSON(snap, o, buffer, fromAp, toAp, s.eng.WalkPath))
-	}
+	resp.Options = make([]optionResp, len(options))
+	par.Do(len(options), func(i int) { // each option's walks are drawn along the streets
+		resp.Options[i] = optionJSON(snap, options[i], buffer, fromAp, toAp, s.eng.WalkPath)
+	})
 	return resp, nil
 }
 

@@ -387,3 +387,9 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   trip screen with a reverse button instead of the To the gym / Home toggle; the commit action in a bar pinned to the
   bottom; a darker edge colour for control outlines; details on a second line instead of middle dots; defaults shown one
   way ("Empty uses the default"); End trip moved away from the map's Back. Disabled buttons: a thin greyed outline.
+- 2026-10-05: Planning speed. A search works only over the stops trips call at (a few thousand) rather than every stop in
+  the feed (~171k): planning allocated ~1.4 GB per request and spent most of its time clearing memory and collecting
+  garbage. Searches reuse their working memory. The independent searches (one per leave time; each level of
+  alternatives) and the two ends' walks run on all cores, with results combined in a fixed order so the options are
+  identical. On a laptop, a plan went from 230 ms to 13 ms on one core and ~5 ms on four. Benchmarks
+  (`GYMROUTER_BENCH_DATA`) run over the real timetable and street network.

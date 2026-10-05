@@ -3,9 +3,11 @@ package raptor
 
 import (
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/benjamincottle/gymrouter/internal/geo"
 	"github.com/benjamincottle/gymrouter/internal/gtfs"
@@ -41,6 +43,15 @@ type Network struct {
 	stopPatterns [][]patRef
 	Footpaths    [][]Footpath
 	tripPattern  map[int32]int32 // Day.Trips index → pattern
+
+	// A search only needs the stops trips call at: a few thousand, where the feed has well over a hundred thousand.
+	// It numbers those densely so its working arrays stay small. local maps a stop to its dense number (-1 if no
+	// trip calls there) and global maps back; patStops and localFoot are Patterns' stops and Footpaths numbered so.
+	local     []int32
+	global    []int32
+	patStops  [][]int32
+	localFoot [][]Footpath
+	scratch   sync.Pool // *runScratch, reused between searches
 }
 
 // Options control network construction.
@@ -141,7 +152,36 @@ func Build(d *gtfs.Day, o Options) *Network {
 		n.Footpaths = o.Footpaths(d, used, n.Footpaths)
 	}
 	n.applyPathways(used, o)
+	n.numberStops(used)
 	return n
+}
+
+// numberStops gives the stops trips call at their dense numbers (see Network.local).
+func (n *Network) numberStops(used []bool) {
+	n.local = make([]int32, len(used))
+	for s := range used {
+		n.local[s] = -1
+		if used[s] {
+			n.local[s] = int32(len(n.global))
+			n.global = append(n.global, int32(s))
+		}
+	}
+	n.patStops = make([][]int32, len(n.Patterns))
+	for pi, p := range n.Patterns {
+		ls := make([]int32, len(p.Stops))
+		for i, s := range p.Stops {
+			ls[i] = n.local[s]
+		}
+		n.patStops[pi] = ls
+	}
+	n.localFoot = make([][]Footpath, len(n.global))
+	for ls, s := range n.global {
+		for _, fp := range n.Footpaths[s] {
+			if t := n.local[fp.To]; t >= 0 {
+				n.localFoot[ls] = append(n.localFoot[ls], Footpath{To: t, Secs: fp.Secs})
+			}
+		}
+	}
 }
 
 // applyPathways replaces straight-line transfers inside stations with times along the station's
@@ -342,23 +382,88 @@ func (n *Network) earliestTrip(p *Pattern, i int, at int32) int32 {
 	return best
 }
 
-// Run returns the Pareto-optimal journeys (arrival time vs. number of rides).
+// runScratch is a search's working memory, reused between searches.
+type runScratch struct {
+	labels     [][]label // per round, per stop (dense numbers)
+	best       []int32
+	marked     []bool
+	markedList []int32
+	rideMarked []int32
+	queue      []int32 // per pattern: the first call to scan this round, or -1 if the pattern isn't queued
+	queued     []int32 // the patterns queued this round
+	targetArr  []int32
+	targetStop []int32
+	// extra are access or egress stops no trip calls at. They take the numbers after the dense ones, so a
+	// journey that only walks via such a stop is still found.
+	extra []int32
+}
+
+func (n *Network) getScratch() *runScratch {
+	if sc, ok := n.scratch.Get().(*runScratch); ok {
+		return sc
+	}
+	sc := &runScratch{queue: make([]int32, len(n.Patterns))}
+	for i := range sc.queue {
+		sc.queue[i] = -1
+	}
+	return sc
+}
+
+// grow returns s with length l, reusing its memory when it is big enough.
+func grow[T any](s []T, l int) []T {
+	if cap(s) < l {
+		return make([]T, l)
+	}
+	return s[:l]
+}
+
+// Run returns the Pareto-optimal journeys (arrival time vs. number of rides). It is safe to call concurrently.
 func (n *Network) Run(q Query) []Journey {
-	ns := len(n.Day.Stops)
 	if q.MaxRides <= 0 {
 		q.MaxRides = 4
 	}
-	labels := make([][]label, q.MaxRides+1)
-	labels[0] = make([]label, ns)
-	for i := range labels[0] {
-		labels[0][i].arr = inf
+	sc := n.getScratch()
+	nd := int32(len(n.global))
+	sc.extra = sc.extra[:0]
+	dense := func(s int32) int32 {
+		if l := n.local[s]; l >= 0 {
+			return l
+		}
+		for i, e := range sc.extra {
+			if e == s {
+				return nd + int32(i)
+			}
+		}
+		sc.extra = append(sc.extra, s)
+		return nd + int32(len(sc.extra)-1)
 	}
-	best := make([]int32, ns)
+	for _, a := range q.Access {
+		dense(a.Stop)
+	}
+	for _, e := range q.Egress {
+		dense(e.Stop)
+	}
+	glob := func(s int32) int32 {
+		if s < nd {
+			return n.global[s]
+		}
+		return sc.extra[s-nd]
+	}
+	ns := int(nd) + len(sc.extra)
+
+	sc.labels = grow(sc.labels, q.MaxRides+1)
+	labels := sc.labels
+	labels[0] = grow(labels[0], ns)
+	for i := range labels[0] {
+		labels[0][i] = label{arr: inf}
+	}
+	best := grow(sc.best, ns)
 	for i := range best {
 		best[i] = inf
 	}
-	marked := make([]bool, ns)
-	var markedList []int32
+	marked := grow(sc.marked, ns)
+	clear(marked)
+	markedList := sc.markedList[:0]
 	mark := func(s int32) {
 		if !marked[s] {
 			marked[s] = true
@@ -366,54 +471,60 @@ func (n *Network) Run(q Query) []Journey {
 		}
 	}
 	for _, a := range q.Access {
+		s := dense(a.Stop)
 		arr := q.Depart + a.Secs
-		if arr < labels[0][a.Stop].arr {
-			labels[0][a.Stop] = label{arr: arr, kind: access, from: a.Secs}
-			best[a.Stop] = arr
-			mark(a.Stop)
+		if arr < labels[0][s].arr {
+			labels[0][s] = label{arr: arr, kind: access, from: a.Secs}
+			best[s] = arr
+			mark(s)
 		}
 	}
 	egress := map[int32]int32{}
 	for _, e := range q.Egress {
-		if cur, ok := egress[e.Stop]; !ok || e.Secs < cur {
-			egress[e.Stop] = e.Secs
+		s := dense(e.Stop)
+		if cur, ok := egress[s]; !ok || e.Secs < cur {
+			egress[s] = e.Secs
 		}
 	}
-	targetArr := make([]int32, q.MaxRides+1)
-	targetStop := make([]int32, q.MaxRides+1)
+	targetArr := grow(sc.targetArr, q.MaxRides+1)
+	targetStop := grow(sc.targetStop, q.MaxRides+1)
 	bestTarget := inf
 	targetArr[0] = inf
+	queue, queued, rideMarked := sc.queue, sc.queued[:0], sc.rideMarked[:0]
 
+	rounds := 0
 	for k := 1; k <= q.MaxRides; k++ {
+		rounds = k
 		targetArr[k] = inf
-		labels[k] = make([]label, ns)
+		labels[k] = grow(labels[k], ns)
 		copy(labels[k], labels[k-1])
-		queue := map[int32]int32{}
+		queued = queued[:0]
 		for _, s := range markedList {
-			for _, pr := range n.stopPatterns[s] {
+			for _, pr := range n.stopPatterns[glob(s)] {
 				if q.BanRoute != nil && q.BanRoute(n.Patterns[pr.pat].Route) {
 					continue
 				}
-				if cur, ok := queue[pr.pat]; !ok || pr.idx < cur {
+				if cur := queue[pr.pat]; cur < 0 {
+					queue[pr.pat] = pr.idx
+					queued = append(queued, pr.pat)
+				} else if pr.idx < cur {
 					queue[pr.pat] = pr.idx
 				}
 			}
 			marked[s] = false
 		}
 		markedList = markedList[:0]
-		var rideMarked []int32
+		rideMarked = rideMarked[:0]
 		// Scan patterns in a fixed order so ties between equal arrivals resolve deterministically.
-		order := make([]int32, 0, len(queue))
-		for pi := range queue {
-			order = append(order, pi)
-		}
-		sort.Slice(order, func(a, b int) bool { return order[a] < order[b] })
-		for _, pi := range order {
+		slices.Sort(queued)
+		for _, pi := range queued {
 			start := queue[pi]
+			queue[pi] = -1
 			p := &n.Patterns[pi]
+			stops := n.patStops[pi]
 			t, board := int32(-1), int32(-1)
-			for i := int(start); i < len(p.Stops); i++ {
-				s := p.Stops[i]
+			for i := int(start); i < len(stops); i++ {
+				s := stops[i]
 				if t >= 0 {
 					arr := n.tripTimes(p, t)[i].Arr
 					if arr < best[s] && arr < bestTarget {
@@ -433,7 +544,7 @@ func (n *Network) Run(q Query) []Journey {
 				if prev.kind == ride {
 					change := q.MinChange
 					if q.Transfer != nil {
-						if v, ok := q.Transfer(s, s); ok {
+						if v, ok := q.Transfer(p.Stops[i], p.Stops[i]); ok {
 							change = v
 						}
 					}
@@ -449,10 +560,10 @@ func (n *Network) Run(q Query) []Journey {
 		}
 		for _, s := range rideMarked {
 			from := labels[k][s]
-			for _, fp := range n.Footpaths[s] {
+			for _, fp := range n.localFoot[s] {
 				secs := fp.Secs
 				if q.Transfer != nil {
-					if v, ok := q.Transfer(s, fp.To); ok {
+					if v, ok := q.Transfer(glob(s), glob(fp.To)); ok {
 						secs = v
 					}
 				}
@@ -465,8 +576,9 @@ func (n *Network) Run(q Query) []Journey {
 			}
 		}
 		for _, e := range q.Egress {
-			if l := labels[k][e.Stop]; l.arr != inf && l.arr+e.Secs < targetArr[k] {
-				targetArr[k], targetStop[k] = l.arr+e.Secs, e.Stop
+			s := dense(e.Stop)
+			if l := labels[k][s]; l.arr != inf && l.arr+e.Secs < targetArr[k] {
+				targetArr[k], targetStop[k] = l.arr+e.Secs, s
 			}
 		}
 		if targetArr[k] < bestTarget {
@@ -479,27 +591,31 @@ func (n *Network) Run(q Query) []Journey {
 
 	var out []Journey
 	prevBest := inf
-	for k := 1; k <= q.MaxRides && labels[k] != nil; k++ {
+	for k := 1; k <= rounds; k++ {
 		if targetArr[k] >= prevBest {
 			continue
 		}
 		prevBest = targetArr[k]
-		if j, ok := n.reconstruct(labels, k, targetStop[k], egress[targetStop[k]], q.Depart); ok {
+		if j, ok := n.reconstruct(labels, k, targetStop[k], egress[targetStop[k]], glob); ok {
 			out = append(out, j)
 		}
 	}
+	sc.best, sc.marked, sc.markedList, sc.rideMarked, sc.queued = best, marked, markedList, rideMarked, queued
+	sc.targetArr, sc.targetStop = targetArr, targetStop
+	n.scratch.Put(sc)
 	return out
 }
 
-func (n *Network) reconstruct(labels [][]label, k int, s int32, egressSecs int32, depart int32) (Journey, bool) {
+// reconstruct follows the labels back from stop s (a dense number) at round k; glob turns dense numbers back into stops.
+func (n *Network) reconstruct(labels [][]label, k int, s int32, egressSecs int32, glob func(int32) int32) (Journey, bool) {
 	l := labels[k][s]
-	legs := []Leg{{Kind: Walk, From: s, To: -1, Dep: l.arr, Arr: l.arr + egressSecs}}
+	legs := []Leg{{Kind: Walk, From: glob(s), To: -1, Dep: l.arr, Arr: l.arr + egressSecs}}
 	r := k
 	for steps := 0; steps < 32; steps++ {
 		l = labels[r][s]
 		switch l.kind {
 		case access:
-			legs = append(legs, Leg{Kind: Walk, From: -1, To: s, Dep: l.arr - l.from, Arr: l.arr})
+			legs = append(legs, Leg{Kind: Walk, From: -1, To: glob(s), Dep: l.arr - l.from, Arr: l.arr})
 			// reverse
 			for i, j := 0, len(legs)-1; i < j; i, j = i+1, j-1 {
 				legs[i], legs[j] = legs[j], legs[i]
@@ -513,21 +629,21 @@ func (n *Network) reconstruct(labels [][]label, k int, s int32, egressSecs int32
 			return Journey{Legs: legs, Rides: rides, Dep: legs[0].Dep, Arr: legs[len(legs)-1].Arr}, true
 		case ride:
 			p := &n.Patterns[l.pat]
-			b := p.Stops[l.board]
+			stops := n.patStops[l.pat]
 			times := n.tripTimes(p, l.trip)
 			alight := l.board
-			for i := l.board + 1; i < int32(len(p.Stops)); i++ {
-				if p.Stops[i] == s && times[i].Arr == l.arr {
+			for i := l.board + 1; i < int32(len(stops)); i++ {
+				if stops[i] == s && times[i].Arr == l.arr {
 					alight = i
 					break
 				}
 			}
-			legs = append(legs, Leg{Kind: Ride, From: b, To: s, Dep: times[l.board].Dep, Arr: l.arr,
+			legs = append(legs, Leg{Kind: Ride, From: p.Stops[l.board], To: glob(s), Dep: times[l.board].Dep, Arr: l.arr,
 				Route: p.Route, Trip: p.Trips[l.trip], Pattern: l.pat, BoardIdx: l.board, AlightIdx: alight})
-			s, r = b, int(l.round)-1
+			s, r = stops[l.board], int(l.round)-1
 		case walk:
 			fromArr := labels[l.round][l.from].arr
-			legs = append(legs, Leg{Kind: Walk, From: l.from, To: s, Dep: fromArr, Arr: l.arr})
+			legs = append(legs, Leg{Kind: Walk, From: glob(l.from), To: glob(s), Dep: fromArr, Arr: l.arr})
 			s, r = l.from, int(l.round)
 		default:
 			return Journey{}, false
