@@ -23,13 +23,14 @@ interface Props {
   token: string
   homes: Home[] // line suggestions start from one of these
   walks: TimedWalk[] // walks timed during trips, shown against their stops
+  maxWalkM?: number // the device's longest walk, for line suggestions
   onAuthError: () => void
   onSave: (p: Gym) => void
   onCancel: () => void
 }
 
 /** Adds or edits a home or a gym: where it is, the stops to walk to, and (for a gym) its lines. */
-export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthError, onSave, onCancel }: Props) {
+export function PlaceEditor({ kind, place, isNew, token, homes, walks, maxWalkM, onAuthError, onSave, onCancel }: Props) {
   const [p, setP] = useState<Gym>(place)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<GeocodeResult[]>([])
@@ -164,8 +165,8 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
       </Section>
 
       {stops && (
-        <Section title={gym ? 'Stops near the gym' : 'Your stops'} intro={'Pick the stops you\'d actually walk to. If you pick none, every stop within your walking limit is considered. Walking times come from the street map until you time a walk on a trip ("Time my walk"); a timed walk is used for its stop, picked here or not.'}>
-          {stops.length === 0 && <p class="meta">No stops within {gym ? '1.2' : '1.5'} km.</p>}
+        <Section title={gym ? 'Stops near the gym' : 'Your stops'} intro={'Pick the stops you\'d actually walk to. If you pick none, every stop within your longest walk is considered (or, if there are none, the nearest ones). Walking times come from the street map until you time a walk on a trip ("Time my walk"); a timed walk is used for its stop, picked here or not.'}>
+          {stops.length === 0 && <p class="meta">No stops within 3 km.</p>}
           <ul class="rows stops">
             {visibleGroups.map((g) => {
               const walk = groupWalk(g)
@@ -205,6 +206,7 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
           gym={p}
           homes={homes}
           token={token}
+          maxWalkM={maxWalkM}
           onAuthError={onAuthError}
           setLines={(lines) => setP((cur) => ({ ...cur, lines }))}
           onSuggested={(r, homeId) => setP((cur) => withSuggested(cur, r, homeId))}
@@ -235,11 +237,12 @@ function chipOf(key: string, color?: string) {
 
 /** Chooses the lines worth considering for a gym: the server suggests them from a home, the person decides. */
 function LinesSection({
-  gym, homes, token, onAuthError, setLines, onSuggested,
+  gym, homes, token, maxWalkM, onAuthError, setLines, onSuggested,
 }: {
   gym: Gym
   homes: Home[]
   token: string
+  maxWalkM?: number
   onAuthError: () => void
   setLines: (l: string[]) => void
   onSuggested: (r: SuggestResult, homeId: string) => void
@@ -264,7 +267,7 @@ function LinesSection({
     setProgress(0)
     setError('')
     try {
-      const r = (await api.suggestLines(token, placeRequest(home), [placeRequest(gym)], c.signal, setProgress)).results[0]
+      const r = (await api.suggestLines(token, placeRequest(home), [placeRequest(gym)], c.signal, setProgress, maxWalkM)).results[0]
       if (c.signal.aborted) return
       setResult(r)
       onSuggested(r, home.id) // keeps what's already chosen and adds what the search recommends
@@ -396,6 +399,7 @@ interface ChooserProps {
   have: Gym[] // already on this device
   home: Home | undefined
   token: string
+  maxWalkM?: number // the device's longest walk, for line suggestions
   onAuthError: () => void
   /** Called with the gyms to add; `warning` says if their home-side lines couldn't be found. */
   onAdd: (gyms: Gym[], warning?: string) => void
@@ -404,7 +408,7 @@ interface ChooserProps {
 }
 
 /** Picks gyms from the ones the app already knows, and finds the lines near home for them in one go. */
-export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCustom, onCancel }: ChooserProps) {
+export function GymChooser({ known, have, home, token, maxWalkM, onAuthError, onAdd, onCustom, onCancel }: ChooserProps) {
   const available = (known ?? []).filter((k) => !have.some((g) => g.ref === k.id))
   const [picked, setPicked] = useState<Set<string> | null>(null)
   const sel = picked ?? new Set(available.map((k) => k.id)) // everything ticked until the person says otherwise
@@ -432,7 +436,7 @@ export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCus
       setProgress(0)
       setError('')
       try {
-        const res = await api.suggestLines(token, placeRequest(home), gyms.map((g) => placeRequest(g)), c.signal, setProgress)
+        const res = await api.suggestLines(token, placeRequest(home), gyms.map((g) => placeRequest(g)), c.signal, setProgress, maxWalkM)
         if (c.signal.aborted) return
         gyms = gyms.map((g, i) => (res.results[i] ? withSuggested(g, res.results[i], home.id) : g))
       } catch (e) {

@@ -61,6 +61,16 @@ Non-goals (v1)
 - Walking transfers between stops on those lines: GTFS transfers/pathways where present, otherwise
   distance × walking factor; **personal overrides win**.
 - Access/egress: device-supplied home access stops + walk times; gym access stops from config.
+- **The longest walk is a preference, not a wall.** A place with no ticked stops uses the stops on the trip's lines
+  within the longest walk (Settings, default 1000 m, straight line). If there are none, it uses the **band** instead:
+  the nearest stop on those lines and every other one within 500 m further than it, measured along the streets when
+  the street network is there (a stop that's near in a straight line but across a river doesn't count as nearest).
+  Nothing past 3 km in a straight line counts; beyond that the place has no stops on those lines and the plan says so.
+  The router still chooses among the band's stops, so a station a little further beats the closest stop on a poor bus.
+  When an end used the band, the plan response says so (`stretched_walk`: which end, and metres to its nearest stop)
+  and the trip screen says the walk is longer than the setting (not once a walk from that place has been timed: the
+  traveller knows by then). Ticked stops and timed walks are unaffected (they already work at any distance). Line suggestions find a place's stops by the same rule and radius as the planner, so
+  every suggested line is one the planner can reach; setup's nearby-stops list falls back to the band too.
 - **Walks follow real streets, and measured walks win.** General planners walk through places you can't
   (e.g. through the Johnson factory at Lane Cove) and miss shortcuts that exist (e.g. cutting through the
   plumbing-supply site). Walks to and from stops, and between stops when changing, are routed over a pedestrian network built from OpenStreetMap
@@ -429,3 +439,12 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - 2026-10-05: The highlight colour setting is gone (supersedes "A highlight colour (Settings)"). It wasn't adding
   anything: underlines, the selected row's bar, the route tape and the icons' filled parts are ink, black on the light
   theme and white on the dark one. A saved highlight choice is simply dropped.
+- 2026-10-05: The longest walk falls back to a band of stops rather than refusing (see §5). A home or gym more than
+  1000 m (the default) from any stop on its lines planned nothing: "no stops on those lines within 1000 m". Ticking stops
+  got round it but pins the place to those stops, so lines added later go unused, and timed walks can't start without a
+  first trip. Now an end with nothing in range uses the nearest stop on the lines plus any within 500 m further (along the
+  streets), up to 3 km, and the trip screen says the walk is longer than the setting. Using only the single nearest stop
+  was rejected: it's often the worst choice (a stop on an infrequent bus when a station is a few minutes further), and the
+  band costs the router next to nothing. Raising the default was rejected too: it widens every search for everyone to fix
+  the rare far place. Line suggestions now use the planner's rule and radius (they used 1200 m against the planner's
+  1000 m, so they could suggest a line from a stop the planner then wouldn't use).

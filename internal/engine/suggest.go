@@ -151,7 +151,7 @@ func (e *Engine) suggestWindow(ctx context.Context, date time.Time, label string
 		return nil, nil
 	}
 	net := raptor.Build(day, opts)
-	access, err := suggestAccess(net, from, radiusM, opts)
+	access, err := e.suggestAccess(net, from, radiusM, opts)
 	if err != nil {
 		return nil, fmt.Errorf("the start: %w", err)
 	}
@@ -160,7 +160,7 @@ func (e *Engine) suggestWindow(ctx context.Context, date time.Time, label string
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		egress, err := suggestAccess(net, to, radiusM, opts)
+		egress, err := e.suggestAccess(net, to, radiusM, opts)
 		if err != nil {
 			return nil, fmt.Errorf("destination %d: %w", i+1, err)
 		}
@@ -171,7 +171,7 @@ func (e *Engine) suggestWindow(ctx context.Context, date time.Time, label string
 	return out, nil
 }
 
-func suggestAccess(net *raptor.Network, p SuggestPlace, radiusM float64, o raptor.Options) ([]raptor.Access, error) {
+func (e *Engine) suggestAccess(net *raptor.Network, p SuggestPlace, radiusM float64, o raptor.Options) ([]raptor.Access, error) {
 	if len(p.Access) > 0 {
 		var out []raptor.Access
 		for _, a := range p.Access {
@@ -184,9 +184,10 @@ func suggestAccess(net *raptor.Network, p SuggestPlace, radiusM float64, o rapto
 		}
 		return out, nil
 	}
-	out := net.StopsNear(p.Pos, radiusM, o)
+	// The same stops the planner would use, so every suggested line is one it can reach.
+	out := e.Approach(net, p.Pos, radiusM, o).Access
 	if len(out) == 0 {
-		return nil, fmt.Errorf("%w within %.0f m", ErrNoStops, radiusM)
+		return nil, fmt.Errorf("%w within %.0f km", ErrNoStops, BandCapM/1000.0)
 	}
 	return out, nil
 }

@@ -42,7 +42,9 @@ measured walks from the gym door.
   A train line brings the buses that replace its trains during trackwork (`replacement-bus 23T4` for the T4, matched by
   the line code at the end of the bus's name; `10M` for the metro); they aren't listed in `lines`.
 - A place is `lat`/`lon`, optionally with curated `access` stops and walk times. Without
-  them, stops within `max_walk_m` are used. Either end can be home or gym.
+  them, stops within `max_walk_m` are used, or if there are none, the band: the nearest stop on the lines and any up to
+  500 m further (along the streets when known), within 3 km. Past that the plan is a 400 ("no stops on those lines
+  within 3 km"). Either end can be home or gym.
 - A place can also carry `walks` (up to 40, `[{"stop": "<stop or station ID>", "walk_s": 540}]`): walks the traveller
   has timed between the place and a stop. They beat any other time for that stop (a station ID covers its rail platforms,
 not bus stands that belong to the station)
@@ -73,6 +75,8 @@ Response:
 ```
 `trackwork` (left out when empty) lists the lines whose trains the options replace with buses, and those buses' names
 (the names on their signs).
+`stretched_walk` (left out when neither end needed it) is `{"from_m"?: 1430, "to_m"?: …}`: for each end that had no stop
+within `max_walk_m` and used the band, the walk to its nearest stop in metres. An end with timed `walks` never reports it.
 `walking` is `streets` when walks to and from stops, and changes between stops, follow real streets and paths (the server's OpenStreetMap-based
 network), or `estimate` (straight line × a detour factor) while that network is still being prepared. Curated `access`
 walks apply either way. The first and last walk legs of an option carry a `path` (`[[lon, lat], …]`) along the streets
@@ -89,15 +93,17 @@ opens and whenever they change. Lines the timetable doesn't have are skipped; a 
 on the total the server will hold, is a 400. Asking counts as using the lines (see `lines` under `POST /api/plan`).
 
 ## `POST /api/stops/near`
-`{"lat": …, "lon": …, "radius_m": 800}` → stops near the point with every line that serves them, nearest first:
+`{"lat": …, "lon": …, "radius_m": 800}` → stops near the point (within `radius_m`, or the band as for a plan when there
+are none) with every line that serves them, nearest first:
 `{"stops": [{"id", "name", "station", "lat", "lon", "walk_s", "lines": ["bus 288"]}]}`. Used to set up a home or gym,
 before any lines are chosen. Also returns `"walking": "streets"|"estimate"`: with street data, `walk_s` follows the streets
 and stops that can't be reached on foot are left out. 503 (with `Retry-After`) for a few seconds after the server starts, while it reads the timetable.
 
 ## `POST /api/suggest-lines`, `GET /api/suggest-lines/{job}`
-`{"from": {"lat", "lon", "access"?}, "to": [{"lat", "lon", "access"?}, …], "radius_m"?: 1200}` (1 to 12 destinations)
+`{"from": {"lat", "lon", "access"?}, "to": [{"lat", "lon", "access"?}, …], "radius_m"?: 1000}` (1 to 12 destinations)
 finds, for each destination, the lines that appear in the best options from `from` over the whole network, searched at
-10-minute steps on a typical weekday afternoon and a Sunday morning.
+10-minute steps on a typical weekday afternoon and a Sunday morning. Each end uses the stops a plan would (`radius_m` is
+the longest walk, default the server's `max_walk_m`), so every suggested line is one a plan can reach.
 
 It reads the whole timetable once per day searched (about 15 s, ~300 MB briefly, longer on a small server) however many
 destinations there are, which can outlast a proxy's or phone's patience, so it runs as a job: the POST answers
@@ -105,7 +111,7 @@ destinations there are, which can outlast a proxy's or phone's patience, so it r
 runs at a time). Poll `GET /api/suggest-lines/{job}` every second or two:
 ```json
 {"state": "running", "done": 3, "of": 12}
-{"state": "failed", "done": 1, "of": 12, "error": "no stops within 1200 m"}
+{"state": "failed", "done": 1, "of": 12, "error": "no stops within 3 km"}
 {"state": "done", "done": 12, "of": 12, "results": [{
   "windows": [{"label": "Weekday afternoon", "date": "2026-10-06", "departures": 19, "typical_s": 1490}],
   "lines": [{"line": "metro M1", "color": "168388", "share": 1.0, "recommended": true}],

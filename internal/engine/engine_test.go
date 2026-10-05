@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -380,6 +381,67 @@ func TestApproachFollowsStreetsWhenTheyAreKnown(t *testing.T) {
 	}
 	if near, streets := e.NearbyStops(e.Catalog(), epping, 300, o); !streets || len(near) == 0 {
 		t.Errorf("nearby stops with streets: %v %d", streets, len(near))
+	}
+}
+
+// A place with no stop within the longest walk uses the nearest stop and any up to 500 m further, never past 3 km.
+func TestApproachFallsBackToTheBand(t *testing.T) {
+	env := enginetest.New(t, "", nil)
+	e := env.Engine
+	snap, _ := e.SnapshotFor(env.Clock.Now())
+	o := e.RoutingOptions()
+	epping := geo.Point{Lat: -33.7727, Lon: 151.0821}
+	home := geo.Point{Lat: epping.Lat + 0.009, Lon: epping.Lon} // 1 km north
+	dist := map[int32]float64{}
+	nearest := math.Inf(1)
+	for _, a := range snap.Net.StopsNear(home, 5000, o) {
+		dist[a.Stop] = geo.DistanceM(home, snap.Day.Stops[a.Stop].Pos)
+		nearest = min(nearest, dist[a.Stop])
+	}
+	if nearest < 400 || nearest > 2500 {
+		t.Fatalf("the fixture's nearest stop is %.0f m away; the test wants a place 400 m to 2.5 km out", nearest)
+	}
+	short := nearest - 100 // nothing within the longest walk
+
+	ap := e.Approach(snap.Net, home, short, o)
+	if math.Abs(ap.StretchedM-nearest) > 1 || len(ap.Access) == 0 {
+		t.Fatalf("straight-line band: stretched %.0f m (nearest %.0f), %d stops", ap.StretchedM, nearest, len(ap.Access))
+	}
+	in := map[int32]bool{}
+	for _, a := range ap.Access {
+		in[a.Stop] = true
+	}
+	for s, d := range dist {
+		if want := d <= nearest+engine.BandM; in[s] != want {
+			t.Errorf("stop %d at %.0f m: in the band %v, want %v", s, d, in[s], want)
+		}
+	}
+	if within := e.Approach(snap.Net, home, nearest+50, o); within.StretchedM != 0 || len(within.Access) == 0 {
+		t.Errorf("a stop within the longest walk: stretched %.0f, %d stops", within.StretchedM, len(within.Access))
+	}
+
+	// Along the streets: the band is measured on foot, and every walk in it is within 500 m of the shortest.
+	e.SetWalker(walktest.Grid(t, home))
+	snap, _ = e.SnapshotFor(env.Clock.Now())
+	st := e.Approach(snap.Net, home, short, o)
+	if !st.Streets || st.StretchedM < nearest || len(st.Access) == 0 {
+		t.Fatalf("street band: streets %v, stretched %.0f m (crow %.0f), %d stops", st.Streets, st.StretchedM, nearest, len(st.Access))
+	}
+	for _, a := range st.Access {
+		if m := float64(a.Secs) * o.WalkSpeedMps; m > st.StretchedM+engine.BandM+2 {
+			t.Errorf("stop %d is %.0f m on foot; the band ends at %.0f", a.Stop, m, st.StretchedM+engine.BandM)
+		}
+		if _, ok := st.Path(a.Stop); !ok {
+			t.Errorf("no street path to stop %d", a.Stop)
+		}
+	}
+	if near, _ := e.NearbyStops(e.Catalog(), home, short, o); len(near) == 0 {
+		t.Error("setup's nearby stops should fall back to the band too")
+	}
+
+	// Past 3 km there are no stops.
+	if far := e.Approach(snap.Net, geo.Point{Lat: -34.2, Lon: 150.5}, 1000, o); len(far.Access) != 0 {
+		t.Errorf("a place far from the lines got %d stops", len(far.Access))
 	}
 }
 

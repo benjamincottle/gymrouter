@@ -25,6 +25,12 @@ export function duration(secs: number): string {
   return r === 0 ? `${h} h` : `${h} h ${r} min`
 }
 
+/** A walking distance: "800 m" (to 50 m), "1.4 km", "2 km". */
+export function distance(m: number): string {
+  if (m < 975) return `${Math.max(50, Math.round(m / 50) * 50)} m`
+  return `${Number((m / 1000).toFixed(1))} km`
+}
+
 /** Compact, for tabular columns only (the options board): "45m", "1h 20m". */
 export function shortDuration(secs: number): string {
   const m = Math.round(secs / 60)

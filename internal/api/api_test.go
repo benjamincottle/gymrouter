@@ -268,6 +268,54 @@ func TestPlanCuratedAccessAndGymToHome(t *testing.T) {
 	}
 }
 
+// A home with no stop within the longest walk plans from the nearest ones, and the response says the walk is longer.
+func TestPlanStretchesTheWalkWhenNoStopIsInReach(t *testing.T) {
+	h := newHarness(t)
+	home := map[string]any{"lat": -33.7637, "lon": 151.0821} // 1 km north of Epping
+	req := map[string]any{"from": home, "to": laneCove, "lines": laneCoveLines, "time": "2026-10-08T16:30:00+11:00",
+		"prefs": map[string]any{"max_walk_m": 400}}
+	var p struct {
+		Options       []json.RawMessage
+		StretchedWalk *struct {
+			FromM int `json:"from_m"`
+			ToM   int `json:"to_m"`
+		} `json:"stretched_walk"`
+	}
+	rec := h.do(t, "POST", "/api/plan", token, req)
+	_ = json.Unmarshal(rec.Body.Bytes(), &p)
+	if rec.Code != 200 || len(p.Options) == 0 || p.StretchedWalk == nil || p.StretchedWalk.FromM <= 400 || p.StretchedWalk.ToM != 0 {
+		t.Fatalf("far home: %d %s", rec.Code, rec.Body)
+	}
+
+	// Once the walk has been timed, its length is no news.
+	var near struct {
+		Stops []struct {
+			Station   string
+			StationID string `json:"station_id"`
+		}
+	}
+	_ = json.Unmarshal(h.do(t, "POST", "/api/stops/near", token, map[string]any{"lat": -33.7727, "lon": 151.0821, "radius_m": 300}).Body.Bytes(), &near)
+	for _, s := range near.Stops {
+		if s.Station == "Epping Station" {
+			home["walks"] = []map[string]any{{"stop": s.StationID, "walk_s": 900}}
+		}
+	}
+	if home["walks"] == nil {
+		t.Fatal("no Epping Station nearby")
+	}
+	p.StretchedWalk = nil
+	rec = h.do(t, "POST", "/api/plan", token, req)
+	_ = json.Unmarshal(rec.Body.Bytes(), &p)
+	if rec.Code != 200 || p.StretchedWalk != nil {
+		t.Errorf("far home with a timed walk: %d %s", rec.Code, rec.Body)
+	}
+
+	req["from"] = map[string]any{"lat": -34.2, "lon": 150.5}
+	if rec := h.do(t, "POST", "/api/plan", token, req); rec.Code != 400 || !strings.Contains(rec.Body.String(), "within 3 km") {
+		t.Errorf("nowhere near the lines: %d %s", rec.Code, rec.Body)
+	}
+}
+
 func TestPlanValidation(t *testing.T) {
 	h := newHarness(t)
 	place := map[string]any{"lat": -33.77, "lon": 151.08}
