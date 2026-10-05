@@ -19,6 +19,36 @@
   /* highlight: underlines and selection marks (Settings > Highlight colour); the edge keeps pale ones visible */
   --hl: var(--ink);
   --hl-edge: transparent;
+  --you: #2457d6;          /* the "you" marker, as on the map */
+  --on-tone: var(--wall);  /* text on a risk colour */
+  --white: #ffffff;
+  --line-fallback: #5e6670; /* a line without a colour */
+
+  /* type (docs/DESIGN.md) */
+  --fs-micro: 0.75rem;   /* 12px */
+  --fs-small: 0.875rem;  /* 14px */
+  --fs-body: 1rem;       /* 16px */
+  --fs-title: 1.25rem;   /* 20px */
+  --fs-lead: 1.5rem;     /* 24px */
+  --fs-num: 2rem;        /* 32px */
+
+  /* space: a 4px base */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+
+  /* shape and lines */
+  --r-mark: 2px;
+  --r-control: 4px;
+  --control: 44px;
+  --hair: 1px solid var(--rule);
+  --heavy: 3px solid var(--ink);
+  --bar: 4px;
+
   color-scheme: light;
 }
 
@@ -89,7 +119,7 @@ body {
 .app {
   max-width: 34rem;
   margin: 0 auto;
-  padding: 0 16px calc(32px + env(safe-area-inset-bottom));
+  padding: 0 var(--s4) calc(var(--s6) + env(safe-area-inset-bottom));
 }
 
 h1,
@@ -101,16 +131,16 @@ h2 {
 }
 
 h1 {
-  font-size: 1.25rem;
+  font-size: var(--fs-title);
 }
 
 h2 {
-  font-size: 1.25rem;
-  margin-bottom: 8px;
+  font-size: var(--fs-title);
+  margin-bottom: var(--s2);
 }
 
 p {
-  margin: 0 0 8px;
+  margin: 0 0 var(--s2);
 }
 
 code {
@@ -136,10 +166,10 @@ select {
 }
 
 button {
-  min-height: 44px;
+  min-height: var(--control);
   padding: 10px 14px;
   border: 1.5px solid var(--ink);
-  border-radius: 4px;
+  border-radius: var(--r-control);
   background: transparent;
   cursor: pointer;
   font-weight: 600;
@@ -166,7 +196,7 @@ button.danger {
 
 button.link {
   min-height: 0;
-  padding: 2px 4px;
+  padding: 2px var(--s1);
   border: 0;
   font-weight: 500;
   text-decoration: underline;
@@ -185,10 +215,10 @@ button.link {
 input,
 select {
   width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
+  min-height: var(--control);
+  padding: 10px var(--s3);
   border: 1.5px solid var(--rule);
-  border-radius: 4px;
+  border-radius: var(--r-control);
   background: var(--panel);
 }
 
@@ -200,7 +230,7 @@ select:focus {
 label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--s1);
   margin-bottom: 14px;
   font-weight: 600;
   font-size: 0.95rem;
@@ -238,9 +268,9 @@ label.inline {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(8px + env(safe-area-inset-top)) 0 8px;
+  padding: calc(var(--s2) + env(safe-area-inset-top)) 0 var(--s2);
   background: var(--wall);
-  margin-bottom: 12px;
+  margin-bottom: var(--s3);
 }
 
 /* no rule under the header: what scrolls beneath it fades out instead */
@@ -259,7 +289,7 @@ label.inline {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 0;
+  padding: var(--s2) 0;
   border: 0;
   border-radius: 0; /* square ends on the underline, like the Settings tab */
   font-weight: inherit;
@@ -285,7 +315,7 @@ label.inline {
 .tab.cog {
   display: grid;
   place-items: center;
-  padding: 8px 9px;
+  padding: var(--s2) 9px;
 }
 
 .tab.cog .icon {
@@ -303,10 +333,10 @@ label.inline {
 }
 
 .notice {
-  border-left: 4px solid var(--ink);
+  border-left: var(--bar) solid var(--ink);
   background: var(--panel);
-  padding: 8px 12px;
-  margin-bottom: 16px;
+  padding: var(--s2) var(--s3);
+  margin-bottom: var(--s4);
 }
 
 .notice.warn {
@@ -319,9 +349,9 @@ label.inline {
 
 .footer {
   margin-top: 40px;
-  padding-top: 12px;
-  border-top: 1px solid var(--rule);
-  font-size: 0.75rem;
+  padding-top: var(--s3);
+  border-top: var(--hair);
+  font-size: var(--fs-micro);
   color: var(--pencil);
 }
 
@@ -330,7 +360,7 @@ label.inline {
 .segmented {
   display: flex;
   border: 1.5px solid var(--ink);
-  border-radius: 4px;
+  border-radius: var(--r-control);
   overflow: hidden;
 }
 
@@ -352,7 +382,7 @@ label.inline {
 .when {
   display: flex;
   flex-wrap: wrap;
-  gap: 20px 8px; /* the chooser sits as far below as the next control does */
+  gap: 20px var(--s2); /* the chooser sits as far below as the next control does */
 }
 
 .when .segmented {
@@ -384,19 +414,19 @@ label.inline {
 .gyms {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--rule);
+  border-top: var(--hair);
 }
 
 /* each gym is a route on the wall: a strip of tape, then its name */
 .gym {
   display: grid;
   grid-template-columns: 8px 32px 1fr;
-  column-gap: 12px;
+  column-gap: var(--s3);
   align-items: center;
   text-align: left;
   padding: 10px 0;
   border: 0;
-  border-bottom: 1px solid var(--rule);
+  border-bottom: var(--hair);
   border-radius: 0;
   font-weight: 400;
 }
@@ -405,7 +435,7 @@ label.inline {
   content: '';
   grid-row: span 2;
   align-self: stretch;
-  border-radius: 2px;
+  border-radius: var(--r-mark);
   background: var(--rule);
 }
 
@@ -442,7 +472,7 @@ label.inline {
 }
 
 .results-title {
-  font-size: 1rem;
+  font-size: var(--fs-body);
   margin-bottom: 2px;
 }
 
@@ -462,13 +492,13 @@ label.inline {
 /* ---- results board ---- */
 
 .hero {
-  margin: 16px 0 20px;
-  padding-top: 12px;
-  border-top: 3px solid var(--ink);
+  margin: var(--s4) 0 20px;
+  padding-top: var(--s3);
+  border-top: var(--heavy);
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: end;
-  column-gap: 16px;
+  column-gap: var(--s4);
 }
 
 .hero-label {
@@ -501,20 +531,20 @@ label.inline {
   display: block;
   color: var(--ink);
   font-stretch: var(--narrow);
-  font-size: 2rem;
+  font-size: var(--fs-num);
   line-height: 1;
 }
 
 .hero-sub {
   grid-column: 1 / -1;
   grid-row: 3;
-  margin: 8px 0 0;
+  margin: var(--s2) 0 0;
 }
 
 .shift {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 4px;
+  margin-bottom: var(--s1);
 }
 
 .shift button.link {
@@ -528,11 +558,11 @@ label.inline {
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--rule);
+  border-top: var(--hair);
 }
 
 .strips li {
-  border-bottom: 1px solid var(--rule);
+  border-bottom: var(--hair);
 }
 
 .strip-row {
@@ -551,7 +581,7 @@ label.inline {
 .strip-row.selected {
   box-shadow: inset 4px 0 0 var(--hl), inset 5px 0 0 var(--hl-edge);
   background: var(--panel);
-  padding-left: 8px;
+  padding-left: var(--s2);
 }
 
 .strip-leave,
@@ -568,7 +598,7 @@ label.inline {
 .strip-dur {
   font-stretch: var(--narrow);
   font-weight: 600;
-  font-size: 1rem;
+  font-size: var(--fs-body);
   color: var(--pencil);
   text-align: right;
 }
@@ -583,7 +613,7 @@ label.inline {
   content: '';
   position: absolute;
   inset: 50% 0 auto;
-  border-top: 1px solid var(--rule);
+  border-top: var(--hair);
 }
 
 .seg {
@@ -599,7 +629,7 @@ label.inline {
 }
 
 .seg.ride {
-  border-radius: 2px;
+  border-radius: var(--r-mark);
   overflow: hidden;
   padding: 0 3px;
   font-stretch: var(--narrow);
@@ -617,7 +647,7 @@ label.inline {
 .risk-mark {
   width: 12px;
   height: 12px;
-  border-radius: 2px;
+  border-radius: var(--r-mark);
   background: var(--safe);
 }
 
@@ -635,7 +665,7 @@ label.inline {
 
 .alt-note {
   margin: 0;
-  padding: 0 0 8px 12px;
+  padding: 0 0 var(--s2) var(--s3);
   font-size: 0.85rem;
   color: var(--pencil);
 }
@@ -648,7 +678,7 @@ label.inline {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: var(--s3);
   flex-wrap: wrap;
 }
 
@@ -663,9 +693,9 @@ label.inline {
 .timeline {
   display: grid;
   grid-template-columns: max-content 22px 1fr;
-  column-gap: 12px;
+  column-gap: var(--s3);
   list-style: none;
-  margin: 12px 0 0;
+  margin: var(--s3) 0 0;
   padding: 0;
 }
 
@@ -674,7 +704,7 @@ label.inline {
   display: grid;
   grid-template-columns: subgrid;
   padding: 10px 0;
-  border-top: 1px solid var(--rule);
+  border-top: var(--hair);
 }
 
 .step .time {
@@ -701,7 +731,7 @@ label.inline {
 .step.change {
   font-size: 0.92rem;
   background: var(--panel);
-  padding-right: 8px;
+  padding-right: var(--s2);
 }
 
 /* a line down the middle in each leg's colours (and you on it, during a trip); everything on it is centred */
@@ -764,7 +794,7 @@ label.inline {
   left: calc(50% - 7px);
   width: 14px;
   border-radius: 7px;
-  background: var(--c, #5e6670);
+  background: var(--c, var(--line-fallback));
 }
 
 .rail .board {
@@ -778,12 +808,12 @@ label.inline {
   box-sizing: border-box;
   border: 2px solid var(--wall);
   border-radius: 50%;
-  background: var(--c, #5e6670);
+  background: var(--c, var(--line-fallback));
 }
 
 .rail .board svg {
   fill: none;
-  stroke: var(--t, #ffffff);
+  stroke: var(--t, var(--white));
   stroke-width: 2.6;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -796,7 +826,7 @@ label.inline {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--t, #ffffff);
+  background: var(--t, var(--white));
 }
 
 /* the home or gym at either end, with the walk dotted away below it (or up to it) */
@@ -846,16 +876,16 @@ label.inline {
   height: 28px;
   box-sizing: border-box;
   margin-top: -14px;
-  border: 3px solid #ffffff;
+  border: 3px solid var(--white);
   border-radius: 50%;
-  background: #2457d6;
+  background: var(--you);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   animation: you-here 2.4s ease-out infinite;
 }
 
 .rail .you svg {
   fill: none;
-  stroke: #ffffff;
+  stroke: var(--white);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -874,7 +904,7 @@ button.link.small {
 .ride-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s2);
   flex-wrap: wrap;
   font-weight: 600;
 }
@@ -883,7 +913,7 @@ button.link.small {
   display: inline-block;
   min-width: 2.4em;
   padding: 1px 6px;
-  border-radius: 2px;
+  border-radius: var(--r-mark);
   text-align: center;
   font-stretch: var(--narrow);
   font-weight: 800;
@@ -910,12 +940,12 @@ button.link.small {
 
 .badge {
   display: inline-block;
-  margin-right: 4px;
+  margin-right: var(--s1);
   padding: 0 6px;
-  border-radius: 2px;
+  border-radius: var(--r-mark);
   font-size: 0.78rem;
   font-weight: 700;
-  color: var(--wall);
+  color: var(--on-tone);
   background: var(--safe);
 }
 
@@ -947,9 +977,9 @@ button.link.small {
 .sheet-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
-  border-bottom: 3px solid var(--ink);
+  gap: var(--s3);
+  padding: calc(var(--s2) + env(safe-area-inset-top)) var(--s3) var(--s2);
+  border-bottom: var(--heavy);
 }
 
 .sheet-title {
@@ -978,15 +1008,15 @@ button.link.small {
   top: 12px;
   z-index: 2;
   margin: 0;
-  padding: 8px 12px;
-  border-left: 4px solid var(--risk);
+  padding: var(--s2) var(--s3);
+  border-left: var(--bar) solid var(--risk);
   background: var(--panel);
 }
 
 .map-note.subtle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s2);
   border-left-color: var(--rule);
   top: auto;
   bottom: 12px;
@@ -996,7 +1026,7 @@ button.link.small {
   flex: none;
   min-height: 32px;
   margin-left: auto;
-  padding: 0 8px;
+  padding: 0 var(--s2);
   border: 0;
   font-size: 1.3rem;
   line-height: 1;
@@ -1005,12 +1035,12 @@ button.link.small {
 
 .sheet > .map-note {
   position: static;
-  margin: 12px;
+  margin: var(--s3);
 }
 
 .sheet-summary {
-  padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
-  border-top: 3px solid var(--ink);
+  padding: 10px var(--s4) calc(var(--s3) + env(safe-area-inset-bottom));
+  border-top: var(--heavy);
 }
 
 .sheet-summary p {
@@ -1044,11 +1074,11 @@ button.link.small {
   overflow-y: auto;
   overscroll-behavior: contain;
   margin: 0 -16px;
-  padding: 0 16px;
+  padding: 0 var(--s4);
 }
 
 .sheet-steps .timeline {
-  margin-top: 4px;
+  margin-top: var(--s1);
 }
 
 .sheet-summary .start {
@@ -1064,13 +1094,13 @@ button.link.small {
 
 .card {
   padding-top: 14px;
-  border-top: 3px solid var(--ink);
+  border-top: var(--heavy);
 }
 
 
 .list {
   list-style: none;
-  margin: 0 0 12px;
+  margin: 0 0 var(--s3);
   padding: 0;
 }
 
@@ -1078,9 +1108,9 @@ button.link.small {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--rule);
+  gap: var(--s2);
+  padding: var(--s2) 0;
+  border-bottom: var(--hair);
 }
 
 .row-actions {
@@ -1139,7 +1169,7 @@ label.check input {
 .row-form {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
+  gap: var(--s2);
 }
 
 .row-form label {
@@ -1153,15 +1183,15 @@ label.check input {
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--s2);
 }
 
 .share {
-  margin-top: 12px;
+  margin-top: var(--s3);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--s2);
 }
 
 .qr {
@@ -1297,17 +1327,17 @@ label.check input {
 .intrip .sheet-bar {
   padding-left: 0;
   padding-right: 0;
-  margin-bottom: 4px;
+  margin-bottom: var(--s1);
 }
 
 .intrip .hero {
   border-top: 0;
-  margin-top: 8px;
+  margin-top: var(--s2);
 }
 
 .alert {
   margin: 0 0 20px;
-  padding: 12px 14px;
+  padding: var(--s3) 14px;
   border-left: 5px solid var(--missed);
   background: var(--panel);
 }
@@ -1327,26 +1357,26 @@ label.check input {
 }
 
 .now {
-  padding: 12px 0;
-  border-top: 3px solid var(--ink);
+  padding: var(--s3) 0;
+  border-top: var(--heavy);
 }
 
 .now-main {
   margin: 0 0 6px;
   font-stretch: var(--semi);
   font-weight: 750;
-  font-size: 1.5rem;
+  font-size: var(--fs-lead);
   line-height: 1.15;
 }
 
 .next {
-  padding: 12px 0;
-  border-top: 1px solid var(--rule);
+  padding: var(--s3) 0;
+  border-top: var(--hair);
 }
 
 .spare {
   display: block;
-  margin-top: 4px;
+  margin-top: var(--s1);
   font-weight: 600;
   color: var(--safe);
 }
@@ -1368,12 +1398,12 @@ label.check input {
 /* ---- gyms and line suggestions ---- */
 
 .stack.tight > * + * {
-  margin-top: 8px;
+  margin-top: var(--s2);
 }
 
 .inline-pair {
   display: flex;
-  gap: 8px;
+  gap: var(--s2);
 }
 
 .inline-pair select {
@@ -1396,14 +1426,14 @@ label.check input {
 
 details > summary {
   cursor: pointer;
-  margin: 4px 0 8px;
+  margin: var(--s1) 0 var(--s2);
   font-weight: 600;
 }
 
 /* ---- walk timer ---- */
 
 .timer-clock {
-  margin: 8px 0;
+  margin: var(--s2) 0;
   font-family: 'Archivo Variable', system-ui, sans-serif;
   font-stretch: var(--narrow);
   font-weight: 800;
@@ -1426,28 +1456,28 @@ details > summary {
 }
 
 .intrip .steps {
-  margin-top: 8px;
+  margin-top: var(--s2);
 }
 
 .intrip .timer {
-  margin-bottom: 16px;
+  margin-bottom: var(--s4);
 }
 
 fieldset.choice {
-  margin: 12px 0 0;
+  margin: var(--s3) 0 0;
   padding: 0;
   border: 0;
 }
 
 fieldset.choice legend {
   padding: 0;
-  margin-bottom: 4px;
+  margin-bottom: var(--s1);
   font-weight: 600;
 }
 
 fieldset.choice label.check {
   display: flex;
-  gap: 8px;
+  gap: var(--s2);
   padding: 6px 0;
 }
 
@@ -1487,10 +1517,10 @@ fieldset.choice label.check {
 .icon .risk-risk-fill { fill: var(--risk); stroke: none; }
 
 .pace {
-  margin: 4px 0 12px;
-  padding: 12px;
+  margin: var(--s1) 0 var(--s3);
+  padding: var(--s3);
   background: var(--panel);
-  border-left: 4px solid var(--hl);
+  border-left: var(--bar) solid var(--hl);
 }
 
 .pace .timer-clock {
@@ -1499,14 +1529,14 @@ fieldset.choice label.check {
 
 .card h3 {
   margin: 18px 0 2px;
-  font-size: 1rem;
+  font-size: var(--fs-body);
 }
 
 .swatches {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(4.4rem, 1fr));
   gap: 6px;
-  margin: 4px 0 0;
+  margin: var(--s1) 0 0;
   padding: 0;
   list-style: none;
 }
@@ -1519,7 +1549,7 @@ fieldset.choice label.check {
   gap: 2px;
   width: 100%;
   min-height: 0;
-  padding: 8px 4px 6px;
+  padding: var(--s2) var(--s1) 6px;
   border: 1.5px solid transparent;
   border-radius: 6px;
   font-size: 0.8rem;
