@@ -895,7 +895,7 @@ details > summary {
   column-gap: var(--s4);
   margin-top: var(--s4);
   padding-top: var(--s3);
-  border-top: var(--heavy);
+  border-top: var(--hair);
 }
 
 .hero > .label {

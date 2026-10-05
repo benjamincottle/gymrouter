@@ -84,7 +84,8 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   - the app icon keeps its own 7px corner.
   - Nothing else.
 - **Lines:**
-  - `--heavy` (3px ink) starts a section: the hero, Settings sections, Now, sheet bars.
+  - `--heavy` (3px ink) starts a section: Settings sections, Now, sheet bars. The hero on the trip screen sits under a
+    hairline instead: the status line above it is part of the same results.
   - `--hair` (1px rule) separates rows.
   - `--bar` (4px) is the side bar of a callout and of the selected row.
   - Control outlines are 1.5px `--edge` (fields) or 1.5px ink (buttons and segmented controls).
