@@ -136,11 +136,6 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
       m.addSource('vehicles', { type: 'geojson', data: fc([]) })
       m.addSource('me', { type: 'geojson', data: fc([]) })
       m.addLayer({
-        id: 'route-casing', type: 'line', source: 'route', filter: ['==', ['get', 'kind'], 'ride'],
-        paint: { 'line-color': dark ? '#1b1e21' : '#ffffff', 'line-width': 11 },
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-      })
-      m.addLayer({
         id: 'route-ride', type: 'line', source: 'route', filter: ['==', ['get', 'kind'], 'ride'],
         paint: { 'line-color': ['get', 'color'], 'line-width': RIDE_W },
         layout: { 'line-cap': 'round', 'line-join': 'round' },
