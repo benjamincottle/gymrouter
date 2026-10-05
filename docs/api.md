@@ -35,9 +35,10 @@ measured walks from the gym door.
 }
 ```
 - `lines` (1–60, each `"<mode> <name>"`) is the set to route on, normally the gym's. The server loads timetable
-  data for any line it hasn't seen yet, so the first request naming new lines takes a few seconds. A line the timetable
-  doesn't have is a 400, and so is going over the cap on the total the server will hold. Lines no request has named
-  for two weeks are dropped again at the next day rollover (the built-in gyms' lines always stay).
+  data for any line it hasn't seen yet, so the first request naming new lines takes a few seconds (unless they were
+  loaded ahead with `POST /api/lines`). A line the timetable doesn't have is a 400, and so is going over the cap on the
+  total the server will hold. Lines no request has named for two weeks are dropped again at the next day rollover (the
+  built-in gyms' lines always stay). The loaded lines are kept in the data directory, so they survive a restart.
 - A place is `lat`/`lon`, optionally with curated `access` stops and walk times. Without
   them, stops within `max_walk_m` are used. Either end can be home or gym.
 - A place can also carry `walks` (up to 40, `[{"stop": "<stop or station ID>", "walk_s": 540}]`): walks the traveller
@@ -75,6 +76,12 @@ when it is known. `max_walk_m` limits the straight-line distance to candidate st
 `stops` on a ride is the number of stops travelled, counting the one you get off at.
 `status` is `scheduled`, `predicted` (live data) or `added` (a realtime-only trip). `risk` is `safe`, `tight`,
 `at-risk` or `missed`. `fallback_dep` is the next service of the onward line from the same stop.
+
+## `POST /api/lines`
+`{"lines": ["bus 288", "train T9"]}` (up to 150) starts loading the lines in the background and answers
+`202 {}` straight away, so that the first search naming them doesn't wait. The app sends all its gyms' lines when it
+opens and whenever they change. Lines the timetable doesn't have are skipped; a malformed line, or going over the cap
+on the total the server will hold, is a 400. Asking counts as using the lines (see `lines` under `POST /api/plan`).
 
 ## `POST /api/stops/near`
 `{"lat": …, "lon": …, "radius_m": 800}` → stops near the point with every line that serves them, nearest first:

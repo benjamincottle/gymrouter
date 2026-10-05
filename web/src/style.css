@@ -1754,10 +1754,6 @@ details > summary {
 
 /* ---- spacing inside screens ---- */
 
-.trip > .when {
-  margin-top: var(--s3);
-}
-
 .suggest {
   display: grid;
   justify-items: start;

@@ -117,6 +117,8 @@ type Env struct {
 	Fetcher *Fetcher
 	Clock   *Clock
 	Config  *config.Config
+	preload lines.Set
+	log     io.Writer
 }
 
 func fixtureDir() string {
@@ -156,15 +158,25 @@ func build(t testing.TB, configText string, preload lines.Set, log io.Writer) *E
 	if log == nil {
 		log = io.Discard
 	}
-	f := &Fetcher{dir: fixtureDir()}
-	clk := &Clock{t: SnapshotTime}
-	e := engine.New(cfg, Sydney, f, slog.New(slog.NewTextHandler(log, nil)), preload)
-	e.SetClock(clk.Now)
+	return start(t, &Env{Fetcher: &Fetcher{dir: fixtureDir()}, Clock: &Clock{t: SnapshotTime}, Config: cfg, preload: preload, log: log})
+}
+
+// Restart returns a new engine over the same data directory, clock and fetcher, as after the server restarts.
+func (env *Env) Restart(t testing.TB) *Env {
+	t.Helper()
+	return start(t, &Env{Fetcher: env.Fetcher, Clock: env.Clock, Config: env.Config, preload: env.preload, log: env.log})
+}
+
+func start(t testing.TB, env *Env) *Env {
+	t.Helper()
+	e := engine.New(env.Config, Sydney, env.Fetcher, slog.New(slog.NewTextHandler(env.log, nil)), env.preload)
+	e.SetClock(env.Clock.Now)
 	if err := e.Init(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	e.BuildCatalog(context.Background())
-	return &Env{Engine: e, Fetcher: f, Clock: clk, Config: cfg}
+	env.Engine = e
+	return env
 }
 
 // FeedCalls counts calls whose path contains substr.

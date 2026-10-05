@@ -104,11 +104,17 @@ type Engine struct {
 	growMu   sync.Mutex // serialises growing (and pruning) the line set
 	preload  lines.Set  // always covered
 	usedMu   sync.Mutex
-	lastUsed map[lines.Key]time.Time // when a request last named each covered line
+	lastUsed map[lines.Key]time.Time // when a request last named each covered line (saved in linesFile)
+	saveMu   sync.Mutex              // serialises writing linesFile
 	heavy    chan struct{}           // held while a whole-network pass runs (one at a time bounds memory)
 	catalog  atomic.Pointer[Catalog]
 	walker   atomic.Pointer[walk.Graph]
 	foot     footCache
+
+	// Lines waiting to be loaded in the background (Prefetch), and whether a load is under way.
+	prefetchMu  sync.Mutex
+	pending     lines.Set
+	prefetching bool
 
 	today      atomic.Pointer[Snapshot]
 	shapes     atomic.Pointer[map[string][]geo.Point]
@@ -234,6 +240,8 @@ func (e *Engine) Ensure(set lines.Set) error {
 	e.linesMu.Lock()
 	e.all = grown
 	e.linesMu.Unlock()
+	e.markUsed(set)
+	e.saveLines()
 	e.cacheMu.Lock()
 	e.cache = map[string]*Snapshot{}
 	e.generation++
@@ -244,18 +252,30 @@ func (e *Engine) Ensure(set lines.Set) error {
 	default:
 	}
 	go e.guard("route shapes", e.LoadShapes)
-	e.used(set)
 	return nil
 }
 
-// used records that a request named the lines.
+// used records that a request named the lines, saving that now and then so pruning survives a restart.
 func (e *Engine) used(set lines.Set) {
+	if e.markUsed(set) {
+		e.saveLines()
+	}
+}
+
+// markUsed records that a request named the lines. A line's time only moves on once it is usedSaveEvery old, so
+// the file is rewritten at most that often; it reports whether it moved for any line that is saved.
+func (e *Engine) markUsed(set lines.Set) (changed bool) {
 	now := e.now()
 	e.usedMu.Lock()
 	defer e.usedMu.Unlock()
 	for k := range set {
+		if at, ok := e.lastUsed[k]; ok && now.Sub(at) <= usedSaveEvery {
+			continue
+		}
 		e.lastUsed[k] = now
+		changed = changed || !e.preload[k]
 	}
+	return changed
 }
 
 // PruneLines stops covering lines no request has named for lineKeep (the built-in gyms' stay), so the loaded set
@@ -287,6 +307,7 @@ func (e *Engine) PruneLines() {
 	e.linesMu.Lock()
 	e.all = keep
 	e.linesMu.Unlock()
+	e.saveLines()
 	e.cacheMu.Lock()
 	e.cache = map[string]*Snapshot{}
 	e.generation++
@@ -339,6 +360,7 @@ func (e *Engine) guard(task string, f func()) (err error) {
 // Init makes sure the static feeds are present and loads today's timetable.
 func (e *Engine) Init(ctx context.Context) error {
 	e.loadWalkCache()
+	e.loadSavedLines()
 	if err := e.ensureStatic(ctx); err != nil {
 		return err
 	}

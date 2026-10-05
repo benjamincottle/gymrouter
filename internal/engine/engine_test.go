@@ -442,3 +442,57 @@ func TestTransfersBetweenStopsFollowTheStreetsToo(t *testing.T) {
 		t.Errorf("transfers with a tiny street network (%d) should be fewer than with a full one (%d)", pairs2, pairs1)
 	}
 }
+
+func TestLoadedLinesSurviveARestart(t *testing.T) {
+	env := enginetest.NewWith(t, noPresets, nil)
+	if err := env.Engine.Ensure(lines.MustSet("metro M1", "bus 288")); err != nil {
+		t.Fatal(err)
+	}
+	after := env.Restart(t)
+	s, _ := after.Engine.SnapshotFor(after.Clock.Now())
+	if len(after.Engine.Lines()) != 2 || len(s.Day.Trips) == 0 || len(after.Engine.Health().Feeds) != 2 {
+		t.Fatalf("the saved lines should be loaded and polled before any request: %v, %d trips, %d feeds",
+			after.Engine.Lines(), len(s.Day.Trips), len(after.Engine.Health().Feeds))
+	}
+
+	// Lines not named for two weeks are left behind, as pruning would.
+	env.Clock.Advance(13 * 24 * time.Hour)
+	if err := after.Engine.Ensure(lines.MustSet("train T9")); err != nil {
+		t.Fatal(err)
+	}
+	env.Clock.Advance(2 * 24 * time.Hour) // M1 and 288 last named 15 days ago, T9 2
+	if got := env.Restart(t).Engine.Lines(); len(got) != 1 || !got[lines.Key{Mode: lines.Train, Name: "T9"}] {
+		t.Errorf("after a restart: %v; want only the line named within two weeks", got)
+	}
+}
+
+func TestPrefetchLoadsInTheBackground(t *testing.T) {
+	env := enginetest.NewWith(t, noPresets, nil)
+	e := env.Engine
+	if err := e.Prefetch(lines.MustSet("metro M1", "bus nosuch")); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Prefetch(lines.MustSet("bus 288")); err != nil { // merged into the load under way, or the next
+		t.Fatal(err)
+	}
+	want := lines.MustSet("metro M1", "bus 288")
+	for deadline := time.Now().Add(30 * time.Second); len(e.Lines()) < len(want); time.Sleep(10 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("lines after prefetching: %v", e.Lines())
+		}
+	}
+	if got := e.Lines(); len(got) != 2 || !got[lines.Key{Mode: lines.Metro, Name: "M1"}] || !got[lines.Key{Mode: lines.Bus, Name: "288"}] {
+		t.Errorf("lines after prefetching: %v (unknown lines are skipped)", got)
+	}
+	if after := env.Restart(t); len(after.Engine.Lines()) != 2 {
+		t.Errorf("prefetched lines should be saved too: %v", after.Engine.Lines())
+	}
+
+	set := lines.Set{}
+	for i := 0; i <= engine.MaxLoadedLines; i++ {
+		set[lines.Key{Mode: lines.Bus, Name: fmt.Sprint(i)}] = true
+	}
+	if err := enginetest.NewWith(t, noPresets, nil).Engine.Prefetch(set); err != nil {
+		t.Errorf("unknown lines are skipped, so they can't go over the cap: %v", err)
+	}
+}

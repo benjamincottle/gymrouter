@@ -41,6 +41,7 @@ type Engine interface {
 	VehiclesNear(set lines.Set, rides []engine.Ride) []engine.Vehicle
 	MapFile() (string, bool)
 	Ensure(set lines.Set) error
+	Prefetch(set lines.Set) error
 	Catalog() *engine.Catalog
 	Approach(net *raptor.Network, p geo.Point, maxWalkM float64, o raptor.Options) engine.Approach
 	NearbyStops(c *engine.Catalog, p geo.Point, radiusM float64, o raptor.Options) ([]engine.NearStop, bool)
@@ -74,6 +75,7 @@ func (s *Server) Handler() http.Handler {
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/defaults", s.defaults)
 	api.HandleFunc("POST /api/plan", s.plan)
+	api.HandleFunc("POST /api/lines", s.loadLines)
 	api.HandleFunc("POST /api/stops/near", s.stopsNear)
 	api.HandleFunc("POST /api/suggest-lines", s.suggestLines)
 	api.HandleFunc("GET /api/suggest-lines/{id}", s.suggestStatus)
