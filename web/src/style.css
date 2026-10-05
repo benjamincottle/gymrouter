@@ -1,25 +1,92 @@
-/* Gym Router: chalk wall, graphite ink, and colour only where it means something
-   (transit line colours and connection risk). Times use Archivo condensed, like a departure board. */
+/* Gym Router: chalk wall, graphite ink, and colour only where it means something (transit lines, connection risk,
+   the highlight and focus). The rules are in docs/DESIGN.md; this file holds its tokens and components. */
+
+/* ---- tokens ---- */
 
 :root {
   --wall: #ebeeea;
   --panel: #f7f8f6;
   --ink: #1e2226;
   --pencil: #59616a;
-  --rule: #c9cfc9;
+  --rule: #c9cfc9;   /* dividers only */
+  --edge: #7c837e;   /* outlines of fields and controls: 3:1 on the wall */
   --dot: rgba(30, 34, 38, 0.09);
   --on-ink: #f7f8f6;
   --focus: #2457d6;
-  --safe: #2f7a4d;
-  --tight: #9a6206;
-  --risk: #c2410c;
+  --you: #2457d6;    /* the "you" marker, here and on the map */
+  --safe: #2a6e45;
+  --tight: #865404;
+  --risk: #b13a0a;
   --missed: #b42318;
-  --narrow: 68%;
-  --semi: 84%;
+  --on-tone: #ffffff; /* text on a risk colour */
+  --white: #ffffff;
+  --line-fallback: #5e6670; /* a line without a colour */
   /* highlight: underlines and selection marks (Settings > Highlight colour); the edge keeps pale ones visible */
   --hl: var(--ink);
   --hl-edge: transparent;
+
+  /* type: one family, three widths, three weights */
+  --narrow: 68%;
+  --semi: 84%;
+  --fs-micro: 0.75rem;   /* 12px: chips, badges, tape labels, the footer */
+  --fs-small: 0.875rem;  /* 14px: secondary lines, hints */
+  --fs-body: 1rem;       /* 16px */
+  --fs-strong: 1.125rem; /* 18px: times in lists, gym names */
+  --fs-title: 1.25rem;   /* 20px */
+  --fs-lead: 1.5rem;     /* 24px */
+  --fs-num: 2rem;        /* 32px */
+  --fs-display: clamp(56px, 17vw, 80px);
+
+  /* space: a 4px base */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+
+  /* shape and lines */
+  --r-mark: 2px;
+  --r-control: 4px;
+  --control: 44px;
+  --hair: 1px solid var(--rule);
+  --heavy: 3px solid var(--ink);
+  --bar: 4px;
+
+  /* desktop */
+  --header-h: 60px;
+  --pane-w: 460px;
+
   color-scheme: light;
+}
+
+/* Dark: chosen in Settings, or following the system (theme.ts sets data-theme either way). */
+:root[data-theme='dark'] {
+  --wall: #1b1e21;
+  --panel: #23272b;
+  --ink: #e8ebe7;
+  --pencil: #9aa2a9;
+  --rule: #383e44;
+  --edge: #6b737a;
+  --dot: rgba(232, 235, 231, 0.06);
+  --on-ink: #1b1e21;
+  --focus: #7aa2ff;
+  --you: #4d8df0;
+  --safe: #5cc285;
+  --tight: #e0a53a;
+  --risk: #f08a4b;
+  --missed: #f2766b;
+  --on-tone: #1b1e21;
+  --icon-edge: #3a4046;
+  color-scheme: dark;
+}
+
+/* before the script has set a theme, don't flash a light page on a dark system */
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) {
+    background: #1b1e21;
+  }
 }
 
 /* the 9 Degrees grade colours */
@@ -42,30 +109,8 @@
 /* black means the ink, which is pale here; the swatch still shows a black hold */
 [data-theme='dark'] .swatch[data-hl='black'] .hold { fill: #0d0f10; stroke: #6b737a; }
 
-/* Dark: chosen in Settings, or following the system (theme.ts sets data-theme either way). */
-:root[data-theme='dark'] {
-  --wall: #1b1e21;
-  --panel: #23272b;
-  --ink: #e8ebe7;
-  --pencil: #9aa2a9;
-  --rule: #383e44;
-  --dot: rgba(232, 235, 231, 0.06);
-  --on-ink: #1b1e21;
-  --focus: #7aa2ff;
-  --safe: #5cc285;
-  --tight: #e0a53a;
-  --risk: #f08a4b;
-  --missed: #f2766b;
-  --icon-edge: #3a4046;
-  color-scheme: dark;
-}
 
-/* before the script has set a theme, don't flash a light page on a dark system */
-@media (prefers-color-scheme: dark) {
-  html:not([data-theme]) {
-    background: #1b1e21;
-  }
-}
+/* ---- base ---- */
 
 * {
   box-sizing: border-box;
@@ -86,35 +131,36 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.app {
-  max-width: 34rem;
-  margin: 0 auto;
-  padding: 0 16px calc(32px + env(safe-area-inset-bottom));
-}
-
 h1,
-h2 {
-  font-stretch: var(--semi);
-  font-weight: 750;
-  letter-spacing: -0.01em;
+h2,
+h3,
+p {
   margin: 0;
 }
 
-h1 {
-  font-size: 1.25rem;
+.title {
+  font-size: var(--fs-title);
+  font-weight: 800;
+  font-stretch: var(--semi);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
 }
 
-h2 {
-  font-size: 1.25rem;
-  margin-bottom: 8px;
+.meta {
+  font-size: var(--fs-small);
+  color: var(--pencil);
 }
 
-p {
-  margin: 0 0 8px;
+.label {
+  font-weight: 600;
+  color: var(--pencil);
 }
 
-code {
-  font-size: 0.9em;
+.num {
+  font-stretch: var(--narrow);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.01em;
 }
 
 .sr-only {
@@ -126,7 +172,10 @@ code {
   white-space: nowrap;
 }
 
-/* ---- controls ---- */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
 
 button,
 input,
@@ -135,101 +184,478 @@ select {
   color: inherit;
 }
 
-button {
-  min-height: 44px;
-  padding: 10px 14px;
+/* ---- buttons: four looks, one size ---- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: var(--control);
+  padding: 0 var(--s4);
   border: 1.5px solid var(--ink);
-  border-radius: 4px;
+  border-radius: var(--r-control);
   background: transparent;
-  cursor: pointer;
   font-weight: 600;
+  line-height: 1.15;
+  cursor: pointer;
 }
 
-button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-button.primary {
+.btn.primary {
   background: var(--ink);
   color: var(--on-ink);
 }
 
-button.ghost {
-  border-color: var(--rule);
-}
-
-button.danger {
+.btn.danger {
   border-color: var(--missed);
   color: var(--missed);
 }
 
-button.link {
-  min-height: 0;
-  padding: 2px 4px;
+.btn:disabled {
+  border-color: var(--rule);
+  background: transparent;
+  color: var(--pencil);
+  cursor: default;
+}
+
+/* text actions: underlined, with a 44px hit area that doesn't change the line */
+.text-btn {
+  position: relative;
+  padding: 0;
   border: 0;
-  font-weight: 500;
+  background: none;
+  font-weight: 600;
+  text-align: left;
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
-.link.danger {
-  color: var(--missed);
+.text-btn::after {
+  content: '';
+  position: absolute;
+  inset: -12px -6px;
 }
 
-:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
+.text-btn.quiet {
+  color: var(--pencil);
 }
 
-input,
-select {
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
-  border: 1.5px solid var(--rule);
-  border-radius: 4px;
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--control);
+  height: var(--control);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-control);
+  background: none;
+  cursor: pointer;
+}
+
+.icon-btn:hover {
   background: var(--panel);
 }
 
-input:focus,
+.icon-btn.danger {
+  color: var(--missed);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+/* the screen's commit action, pinned where the thumb is */
+.action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s2);
+  margin: var(--s5) calc(-1 * var(--s4)) 0;
+  padding: var(--s3) var(--s4) calc(var(--s3) + env(safe-area-inset-bottom));
+  border-top: var(--hair);
+  background: var(--wall);
+}
+
+.action-bar > :first-child:not(:only-child) {
+  margin-right: auto;
+}
+
+/* ---- icons: ink line drawings, one part in the highlight colour ---- */
+
+.icon {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon .acc {
+  fill: var(--hl);
+}
+
+.icon .acc-line {
+  stroke: var(--hl);
+  stroke-width: 2.2;
+}
+
+.icon .ink {
+  fill: currentColor;
+  stroke: none;
+}
+
+.icon .risk-safe-fill { fill: var(--safe); stroke: none; }
+.icon .risk-tight-fill { fill: var(--tight); stroke: none; }
+.icon .risk-risk-fill { fill: var(--risk); stroke: none; }
+
+/* ---- segmented control: one size ---- */
+
+.segmented {
+  display: flex;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--r-control);
+  overflow: hidden;
+}
+
+.segmented button {
+  flex: 1;
+  min-height: calc(var(--control) - 3px);
+  padding: 0 var(--s3);
+  border: 0;
+  background: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segmented button + button {
+  border-left: 1.5px solid var(--ink);
+}
+
+.segmented button[aria-checked='true'] {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+/* ---- fields ---- */
+
+.field {
+  display: grid;
+  gap: var(--s1);
+  margin-bottom: var(--s4);
+  font-weight: 600;
+}
+
+.field .hint {
+  font-size: var(--fs-small);
+  font-weight: 400;
+  color: var(--pencil);
+}
+
+input:not([type='checkbox']):not([type='radio']),
+select {
+  width: 100%;
+  min-height: var(--control);
+  padding: 0 var(--s3);
+  border: 1.5px solid var(--edge);
+  border-radius: var(--r-control);
+  background: var(--panel);
+  font-weight: 400;
+}
+
+input:not([type='checkbox']):not([type='radio']):focus,
 select:focus {
   border-color: var(--ink);
 }
 
-label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 14px;
-  font-weight: 600;
-  font-size: 0.95rem;
-}
-
-label > .muted {
-  font-weight: 400;
-}
-
-label.inline {
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-}
-
-.muted {
+input::placeholder {
   color: var(--pencil);
 }
 
-.small {
-  font-size: 0.85rem;
+input[type='checkbox'],
+input[type='radio'] {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 1px 0 0;
+  accent-color: var(--ink);
 }
 
-.error {
-  color: var(--missed);
+/* a field with its button beside it (search, add a line) */
+.row-form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s2);
+  margin-bottom: var(--s4);
+}
+
+.row-form .field {
+  flex: 1;
+  margin: 0;
+}
+
+.inline-pair {
+  display: flex;
+  gap: var(--s2);
+}
+
+.inline-pair select {
+  flex: none;
+  width: auto;
+}
+
+.inline-pair input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* a choice inline with its label (which home) */
+.inline-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
   font-weight: 600;
 }
 
+fieldset.choice {
+  margin: var(--s3) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+fieldset.choice legend {
+  padding: 0;
+  margin-bottom: var(--s1);
+  font-weight: 600;
+}
+
+/* a checkbox or radio with its text */
+label.check {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  gap: var(--s3);
+  min-height: var(--control);
+  padding: var(--s2) 0;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+label.check .main {
+  flex: 1;
+  min-width: 0;
+}
+
+label.check .meta {
+  display: block;
+}
+
+details > summary {
+  cursor: pointer;
+  margin: var(--s2) 0;
+  font-weight: 600;
+}
+
+/* ---- callout: one shape, four tones ---- */
+
+.callout {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-left: var(--bar) solid var(--c, var(--ink));
+  background: var(--panel);
+}
+
+.callout[data-tone='good'] { --c: var(--safe); }
+.callout[data-tone='caution'] { --c: var(--tight); }
+.callout[data-tone='bad'] { --c: var(--missed); }
+
+.callout > p {
+  grid-column: 1;
+}
+
+.callout > .actions {
+  grid-column: 1 / -1;
+}
+
+.callout .dismiss {
+  grid-column: 2;
+  grid-row: 1;
+  width: 32px;
+  height: 32px;
+  margin: -6px -10px -6px 0;
+  color: var(--pencil);
+}
+
+/* ---- sections and rows ---- */
+
+.section {
+  padding-top: var(--s3);
+  border-top: var(--heavy);
+}
+
+.section > .title {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s2);
+}
+
+.section > .intro {
+  margin-bottom: var(--s3);
+}
+
+.section h3 {
+  margin: var(--s4) 0 var(--s1);
+  font-size: var(--fs-body);
+  font-weight: 800;
+  font-stretch: var(--semi);
+}
+
+.stack > * + * {
+  margin-top: var(--s5);
+}
+
+.rows {
+  list-style: none;
+  margin: 0 0 var(--s3);
+  padding: 0;
+  border-top: var(--hair);
+}
+
+.rows > li {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 56px;
+  padding: var(--s1) 0;
+  border-bottom: var(--hair);
+}
+
+.rows > li > .main {
+  flex: 1;
+  min-width: 0;
+}
+
+.rows .meta {
+  display: block;
+}
+
+.rows .row-actions {
+  display: flex;
+  flex: none;
+}
+
+.rows .brand {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+/* inline confirm: the row (or a bar) becomes the question */
+.confirm,
+.rows > li.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  padding: var(--s3) var(--s3) var(--s3) calc(var(--s3) + var(--bar));
+  background: var(--panel);
+  box-shadow: inset var(--bar) 0 0 var(--missed);
+}
+
+.confirm > .main {
+  flex: 1 1 12rem;
+}
+
+.confirm .meta {
+  display: block;
+}
+
+.confirm > .actions {
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+
+/* ---- marks: line chips, risk badges, status ---- */
+
+.chip {
+  display: inline-block;
+  min-width: 2.6em;
+  padding: 1px var(--s1);
+  border-radius: var(--r-mark);
+  text-align: center;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  font-stretch: var(--narrow);
+  line-height: 18px;
+}
+
+.badge {
+  display: inline-block;
+  margin-right: var(--s1);
+  padding: 0 var(--s1);
+  border-radius: var(--r-mark);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  line-height: 18px;
+  color: var(--on-tone);
+  background: var(--c, var(--safe));
+}
+
+.risk-safe { --c: var(--safe); }
+.risk-tight { --c: var(--tight); }
+.risk-at-risk { --c: var(--risk); }
+.risk-missed { --c: var(--missed); }
+
+.risk-mark {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-mark);
+  background: var(--c, var(--safe));
+}
+
+.status {
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--pencil);
+}
+
+.status.ok { color: var(--safe); }
+.status.slight { color: var(--tight); }
+.status.late { color: var(--missed); }
+.status.sched { font-weight: 400; }
+
+.live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--s2);
+  border-radius: 50%;
+  background: var(--pencil);
+}
+
+.live-dot.live {
+  background: var(--safe);
+}
+
 /* ---- frame ---- */
+
+.app {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 0 var(--s4) env(safe-area-inset-bottom);
+}
 
 .topbar {
   position: sticky;
@@ -238,9 +664,9 @@ label.inline {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(8px + env(safe-area-inset-top)) 0 8px;
+  padding: calc(var(--s2) + env(safe-area-inset-top)) 0 var(--s2);
+  margin-bottom: var(--s3);
   background: var(--wall);
-  margin-bottom: 12px;
 }
 
 /* no rule under the header: what scrolls beneath it fades out instead */
@@ -250,7 +676,7 @@ label.inline {
   left: 0;
   right: 0;
   top: 100%;
-  height: 12px;
+  height: var(--s3);
   background: linear-gradient(var(--wall), transparent);
   pointer-events: none;
 }
@@ -258,12 +684,16 @@ label.inline {
 .home-link {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 0;
+  gap: var(--s3);
+  min-height: var(--control);
+  padding: 0;
   border: 0;
-  border-radius: 0; /* square ends on the underline, like the Settings tab */
-  font-weight: inherit;
-  text-align: left;
+  background: none;
+  font-size: var(--fs-title);
+  font-weight: 800;
+  font-stretch: var(--semi);
+  letter-spacing: -0.01em;
+  cursor: pointer;
 }
 
 .home-link img {
@@ -272,104 +702,61 @@ label.inline {
   border-radius: 7px; /* the icon's own corner, kept crisp at this size */
 }
 
-.topbar nav {
-  display: flex;
-}
-
-.tab {
-  border: 0;
+.topbar .icon-btn {
   border-radius: 0;
   color: var(--pencil);
 }
 
-.tab.cog {
-  display: grid;
-  place-items: center;
-  padding: 8px 9px;
-}
-
-.tab.cog .icon {
-  stroke: currentColor;
-}
-
-.tab.active,
-.home-link.active {
+.home-link.active,
+.topbar .icon-btn.active {
   color: var(--ink);
   box-shadow: inset 0 -3px 0 var(--hl), inset 0 -4px 0 var(--hl-edge);
 }
 
-.stack > * + * {
-  margin-top: 20px;
+.topbar .icon-btn.active:hover {
+  background: none;
 }
 
-.notice {
-  border-left: 4px solid var(--ink);
-  background: var(--panel);
-  padding: 8px 12px;
-  margin-bottom: 16px;
-}
-
-.notice.warn {
-  border-left-color: var(--risk);
+.app > .callout {
+  margin-bottom: var(--s4);
 }
 
 .empty {
-  padding: 40px 0;
+  display: grid;
+  justify-items: start;
+  gap: var(--s4);
+  padding: var(--s6) 0;
 }
 
-.footer {
-  margin-top: 40px;
-  padding-top: 12px;
-  border-top: 1px solid var(--rule);
-  font-size: 0.75rem;
+.loading {
+  padding: var(--s4) 0;
   color: var(--pencil);
 }
 
-/* ---- choosing a trip ---- */
-
-.segmented {
-  display: flex;
-  border: 1.5px solid var(--ink);
-  border-radius: 4px;
-  overflow: hidden;
+.footer {
+  margin-top: var(--s6);
+  padding: var(--s3) 0 var(--s4);
+  border-top: var(--hair);
+  font-size: var(--fs-micro);
+  color: var(--pencil);
 }
 
-.segmented button {
-  flex: 1;
-  border: 0;
-  border-radius: 0;
-}
-
-.segmented button + button {
-  border-left: 1.5px solid var(--ink);
-}
-
-.segmented button[aria-pressed='true'] {
-  background: var(--ink);
-  color: var(--on-ink);
-}
+/* ---- planning a trip ---- */
 
 .when {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px 8px; /* the chooser sits as far below as the next control does */
-}
-
-.when .segmented {
-  flex: 1 1 14rem;
+  display: grid;
+  gap: var(--s3);
 }
 
 .daytime {
   display: flex;
-  flex: 1 1 100%;
   align-items: center;
-  gap: 6px;
+  gap: var(--s2);
 }
 
 .daytime select {
   width: auto;
   font-stretch: var(--semi);
-  font-variant-numeric: tabular-nums;
 }
 
 .daytime select.day {
@@ -378,43 +765,42 @@ label.inline {
 }
 
 .daytime span {
-  font-weight: 700;
+  font-weight: 800;
 }
 
+/* the gyms, before one is chosen: each a route on the wall, a strip of tape then its name */
 .gyms {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--rule);
+  border-top: var(--hair);
 }
 
-/* each gym is a route on the wall: a strip of tape, then its name */
-.gym {
+.gym,
+.route {
   display: grid;
   grid-template-columns: 8px 32px 1fr;
-  column-gap: 12px;
+  column-gap: var(--s3);
   align-items: center;
-  text-align: left;
-  padding: 10px 0;
+  min-height: 64px;
+  padding: var(--s3) 0;
   border: 0;
-  border-bottom: 1px solid var(--rule);
-  border-radius: 0;
-  font-weight: 400;
+  border-bottom: var(--hair);
+  background: none;
+  text-align: left;
+  cursor: pointer;
 }
 
-.gym::before {
+.gym::before,
+.route::before {
   content: '';
   grid-row: span 2;
   align-self: stretch;
-  border-radius: 2px;
+  border-radius: var(--r-mark);
   background: var(--rule);
 }
 
-.gym.selected::before {
-  background: var(--hl);
-  box-shadow: 0 0 0 1px var(--hl-edge);
-}
-
-.gym .brand {
+.gym .brand,
+.route .brand {
   grid-row: span 2;
   width: 32px;
   height: 32px;
@@ -427,150 +813,151 @@ label.inline {
 }
 
 .gym-name {
+  font-size: var(--fs-strong);
+  font-weight: 800;
   font-stretch: var(--semi);
-  font-weight: 700;
-  font-size: 1.15rem;
+  line-height: 1.2;
 }
 
 .gym-address {
-  font-size: 0.85rem;
+  font-size: var(--fs-small);
   color: var(--pencil);
 }
 
-.results {
-  margin-top: 28px;
+/* the chosen gym leads: tap its name to change it, the arrows reverse the trip */
+.route {
+  grid-template-columns: 8px 32px 1fr auto;
+  cursor: default;
+  border-top: var(--hair);
 }
 
-.results-title {
-  font-size: 1rem;
-  margin-bottom: 2px;
+.route::before {
+  background: var(--hl);
+  box-shadow: 0 0 0 1px var(--hl-edge);
 }
 
-.dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 6px;
-  border-radius: 50%;
-  background: var(--pencil);
+.route .to {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  justify-self: start;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--fs-strong);
+  font-weight: 800;
+  font-stretch: var(--semi);
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
 }
 
-.dot.live {
-  background: var(--safe);
+.route .from {
+  grid-column: 3;
 }
 
-/* ---- results board ---- */
+.route .icon-btn {
+  grid-column: 4;
+  grid-row: 1 / span 2;
+}
+
+.status-line {
+  margin-top: var(--s4);
+}
+
+/* ---- the countdown ---- */
 
 .hero {
-  margin: 16px 0 20px;
-  padding-top: 12px;
-  border-top: 3px solid var(--ink);
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: end;
-  column-gap: 16px;
+  column-gap: var(--s4);
+  margin-top: var(--s4);
+  padding-top: var(--s3);
+  border-top: var(--heavy);
 }
 
-.hero-label {
+.hero > .label {
   grid-column: 1 / -1;
-  margin: 0;
-  font-weight: 600;
-  color: var(--pencil);
 }
 
 .hero-time {
-  grid-column: 1;
-  grid-row: 2;
-  margin: 0;
-  font-stretch: var(--narrow);
-  font-weight: 800;
-  font-size: clamp(3.5rem, 18vw, 5.5rem);
-  line-height: 0.95;
-  letter-spacing: -0.02em;
+  font-size: var(--fs-display);
+  white-space: nowrap;
 }
 
 .hero-arrive {
-  grid-column: 2;
-  grid-row: 2;
-  margin: 0;
   text-align: right;
   color: var(--pencil);
 }
 
-.hero-arrive strong {
+.hero-arrive .num {
   display: block;
+  font-size: var(--fs-num);
   color: var(--ink);
-  font-stretch: var(--narrow);
-  font-size: 2rem;
-  line-height: 1;
 }
 
 .hero-sub {
   grid-column: 1 / -1;
-  grid-row: 3;
-  margin: 8px 0 0;
+  margin-top: var(--s2);
 }
 
 .shift {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 4px;
+  margin: var(--s4) 0 var(--s2);
+  font-size: var(--fs-small);
 }
 
-.shift button.link {
-  padding: 6px 0;
-  font-size: 0.9rem;
-  color: var(--pencil);
-}
-
+/* ---- the options board: every option as tape on one time axis ---- */
 
 .strips {
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--rule);
+  border-top: var(--hair);
 }
 
-.strips li {
-  border-bottom: 1px solid var(--rule);
+.strips > li {
+  border-bottom: var(--hair);
 }
 
 .strip-row {
   display: grid;
-  grid-template-columns: 3.4rem 1fr 3.4rem 12px 2.6rem;
+  grid-template-columns: 3.2rem 1fr 3.2rem 12px 2.8rem;
   align-items: center;
-  column-gap: 10px;
+  column-gap: var(--s3);
   width: 100%;
-  padding: 10px 0;
+  min-height: 48px;
+  padding: 0 var(--s2);
   border: 0;
-  border-radius: 0;
-  font-weight: 400;
+  background: none;
   text-align: left;
+  cursor: pointer;
 }
 
-.strip-row.selected {
-  box-shadow: inset 4px 0 0 var(--hl), inset 5px 0 0 var(--hl-edge);
+.strips > li.selected > .strip-row {
   background: var(--panel);
-  padding-left: 8px;
+  box-shadow: inset var(--bar) 0 0 var(--hl), inset calc(var(--bar) + 1px) 0 0 var(--hl-edge);
 }
 
 .strip-leave,
 .strip-arrive {
-  font-stretch: var(--narrow);
+  font-size: var(--fs-strong);
   font-weight: 700;
-  font-size: 1.15rem;
+  font-stretch: var(--narrow);
 }
 
-.strip-arrive {
+.strip-arrive,
+.strip-dur {
   text-align: right;
 }
 
 .strip-dur {
-  font-stretch: var(--narrow);
   font-weight: 600;
-  font-size: 1rem;
+  font-stretch: var(--narrow);
   color: var(--pencil);
-  text-align: right;
 }
 
 .strip {
@@ -583,7 +970,7 @@ label.inline {
   content: '';
   position: absolute;
   inset: 50% 0 auto;
-  border-top: 1px solid var(--rule);
+  border-top: var(--hair);
 }
 
 .seg {
@@ -599,12 +986,12 @@ label.inline {
 }
 
 .seg.ride {
-  border-radius: 2px;
-  overflow: hidden;
   padding: 0 3px;
-  font-stretch: var(--narrow);
-  font-size: 0.72rem;
+  overflow: hidden;
+  border-radius: var(--r-mark);
+  font-size: var(--fs-micro);
   font-weight: 800;
+  font-stretch: var(--narrow);
   line-height: 18px;
   white-space: nowrap;
 }
@@ -614,58 +1001,31 @@ label.inline {
   outline-offset: 1px;
 }
 
-.risk-mark {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-  background: var(--safe);
-}
-
-.risk-mark.risk-tight {
-  background: var(--tight);
-}
-
-.risk-mark.risk-at-risk {
-  background: var(--risk);
-}
-
-.risk-mark.risk-missed {
-  background: var(--missed);
-}
-
 .alt-note {
-  margin: 0;
-  padding: 0 0 8px 12px;
-  font-size: 0.85rem;
+  padding: 0 var(--s2) var(--s2) calc(var(--s2) + var(--bar));
+  font-size: var(--fs-small);
   color: var(--pencil);
+  background: var(--panel);
 }
 
-.details {
-  margin-top: 20px;
+.summary {
+  margin-top: var(--s5);
 }
 
-.details-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+.summary strong {
+  font-weight: 800;
 }
 
-.details-head p {
-  margin: 0;
-}
-
-/* ---- timeline of one option ---- */
+/* ---- the trip's steps ---- */
 
 /* the steps share their columns (subgrid): the time column is as wide as the times, so the line down the middle
    sits as far from the times as from the descriptions */
 .timeline {
   display: grid;
   grid-template-columns: max-content 22px 1fr;
-  column-gap: 12px;
+  column-gap: var(--s3);
   list-style: none;
-  margin: 12px 0 0;
+  margin: var(--s3) 0 0;
   padding: 0;
 }
 
@@ -673,15 +1033,14 @@ label.inline {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
-  padding: 10px 0;
-  border-top: 1px solid var(--rule);
+  padding: var(--s3) 0;
+  border-top: var(--hair);
 }
 
 .step .time {
-  font-stretch: var(--narrow);
+  font-size: var(--fs-strong);
   font-weight: 700;
-  font-size: 1.1rem;
-  font-variant-numeric: tabular-nums;
+  font-stretch: var(--narrow);
 }
 
 .step.walk {
@@ -689,7 +1048,12 @@ label.inline {
 }
 
 .step.arrive {
-  font-weight: 700;
+  font-weight: 800;
+}
+
+.step.change {
+  padding-right: var(--s2);
+  background: var(--panel);
 }
 
 .step .change-icon {
@@ -698,44 +1062,84 @@ label.inline {
   color: var(--pencil);
 }
 
-.step.change {
-  font-size: 0.92rem;
-  background: var(--panel);
-  padding-right: 8px;
+.step .meta {
+  display: block;
+}
+
+.ride-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+  font-weight: 600;
 }
 
 /* a line down the middle in each leg's colours (and you on it, during a trip); everything on it is centred */
 .rail {
   position: relative;
   align-self: stretch;
-  margin: -11px 0 -10px; /* through the row's padding and rule, so the pieces join up */
+  margin: calc(-1 * var(--s3) - 1px) 0 calc(-1 * var(--s3)); /* through the row's padding and rule, so the pieces join */
 }
 
-/* walking: dotted (also behind a ride, showing above and below its line) */
-.rail::before {
+/* walking: a column of whole round dots (4.5px, about 10px apart, spaced out to fit), stopping as short of the rules
+   as a ride does; a walk's step has a walker in the middle */
+.rail::before,
+.rail.walk::after {
   content: '';
   position: absolute;
-  top: 0;
+  top: 1px;
   bottom: 0;
-  left: calc(50% - 1.5px);
-  border-left: 3px dotted var(--pencil);
+  left: calc(50% - 2.5px);
+  width: 5px;
+  background: radial-gradient(circle at 2.5px 5px, var(--pencil) 2px, transparent 2.5px) 0 0 / 5px 10px;
+  background-repeat: no-repeat space;
+}
+
+.rail.walk::before {
+  bottom: calc(50% + 9px);
+}
+
+.rail.walk::after {
+  top: calc(50% + 9px);
+  background-position: 0 100%; /* a lone dot sits by the rule, not by the walker */
+}
+
+.rail .walker {
+  position: absolute;
+  top: calc(50% - 9px);
+  left: calc(50% - 9px);
+  fill: none;
+  stroke: var(--pencil);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rail .walker circle {
+  fill: var(--pencil);
+  stroke: none;
+}
+
+/* a ride fills its row, stopping just short of the rules above and below */
+.rail.ride::before {
+  display: none;
 }
 
 /* a ride: a thick line from where you get on (the vehicle, in a disc a little wider than the line) to where you
    get off (a dot inside its end) */
 .rail .line {
   position: absolute;
-  top: 22px;
-  bottom: 8px;
+  top: 12px;
+  bottom: 2px;
   left: calc(50% - 7px);
   width: 14px;
   border-radius: 7px;
-  background: var(--c, #5e6670);
+  background: var(--c, var(--line-fallback));
 }
 
 .rail .board {
   position: absolute;
-  top: 11px;
+  top: 1px;
   left: calc(50% - 11px);
   display: grid;
   place-items: center;
@@ -744,12 +1148,12 @@ label.inline {
   box-sizing: border-box;
   border: 2px solid var(--wall);
   border-radius: 50%;
-  background: var(--c, #5e6670);
+  background: var(--c, var(--line-fallback));
 }
 
 .rail .board svg {
   fill: none;
-  stroke: var(--t, #ffffff);
+  stroke: var(--t, var(--white));
   stroke-width: 2.6;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -757,22 +1161,23 @@ label.inline {
 
 .rail .alight {
   position: absolute;
-  bottom: 12px;
+  bottom: 6px;
   left: calc(50% - 3px);
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--t, #ffffff);
+  background: var(--t, var(--white));
 }
 
 /* the home or gym at either end, with the walk dotted away below it (or up to it) */
 .rail.start::before {
-  top: 30px;
+  top: 26px;
+  background-position: 0 100%;
 }
 
 .rail.arrive::before {
   bottom: auto;
-  height: 12px;
+  height: 10px;
 }
 
 .rail .origin {
@@ -811,94 +1216,28 @@ label.inline {
   height: 28px;
   box-sizing: border-box;
   margin-top: -14px;
-  border: 3px solid #ffffff;
+  border: 3px solid var(--white);
   border-radius: 50%;
-  background: #2457d6;
+  background: var(--you);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   animation: you-here 2.4s ease-out infinite;
 }
 
 .rail .you svg {
   fill: none;
-  stroke: #ffffff;
+  stroke: var(--white);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 @keyframes you-here {
-  0% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(36, 87, 214, 0.45); }
-  70% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 10px rgba(36, 87, 214, 0); }
-  100% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(36, 87, 214, 0); }
+  0% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 0 color-mix(in srgb, var(--you) 45%, transparent); }
+  70% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 10px transparent; }
+  100% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 0 transparent; }
 }
 
-button.link.small {
-  font-size: 0.85rem;
-}
-
-.ride-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-weight: 600;
-}
-
-.chip {
-  display: inline-block;
-  min-width: 2.4em;
-  padding: 1px 6px;
-  border-radius: 2px;
-  text-align: center;
-  font-stretch: var(--narrow);
-  font-weight: 800;
-  font-size: 0.85rem;
-}
-
-.rt {
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.rt.ok {
-  color: var(--safe);
-}
-
-.rt.late {
-  color: var(--missed);
-}
-
-.rt.sched {
-  color: var(--pencil);
-  font-weight: 400;
-}
-
-.badge {
-  display: inline-block;
-  margin-right: 4px;
-  padding: 0 6px;
-  border-radius: 2px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--wall);
-  background: var(--safe);
-}
-
-.badge.risk-tight {
-  background: var(--tight);
-}
-
-.badge.risk-at-risk {
-  background: var(--risk);
-}
-
-.badge.risk-missed {
-  background: var(--missed);
-}
-
-
-
-/* ---- map ---- */
+/* ---- the map: a sheet on phones, a pane beside the trip on desktop ---- */
 
 .sheet {
   position: fixed;
@@ -912,17 +1251,24 @@ button.link.small {
 .sheet-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
-  border-bottom: 3px solid var(--ink);
+  gap: var(--s3);
+  min-height: 56px;
+  padding: env(safe-area-inset-top) var(--s3) 0;
+  border-bottom: var(--heavy);
+}
+
+.sheet-bar .btn {
+  padding-left: var(--s3);
 }
 
 .sheet-title {
-  font-stretch: var(--semi);
-  font-weight: 700;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 800;
+  font-stretch: var(--semi);
 }
 
 .map-wrap {
@@ -936,202 +1282,268 @@ button.link.small {
   inset: 0;
 }
 
-.map-note {
+.map-wrap > .callout,
+.map-pane > .callout {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  top: 12px;
+  left: var(--s3);
+  right: var(--s3);
+  top: var(--s3);
   z-index: 2;
-  margin: 0;
-  padding: 8px 12px;
-  border-left: 4px solid var(--risk);
-  background: var(--panel);
 }
 
-.map-note.subtle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-left-color: var(--rule);
+.map-wrap > .callout.subtle {
   top: auto;
-  bottom: 12px;
-}
-
-.map-note .close {
-  flex: none;
-  min-height: 32px;
-  margin-left: auto;
-  padding: 0 8px;
-  border: 0;
-  font-size: 1.3rem;
-  line-height: 1;
-  color: var(--pencil);
-}
-
-.sheet > .map-note {
-  position: static;
-  margin: 12px;
+  bottom: var(--s3);
 }
 
 .sheet-summary {
-  padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
-  border-top: 3px solid var(--ink);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: var(--s4);
+  padding: var(--s3) var(--s4) calc(var(--s3) + env(safe-area-inset-bottom));
+  border-top: var(--heavy);
+}
+
+.sheet-summary > div {
+  min-width: 0;
 }
 
 .sheet-summary p {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 6px;
+  gap: var(--s3);
+  margin-bottom: var(--s2);
 }
 
 .sheet-leave {
-  font-stretch: var(--narrow);
-  font-weight: 800;
-  font-size: 1.6rem;
-}
-
-/* the option on the map can be started right there: the button sits where the thumb is, next to what it commits to */
-.sheet-summary.with-start {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: stretch;
-  column-gap: 14px;
-}
-
-.sheet-summary.with-start > div {
-  min-width: 0;
+  font-size: var(--fs-lead);
 }
 
 /* during a trip the description sits under the map, scrolling on its own */
 .sheet-steps {
+  grid-column: 1 / -1;
   max-height: 38vh;
   overflow-y: auto;
   overscroll-behavior: contain;
-  margin: 0 -16px;
-  padding: 0 16px;
+  margin: 0 calc(-1 * var(--s4));
+  padding: 0 var(--s4);
 }
 
 .sheet-steps .timeline {
-  margin-top: 4px;
+  margin-top: var(--s1);
 }
 
-.sheet-summary .start {
-  min-width: 6.5rem;
-  padding: 0 18px;
+/* MapLibre's controls in the app's terms: square, outlined, no shadow */
+.maplibregl-ctrl-group:not(:empty) {
+  border: 1.5px solid var(--edge);
+  border-radius: var(--r-control);
+  background: var(--panel);
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.maplibregl-ctrl-group button {
+  width: var(--control);
+  height: var(--control);
+}
+
+.maplibregl-ctrl-group button + button {
+  border-top: var(--hair);
+}
+
+[data-theme='dark'] .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+
+.maplibregl-ctrl-attrib.maplibregl-compact {
+  background: var(--panel);
+  color: var(--pencil);
+}
+
+.map-pane {
+  display: none;
+}
+
+/* ---- in a trip ---- */
+
+.trip-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 56px;
+  padding-top: env(safe-area-inset-top);
+  border-bottom: var(--heavy);
+}
+
+.trip-bar .sheet-title {
+  flex: 1;
+}
+
+.intrip > .confirm {
+  margin-top: var(--s2);
+}
+
+.intrip .hero {
+  margin-top: var(--s2);
+  border-top: 0;
+}
+
+.intrip > .callout {
+  margin-top: var(--s4);
+}
+
+.now {
+  margin-top: var(--s4);
+  padding: var(--s3) 0;
+  border-top: var(--heavy);
+}
+
+.now-main {
+  margin: var(--s1) 0 var(--s2);
+  font-size: var(--fs-lead);
+  font-weight: 800;
   font-stretch: var(--semi);
-  font-weight: 750;
-  font-size: 1.15rem;
-  line-height: 1.1;
+  line-height: 1.15;
+}
+
+.now p + p {
+  margin-top: var(--s1);
+}
+
+.next {
+  padding: var(--s3) 0;
+  border-top: var(--hair);
+}
+
+.spare {
+  display: block;
+  margin-top: var(--s1);
+  font-weight: 600;
+  color: var(--safe);
+}
+
+.spare.tight {
+  color: var(--tight);
+}
+
+.spare.bad {
+  color: var(--missed);
+}
+
+.intrip .status-line {
+  margin-top: var(--s3);
+}
+
+.intrip .steps {
+  margin-top: var(--s2);
+}
+
+.intrip .timer {
+  margin-top: var(--s4);
+}
+
+/* ---- timing a walk, measuring a pace ---- */
+
+.timer-clock {
+  margin: var(--s2) 0;
+  font-size: var(--fs-display);
+}
+
+.timer p + p,
+.pace p + p {
+  margin-top: var(--s2);
+}
+
+.timer .actions,
+.pace .actions {
+  margin-top: var(--s4);
+}
+
+.timer .callout {
+  margin-top: var(--s3);
+}
+
+/* the pace test sits inside its field, between rules */
+.pace {
+  margin: 0 0 var(--s4);
+  padding: var(--s3) 0;
+  border-top: var(--hair);
+  border-bottom: var(--hair);
 }
 
 /* ---- settings ---- */
 
-.card {
-  padding-top: 14px;
-  border-top: 3px solid var(--ink);
-}
-
-
-.list {
-  list-style: none;
-  margin: 0 0 12px;
-  padding: 0;
-}
-
-.list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--rule);
-}
-
-.row-actions {
-  display: flex;
-  flex: none;
-  gap: 2px;
-}
-
-.icon-btn {
+.swatches {
   display: grid;
-  place-items: center;
-  width: 40px;
-  min-height: 40px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s2);
+  margin: var(--s2) 0 0;
   padding: 0;
-  border: 0;
-  border-radius: 6px;
+  list-style: none;
 }
 
-.icon-btn:hover {
+/* each colour is a hold, as on the wall */
+.swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: var(--s2) var(--s1) var(--s1);
+  border: 1.5px solid transparent;
+  border-radius: var(--r-control);
+  background: none;
+  font-size: var(--fs-micro);
+  cursor: pointer;
+}
+
+.swatch svg {
+  width: 40px;
+  height: 36px;
+}
+
+.swatch .hold {
+  fill: var(--hl);
+  stroke: var(--hl-edge);
+  stroke-width: 0.8;
+}
+
+.swatch .bolt {
+  fill: var(--wall);
+}
+
+.swatch[aria-checked='true'] {
+  border-color: var(--ink);
   background: var(--panel);
+  font-weight: 800;
 }
 
-.icon-btn.danger .icon {
-  stroke: var(--missed);
-}
-
-.list.pick li {
-  justify-content: flex-start;
-}
-
-label.check {
-  flex: 1;
-  flex-direction: row;
-  align-items: flex-start;
-  margin: 0;
-  font-weight: 500;
-}
-
-label.check .brand {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-}
-
-label.check input {
-  flex: none;
-  width: 22px;
-  min-height: 22px;
-  margin-top: 1px;
-  accent-color: var(--ink);
-}
-
-
-
-.row-form {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-.row-form label {
-  flex: 1;
-}
-
-.row-form button {
-  margin-bottom: 14px;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.section .segmented {
+  margin-top: var(--s1);
 }
 
 .share {
-  margin-top: 12px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--s3);
+  margin-top: var(--s4);
 }
 
 .qr {
   width: min(280px, 100%);
   height: auto;
+}
+
+.walkcell {
+  flex: none;
+  text-align: right;
+}
+
+.stops-more {
+  margin: var(--s2) 0 var(--s3);
 }
 
 /* ---- landing: a browser without access sees the name and the mark ----
@@ -1257,257 +1669,230 @@ label.check input {
   }
 }
 
-/* ---- in-trip ---- */
 
-.intrip .sheet-bar {
-  padding-left: 0;
-  padding-right: 0;
-  margin-bottom: 4px;
+/* ---- desktop: the trip beside a map that's always there ---- */
+
+@media (min-width: 1024px) {
+  .app {
+    width: var(--pane-w);
+    max-width: none;
+    margin: 0;
+    padding: var(--header-h) var(--s5) 0;
+  }
+
+  /* Settings and the editors: one readable column in the middle */
+  .app.wide-column {
+    width: auto;
+    max-width: calc(40rem + 2 * var(--s5));
+    margin: 0 auto;
+  }
+
+  .app.in-trip {
+    padding-top: 0;
+  }
+
+  .topbar {
+    position: fixed;
+    inset: 0 0 auto;
+    height: var(--header-h);
+    margin: 0;
+    padding: 0 var(--s5);
+    border-bottom: var(--hair);
+  }
+
+  .topbar::after {
+    display: none;
+  }
+
+  .app > .callout:first-of-type {
+    margin-top: var(--s4);
+  }
+
+  .stack:first-child,
+  .app > main > :first-child {
+    margin-top: var(--s4);
+  }
+
+  .map-pane {
+    position: fixed;
+    top: var(--header-h);
+    left: var(--pane-w);
+    right: 0;
+    bottom: 0;
+    display: grid;
+    border-left: var(--hair);
+  }
+
+  .app.in-trip .map-pane {
+    top: 0;
+  }
+
+  .map-pane .map-wrap {
+    height: 100%;
+  }
+
+  .map-pane > .empty-map {
+    place-self: center;
+    max-width: 22rem;
+    text-align: center;
+    color: var(--pencil);
+  }
+
+  .action-bar {
+    margin-inline: calc(-1 * var(--s5));
+    padding-inline: var(--s5);
+  }
+
+  .action-bar .phone-only {
+    display: none;
+  }
+
+  .action-bar:not(:has(> :not(.phone-only))) {
+    display: none;
+  }
 }
 
-.intrip .hero {
-  border-top: 0;
-  margin-top: 8px;
+/* ---- spacing inside screens ---- */
+
+.trip > .when {
+  margin-top: var(--s3);
 }
 
-.alert {
-  margin: 0 0 20px;
-  padding: 12px 14px;
-  border-left: 5px solid var(--missed);
-  background: var(--panel);
+.suggest {
+  display: grid;
+  justify-items: start;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
 }
 
-.alert.risk-safe {
-  border-left-color: var(--safe);
+.place-actions,
+.section-actions {
+  margin: var(--s3) 0;
 }
 
-.alert p {
-  margin-bottom: 10px;
+.place-set {
+  margin-top: var(--s2);
 }
 
-.label {
-  margin: 0 0 2px;
-  font-weight: 600;
+.section > .rows + .btn {
+  margin-top: var(--s1);
+}
+
+.section > .callout {
+  margin-bottom: var(--s3);
+}
+
+.results > .callout {
+  margin-top: var(--s3);
+}
+
+@media (min-width: 640px) {
+  .swatches {
+    grid-template-columns: repeat(9, 1fr);
+  }
+}
+
+/* a place found by a search: the whole row picks it */
+.rows.pick > li {
+  padding: 0;
+}
+
+.pick-row {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  min-height: 56px;
+  padding: var(--s2) var(--s2) var(--s2) 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pick-row::after {
+  content: '›';
+  flex: none;
   color: var(--pencil);
 }
 
-.now {
-  padding: 12px 0;
-  border-top: 3px solid var(--ink);
+.pick-row:hover {
+  background: var(--panel);
 }
 
-.now-main {
-  margin: 0 0 6px;
-  font-stretch: var(--semi);
-  font-weight: 750;
-  font-size: 1.5rem;
-  line-height: 1.15;
+/* ---- dialog sheet: whole-device actions ---- */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  background: rgba(20, 22, 24, 0.45);
 }
 
-.next {
-  padding: 12px 0;
-  border-top: 1px solid var(--rule);
+.sheet-dialog {
+  width: min(100%, 30rem);
+  padding: var(--s5) var(--s4) calc(var(--s4) + env(safe-area-inset-bottom));
+  border-top: var(--heavy);
+  background: var(--wall);
 }
 
-.spare {
-  display: block;
-  margin-top: 4px;
-  font-weight: 600;
-  color: var(--safe);
+.sheet-body {
+  margin: var(--s2) 0 var(--s4);
 }
 
-.spare.tight {
-  color: var(--tight);
+.sheet-body p + p {
+  margin-top: var(--s2);
 }
 
-.spare.bad {
-  color: var(--missed);
-}
-
-
-
-.details-head .actions {
-  flex-wrap: nowrap;
-}
-
-/* ---- gyms and line suggestions ---- */
-
-.stack.tight > * + * {
-  margin-top: 8px;
-}
-
-.inline-pair {
-  display: flex;
-  gap: 8px;
-}
-
-.inline-pair select {
-  flex: none;
-  width: auto;
-}
-
-.inline-pair input {
-  flex: 1;
-  min-width: 0;
-}
-
-.list.lines li {
-  justify-content: flex-start;
-}
-
-.list.itins li {
-  display: block;
-}
-
-details > summary {
-  cursor: pointer;
-  margin: 4px 0 8px;
-  font-weight: 600;
-}
-
-/* ---- walk timer ---- */
-
-.timer-clock {
-  margin: 8px 0;
-  font-family: 'Archivo Variable', system-ui, sans-serif;
-  font-stretch: var(--narrow);
-  font-weight: 800;
-  font-size: 4.5rem;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-.walkcell {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+.sheet-dialog .actions {
   justify-content: flex-end;
 }
 
-/* timing a walk during a trip */
-.intrip .actions + .muted.small {
-  margin-top: 10px;
+@media (min-width: 640px) {
+  .scrim {
+    align-items: center;
+  }
 }
 
-.intrip .steps {
-  margin-top: 8px;
+/* ---- loading: the shape of what's coming ---- */
+
+.skeleton {
+  display: block;
+  border-radius: var(--r-mark);
+  background: var(--rule);
+  opacity: 0.6;
 }
 
-.intrip .timer {
-  margin-bottom: 16px;
-}
-
-fieldset.choice {
-  margin: 12px 0 0;
-  padding: 0;
-  border: 0;
-}
-
-fieldset.choice legend {
-  padding: 0;
-  margin-bottom: 4px;
-  font-weight: 600;
-}
-
-fieldset.choice label.check {
-  display: flex;
-  gap: 8px;
-  padding: 6px 0;
-}
-
-/* ---- settings: section icons and the highlight colour ---- */
-
-.card > h2 {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.icon {
-  flex: none;
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.icon .acc {
-  fill: var(--hl);
-}
-
-.icon .acc-line {
-  stroke: var(--hl);
-  stroke-width: 2.2;
-}
-
-.icon .ink {
-  fill: var(--ink);
-  stroke: none;
-}
-
-.icon .risk-safe-fill { fill: var(--safe); stroke: none; }
-.icon .risk-tight-fill { fill: var(--tight); stroke: none; }
-.icon .risk-risk-fill { fill: var(--risk); stroke: none; }
-
-.pace {
-  margin: 4px 0 12px;
-  padding: 12px;
-  background: var(--panel);
-  border-left: 4px solid var(--hl);
-}
-
-.pace .timer-clock {
-  font-size: 3rem;
-}
-
-.card h3 {
-  margin: 18px 0 2px;
-  font-size: 1rem;
-}
-
-.swatches {
+.skeleton-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(4.4rem, 1fr));
-  gap: 6px;
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-/* each colour is a hold, as on the wall */
-.swatch {
-  display: flex;
-  flex-direction: column;
+  grid-template-columns: 3.2rem 1fr 3.2rem;
   align-items: center;
-  gap: 2px;
-  width: 100%;
-  min-height: 0;
-  padding: 8px 4px 6px;
-  border: 1.5px solid transparent;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 500;
+  column-gap: var(--s3);
+  min-height: 48px;
+  padding: 0 var(--s2);
+  border-bottom: var(--hair);
 }
 
-.swatch svg {
-  width: 40px;
-  height: 36px;
+.skeleton-row .skeleton {
+  height: 12px;
 }
 
-.swatch .hold {
-  fill: var(--hl);
-  stroke: var(--hl-edge);
-  stroke-width: 0.8;
+.skeleton-hero {
+  height: 56px;
+  width: 50%;
+  margin: var(--s3) 0 var(--s4);
 }
 
-.swatch .bolt {
-  fill: var(--wall);
-}
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton {
+    animation: skeleton 1.6s ease-in-out infinite;
+  }
 
-.swatch[aria-checked='true'] {
-  border-color: var(--ink);
-  background: var(--panel);
-  font-weight: 700;
+  @keyframes skeleton {
+    50% { opacity: 0.3; }
+  }
 }

@@ -10,6 +10,19 @@ export function useNow(ms = 1000): number {
   return now
 }
 
+/** True on a screen wide enough for the trip and the map side by side (docs/DESIGN.md, Layout). */
+export function useWide(): boolean {
+  const q = '(min-width: 1024px)'
+  const [wide, setWide] = useState(() => window.matchMedia(q).matches)
+  useEffect(() => {
+    const m = window.matchMedia(q)
+    const on = () => setWide(m.matches)
+    m.addEventListener('change', on)
+    return () => m.removeEventListener('change', on)
+  }, [])
+  return wide
+}
+
 /** True while the page is visible; polling pauses in the background. */
 export function useVisible(): boolean {
   const [visible, setVisible] = useState(document.visibilityState === 'visible')
@@ -30,7 +43,7 @@ export function usePolling<T>(
   fn: (signal: AbortSignal) => Promise<T>,
   ms: number,
   visible: boolean,
-): { data: T | null; error: unknown; loading: boolean; updatedAt: number } {
+): { data: T | null; error: unknown; loading: boolean; updatedAt: number; refresh: () => void } {
   const [state, setState] = useState<{ data: T | null; error: unknown; loading: boolean; updatedAt: number }>({
     data: null, error: null, loading: false, updatedAt: 0,
   })
@@ -70,5 +83,5 @@ export function usePolling<T>(
     return () => clearInterval(id)
   }, [key, ms, visible])
 
-  return state
+  return { ...state, refresh: run }
 }

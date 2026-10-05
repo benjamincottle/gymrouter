@@ -143,6 +143,49 @@ func Project(pts []Point, p Point, from Along) Along {
 	return best
 }
 
+// PlaceLeg finds where a ride gets on (from) and off (to) along its route line. The line can pass the boarding stop
+// more than once (a train out and back round a loop starts and ends in the same place), so every pass that comes
+// within passM of the nearest is tried, and the one from which the alighting stop is closest, further along, wins.
+// ok is false when no pass puts the alighting stop after the boarding one.
+func PlaceLeg(pts []Point, from, to Point) (a, b Along, ok bool) {
+	const passM = 50
+	best := math.Inf(1)
+	for _, c := range passes(pts, from, passM) {
+		e := Project(pts, to, c)
+		if !c.Before(e) {
+			continue
+		}
+		if d := DistanceM(from, c.Pt) + DistanceM(to, e.Pt); d < best {
+			a, b, ok, best = c, e, true, d
+		}
+	}
+	return a, b, ok
+}
+
+// passes returns the closest point of each pass of the line near p: each run of segments that gets nearer and then
+// further away, whose closest point is within slackM of the nearest overall.
+func passes(pts []Point, p Point, slackM float64) []Along {
+	if len(pts) < 2 {
+		return []Along{Project(pts, p, Along{})}
+	}
+	n := len(pts) - 1
+	at := make([]Along, n)
+	d := make([]float64, n)
+	bestD := math.Inf(1)
+	for i := range n {
+		at[i] = Project(pts[:i+2], p, Along{Seg: i}) // segment i only
+		d[i] = DistanceM(p, at[i].Pt)
+		bestD = math.Min(bestD, d[i])
+	}
+	var out []Along
+	for i := range n {
+		if d[i] <= bestD+slackM && (i == 0 || d[i] < d[i-1]) && (i == n-1 || d[i] <= d[i+1]) {
+			out = append(out, at[i])
+		}
+	}
+	return out
+}
+
 // Cut returns the part of the line from a to b (a before b).
 func Cut(pts []Point, a, b Along) []Point {
 	out := []Point{a.Pt}

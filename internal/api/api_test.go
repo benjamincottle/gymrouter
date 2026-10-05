@@ -458,7 +458,7 @@ func TestLegShapeAndMap(t *testing.T) {
 	if travelled < 1 {
 		t.Errorf("a ride should count the stops travelled: %d", travelled)
 	}
-	shape := func() int {
+	shape := func() (int, float64) {
 		rec := h.do(t, "GET", q, token, nil)
 		var s struct{ Coordinates, Stops [][2]float64 }
 		_ = json.Unmarshal(rec.Body.Bytes(), &s)
@@ -468,12 +468,25 @@ func TestLegShapeAndMap(t *testing.T) {
 		if len(s.Stops) != travelled-1 { // the stops passed, not where you get on or off
 			t.Errorf("shape stops: %d, want %d", len(s.Stops), travelled-1)
 		}
-		return len(s.Coordinates)
+		path := make([]geo.Point, len(s.Coordinates))
+		for i, c := range s.Coordinates {
+			path[i] = geo.Point{Lon: c[0], Lat: c[1]}
+		}
+		off := 0.0 // how far the furthest stop is from the line
+		for _, c := range s.Stops {
+			p := geo.Point{Lon: c[0], Lat: c[1]}
+			off = max(off, geo.DistanceM(p, geo.Project(path, p, geo.Along{}).Pt))
+		}
+		return len(s.Coordinates), off
 	}
-	before := shape() // straight lines between stops until shapes load
+	before, _ := shape() // straight lines between stops until shapes load
 	h.env.Engine.LoadShapes()
-	if after := shape(); after <= before {
+	after, off := shape()
+	if after <= before {
 		t.Errorf("route shape should have more detail than stops: %d vs %d points", after, before)
+	}
+	if off > 1.5 { // coordinates are rounded to about a metre
+		t.Errorf("stops should be drawn on the route shape: one is %.1f m off it", off)
 	}
 	if rec := h.do(t, "GET", "/api/shape?date=2026-10-08&trip=nope&from=a&to=b", token, nil); rec.Code != 404 {
 		t.Errorf("unknown trip: %d", rec.Code)

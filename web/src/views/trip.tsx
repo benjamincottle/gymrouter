@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
-import { api, AuthError } from '../api.ts'
-import { addDays, dayLabel, fromLocalInput, roundUp, toLocalInput } from '../format.ts'
-import { usePolling, useVisible } from '../hooks.ts'
-import { byUse, placeRef, planPlace, prefs, usedGym, type Settings } from '../settings.ts'
+import { api, AuthError, problem } from '../api.ts'
+import { addDays, dayLabel, fromLocalInput, roundUp, statusTime, toLocalInput } from '../format.ts'
+import { usePolling, useVisible, useWide } from '../hooks.ts'
+import { byUse, placeRef, planPlace, prefs, usedGym, type Gym, type Settings } from '../settings.ts'
 import type { DefaultsResponse, PlanRequest } from '../types.ts'
 import { Board, WindowShift, type Shift } from './board.tsx'
 import { BrandLogo } from './brand.tsx'
 import type { ActiveTrip } from './intrip.tsx'
+import { Button, Callout, IconButton, Segmented } from './ui.tsx'
 
 type Direction = 'to-gym' | 'home'
 
@@ -21,11 +22,12 @@ interface Props {
   onAuthError: () => void
   goToSettings: () => void
   onStartTrip: (t: ActiveTrip) => void
+  serverError?: boolean // the app couldn't reach the server (it says so above, with Try again)
 }
 
 type When = 'now' | 'leave' | 'arrive'
 
-export function Trip({ settings, setSettings, server, onAuthError, goToSettings, onStartTrip }: Props) {
+export function Trip({ settings, setSettings, server, onAuthError, goToSettings, onStartTrip, serverError }: Props) {
   const [direction, setDirection] = useState<Direction>('to-gym')
   const [gymId, setGymId] = useState<string | null>(null)
   // The most used gyms first, in the order they had when this screen opened (choosing one doesn't reshuffle the list).
@@ -37,15 +39,18 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   }
   const [when, setWhen] = useState<When>('now')
   const [at, setAt] = useState(() => roundUp(toLocalInput(new Date()))) // "YYYY-MM-DDTHH:MM", Sydney time
-  // Choosing a time starts from now if the one last chosen has passed.
+  // Choosing a time starts from a sensible one if the one last chosen won't do: now for leaving, an hour from now for
+  // arriving (arriving by "now" would only offer trips that have already left).
   const chooseTime = (w: 'leave' | 'arrive') => {
-    if (Date.parse(fromLocalInput(at)) < Date.now()) setAt(roundUp(toLocalInput(new Date())))
+    const soonest = w === 'arrive' ? Date.now() + 30 * 60_000 : Date.now()
+    if (Date.parse(fromLocalInput(at)) < soonest) setAt(roundUp(toLocalInput(new Date(w === 'arrive' ? Date.now() + 60 * 60_000 : Date.now()))))
     setWhen(w)
   }
   const [moved, setMoved] = useState<number | null>(null) // "Leave now", moved earlier or later: where the window starts
   useEffect(() => setMoved(null), [when, gymId, direction])
   const leaveAt = when === 'now' ? null : at
   const visible = useVisible()
+  const wide = useWide()
   const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
 
   const request: PlanRequest | null = useMemo(() => {
@@ -87,14 +92,14 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   }, [plan.error, onAuthError])
 
 
-  if (!server) return <p class="muted">Loading…</p>
+  if (!server) return serverError ? null : <GymsSkeleton />
   if (!home || settings.gyms.length === 0) {
     return (
       <div class="empty">
         <p>{home ? 'Add a gym to plan trips to.' : 'Add your home and a gym, so trips can start (or end) there.'}</p>
-        <button class="primary" onClick={goToSettings}>
+        <Button variant="primary" onClick={goToSettings}>
           {home ? 'Add a gym' : 'Get started'}
-        </button>
+        </Button>
       </div>
     )
   }
@@ -102,35 +107,45 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   const gym = settings.gyms.find((g) => g.id === gymId)
   const ends = gym && (direction === 'to-gym' ? { start: placeRef('home', home), end: placeRef('gym', gym) } : { start: placeRef('gym', gym), end: placeRef('home', home) })
   const places = { start: ends?.start.key, end: ends?.end.key }
+  const title = gym && (direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`)
+  const brandOf = (g: Gym) => server.gyms.find((k) => k.id === g.ref)?.brand
 
   return (
-    <div class="stack">
-      <div class="when">
-        <div class="segmented small" role="group" aria-label="When">
-          <button aria-pressed={when === 'now'} onClick={() => setWhen('now')}>
-            Leave now
+    <div class="stack trip">
+      {gym ? (
+        // The chosen gym leads: tap its name to choose another; the arrows reverse the trip.
+        <div class="route">
+          <BrandLogo brand={brandOf(gym)} />
+          <button class="to" aria-label={`${gym.name}: choose a different gym`} onClick={() => chooseGym(null)}>
+            {gym.name}
+            <svg class="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path d="M6 9.5l6 6 6-6" />
+            </svg>
           </button>
-          <button aria-pressed={when === 'leave'} onClick={() => chooseTime('leave')}>
-            Leave at
-          </button>
-          <button aria-pressed={when === 'arrive'} onClick={() => chooseTime('arrive')}>
-            Arrive by
-          </button>
+          <span class="from meta">{direction === 'to-gym' ? `from ${home.name}` : `to ${home.name}`}</span>
+          <IconButton
+            label={direction === 'to-gym' ? `Reverse: from ${gym.name} to ${home.name}` : `Reverse: from ${home.name} to ${gym.name}`}
+            onClick={() => setDirection(direction === 'to-gym' ? 'home' : 'to-gym')}
+          >
+            <svg class="icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <path d="M8 4v15m-4-4 4 4 4-4M16 20V5m-4 4 4-4 4 4" />
+            </svg>
+          </IconButton>
         </div>
-        {when !== 'now' && <DayTime value={at} onChange={setAt} label={when === 'arrive' ? 'Arrive by' : 'Leave at'} />}
-      </div>
-
-      <div class="segmented" role="group" aria-label="Direction">
-        <button aria-pressed={direction === 'to-gym'} onClick={() => setDirection('to-gym')}>
-          To the gym
-        </button>
-        <button aria-pressed={direction === 'home'} onClick={() => setDirection('home')}>
-          Home
-        </button>
-      </div>
+      ) : (
+        <div class="gyms" role="group" aria-label="Choose a gym">
+          {[...settings.gyms].sort((a, b) => rank(a.id) - rank(b.id)).map((g) => (
+            <button class="gym" onClick={() => chooseGym(g.id)}>
+              <BrandLogo brand={brandOf(g)} />
+              <span class="gym-name">{g.name}</span>
+              {g.address && <span class="gym-address">{g.address}</span>}
+            </button>
+          ))}
+        </div>
+      )}
 
       {settings.homes.length > 1 && (
-        <label class="inline">
+        <label class="inline-choice">
           {direction === 'to-gym' ? 'From' : 'To'}
           <select
             value={home.id}
@@ -143,37 +158,29 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
         </label>
       )}
 
-      <div class="gyms">
-        {(gym ? [gym] : [...settings.gyms].sort((a, b) => rank(a.id) - rank(b.id))).map((g) => (
-          <button
-            class={g.id === gymId ? 'gym selected' : 'gym'}
-            aria-pressed={g.id === gymId}
-            aria-label={g.id === gymId ? `${g.name}: choose a different gym` : undefined}
-            onClick={() => chooseGym(g.id === gymId ? null : g.id)}
-          >
-            <BrandLogo brand={server.gyms.find((k) => k.id === g.ref)?.brand} />
-            <span class="gym-name">{g.name}</span>
-            {g.id === gymId ? (
-              <span class="gym-address">{settings.gyms.length > 1 ? 'Change gym' : g.address}</span>
-            ) : (
-              g.address && <span class="gym-address">{g.address}</span>
-            )}
-          </button>
-        ))}
+      <div class="when">
+        <Segmented
+          label="When"
+          options={[['now', 'Leave now'], ['leave', 'Leave at'], ['arrive', 'Arrive by']] as const}
+          value={when}
+          onChange={(w) => (w === 'now' ? setWhen('now') : chooseTime(w))}
+        />
+        {when !== 'now' && <DayTime value={at} onChange={setAt} label={when === 'arrive' ? 'Arrive by' : 'Leave at'} />}
       </div>
 
       {gym && (
-        <section class="results">
-          <h2 class="results-title">
-            {direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`}
-          </h2>
+        <section class="results" aria-label={title}>
           <DataStatus realtime={plan.data?.realtime} loading={plan.loading} updatedAt={plan.updatedAt} walking={plan.data?.walking} />
           {plan.error !== null && !(plan.error instanceof AuthError) && (
-            <p class="error">{(plan.error as Error).message}</p>
+            <Callout tone="bad" role="alert" action={<Button onClick={plan.refresh}>Try again</Button>}>
+              <strong>Couldn't plan this trip.</strong> {problem(plan.error)}
+              {plan.data ? ` The plan below is from ${statusTime(plan.updatedAt)}.` : ''}
+            </Callout>
           )}
+          {!plan.data && plan.loading && <BoardSkeleton />}
           {plan.data && plan.data.options.length === 0 && <WindowShift shift={shift} />}
           {plan.data && plan.data.options.length === 0 && (
-            <p class="muted">
+            <p class="meta">
               {when === 'arrive'
                 ? 'No way to get there by then on these lines. Try later trips.'
                 : `Nothing leaves in these ${WINDOW_MIN} minutes. Try later trips.`}
@@ -181,7 +188,8 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
           )}
           {plan.data && plan.data.options.length > 0 && (
             <Board
-              options={plan.data.options}
+              options={[...plan.data.options].sort((a, b) => Date.parse(a.leave_at) - Date.parse(b.leave_at))}
+              preferLatest={when === 'arrive'}
               live={leaveAt === null}
               serviceDate={plan.data.service_date}
               token={settings.token!}
@@ -189,7 +197,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
               places={places}
               origin={direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat]}
               destination={direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat]}
-              title={direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`}
+              title={title!}
               ends={ends!}
               onShift={shift}
               onStart={(o) =>
@@ -198,7 +206,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
                   plannedArrive: o.arrive,
                   request: request!,
                   ends: ends!, // a gym is chosen whenever there are options
-                  title: direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`,
+                  title: title!,
                   origin: direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat],
                   destination: direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat],
                   serviceDate: plan.data!.service_date,
@@ -208,6 +216,11 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
             />
           )}
         </section>
+      )}
+      {wide && !(gym && plan.data && plan.data.options.length > 0) && (
+        <aside class="map-pane">
+          <p class="empty-map">{gym ? 'The map shows a trip once there is one.' : 'Choose a gym and the trip shows here on the map.'}</p>
+        </aside>
       )}
     </div>
   )
@@ -252,12 +265,11 @@ function DayTime({ value, onChange, label }: { value: string; onChange: (v: stri
 function DataStatus({
   realtime, loading, updatedAt, walking,
 }: { realtime?: boolean; loading: boolean; updatedAt: number; walking?: 'streets' | 'estimate' }) {
-  if (!updatedAt) return <p class="muted small">{loading ? 'Planning…' : ''}</p>
-  const t = new Date(updatedAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' })
+  if (!updatedAt) return <p class="meta status-line">{loading ? 'Planning…' : ''}</p>
   return (
-    <p class="muted small">
-      <span class={realtime ? 'dot live' : 'dot'} aria-hidden="true" />
-      {realtime ? 'Live data' : 'Timetable only'}, updated {t}
+    <p class="meta status-line">
+      <span class={realtime ? 'live-dot live' : 'live-dot'} aria-hidden="true" />
+      {realtime ? 'Live data' : 'Timetable only'}, updated {statusTime(updatedAt)}
       {loading && ', refreshing…'}
       {walking === 'estimate' && (
         <>
@@ -266,5 +278,38 @@ function DataStatus({
         </>
       )}
     </p>
+  )
+}
+
+/** While the first plan loads: the countdown and the board's rows, in outline. */
+function BoardSkeleton() {
+  return (
+    <div class="board-skeleton" aria-label="Planning…" role="status">
+      <span class="skeleton skeleton-hero" />
+      <div class="strips">
+        {[0, 1, 2, 3, 4].map(() => (
+          <div class="skeleton-row">
+            <span class="skeleton" />
+            <span class="skeleton" />
+            <span class="skeleton" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** While the app reaches the server: the gyms' rows, in outline. */
+function GymsSkeleton() {
+  return (
+    <div class="gyms" role="status" aria-label="Loading…">
+      {[0, 1, 2].map(() => (
+        <div class="gym">
+          <span class="skeleton" style={{ gridRow: 'span 2', width: '32px', height: '32px' }} />
+          <span class="skeleton" style={{ height: '16px', width: '60%' }} />
+          <span class="skeleton" style={{ height: '12px', width: '40%', marginTop: '6px' }} />
+        </div>
+      ))}
+    </div>
   )
 }

@@ -10,6 +10,8 @@ import { ApiError, api } from '../api.ts'
 import { legTrace, type TimedWalk } from '../walks.ts'
 import { isDark } from '../theme.ts'
 import type { Leg, Option } from '../types.ts'
+import { INK, lineColour, textOn, token, WHITE } from '../colour.ts'
+import { Callout } from '../views/ui.tsx'
 
 maplibregl.setWorkerUrl(workerUrl)
 
@@ -42,19 +44,52 @@ function style(token: string, dark: boolean): StyleSpecification {
   }
 }
 
-const hex = (c?: string) => (c && /^[0-9a-fA-F]{6}$/.test(c) ? `#${c}` : '#5e6670')
+/** RGB of a CSS hex colour ("#1e2226"), for drawing the walk dots. */
+const rgb = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)) as [number, number, number]
 
-/** Black or white, whichever reads better on the line colour (some lines are pale, e.g. yellow). */
-function textOn(c?: string): string {
-  if (!c || !/^[0-9a-fA-F]{6}$/.test(c)) return '#ffffff'
-  const [r, g, b] = [0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16) / 255)
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.6 ? '#1f2328' : '#ffffff'
+/**
+ * The map's own colours, taken from style.css when the map is made (MapLibre paint can't read CSS variables): the ink
+ * for walks, stop and vehicle outlines, white stops, and the "you" blue.
+ */
+const mapColours = () => {
+  const ink = token('--ink') || INK
+  return { walk: rgb(ink), ink, stop: WHITE, you: token('--you') || '#2457d6' }
 }
+
+/**
+ * Whether a vehicle is close enough to the trip to be worth framing with it: within half the trip's size (at least
+ * about a kilometre) of its bounds. One still far off would shrink the trip to a corner of the map.
+ */
+function nearRoute(b: maplibregl.LngLatBounds, [lon, lat]: [number, number]): boolean {
+  const sw = b.getSouthWest()
+  const ne = b.getNorthEast()
+  const dx = Math.max(0.01, (ne.lng - sw.lng) / 2)
+  const dy = Math.max(0.01, (ne.lat - sw.lat) / 2)
+  return lon > sw.lng - dx && lon < ne.lng + dx && lat > sw.lat - dy && lat < ne.lat + dy
+}
+
+const RIDE_W = 6 // a ride's line on the map, in pixels; the stops along it are as wide
+
+
 
 type Geometry =
   | { type: 'Point'; coordinates: [number, number] }
   | { type: 'LineString'; coordinates: [number, number][] }
 type Feature = { type: 'Feature'; properties: Record<string, unknown>; geometry: Geometry }
+/** A round dot of the given diameter (CSS pixels) and colour, drawn at the screen's pixel ratio for the map. */
+function dot(diameter: number, [r, g, b]: [number, number, number]) {
+  const size = Math.round(diameter * (window.devicePixelRatio || 1))
+  const data = new Uint8ClampedArray(size * size * 4)
+  const c = size / 2
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4
+      data.set([r, g, b, Math.round(255 * Math.max(0, Math.min(1, c - Math.hypot(x + 0.5 - c, y + 0.5 - c) + 0.5)))], i)
+    }
+  }
+  return { width: size, height: size, data }
+}
+
 const fc = (features: Feature[]) => ({ type: 'FeatureCollection' as const, features })
 
 export interface MapViewProps {
@@ -95,7 +130,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
   const frame = (m: maplibregl.Map, animate: boolean) => {
     if (!routeBounds.current || userMoved.current) return
     const b = new maplibregl.LngLatBounds(routeBounds.current.getSouthWest(), routeBounds.current.getNorthEast())
-    if (firstVehicle.current) b.extend(firstVehicle.current)
+    if (firstVehicle.current && nearRoute(b, firstVehicle.current)) b.extend(firstVehicle.current)
     // The trip fills the map: just enough room for the zoom and locate buttons on the right.
     m.fitBounds(b, { padding: { top: 36, bottom: 36, left: 28, right: 64 }, maxZoom: 16, duration: animate ? 600 : 0 })
   }
@@ -109,6 +144,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
   useEffect(() => {
     if (!el.current) return
     const dark = isDark()
+    const col = mapColours()
     const m = new maplibregl.Map({
       container: el.current,
       style: style(token, dark),
@@ -134,40 +170,34 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
       m.addSource('vehicles', { type: 'geojson', data: fc([]) })
       m.addSource('me', { type: 'geojson', data: fc([]) })
       m.addLayer({
-        id: 'route-casing', type: 'line', source: 'route', filter: ['==', ['get', 'kind'], 'ride'],
-        paint: { 'line-color': dark ? '#1b1e21' : '#ffffff', 'line-width': 11 },
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-      })
-      m.addLayer({
         id: 'route-ride', type: 'line', source: 'route', filter: ['==', ['get', 'kind'], 'ride'],
-        paint: { 'line-color': ['get', 'color'], 'line-width': 6 },
+        paint: { 'line-color': ['get', 'color'], 'line-width': RIDE_W },
         layout: { 'line-cap': 'round', 'line-join': 'round' },
       })
+      // Walking: round dots every few pixels along the street route, like the trip's steps. A dot image placed along
+      // the line rather than a dashed line: MapLibre blends dash patterns between zoom levels, stretching dots into dashes.
+      m.addImage('walk-dot', dot(4.5, col.walk), { pixelRatio: window.devicePixelRatio || 1 })
       m.addLayer({
-        id: 'route-walk', type: 'line', source: 'route', filter: ['==', ['get', 'kind'], 'walk'],
-        paint: { 'line-color': dark ? '#e9ece8' : '#1f2328', 'line-width': 3, 'line-dasharray': [0.5, 2] },
-        layout: { 'line-cap': 'round' },
-      })
-      // The stops passed on the way: small dots in the line's colour, outlined so they stand off the line.
-      m.addLayer({
-        id: 'route-via', type: 'circle', source: 'route', filter: ['==', ['get', 'kind'], 'via'],
-        paint: {
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 15, 4.5],
-          'circle-color': ['get', 'color'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5,
+        id: 'route-walk', type: 'symbol', source: 'route', filter: ['==', ['get', 'kind'], 'walk'],
+        layout: {
+          'symbol-placement': 'line', 'symbol-spacing': 8, 'icon-image': 'walk-dot',
+          'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-rotation-alignment': 'map',
         },
       })
+      // A ride's stops, where you get on and off and those passed on the way: white dots on the line with a 1px ink
+      // outline, as wide as the line.
       m.addLayer({
-        id: 'route-stops', type: 'circle', source: 'route', filter: ['==', ['get', 'kind'], 'stop'],
+        id: 'route-stops', type: 'circle', source: 'route', filter: ['in', ['get', 'kind'], ['literal', ['via', 'stop']]],
         paint: {
-          'circle-radius': 5, 'circle-color': dark ? '#1c1f22' : '#ffffff',
-          'circle-stroke-color': ['get', 'color'], 'circle-stroke-width': 3,
+          'circle-radius': RIDE_W / 2 - 1, 'circle-color': col.stop,
+          'circle-stroke-width': 1, 'circle-stroke-color': INK, // black in both themes
         },
       })
       m.addLayer({
         id: 'vehicles-mine', type: 'circle', source: 'vehicles',
         paint: {
           'circle-radius': 14, 'circle-color': ['get', 'color'],
-          'circle-stroke-color': dark ? '#e9ece8' : '#1f2328', 'circle-stroke-width': 3,
+          'circle-stroke-color': col.ink, 'circle-stroke-width': 3,
         },
       })
       m.addLayer({
@@ -183,12 +213,12 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         id: 'me-accuracy', type: 'circle', source: 'me',
         paint: {
           'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 10, ['get', 'px10'], 20, ['*', ['get', 'px10'], 1024]],
-          'circle-color': '#2457d6', 'circle-opacity': 0.12,
+          'circle-color': col.you, 'circle-opacity': 0.12,
         },
       })
       m.addLayer({
         id: 'me', type: 'circle', source: 'me',
-        paint: { 'circle-radius': 7, 'circle-color': '#2457d6', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 },
+        paint: { 'circle-radius': 7, 'circle-color': col.you, 'circle-stroke-color': col.stop, 'circle-stroke-width': 2.5 },
       })
       map.current = m
     })
@@ -230,7 +260,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
           features.push({ type: 'Feature', properties: { kind: 'walk' }, geometry: { type: 'LineString', coordinates: coords } })
           continue
         }
-        const color = hex(l.line?.color)
+        const color = lineColour(l.line?.color)
         let coords: [number, number][] = [a, b]
         let via: [number, number][] = []
         try {
@@ -243,8 +273,9 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         for (const c of coords) bounds.extend(c) // the line can bow out past its ends
         features.push({ type: 'Feature', properties: { kind: 'ride', color }, geometry: { type: 'LineString', coordinates: coords } })
         for (const p of via) features.push({ type: 'Feature', properties: { kind: 'via', color }, geometry: { type: 'Point', coordinates: p } })
-        features.push({ type: 'Feature', properties: { kind: 'stop', color }, geometry: { type: 'Point', coordinates: a } })
-        features.push({ type: 'Feature', properties: { kind: 'stop', color }, geometry: { type: 'Point', coordinates: b } })
+        // On the line's ends (the server cuts the shape where each stop sits beside it), not at the kerb.
+        features.push({ type: 'Feature', properties: { kind: 'stop', color }, geometry: { type: 'Point', coordinates: coords[0] } })
+        features.push({ type: 'Feature', properties: { kind: 'stop', color }, geometry: { type: 'Point', coordinates: coords[coords.length - 1] } })
       }
       if (!live) return
       ;(m.getSource('route') as GeoJSONSource | undefined)?.setData(fc(features))
@@ -279,7 +310,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
             fc(
               r.vehicles.map((v): Feature => ({
                 type: 'Feature',
-                properties: { color: hex(v.color), text: textOn(v.color), name: v.line.split(' ').slice(1).join(' ') },
+                properties: { color: lineColour(v.color), text: textOn(lineColour(v.color)), name: v.line.split(' ').slice(1).join(' ') },
                 geometry: { type: 'Point', coordinates: [v.lon, v.lat] },
               })),
             ),
@@ -311,14 +342,11 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
   return (
     <div class="map-wrap">
       <div ref={el} class="map" role="region" aria-label="Map of the trip with live vehicles" data-my-vehicles={vehicleCount ?? ''} />
-      {error && <p class="map-note">{error}</p>}
+      {error && <Callout tone="caution">{error}</Callout>}
       {vehicleCount === 0 && !noteGone && (
-        <p class="map-note subtle" role="status">
+        <Callout class="subtle" role="status" onDismiss={() => setNoteGone(true)}>
           Your services appear here once they're a few stops away.
-          <button class="close" aria-label="Dismiss" onClick={() => setNoteGone(true)}>
-            ×
-          </button>
-        </p>
+        </Callout>
       )}
     </div>
   )

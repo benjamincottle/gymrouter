@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'preact/hooks'
-import { api, AuthError } from './api.ts'
-import { save, type Settings } from './settings.ts'
+import { api, AuthError, problem } from './api.ts'
+import { applyFragment, importQuestion, importTitle, save, type FragmentData, type Settings } from './settings.ts'
 import type { DefaultsResponse } from './types.ts'
 import { Landing } from './views/landing.tsx'
 import { Trip } from './views/trip.tsx'
@@ -9,6 +9,7 @@ import { IconSettings } from './views/icons.tsx'
 import { InTrip, TRIP_KEY, type ActiveTrip } from './views/intrip.tsx'
 import { record } from './walks.ts'
 import { applyTheme } from './theme.ts'
+import { Button, Callout, ConfirmSheet, IconButton } from './views/ui.tsx'
 
 function loadTrip(storage: Storage | undefined): ActiveTrip | null {
   try {
@@ -27,10 +28,14 @@ type View = 'trip' | 'settings'
 export interface AppProps {
   initial: Settings
   imported: boolean
+  pending: FragmentData | null // a link that would replace saved data, waiting for a yes
   storage: Storage | undefined
 }
 
-export function App({ initial, imported, storage }: AppProps) {
+export function App({ initial, imported, pending: pendingLink, storage }: AppProps) {
+  const [pending, setPending] = useState(pendingLink)
+  const [serverError, setServerError] = useState('')
+  const [retries, setRetries] = useState(0) // bumping this asks the server again
   const [settings, setSettingsState] = useState(initial)
   const [view, setView] = useState<View>(
     (initial.homes.length === 0 || initial.gyms.length === 0) && initial.token ? 'settings' : 'trip',
@@ -75,6 +80,7 @@ export function App({ initial, imported, storage }: AppProps) {
   useEffect(() => {
     if (!settings.token) return
     let live = true
+    setServerError('')
     api
       .defaults(settings.token)
       .then((d) => {
@@ -84,19 +90,41 @@ export function App({ initial, imported, storage }: AppProps) {
       })
       .catch((e) => {
         if (e instanceof AuthError) setAuthFailed(true)
-        else if (live) setNotice(`Couldn't reach the server: ${e.message}`)
+        else if (live) setServerError(problem(e))
       })
     return () => {
       live = false
     }
-  }, [settings.token])
+  }, [settings.token, retries])
+
+  const linkSheet = pending && (
+    <ConfirmSheet
+      title={importTitle(pending)}
+      confirm={pending.kind === 'token' ? 'Use it' : 'Replace'}
+      onCancel={() => setPending(null)}
+      onConfirm={() => {
+        setSettings(applyFragment(settings, pending))
+        setPending(null)
+        setNotice('Settings saved on this device.')
+      }}
+    >
+      <p>{importQuestion(settings, pending)}</p>
+    </ConfirmSheet>
+  )
 
   // No access (never set up, or the token was changed on the server): just the name.
-  if (!settings.token || authFailed) return <Landing />
+  if (!settings.token || authFailed) {
+    return (
+      <>
+        <Landing />
+        {linkSheet}
+      </>
+    )
+  }
 
   if (trip) {
     return (
-      <div class="app">
+      <div class="app in-trip">
         <InTrip
           trip={trip}
           token={settings.token}
@@ -112,7 +140,7 @@ export function App({ initial, imported, storage }: AppProps) {
   }
 
   return (
-    <div class="app">
+    <div class={view === 'settings' ? 'app wide-column' : 'app'}>
       <header class="topbar">
         <h1>
           <button
@@ -128,26 +156,30 @@ export function App({ initial, imported, storage }: AppProps) {
           </button>
         </h1>
         <nav>
-          <button
-            class={view === 'settings' ? 'tab cog active' : 'tab cog'}
-            aria-label="Settings"
-            title="Settings"
-            aria-pressed={view === 'settings'}
+          <IconButton
+            label="Settings"
+            class={view === 'settings' ? 'active' : undefined}
+            aria-current={view === 'settings' ? 'page' : undefined}
             onClick={() => setView('settings')}
           >
             <IconSettings />
-          </button>
+          </IconButton>
         </nav>
       </header>
       {notice && (
-        <p class="notice" role="status">
-          {notice} <button class="link" onClick={() => setNotice('')}>Dismiss</button>
-        </p>
+        <Callout role="status" onDismiss={() => setNotice('')}>
+          {notice}
+        </Callout>
+      )}
+      {serverError && (
+        <Callout tone="bad" role="alert" action={<Button onClick={() => setRetries((n) => n + 1)}>Try again</Button>}>
+          <strong>Couldn't load your trips.</strong> {serverError}
+        </Callout>
       )}
       {!storageOk && (
-        <p class="notice warn" role="alert">
+        <Callout tone="caution" role="alert">
           This browser won't save settings (private mode?). Export a backup from Settings before closing.
-        </p>
+        </Callout>
       )}
       <main>
         {view === 'trip' ? (
@@ -159,15 +191,24 @@ export function App({ initial, imported, storage }: AppProps) {
             onAuthError={onAuthError}
             goToSettings={() => setView('settings')}
             onStartTrip={setTrip}
+            serverError={!!serverError}
           />
         ) : (
-          <SettingsView settings={settings} setSettings={setSettings} server={server} onAuthError={onAuthError} />
+          <SettingsView
+            settings={settings}
+            setSettings={setSettings}
+            server={server}
+            onAuthError={onAuthError}
+            onSetUp={() => {
+              // The first gyms are in: on to planning.
+              setView('trip')
+              setNotice("You're set up. Choose a gym to plan a trip.")
+            }}
+          />
         )}
       </main>
-      <footer class="footer">
-        <p>Contains Transport for NSW data (CC BY 4.0).</p>
-        <p>Map data © OpenStreetMap contributors.</p>
-      </footer>
+      {linkSheet}
+      <footer class="footer">Contains Transport for NSW data (CC BY 4.0). Map data © OpenStreetMap contributors.</footer>
     </div>
   )
 }

@@ -11,6 +11,11 @@ export function clock(iso: string): string {
   return clockFmt.format(new Date(iso))
 }
 
+/** When data was last updated or checked, as a clock time like every other: "09:31". */
+export function statusTime(ms: number): string {
+  return clockFmt.format(new Date(ms))
+}
+
 /** "45 min", "1 h 5 min" */
 export function duration(secs: number): string {
   const m = Math.round(secs / 60)
@@ -20,9 +25,15 @@ export function duration(secs: number): string {
   return r === 0 ? `${h} h` : `${h} h ${r} min`
 }
 
-/** Compact, for narrow columns, always in minutes so a column of them compares at a glance: "45m", "80m". */
+/** Compact, for tabular columns only (the options board): "45m", "1h 20m". */
 export function shortDuration(secs: number): string {
-  return `${Math.round(secs / 60)}m`
+  const m = Math.round(secs / 60)
+  return m < 60 ? `${m}m` : m % 60 === 0 ? `${m / 60}h` : `${Math.floor(m / 60)}h ${m % 60}m`
+}
+
+/** Time to spare at a change, in whole minutes (rounded down); seconds only under a minute: "2 min spare", "40 s spare". */
+export function spare(secs: number): string {
+  return secs >= 60 ? `${Math.floor(secs / 60)} min spare` : `${Math.max(0, Math.round(secs))} s spare`
 }
 
 /** Countdown to leaving: "now", "in 6 min", "in 1 h 5 min", "left 2 min ago". */

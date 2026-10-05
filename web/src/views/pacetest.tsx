@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { useNow } from '../hooks.ts'
 import { addFix, mmss, pace, PACE_MIN_M, PACE_MIN_S, type Pace, type Recording } from '../walkmeasure.ts'
+import { Button } from './ui.tsx'
 
 type Phase = 'ready' | 'walking' | 'done'
 
@@ -68,36 +69,36 @@ export function PaceTest({ onUse, onClose }: { onUse: (mps: number) => void; onC
             walk, then tap <strong>Done</strong>. Waiting at a crossing is fine: only the time you're moving counts.
           </p>
           <div class="actions">
-            <button class="primary" onClick={start}>
+            <Button onClick={onClose}>Cancel</Button>
+            <Button variant="primary" onClick={start}>
               Start
-            </button>
-            <button onClick={onClose}>Cancel</button>
+            </Button>
           </div>
         </>
       )}
 
       {phase === 'walking' && (
         <>
-          <p class="timer-clock" role="timer">
+          <p class="timer-clock num" role="timer">
             {mmss(elapsed)}
           </p>
-          <p class="muted small">
+          <p class="meta">
             {gps === 'waiting' && 'Waiting for a location fix… keep walking.'}
             {gps === 'denied' && "Location is off, so the pace can't be measured."}
             {gps === 'on' && (live ? `About ${kmh(live.mps)} km/h so far.` : `Keep going: at least ${PACE_MIN_S / 60} minute and ${PACE_MIN_M} m.`)}
           </p>
           <div class="actions">
-            <button class="primary" onClick={done}>
-              Done
-            </button>
-            <button
+            <Button
               onClick={() => {
                 stop()
                 onClose()
               }}
             >
               Cancel
-            </button>
+            </Button>
+            <Button variant="primary" onClick={done}>
+              Done
+            </Button>
           </div>
         </>
       )}
@@ -106,25 +107,25 @@ export function PaceTest({ onUse, onClose }: { onUse: (mps: number) => void; onC
         <>
           {result ? (
             <>
-              <p class="timer-clock">{kmh(result.mps)} km/h</p>
-              <p class="muted small">
+              <p class="timer-clock num">{kmh(result.mps)} km/h</p>
+              <p class="meta">
                 {result.metres} m in {mmss(result.movingS)} of walking.
               </p>
             </>
           ) : (
-            <p class="error">
+            <p class="status late">
               Not enough walking to tell: it needs at least a minute and {PACE_MIN_M} m with a good location (outdoors), at a
               walking pace.
             </p>
           )}
           <div class="actions">
+            <Button onClick={onClose}>Cancel</Button>
+            <Button onClick={start}>Try again</Button>
             {result && (
-              <button class="primary" onClick={() => onUse(result.mps)}>
+              <Button variant="primary" onClick={() => onUse(result.mps)}>
                 Use {kmh(result.mps)} km/h
-              </button>
+              </Button>
             )}
-            <button onClick={start}>Try again</button>
-            <button onClick={onClose}>Cancel</button>
           </div>
         </>
       )}

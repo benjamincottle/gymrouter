@@ -10,8 +10,24 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * What went wrong, in words for the person using the app: the server's own message when it's about the request
+ * (a 4xx), otherwise a plain description of the failure. Never a raw exception.
+ */
+export function problem(e: unknown): string {
+  if (e instanceof ApiError) {
+    if (e.status === 0) return "Couldn't reach the server. Check your connection."
+    if (e.status === 503) return 'The server is still getting its timetable ready. Try again in a few seconds.'
+    if (e.status >= 500) return 'The server ran into a problem.'
+    const m = e.message.trim()
+    return m ? `${m[0].toUpperCase()}${m.slice(1)}${/[.!?]$/.test(m) ? '' : '.'}` : 'The server turned the request down.'
+  }
+  if (e instanceof AuthError) return e.message
+  return 'Something went wrong.'
+}
+
 async function call<T>(token: string, method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(path, {
+  const res = await send(path, {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -23,6 +39,20 @@ async function call<T>(token: string, method: string, path: string, body?: unkno
     credentials: 'omit',
     referrerPolicy: 'no-referrer',
   })
+  return read<T>(res)
+}
+
+/** fetch, with a failure to connect reported as an ApiError (status 0) rather than a bare TypeError. */
+async function send(path: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(path, init)
+  } catch (e) {
+    if (init.signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) throw e
+    throw new ApiError(0, "Couldn't reach the server")
+  }
+}
+
+async function read<T>(res: Response): Promise<T> {
   // Without a valid token the server answers like a missing page (plain text); the API's own 404s are JSON.
   if (res.status === 404 && res.headers.get('Content-Type')?.startsWith('text/plain')) {
     throw new AuthError('This device is not set up (or its access was revoked).')

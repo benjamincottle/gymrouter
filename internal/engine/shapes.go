@@ -53,7 +53,8 @@ func (e *Engine) LoadShapes() {
 }
 
 // LegGeometry returns the path of a trip between two of its stops (along the route shape when known,
-// otherwise straight lines between its stops) and the positions of the stops it calls at in between.
+// otherwise straight lines between its stops) and the positions of the stops it calls at in between (placed on the
+// path when it follows the shape).
 func (e *Engine) LegGeometry(s *Snapshot, tripID, fromStop, toStop string) (path, stops []geo.Point, ok bool) {
 	d := s.Day
 	var trip *gtfs.Trip
@@ -70,20 +71,26 @@ func (e *Engine) LegGeometry(s *Snapshot, tripID, fromStop, toStop string) (path
 	if fi < 0 {
 		return nil, nil, false
 	}
-	for _, st := range trip.StopTimes[fi+1 : ti] {
-		stops = append(stops, d.Stops[st.Stop].Pos)
-	}
 	from, to := d.Stops[trip.StopTimes[fi].Stop].Pos, d.Stops[trip.StopTimes[ti].Stop].Pos
 	if shapes := e.shapes.Load(); shapes != nil {
 		if pts, ok := (*shapes)[trip.Shape]; ok && len(pts) > 1 {
 			// Cut the shape where each stop sits beside it, not at the nearest corner: shapes are simplified, so the
-			// nearest corner can be past the stop and the line would run on and double back.
-			a := geo.Project(pts, from, geo.Along{})
-			b := geo.Project(pts, to, a)
-			if a.Before(b) {
-				return geo.Cut(pts, a, b), stops, true
+			// nearest corner can be past the stop and the line would run on and double back. PlaceLeg also copes with
+			// a shape that passes the boarding stop twice (Hornsby, on a train out round the North Shore and back).
+			if a, b, ok := geo.PlaceLeg(pts, from, to); ok {
+				path = geo.Cut(pts, a, b)
+				// Stop positions are at the kerb; put each one on the line, in order, so the map draws it on the line.
+				at := geo.Along{}
+				for _, st := range trip.StopTimes[fi+1 : ti] {
+					at = geo.Project(path, d.Stops[st.Stop].Pos, at)
+					stops = append(stops, at.Pt)
+				}
+				return path, stops, true
 			}
 		}
+	}
+	for _, st := range trip.StopTimes[fi+1 : ti] {
+		stops = append(stops, d.Stops[st.Stop].Pos)
 	}
 	path = make([]geo.Point, 0, ti-fi+1)
 	for _, st := range trip.StopTimes[fi : ti+1] {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
-import { api, ApiError, AuthError } from '../api.ts'
+import { api, ApiError, AuthError, problem } from '../api.ts'
 import { gymFromKnown, isLine, LINE_MODES, MAX_LINES, newId, placeRequest, withSuggested, type Gym, type Home } from '../settings.ts'
 import { groupStops, relevantGroups, type StopGroup } from '../stops.ts'
 import type { GeocodeResult, KnownGym, NearStop, SuggestResult } from '../types.ts'
@@ -7,6 +7,7 @@ import { LineChip } from './option.tsx'
 import { BrandLogo } from './brand.tsx'
 import { mmss } from '../walkmeasure.ts'
 import { placeKey, walkSecs, type AccessWalk, type TimedWalk } from '../walks.ts'
+import { ActionBar, Button, Callout, Field, Row, Section, TextButton } from './ui.tsx'
 
 export const newHome = (): Home => ({ id: newId(), name: 'Home', lat: NaN, lon: NaN, access: [] })
 export const newGym = (): Gym => ({ id: newId(), name: '', lat: NaN, lon: NaN, access: [], lines: [] })
@@ -41,7 +42,8 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
   const fail = (e: unknown) => {
     setBusy('')
     if (e instanceof AuthError) onAuthError()
-    else setError(e instanceof Error ? e.message : String(e))
+    // the API's failures in words; location failures already are
+    else setError(e instanceof ApiError ? problem(e) : e instanceof Error ? e.message : String(e))
   }
 
   // The server reads the whole timetable shortly after it starts; wait for it rather than failing.
@@ -90,11 +92,11 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
   }
 
   const useMyLocation = () => {
-    if (!navigator.geolocation) return setError('Location is not available in this browser.')
+    if (!navigator.geolocation) return setError("This browser can't share your location.")
     setBusy('Getting your location…')
     navigator.geolocation.getCurrentPosition(
       (pos) => setLocation(pos.coords.latitude, pos.coords.longitude),
-      (err) => fail(new Error(err.message || 'Location unavailable')),
+      (err) => fail(new Error(err.code === err.PERMISSION_DENIED ? 'Location is turned off for this site.' : "Couldn't get your location.")),
       { enableHighAccuracy: true, timeout: 15000 },
     )
   }
@@ -120,58 +122,51 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
 
   return (
     <div class="stack">
-      <section class="card">
-        <h2>{isNew ? `Add ${kind}` : `Edit ${kind}`}</h2>
-        <label>
-          Name
+      <Section title={isNew ? `Add ${kind}` : `Edit ${kind}`}>
+        <Field label="Name">
           <input
             value={p.name}
             maxLength={60}
             placeholder={gym ? 'e.g. 9 Degrees Lane Cove' : ''}
             onInput={(e) => setP({ ...p, name: (e.target as HTMLInputElement).value })}
           />
-        </label>
+        </Field>
         <form onSubmit={search} class="row-form">
-          <label>
-            Address
+          <Field label="Address">
             <input type="search" value={query} placeholder="Street address or place" onInput={(e) => setQuery((e.target as HTMLInputElement).value)} />
-          </label>
-          <button type="submit" disabled={query.trim().length < 3}>
+          </Field>
+          <Button type="submit" disabled={query.trim().length < 3}>
             Search
-          </button>
+          </Button>
         </form>
-        <p class="muted small">Searches go through your server to the Transport for NSW trip planner; nothing is stored.</p>
         {results.length > 0 && (
-          <ul class="list pick">
+          <ul class="rows pick" aria-label="Places found">
             {results.map((r) => (
               <li>
-                <button class="link" onClick={() => setLocation(r.lat, r.lon, r.name)}>
+                <button class="pick-row" onClick={() => setLocation(r.lat, r.lon, r.name)}>
                   {r.name}
                 </button>
               </li>
             ))}
           </ul>
         )}
-        <button onClick={useMyLocation}>Use my current location</button>
-        {hasLocation && (
-          <p class="muted small">
-            {gym && p.address ? `${p.address} · ` : ''}Location set ({p.lat.toFixed(5)}, {p.lon.toFixed(5)}).
-          </p>
+        <p class="meta">Searches go through your server to the Transport for NSW trip planner; nothing is stored.</p>
+        <div class="actions place-actions">
+          <Button onClick={useMyLocation}>Use my current location</Button>
+        </div>
+        {hasLocation && <p class="meta place-set">{p.address ? `Location set: ${p.address}.` : 'Location set.'}</p>}
+        {busy && <p class="meta">{busy}</p>}
+        {error && (
+          <Callout tone="bad" role="alert">
+            {error}
+          </Callout>
         )}
-        {busy && <p class="muted small">{busy}</p>}
-        {error && <p class="error">{error}</p>}
-      </section>
+      </Section>
 
       {stops && (
-        <section class="card">
-          <h2>{gym ? 'Stops near the gym' : 'Your stops'}</h2>
-          <p class="muted small">
-            Pick the stops you'd actually walk to. If you pick none, every stop within your walking limit is considered.
-            Walking times come from the street map until you time a walk on a trip ("Time my walk"); a timed walk is
-            used for its stop, picked here or not.
-          </p>
-          {stops.length === 0 && <p class="muted">No stops within {gym ? '1.2' : '1.5'} km.</p>}
-          <ul class="list stops">
+        <Section title={gym ? 'Stops near the gym' : 'Your stops'} intro={'Pick the stops you\'d actually walk to. If you pick none, every stop within your walking limit is considered. Walking times come from the street map until you time a walk on a trip ("Time my walk"); a timed walk is used for its stop, picked here or not.'}>
+          {stops.length === 0 && <p class="meta">No stops within {gym ? '1.2' : '1.5'} km.</p>}
+          <ul class="rows stops">
             {visibleGroups.map((g) => {
               const walk = groupWalk(g)
               const timed = timedOf(g)
@@ -179,18 +174,16 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
                 <li>
                   <label class="check">
                     <input type="checkbox" checked={walk !== undefined} onChange={() => toggle(g)} />
-                    <span>
+                    <span class="main">
                       {g.name}
-                      <span class="muted small"> · {g.lines.join(', ')}</span>
+                      <span class="meta">{g.lines.join(', ')}</span>
                     </span>
                   </label>
                   <span class="walkcell">
                     {timed ? (
-                      <span class="small" title="Timed during a trip; this is the time used">
-                        timed {mmss(walkSecs(timed))}
-                      </span>
+                      <span title="Timed during a trip; this is the time used">timed {mmss(walkSecs(timed))}</span>
                     ) : (
-                      <span class="muted small" title="From the street map">
+                      <span class="meta" title="From the street map">
                         ~{Math.max(1, Math.round(g.walk_s / 60))} min
                       </span>
                     )}
@@ -200,11 +193,11 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
             })}
           </ul>
           {groups.length > visibleGroups.length && (
-            <button class="link" onClick={() => setShowAll(true)}>
-              Show {groups.length - visibleGroups.length} more
-            </button>
+            <p class="stops-more">
+              <TextButton onClick={() => setShowAll(true)}>Show {groups.length - visibleGroups.length} more</TextButton>
+            </p>
           )}
-        </section>
+        </Section>
       )}
 
       {gym && hasLocation && (
@@ -218,13 +211,13 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
         />
       )}
 
-      <div class="actions">
-        <button class="primary" disabled={!canSave} onClick={() => onSave({ ...p, name: p.name.trim() })}>
+      {gym && hasLocation && p.lines.length === 0 && <p class="meta">Choose at least one line to save the gym.</p>}
+      <ActionBar>
+        <Button onClick={onCancel}>Cancel</Button>
+        <Button variant="primary" disabled={!canSave} onClick={() => onSave({ ...p, name: p.name.trim() })}>
           Save {kind}
-        </button>
-        <button onClick={onCancel}>Cancel</button>
-      </div>
-      {gym && hasLocation && p.lines.length === 0 && <p class="muted small">Choose at least one line to save the gym.</p>}
+        </Button>
+      </ActionBar>
     </div>
   )
 }
@@ -235,8 +228,7 @@ function chipOf(key: string, color?: string) {
   const i = key.indexOf(' ')
   return (
     <>
-      <LineChip line={{ mode: key.slice(0, i), name: key.slice(i + 1), color }} />
-      <span class="muted small"> {key.slice(0, i)}</span>
+      <LineChip line={{ mode: key.slice(0, i), name: key.slice(i + 1), color }} /> {key.slice(0, i)}
     </>
   )
 }
@@ -279,7 +271,7 @@ function LinesSection({
     } catch (e) {
       if (c.signal.aborted) return
       if (e instanceof AuthError) onAuthError()
-      else setError(e instanceof Error ? e.message : String(e))
+      else setError(problem(e))
     } finally {
       if (!c.signal.aborted) setBusy(false)
     }
@@ -294,18 +286,13 @@ function LinesSection({
   const canAdd = name.trim() !== '' && isLine(manual) && !has(manual)
 
   return (
-    <section class="card">
-      <h2>Lines</h2>
-      <p class="muted small">
-        The router only considers these lines, from your home to the gym and back. Include the lines near your home too.
-        Fewer lines means a faster, sharper search.
-      </p>
+    <Section title="Lines" intro="The router only considers these lines, from your home to the gym and back. Include the lines near your home too. Fewer lines means a faster, sharper search.">
       {homes.length === 0 ? (
-        <p class="muted small">Add a home first to get suggestions. You can also add lines by hand below.</p>
+        <p class="meta">Add a home first to get suggestions. You can also add lines by hand below.</p>
       ) : (
-        <div class="stack tight">
+        <div class="suggest">
           {homes.length > 1 && (
-            <label class="inline">
+            <label class="inline-choice">
               From
               <select value={home?.id} onChange={(e) => setHomeId((e.target as HTMLSelectElement).value)}>
                 {homes.map((h) => (
@@ -314,17 +301,21 @@ function LinesSection({
               </select>
             </label>
           )}
-          <button onClick={find} disabled={busy}>
+          <Button onClick={find} disabled={busy}>
             {busy ? `Reading the timetable… ${Math.round(progress * 100)}%` : result ? `Search again from ${home?.name}` : `Suggest lines from ${home?.name}`}
-          </button>
-          {busy && <p class="muted small">Checking trips at many departure times. This can take up to a minute.</p>}
+          </Button>
+          {busy && <p class="meta">Checking trips at many departure times. This can take up to a minute.</p>}
         </div>
       )}
-      {error && <p class="error">{error}</p>}
+      {error && (
+        <Callout tone="bad" role="alert">
+          {error}
+        </Callout>
+      )}
 
-      {result && result.lines.length === 0 && <p class="muted">No way to get there on public transport. Check both locations.</p>}
+      {result && result.lines.length === 0 && <p class="meta">No way to get there on public transport. Check both locations.</p>}
       {result && result.windows.length > 0 && (
-        <p class="muted small">
+        <p class="meta">
           Checked{' '}
           {result.windows
             .map((w) => `${w.label.toLowerCase()}${w.typical_s ? ` (about ${Math.round(w.typical_s / 60)} min)` : ''}`)
@@ -334,13 +325,14 @@ function LinesSection({
       )}
 
       {(candidates.length > 0 || own.length > 0) && (
-        <ul class="list lines">
+        <ul class="rows lines">
           {candidates.map((l) => (
             <li>
               <label class="check">
                 <input type="checkbox" checked={has(l.line)} onChange={() => toggle(l.line)} />
-                <span>
-                  {chipOf(l.line, l.color)} <span class="muted small">· {shareLabel(l.share)}</span>
+                <span class="main">
+                  {chipOf(l.line, l.color)}
+                  <span class="meta">{shareLabel(l.share)}</span>
                 </span>
               </label>
             </li>
@@ -349,8 +341,9 @@ function LinesSection({
             <li>
               <label class="check">
                 <input type="checkbox" checked onChange={() => toggle(l)} />
-                <span>
-                  {chipOf(l)} {result && <span class="muted small">· yours</span>}
+                <span class="main">
+                  {chipOf(l)}
+                  {result && <span class="meta">Added by you</span>}
                 </span>
               </label>
             </li>
@@ -361,17 +354,9 @@ function LinesSection({
       {result && result.itineraries.length > 0 && (
         <details>
           <summary>How the best trips go</summary>
-          <ul class="list itins">
+          <ul class="rows itins">
             {result.itineraries.map((it) => (
-              <li>
-                <span>
-                  {it.desc}
-                  <span class="muted small">
-                    {' '}
-                    · {Math.round(it.median_s / 60)} min, {it.seen} of {it.of} {it.window.toLowerCase()} departures
-                  </span>
-                </span>
-              </li>
+              <Row main={it.desc} meta={`${Math.round(it.median_s / 60)} min, ${it.seen} of ${it.of} ${it.window.toLowerCase()} departures`} />
             ))}
           </ul>
         </details>
@@ -387,8 +372,7 @@ function LinesSection({
           }
         }}
       >
-        <label>
-          Add a line
+        <Field label="Add a line">
           <span class="inline-pair">
             <select value={mode} onChange={(e) => setMode((e.target as HTMLSelectElement).value)} aria-label="Mode">
               {LINE_MODES.map((m) => (
@@ -397,12 +381,12 @@ function LinesSection({
             </select>
             <input value={name} maxLength={12} placeholder="288, T9, M1" onInput={(e) => setName((e.target as HTMLInputElement).value)} />
           </span>
-        </label>
-        <button type="submit" disabled={!canAdd}>
+        </Field>
+        <Button type="submit" disabled={!canAdd}>
           Add
-        </button>
+        </Button>
       </form>
-    </section>
+    </Section>
   )
 }
 
@@ -454,7 +438,7 @@ export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCus
       } catch (e) {
         if (c.signal.aborted) return
         if (e instanceof AuthError) return onAuthError()
-        warning = `Added, but couldn't find the lines near ${home.name}: ${e instanceof Error ? e.message : e}`
+        warning = `Added, but couldn't find the lines near ${home.name}. ${problem(e)} Edit a gym to try again.`
       }
       setBusy(false)
     } else {
@@ -464,27 +448,26 @@ export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCus
   }
 
   return (
-    <section class="card">
-      <h2>{have.length === 0 ? 'Which gyms do you climb at?' : 'Add a gym'}</h2>
+    <Section title={have.length === 0 ? 'Which gyms do you climb at?' : 'Add a gym'}>
       {!known ? (
-        <p class="muted">Loading…</p>
+        <p class="loading">Loading…</p>
       ) : available.length === 0 ? (
-        <p class="muted small">You have all the gyms the app knows about.</p>
+        <p class="meta">You have all the gyms the app knows about.</p>
       ) : (
         <>
-          <p class="muted small">
+          <p class="meta intro">
             The app knows these gyms and the lines that serve them.{' '}
             {home ? `It will look up the lines near ${home.name} too, which can take up to a minute.` : ''}
           </p>
-          <ul class="list">
+          <ul class="rows">
             {available.map((k) => (
               <li>
                 <label class="check">
                   <input type="checkbox" checked={sel.has(k.id)} disabled={busy} onChange={() => toggle(k.id)} />
                   <BrandLogo brand={k.brand} />
-                  <span>
+                  <span class="main">
                     {k.name}
-                    {k.address && <span class="muted small"> · {k.address}</span>}
+                    {k.address && <span class="meta">{k.address}</span>}
                   </span>
                 </label>
               </li>
@@ -492,22 +475,27 @@ export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCus
           </ul>
         </>
       )}
-      {error && <p class="error">{error}</p>}
-      <div class="actions">
-        {available.length > 0 && (
-          <button class="primary" disabled={busy || sel.size === 0} onClick={add}>
-            {busy ? `Finding lines… ${Math.round(progress * 100)}%` : sel.size === 1 ? 'Add gym' : `Add ${sel.size} gyms`}
-          </button>
-        )}
-        <button disabled={busy} onClick={onCustom}>
-          Another gym…
-        </button>
+      {busy && home && <p class="meta">Finding the lines near {home.name}: {Math.round(progress * 100)}%. This can take up to a minute.</p>}
+      {error && (
+        <Callout tone="bad" role="alert">
+          {error}
+        </Callout>
+      )}
+      <ActionBar>
         {onCancel && (
-          <button disabled={busy} onClick={onCancel}>
+          <Button disabled={busy} onClick={onCancel}>
             Cancel
-          </button>
+          </Button>
         )}
-      </div>
-    </section>
+        <Button disabled={busy} onClick={onCustom}>
+          Add another gym
+        </Button>
+        {available.length > 0 && (
+          <Button variant="primary" disabled={busy || sel.size === 0} onClick={add}>
+            {busy ? 'Finding lines…' : sel.size === 1 ? 'Add gym' : `Add ${sel.size} gyms`}
+          </Button>
+        )}
+      </ActionBar>
+    </Section>
   )
 }
