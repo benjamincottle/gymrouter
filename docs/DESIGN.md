@@ -103,7 +103,8 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   left is `--pane-w` (460px) and scrolls with the page; the map (`.map-pane`, fixed) fills the rest and always shows the
   selected option, or says what will appear there before there is one. There's no "Show on map" button on desktop.
   - In-trip uses the same split: Now/Then and the steps on the left, the map on the right.
-  - Settings and the editors use a single readable column, max 40rem, centred.
+  - Settings and the editors use a single readable column, max 40rem, centred. So does the trip screen until there
+    is a home and a gym (the "Get started" empty state): there's nothing for a map to show yet.
 - **The commit action lives in the action bar.** The screen's main action ("Start trip", "Save gym") sits in a bar
   pinned to the bottom of the pane, with a hairline above it. The commit button is rightmost; a secondary action (the way
   out, or "Show on map") is leftmost. Long forms never hide their Save at the bottom of the page.

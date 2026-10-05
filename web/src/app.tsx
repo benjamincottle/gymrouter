@@ -150,7 +150,8 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
   }
 
   return (
-    <div class={view === 'settings' ? 'app wide-column' : 'app'}>
+    // Settings, and the trip screen before there's anything to plan (no map beside it yet), use one centred column.
+    <div class={view === 'settings' || settings.homes.length === 0 || settings.gyms.length === 0 ? 'app wide-column' : 'app'}>
       <header class="topbar">
         <h1>
           <button
