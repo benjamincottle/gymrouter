@@ -171,3 +171,9 @@ export interface SuggestResult {
 export interface SuggestResponse {
   results: SuggestResult[]
 }
+
+/** GET /api/status, the part the app shows: the verdict and what needs looking at. */
+export interface ServerStatus {
+  state: 'ok' | 'warning' | 'error'
+  issues?: string[]
+}

@@ -846,7 +846,11 @@ func callsOutside(i, a, b int) int {
 
 // Health summarises data freshness for /healthz.
 type Health struct {
-	OK            bool         `json:"ok"`
+	OK bool `json:"ok"`
+	// State is the verdict at a glance: "ok"; "warning" when the server works but something needs looking at (Issues);
+	// "error" when it can't plan (no timetable, or one too old).
+	State         string       `json:"state"`
+	Issues        []string     `json:"issues,omitempty"`
 	ServiceDate   string       `json:"service_date"`
 	StaticAgeS    int64        `json:"static_age_s"`
 	StaticError   string       `json:"static_error,omitempty"`
@@ -899,9 +903,48 @@ func (e *Engine) Health() Health {
 		v := int64(now.Sub(t).Seconds())
 		return &v
 	}
+	liveFailing := false
 	for _, fs := range e.feeds {
 		h.Feeds = append(h.Feeds, FeedHealth{Name: fs.feed.Name, TripsAgeS: age(fs.tripsAt), VehiclesAgeS: age(fs.vehiclesAt), Error: fs.lastErr})
+		// A failed poll matters once the feed's data is too old to use; one blip before the next good poll doesn't.
+		liveFailing = liveFailing || fs.lastErr != "" && (fs.tripsAt.IsZero() || now.Sub(fs.tripsAt) > maxRealtimeAge)
 	}
 	h.OK = s != nil && h.StaticAgeS < 3*24*3600
+	h.State, h.Issues = verdict(h, s != nil, liveFailing && h.PollingActive)
 	return h
+}
+
+// Issues reported in Health, for the app to put into words. Lines missing today aren't one: weekday-only buses are
+// missing every weekend.
+const (
+	IssueNoTimetable  = "no-timetable"      // nothing loaded yet: the server can't plan
+	IssueOldTimetable = "old-timetable"     // more than three days old: the server won't vouch for it
+	IssueTimetable    = "timetable-refresh" // the last download failed (the one in use is still fine)
+	IssueLiveData     = "live-data"         // a realtime feed is failing while the app is in use
+	IssueTrackwork    = "trackwork"         // trackwork buses that can't be tied to a line (UnknownTrackwork)
+	IssueStreets      = "street-map"        // the street network couldn't be fetched
+	IssueBasemap      = "basemap"           // the basemap couldn't be fetched
+)
+
+func verdict(h Health, loaded, liveFailing bool) (string, []string) {
+	var issues []string
+	add := func(cond bool, issue string) {
+		if cond {
+			issues = append(issues, issue)
+		}
+	}
+	add(!loaded, IssueNoTimetable)
+	add(loaded && !h.OK, IssueOldTimetable)
+	add(h.StaticError != "", IssueTimetable)
+	add(liveFailing, IssueLiveData)
+	add(len(h.UnknownTrackwork) > 0, IssueTrackwork)
+	add(h.Data.WalkError != "", IssueStreets)
+	add(h.Data.MapError != "", IssueBasemap)
+	switch {
+	case !h.OK:
+		return "error", issues
+	case len(issues) > 0:
+		return "warning", issues
+	}
+	return "ok", nil
 }

@@ -1,4 +1,6 @@
-import type { DefaultsResponse, GeocodeResult, NearStop, PlaceRequest, PlanRequest, PlanResponse, SuggestResponse, Vehicle } from './types.ts'
+import type {
+  DefaultsResponse, GeocodeResult, NearStop, PlaceRequest, PlanRequest, PlanResponse, ServerStatus, SuggestResponse, Vehicle,
+} from './types.ts'
 
 export class AuthError extends Error {}
 
@@ -130,6 +132,7 @@ export const api = {
       t, 'GET', `/api/shape?${new URLSearchParams({ date, trip, from, to })}`,
     ),
   defaults: (t: string) => call<DefaultsResponse>(t, 'GET', '/api/defaults'),
+  status: (t: string, signal?: AbortSignal) => call<ServerStatus>(t, 'GET', '/api/status', undefined, signal),
   plan: (t: string, req: PlanRequest, signal?: AbortSignal) => call<PlanResponse>(t, 'POST', '/api/plan', req, signal),
   /** Asks the server to load these lines in the background, so the first search naming them doesn't wait. */
   loadLines: (t: string, lines: string[]) => call<object>(t, 'POST', '/api/lines', { lines }),

@@ -7,6 +7,7 @@ import { Trip } from './views/trip.tsx'
 import { SettingsView } from './views/settings.tsx'
 import { IconSettings } from './views/icons.tsx'
 import { InTrip, TRIP_KEY, type ActiveTrip } from './views/intrip.tsx'
+import { ServerStatusLine } from './views/serverstatus.tsx'
 import { record } from './walks.ts'
 import { applyTheme } from './theme.ts'
 import { Button, Callout, ConfirmSheet, IconButton } from './views/ui.tsx'
@@ -219,7 +220,10 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
         )}
       </main>
       {linkSheet}
-      <footer class="footer">Contains Transport for NSW data (CC BY 4.0). Map data © OpenStreetMap contributors.</footer>
+      <footer class="footer">
+        <ServerStatusLine token={settings.token} />
+        <p>Contains Transport for NSW data (CC BY 4.0). Map data © OpenStreetMap contributors.</p>
+      </footer>
     </div>
   )
 }

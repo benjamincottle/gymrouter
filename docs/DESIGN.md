@@ -175,6 +175,11 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Trackwork:** a `caution` callout above the board for each line whose trains the options replace with buses: the
   line's chip, "**Trackwork:** buses replace some trains. Their signs say 20T4 or 23T4." The buses keep their own names
   and colour everywhere (chip, tape, map): they're the names on the buses' signs.
+- **Server status** (the footer, above the data credits): a status dot and one short line, so a problem on the server
+  gets noticed without anyone checking it. The dot uses the status colours: `--safe` "Server OK", `--tight` "Server
+  working, needs a look", `--missed` "Server can't plan" or "Can't reach the server". Each issue follows on its own line
+  in plain words. Only what's actionable and usually absent turns it orange (not lines that don't run on a weekend).
+  Checked on opening and every 5 minutes while the app is open; checking doesn't count as using the app.
 - **Status text** for a service:
   - on time (or under a minute late): `--safe`;
   - 1 min late: `--tight`;
@@ -268,7 +273,7 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
 
 - Rounded card stacks, drop shadows, gradients as decoration.
 - A single accent colour for buttons or links.
-- Colour that doesn't mean a line, a risk level, the highlight or focus.
+- Colour that doesn't mean a line, a risk level or status, the highlight or focus.
 - Middle-dot meta strings, all-caps labels, `→` appended to buttons or links.
 - Native `alert()`, `confirm()` or `prompt()`.
 - One-off sizes, spacings or radii in a component.

@@ -418,3 +418,11 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   options use, with the names on the buses' signs. Known gaps: few replacement trips have live data (56 of ~4,200 seen),
   so their times and connection risks are mostly timetable; unplanned disruptions (buses called in on the day) aren't in
   the timetable and aren't covered; route shapes are loaded for today's trips, so a future day's bus is drawn straight.
+- 2026-10-05: The app's footer shows the server's state: a green, orange or red dot with "Server OK", "Server working,
+  needs a look" or "Server can't plan" ("Can't reach the server" when it doesn't answer), then each issue in plain words.
+  So a problem the server can see (a failing timetable or street-map download, live data not coming through, trackwork
+  buses it can't tie to a line) gets noticed without anyone calling `/api/status`. The server decides the verdict and
+  reports issues as codes; the app words them. Only what's actionable and usually absent counts: lines missing today
+  don't (weekday-only buses are missing every weekend), nor does one failed poll before the next good one. The app checks
+  on opening and every 5 minutes while open, and checking doesn't count as using the app, so it never keeps TfNSW polling
+  running by itself.

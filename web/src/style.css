@@ -741,6 +741,32 @@ details > summary {
   color: var(--pencil);
 }
 
+.footer p {
+  margin: 0;
+}
+
+.server-status {
+  margin-bottom: var(--s2);
+}
+
+.server-status p + p {
+  padding-left: calc(8px + var(--s2)); /* under the text, past the dot */
+}
+
+/* The server's state: the status colours (DESIGN.md, Server status). */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--s2);
+  border-radius: 50%;
+  background: var(--pencil);
+}
+
+.status-dot[data-state='ok'] { background: var(--safe); }
+.status-dot[data-state='warning'] { background: var(--tight); }
+.status-dot[data-state='error'] { background: var(--missed); }
+
 /* ---- planning a trip ---- */
 
 .when {
