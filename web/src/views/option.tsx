@@ -4,12 +4,13 @@ import { findChange, type PlaceRef, type Segment, type TimedWalk } from '../walk
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 import { position, rows, type Row } from '../options.ts'
 import { HOLD } from './icons.tsx'
+import { TextButton } from './ui.tsx'
+import { CHIP_FALLBACK, hex, LINE_FALLBACK, WHITE } from '../colour.ts'
 
-const hex = (c?: string) => (c && /^[0-9a-fA-F]{6}$/.test(c) ? `#${c}` : undefined)
 
 export function LineChip({ line }: { line: Line }) {
-  const bg = hex(line.color) ?? '#555555'
-  const fg = hex(line.text_color) ?? '#ffffff'
+  const bg = hex(line.color) ?? CHIP_FALLBACK
+  const fg = hex(line.text_color) ?? WHITE
   return (
     <span class={`chip mode-${line.mode}`} style={{ background: bg, color: fg }}>
       {line.name}
@@ -120,7 +121,7 @@ function Rail({ kind, place, line, me }: {
   line?: Line
   me?: number
 }) {
-  const style = line && { '--c': hex(line.color) ?? '#5e6670', '--t': hex(line.text_color) ?? '#ffffff' }
+  const style = line && { '--c': hex(line.color) ?? LINE_FALLBACK, '--t': hex(line.text_color) ?? WHITE }
   return (
     <span class={`rail ${kind}`} style={style} aria-hidden="true">
       {kind === 'ride' && (
@@ -191,9 +192,9 @@ function LegRow({ leg, last, destination, rail, onTime }: {
           {onTime && (
             <>
               {' '}
-              <button class="link small" onClick={onTime}>
+              <TextButton small onClick={onTime}>
                 Time my walk
-              </button>
+              </TextButton>
             </>
           )}
         </span>
@@ -268,9 +269,9 @@ function TransferRow({
           {onTime && (
             <>
               {' · '}
-              <button class="link" onClick={onTime}>
+              <TextButton onClick={onTime}>
                 Time my walk
-              </button>
+              </TextButton>
             </>
           )}
         </div>

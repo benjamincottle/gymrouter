@@ -11,6 +11,11 @@ export function clock(iso: string): string {
   return clockFmt.format(new Date(iso))
 }
 
+/** When data was last updated or checked: "9:31 am". (DESIGN.md wants 24-hour clocks here too; the restyle switches.) */
+export function statusTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' })
+}
+
 /** "45 min", "1 h 5 min" */
 export function duration(secs: number): string {
   const m = Math.round(secs / 60)

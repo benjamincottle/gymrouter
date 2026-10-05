@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
-import { addDays, dayLabel, fromLocalInput, roundUp, toLocalInput } from '../format.ts'
+import { addDays, dayLabel, fromLocalInput, roundUp, statusTime, toLocalInput } from '../format.ts'
 import { usePolling, useVisible } from '../hooks.ts'
 import { byUse, placeRef, planPlace, prefs, usedGym, type Settings } from '../settings.ts'
 import type { DefaultsResponse, PlanRequest } from '../types.ts'
 import { Board, WindowShift, type Shift } from './board.tsx'
 import { BrandLogo } from './brand.tsx'
 import type { ActiveTrip } from './intrip.tsx'
+import { Button, Segmented } from './ui.tsx'
 
 type Direction = 'to-gym' | 'home'
 
@@ -92,9 +93,9 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
     return (
       <div class="empty">
         <p>{home ? 'Add a gym to plan trips to.' : 'Add your home and a gym, so trips can start (or end) there.'}</p>
-        <button class="primary" onClick={goToSettings}>
+        <Button variant="primary" onClick={goToSettings}>
           {home ? 'Add a gym' : 'Get started'}
-        </button>
+        </Button>
       </div>
     )
   }
@@ -106,28 +107,22 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   return (
     <div class="stack">
       <div class="when">
-        <div class="segmented small" role="group" aria-label="When">
-          <button aria-pressed={when === 'now'} onClick={() => setWhen('now')}>
-            Leave now
-          </button>
-          <button aria-pressed={when === 'leave'} onClick={() => chooseTime('leave')}>
-            Leave at
-          </button>
-          <button aria-pressed={when === 'arrive'} onClick={() => chooseTime('arrive')}>
-            Arrive by
-          </button>
-        </div>
+        <Segmented
+          label="When"
+          small
+          options={[['now', 'Leave now'], ['leave', 'Leave at'], ['arrive', 'Arrive by']] as const}
+          value={when}
+          onChange={(w) => (w === 'now' ? setWhen('now') : chooseTime(w))}
+        />
         {when !== 'now' && <DayTime value={at} onChange={setAt} label={when === 'arrive' ? 'Arrive by' : 'Leave at'} />}
       </div>
 
-      <div class="segmented" role="group" aria-label="Direction">
-        <button aria-pressed={direction === 'to-gym'} onClick={() => setDirection('to-gym')}>
-          To the gym
-        </button>
-        <button aria-pressed={direction === 'home'} onClick={() => setDirection('home')}>
-          Home
-        </button>
-      </div>
+      <Segmented
+        label="Direction"
+        options={[['to-gym', 'To the gym'], ['home', 'Home']] as const}
+        value={direction}
+        onChange={setDirection}
+      />
 
       {settings.homes.length > 1 && (
         <label class="inline">
@@ -253,7 +248,7 @@ function DataStatus({
   realtime, loading, updatedAt, walking,
 }: { realtime?: boolean; loading: boolean; updatedAt: number; walking?: 'streets' | 'estimate' }) {
   if (!updatedAt) return <p class="muted small">{loading ? 'Planning…' : ''}</p>
-  const t = new Date(updatedAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' })
+  const t = statusTime(updatedAt)
   return (
     <p class="muted small">
       <span class={realtime ? 'dot live' : 'dot'} aria-hidden="true" />

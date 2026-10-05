@@ -8,6 +8,7 @@ import type { DefaultsResponse } from '../types.ts'
 import { mmss } from '../walkmeasure.ts'
 import { walkSecs } from '../walks.ts'
 import { GymChooser, newGym, newHome, PlaceEditor, type EditorKind } from './places.tsx'
+import { Button, Callout, Field, Section, Segmented, TextButton } from './ui.tsx'
 
 interface Props {
   settings: Settings
@@ -83,10 +84,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
 
   return (
     <div class="stack">
-      <section class="card">
-        <h2>
-          <IconHome /> Homes
-        </h2>
+      <Section title="Homes" icon={<IconHome />}>
         <p class="muted small">Stored only on this device.</p>
         <ul class="list">
           {settings.homes.map((h) => (
@@ -112,18 +110,15 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
             </li>
           ))}
         </ul>
-        <button onClick={() => setEditing(editNew('home'))}>Add home</button>
-      </section>
+        <Button onClick={() => setEditing(editNew('home'))}>Add home</Button>
+      </Section>
 
-      <section class="card">
-        <h2>
-          <IconGym /> Gyms
-        </h2>
+      <Section title="Gyms" icon={<IconGym />}>
         <p class="muted small">Stored only on this device, with the lines used to get to each one.</p>
         {warning && (
-          <p class="notice warn" role="status">
+          <Callout tone="caution" role="status">
             {warning}
-          </p>
+          </Callout>
         )}
         <ul class="list">
           {settings.gyms.map((g) => (
@@ -152,23 +147,20 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
           <p class="muted small">
             Trips put your most used gyms first.{' '}
             {settings.gyms.some((g) => g.uses) && (
-              <button class="link small" onClick={() => setSettings(resetGymOrder(settings))}>
+              <TextButton small onClick={() => setSettings(resetGymOrder(settings))}>
                 Reset the order
-              </button>
+              </TextButton>
             )}
           </p>
         )}
         <div class="actions">
-          <button disabled={settings.gyms.length >= MAX_GYMS} onClick={() => setEditing({ kind: 'choose-gyms' })}>
+          <Button disabled={settings.gyms.length >= MAX_GYMS} onClick={() => setEditing({ kind: 'choose-gyms' })}>
             Add gym
-          </button>
+          </Button>
         </div>
-      </section>
+      </Section>
 
-      <section class="card">
-        <h2>
-          <IconWalk /> Walking and changes
-        </h2>
+      <Section title="Walking and changes" icon={<IconWalk />}>
         <NumberField
           label="Walking speed (km/h)"
           value={settings.walkSpeedMps !== undefined ? round1(settings.walkSpeedMps * 3.6) : undefined}
@@ -179,9 +171,9 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
             <>
               Used for walks you haven't timed.{' '}
               {!paceTest && (
-                <button class="link small" onClick={() => setPaceTest(true)}>
+                <TextButton small onClick={() => setPaceTest(true)}>
                   Measure my pace
-                </button>
+                </TextButton>
               )}
             </>
           }
@@ -217,12 +209,9 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
           step="50"
           onChange={(v) => setSettings({ ...settings, maxWalkM: v })}
         />
-      </section>
+      </Section>
 
-      <section class="card">
-        <h2>
-          <IconRisk /> Connection risk
-        </h2>
+      <Section title="Connection risk" icon={<IconRisk />}>
         <p class="muted small">How much spare time a change needs to count as safe or tight. Below "tight" it's at risk.</p>
         <NumberField
           label="Safe from (min)"
@@ -245,16 +234,13 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
           }}
         />
         {settings.risk && (
-          <button class="link" onClick={() => setSettings({ ...settings, risk: undefined })}>
+          <TextButton onClick={() => setSettings({ ...settings, risk: undefined })}>
             Reset to defaults
-          </button>
+          </TextButton>
         )}
-      </section>
+      </Section>
 
-      <section class="card">
-        <h2>
-          <IconTimer /> Timed walks
-        </h2>
+      <Section title="Timed walks" icon={<IconTimer />}>
         <p class="muted small">
           Walks and changes you've timed during trips (tap "Time my walk" while travelling). They're used whenever the same
           walk comes up, either way round, and the route you walked is drawn on the map.
@@ -304,19 +290,16 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
             <span>Replace the earlier time</span>
           </label>
         </fieldset>
-      </section>
+      </Section>
 
-      <section class="card">
-        <h2>
-          <IconColour /> Appearance
-        </h2>
-        <div class="segmented small" role="group" aria-label="Light or dark">
-          {([[undefined, 'Auto'], ['light', 'Light'], ['dark', 'Dark']] as const).map(([t, label]) => (
-            <button aria-pressed={settings.theme === t} onClick={() => setSettings({ ...settings, theme: t })}>
-              {label}
-            </button>
-          ))}
-        </div>
+      <Section title="Appearance" icon={<IconColour />}>
+        <Segmented
+          label="Light or dark"
+          small
+          options={[[undefined, 'Auto'], ['light', 'Light'], ['dark', 'Dark']] as const}
+          value={settings.theme}
+          onChange={(t) => setSettings({ ...settings, theme: t })}
+        />
         <h3>Highlight colour</h3>
         <p class="muted small">For underlines and what's selected. The grade colours at 9 Degrees.</p>
         <ul class="swatches" role="radiogroup" aria-label="Highlight colour">
@@ -341,24 +324,21 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
             )
           })}
         </ul>
-      </section>
+      </Section>
 
       <Backup settings={settings} setSettings={setSettings} />
 
-      <section class="card">
-        <h2>
-          <IconPhone /> This device
-        </h2>
+      <Section title="This device" icon={<IconPhone />}>
         <p class="muted small">Removes this device's access, homes, gyms and timed walks. Backups and other devices keep theirs.</p>
-        <button
-          class="danger"
+        <Button variant="danger"
+         
           onClick={() => {
             if (confirm('Remove all settings and access from this device?')) setSettings(emptySettings())
           }}
         >
           Reset this device
-        </button>
-      </section>
+        </Button>
+      </Section>
     </div>
   )
 }
@@ -381,8 +361,7 @@ function NumberField(props: {
   onChange: (v: number | undefined) => void
 }) {
   return (
-    <label>
-      {props.label}
+    <Field label={props.label} hint={props.hint}>
       <input
         type="number"
         inputMode="decimal"
@@ -396,8 +375,7 @@ function NumberField(props: {
           props.onChange(v !== undefined && Number.isFinite(v) && v >= 0 ? v : undefined)
         }}
       />
-      {props.hint && <span class="muted small">{props.hint}</span>}
-    </label>
+    </Field>
   )
 }
 
@@ -436,17 +414,14 @@ function Backup({ settings, setSettings }: { settings: Settings; setSettings: (s
   }
 
   return (
-    <section class="card">
-      <h2>
-        <IconDevices /> Backup and other devices
-      </h2>
+    <Section title="Backup and other devices" icon={<IconDevices />}>
       <p class="muted small">
         Backups and setup links include your access token and homes. Treat them like a password.
       </p>
       <div class="actions">
-        <button onClick={() => setShowShare(!showShare)}>{showShare ? 'Hide setup link' : 'Set up another device'}</button>
-        <button onClick={download}>Export backup</button>
-        <button onClick={() => fileRef.current?.click()}>Import backup</button>
+        <Button onClick={() => setShowShare(!showShare)}>{showShare ? 'Hide setup link' : 'Set up another device'}</Button>
+        <Button onClick={download}>Export backup</Button>
+        <Button onClick={() => fileRef.current?.click()}>Import backup</Button>
         <input
           ref={fileRef}
           type="file"
@@ -464,7 +439,7 @@ function Backup({ settings, setSettings }: { settings: Settings; setSettings: (s
         <div class="share">
           <p class="small">Scan with the other device, or copy the link to it privately.</p>
           {link && <QRCode text={link} />}
-          <button
+          <Button
             onClick={() =>
               navigator.clipboard?.writeText(link).then(
                 () => setMsg('Link copied.'),
@@ -473,10 +448,10 @@ function Backup({ settings, setSettings }: { settings: Settings; setSettings: (s
             }
           >
             Copy link
-          </button>
+          </Button>
         </div>
       )}
-    </section>
+    </Section>
   )
 }
 

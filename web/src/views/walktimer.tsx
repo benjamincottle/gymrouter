@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { useNow } from '../hooks.ts'
 import { addFix, finish, meanSecs, mmss, MIN_WALK_S, walkedM, type Recording, type Walk } from '../walkmeasure.ts'
 import type { Retime } from '../walks.ts'
+import { Button, Callout, Section } from './ui.tsx'
 
 interface Point {
   name: string
@@ -96,8 +97,7 @@ export function WalkTimer({ from, to, earlier, estimateS, retime, onSave, onCanc
   const walked = Math.round(walkedM(rec.current))
 
   return (
-    <section class="card timer" aria-live="polite">
-      <h2>Time the walk</h2>
+    <Section title="Time the walk" class="timer" aria-live="polite">
       <p class="muted small">
         {from.name} to {to.name}
       </p>
@@ -118,10 +118,10 @@ export function WalkTimer({ from, to, earlier, estimateS, retime, onSave, onCanc
             </p>
           )}
           <div class="actions">
-            <button class="primary" onClick={start}>
+            <Button variant="primary" onClick={start}>
               Start
-            </button>
-            <button onClick={onCancel}>Cancel</button>
+            </Button>
+            <Button onClick={onCancel}>Cancel</Button>
           </div>
         </>
       )}
@@ -137,10 +137,10 @@ export function WalkTimer({ from, to, earlier, estimateS, retime, onSave, onCanc
             {gps === 'denied' && "Location is off, so only the time is recorded (the route won't be drawn)."}
           </p>
           <div class="actions">
-            <button class="primary" onClick={arrive}>
+            <Button variant="primary" onClick={arrive}>
               I'm here
-            </button>
-            <button onClick={reset}>Cancel</button>
+            </Button>
+            <Button onClick={reset}>Cancel</Button>
           </div>
         </>
       )}
@@ -154,15 +154,15 @@ export function WalkTimer({ from, to, earlier, estimateS, retime, onSave, onCanc
           </p>
           {walk.secs < MIN_WALK_S && <p class="error">That was very short. Cancel and try again if it was a mistaken tap.</p>}
           {(walk.startedNearM ?? 0) > 120 && (
-            <p class="notice warn">
+            <Callout tone="caution">
               Your location was {walk.startedNearM} m from {from.name} when you started. If you weren't there, the route will be
               off.
-            </p>
+            </Callout>
           )}
           {(walk.endedNearM ?? 0) > 80 && (
-            <p class="notice warn">
+            <Callout tone="caution">
               You finished {walk.endedNearM} m from {to.name}. Was that where you meant?
-            </p>
+            </Callout>
           )}
           {walk.trace.length < 2 && gps !== 'idle' && <p class="muted small">No usable route was recorded; only the time will be saved.</p>}
           {earlier.length > 0 && (
@@ -173,21 +173,21 @@ export function WalkTimer({ from, to, earlier, estimateS, retime, onSave, onCanc
           )}
           <div class="actions">
             {earlier.length === 0 ? (
-              <button class="primary" disabled={walk.secs < MIN_WALK_S} onClick={() => onSave(walk, true)}>
+              <Button variant="primary" disabled={walk.secs < MIN_WALK_S} onClick={() => onSave(walk, true)}>
                 Save
-              </button>
+              </Button>
             ) : (
               (retime === 'replace' ? [true, false] : [false, true]).map((replace, i) => (
-                <button class={i === 0 ? 'primary' : ''} disabled={walk.secs < MIN_WALK_S} onClick={() => onSave(walk, replace)}>
+                <Button variant={i === 0 ? 'primary' : undefined} disabled={walk.secs < MIN_WALK_S} onClick={() => onSave(walk, replace)}>
                   {replace ? 'Replace earlier' : 'Save and average'}
-                </button>
+                </Button>
               ))
             )}
-            <button onClick={reset}>Try again</button>
-            <button onClick={onCancel}>Discard</button>
+            <Button onClick={reset}>Try again</Button>
+            <Button onClick={onCancel}>Discard</Button>
           </div>
         </>
       )}
-    </section>
+    </Section>
   )
 }

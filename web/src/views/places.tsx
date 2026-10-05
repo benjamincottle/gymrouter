@@ -7,6 +7,7 @@ import { LineChip } from './option.tsx'
 import { BrandLogo } from './brand.tsx'
 import { mmss } from '../walkmeasure.ts'
 import { placeKey, walkSecs, type AccessWalk, type TimedWalk } from '../walks.ts'
+import { Button, Field, Section, TextButton } from './ui.tsx'
 
 export const newHome = (): Home => ({ id: newId(), name: 'Home', lat: NaN, lon: NaN, access: [] })
 export const newGym = (): Gym => ({ id: newId(), name: '', lat: NaN, lon: NaN, access: [], lines: [] })
@@ -120,39 +121,36 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
 
   return (
     <div class="stack">
-      <section class="card">
-        <h2>{isNew ? `Add ${kind}` : `Edit ${kind}`}</h2>
-        <label>
-          Name
+      <Section title={isNew ? `Add ${kind}` : `Edit ${kind}`}>
+        <Field label="Name">
           <input
             value={p.name}
             maxLength={60}
             placeholder={gym ? 'e.g. 9 Degrees Lane Cove' : ''}
             onInput={(e) => setP({ ...p, name: (e.target as HTMLInputElement).value })}
           />
-        </label>
+        </Field>
         <form onSubmit={search} class="row-form">
-          <label>
-            Address
+          <Field label="Address">
             <input type="search" value={query} placeholder="Street address or place" onInput={(e) => setQuery((e.target as HTMLInputElement).value)} />
-          </label>
-          <button type="submit" disabled={query.trim().length < 3}>
+          </Field>
+          <Button type="submit" disabled={query.trim().length < 3}>
             Search
-          </button>
+          </Button>
         </form>
         <p class="muted small">Searches go through your server to the Transport for NSW trip planner; nothing is stored.</p>
         {results.length > 0 && (
           <ul class="list pick">
             {results.map((r) => (
               <li>
-                <button class="link" onClick={() => setLocation(r.lat, r.lon, r.name)}>
+                <TextButton onClick={() => setLocation(r.lat, r.lon, r.name)}>
                   {r.name}
-                </button>
+                </TextButton>
               </li>
             ))}
           </ul>
         )}
-        <button onClick={useMyLocation}>Use my current location</button>
+        <Button onClick={useMyLocation}>Use my current location</Button>
         {hasLocation && (
           <p class="muted small">
             {gym && p.address ? `${p.address} · ` : ''}Location set ({p.lat.toFixed(5)}, {p.lon.toFixed(5)}).
@@ -160,11 +158,10 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
         )}
         {busy && <p class="muted small">{busy}</p>}
         {error && <p class="error">{error}</p>}
-      </section>
+      </Section>
 
       {stops && (
-        <section class="card">
-          <h2>{gym ? 'Stops near the gym' : 'Your stops'}</h2>
+        <Section title={gym ? 'Stops near the gym' : 'Your stops'}>
           <p class="muted small">
             Pick the stops you'd actually walk to. If you pick none, every stop within your walking limit is considered.
             Walking times come from the street map until you time a walk on a trip ("Time my walk"); a timed walk is
@@ -200,11 +197,11 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
             })}
           </ul>
           {groups.length > visibleGroups.length && (
-            <button class="link" onClick={() => setShowAll(true)}>
+            <TextButton onClick={() => setShowAll(true)}>
               Show {groups.length - visibleGroups.length} more
-            </button>
+            </TextButton>
           )}
-        </section>
+        </Section>
       )}
 
       {gym && hasLocation && (
@@ -219,10 +216,10 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
       )}
 
       <div class="actions">
-        <button class="primary" disabled={!canSave} onClick={() => onSave({ ...p, name: p.name.trim() })}>
+        <Button variant="primary" disabled={!canSave} onClick={() => onSave({ ...p, name: p.name.trim() })}>
           Save {kind}
-        </button>
-        <button onClick={onCancel}>Cancel</button>
+        </Button>
+        <Button onClick={onCancel}>Cancel</Button>
       </div>
       {gym && hasLocation && p.lines.length === 0 && <p class="muted small">Choose at least one line to save the gym.</p>}
     </div>
@@ -294,8 +291,7 @@ function LinesSection({
   const canAdd = name.trim() !== '' && isLine(manual) && !has(manual)
 
   return (
-    <section class="card">
-      <h2>Lines</h2>
+    <Section title="Lines">
       <p class="muted small">
         The router only considers these lines, from your home to the gym and back. Include the lines near your home too.
         Fewer lines means a faster, sharper search.
@@ -314,9 +310,9 @@ function LinesSection({
               </select>
             </label>
           )}
-          <button onClick={find} disabled={busy}>
+          <Button onClick={find} disabled={busy}>
             {busy ? `Reading the timetable… ${Math.round(progress * 100)}%` : result ? `Search again from ${home?.name}` : `Suggest lines from ${home?.name}`}
-          </button>
+          </Button>
           {busy && <p class="muted small">Checking trips at many departure times. This can take up to a minute.</p>}
         </div>
       )}
@@ -387,8 +383,7 @@ function LinesSection({
           }
         }}
       >
-        <label>
-          Add a line
+        <Field label="Add a line">
           <span class="inline-pair">
             <select value={mode} onChange={(e) => setMode((e.target as HTMLSelectElement).value)} aria-label="Mode">
               {LINE_MODES.map((m) => (
@@ -397,12 +392,12 @@ function LinesSection({
             </select>
             <input value={name} maxLength={12} placeholder="288, T9, M1" onInput={(e) => setName((e.target as HTMLInputElement).value)} />
           </span>
-        </label>
-        <button type="submit" disabled={!canAdd}>
+        </Field>
+        <Button type="submit" disabled={!canAdd}>
           Add
-        </button>
+        </Button>
       </form>
-    </section>
+    </Section>
   )
 }
 
@@ -464,8 +459,7 @@ export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCus
   }
 
   return (
-    <section class="card">
-      <h2>{have.length === 0 ? 'Which gyms do you climb at?' : 'Add a gym'}</h2>
+    <Section title={have.length === 0 ? 'Which gyms do you climb at?' : 'Add a gym'}>
       {!known ? (
         <p class="muted">Loading…</p>
       ) : available.length === 0 ? (
@@ -495,19 +489,19 @@ export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCus
       {error && <p class="error">{error}</p>}
       <div class="actions">
         {available.length > 0 && (
-          <button class="primary" disabled={busy || sel.size === 0} onClick={add}>
+          <Button variant="primary" disabled={busy || sel.size === 0} onClick={add}>
             {busy ? `Finding lines… ${Math.round(progress * 100)}%` : sel.size === 1 ? 'Add gym' : `Add ${sel.size} gyms`}
-          </button>
+          </Button>
         )}
-        <button disabled={busy} onClick={onCustom}>
+        <Button disabled={busy} onClick={onCustom}>
           Another gym…
-        </button>
+        </Button>
         {onCancel && (
-          <button disabled={busy} onClick={onCancel}>
+          <Button disabled={busy} onClick={onCancel}>
             Cancel
-          </button>
+          </Button>
         )}
       </div>
-    </section>
+    </Section>
   )
 }

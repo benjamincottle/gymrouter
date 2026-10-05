@@ -9,6 +9,7 @@ import { IconSettings } from './views/icons.tsx'
 import { InTrip, TRIP_KEY, type ActiveTrip } from './views/intrip.tsx'
 import { record } from './walks.ts'
 import { applyTheme } from './theme.ts'
+import { Callout, TextButton } from './views/ui.tsx'
 
 function loadTrip(storage: Storage | undefined): ActiveTrip | null {
   try {
@@ -140,14 +141,14 @@ export function App({ initial, imported, storage }: AppProps) {
         </nav>
       </header>
       {notice && (
-        <p class="notice" role="status">
-          {notice} <button class="link" onClick={() => setNotice('')}>Dismiss</button>
-        </p>
+        <Callout role="status">
+          {notice} <TextButton onClick={() => setNotice('')}>Dismiss</TextButton>
+        </Callout>
       )}
       {!storageOk && (
-        <p class="notice warn" role="alert">
+        <Callout tone="caution" role="alert">
           This browser won't save settings (private mode?). Export a backup from Settings before closing.
-        </p>
+        </Callout>
       )}
       <main>
         {view === 'trip' ? (

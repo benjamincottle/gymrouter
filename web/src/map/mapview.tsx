@@ -10,6 +10,7 @@ import { ApiError, api } from '../api.ts'
 import { legTrace, type TimedWalk } from '../walks.ts'
 import { isDark } from '../theme.ts'
 import type { Leg, Option } from '../types.ts'
+import { hex, LINE_FALLBACK, WHITE } from '../colour.ts'
 
 maplibregl.setWorkerUrl(workerUrl)
 
@@ -42,15 +43,30 @@ function style(token: string, dark: boolean): StyleSpecification {
   }
 }
 
+/**
+ * The map's own colours, in one place. MapLibre paint can't read CSS tokens, so these mirror style.css: the ink for
+ * walks and stop outlines, white stops, and the "you" blue. (Vehicle outlines and text on a vehicle are a shade off the
+ * ink; the restyle moves them onto it.)
+ */
+const mapColours = (dark: boolean) => ({
+  walk: (dark ? [232, 235, 231] : [30, 34, 38]) as [number, number, number],
+  stop: WHITE,
+  stopEdge: '#1e2226',
+  vehicleEdge: dark ? '#e9ece8' : '#1f2328',
+  you: '#2457d6',
+  youEdge: WHITE,
+})
+const DARK_TEXT = '#1f2328' // on a pale line colour
+
 const RIDE_W = 6 // a ride's line on the map, in pixels; the stops along it are as wide
 
-const hex = (c?: string) => (c && /^[0-9a-fA-F]{6}$/.test(c) ? `#${c}` : '#5e6670')
+const lineColour = (c?: string) => hex(c) ?? LINE_FALLBACK
 
 /** Black or white, whichever reads better on the line colour (some lines are pale, e.g. yellow). */
 function textOn(c?: string): string {
-  if (!c || !/^[0-9a-fA-F]{6}$/.test(c)) return '#ffffff'
+  if (!c || !/^[0-9a-fA-F]{6}$/.test(c)) return WHITE
   const [r, g, b] = [0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16) / 255)
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.6 ? '#1f2328' : '#ffffff'
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.6 ? DARK_TEXT : WHITE
 }
 
 type Geometry =
@@ -125,6 +141,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
   useEffect(() => {
     if (!el.current) return
     const dark = isDark()
+    const col = mapColours(dark)
     const m = new maplibregl.Map({
       container: el.current,
       style: style(token, dark),
@@ -156,7 +173,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
       })
       // Walking: round dots every few pixels along the street route, like the trip's steps. A dot image placed along
       // the line rather than a dashed line: MapLibre blends dash patterns between zoom levels, stretching dots into dashes.
-      m.addImage('walk-dot', dot(4.5, dark ? [232, 235, 231] : [30, 34, 38]), { pixelRatio: window.devicePixelRatio || 1 })
+      m.addImage('walk-dot', dot(4.5, col.walk), { pixelRatio: window.devicePixelRatio || 1 })
       m.addLayer({
         id: 'route-walk', type: 'symbol', source: 'route', filter: ['==', ['get', 'kind'], 'walk'],
         layout: {
@@ -169,15 +186,15 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
       m.addLayer({
         id: 'route-stops', type: 'circle', source: 'route', filter: ['in', ['get', 'kind'], ['literal', ['via', 'stop']]],
         paint: {
-          'circle-radius': RIDE_W / 2 - 1, 'circle-color': '#ffffff',
-          'circle-stroke-width': 1, 'circle-stroke-color': '#1e2226',
+          'circle-radius': RIDE_W / 2 - 1, 'circle-color': col.stop,
+          'circle-stroke-width': 1, 'circle-stroke-color': col.stopEdge,
         },
       })
       m.addLayer({
         id: 'vehicles-mine', type: 'circle', source: 'vehicles',
         paint: {
           'circle-radius': 14, 'circle-color': ['get', 'color'],
-          'circle-stroke-color': dark ? '#e9ece8' : '#1f2328', 'circle-stroke-width': 3,
+          'circle-stroke-color': col.vehicleEdge, 'circle-stroke-width': 3,
         },
       })
       m.addLayer({
@@ -193,12 +210,12 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         id: 'me-accuracy', type: 'circle', source: 'me',
         paint: {
           'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 10, ['get', 'px10'], 20, ['*', ['get', 'px10'], 1024]],
-          'circle-color': '#2457d6', 'circle-opacity': 0.12,
+          'circle-color': col.you, 'circle-opacity': 0.12,
         },
       })
       m.addLayer({
         id: 'me', type: 'circle', source: 'me',
-        paint: { 'circle-radius': 7, 'circle-color': '#2457d6', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 },
+        paint: { 'circle-radius': 7, 'circle-color': col.you, 'circle-stroke-color': col.youEdge, 'circle-stroke-width': 2.5 },
       })
       map.current = m
     })
@@ -240,7 +257,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
           features.push({ type: 'Feature', properties: { kind: 'walk' }, geometry: { type: 'LineString', coordinates: coords } })
           continue
         }
-        const color = hex(l.line?.color)
+        const color = lineColour(l.line?.color)
         let coords: [number, number][] = [a, b]
         let via: [number, number][] = []
         try {
@@ -290,7 +307,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
             fc(
               r.vehicles.map((v): Feature => ({
                 type: 'Feature',
-                properties: { color: hex(v.color), text: textOn(v.color), name: v.line.split(' ').slice(1).join(' ') },
+                properties: { color: lineColour(v.color), text: textOn(v.color), name: v.line.split(' ').slice(1).join(' ') },
                 geometry: { type: 'Point', coordinates: [v.lon, v.lat] },
               })),
             ),

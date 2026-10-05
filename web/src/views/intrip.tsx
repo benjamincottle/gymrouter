@@ -2,7 +2,7 @@
 // you are (or the vehicle you're on), and suggests a switch when something slips.
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
-import { clock, countdown, dayOf, delay, duration, placeName, riskLabel } from '../format.ts'
+import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, statusTime } from '../format.ts'
 import { useNow, useVisible } from '../hooks.ts'
 import { assess, instruction, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, type Assessment, type Phase, type Position } from '../intrip.ts'
 import type { Option, PlanRequest } from '../types.ts'
@@ -14,6 +14,7 @@ import { position, rows } from '../options.ts'
 import { advance, phaseOf, rowLines, shapeKey, type At, type LonLat } from '../progress.ts'
 import { boarding, type Fix, type Sighting } from '../boarding.ts'
 import { WalkTimer } from './walktimer.tsx'
+import { Button, Callout } from './ui.tsx'
 
 /** Everything needed to resume a trip after a reload; kept on this device only. */
 export interface ActiveTrip {
@@ -239,9 +240,9 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   return (
     <div class="intrip">
       <header class="sheet-bar">
-        <button class="ghost" onClick={onEnd}>
+        <Button variant="ghost" onClick={onEnd}>
           End trip
-        </button>
+        </Button>
         <span class="sheet-title">{trip.title}</span>
       </header>
 
@@ -260,34 +261,34 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
       </section>
 
       {check?.status === 'missed' && (
-        <div class="alert risk-missed" role="alert">
+        <Callout tone="bad" role="alert">
           {check.suggestion ? (
             <>
               <p>
                 <strong>You won't make the planned connection.</strong> Next best: {check.suggestion.lines.map((l) => l.split(' ')[1]).join(', ')},
                 arriving {clock(check.suggestion.arrive)}.
               </p>
-              <button class="primary" onClick={() => switchTo(check.suggestion!)}>
+              <Button variant="primary" onClick={() => switchTo(check.suggestion!)}>
                 Switch to this
-              </button>
+              </Button>
             </>
           ) : (
             <p>
               <strong>The planned connection is gone</strong> and there's no other way on these lines right now.
             </p>
           )}
-        </div>
+        </Callout>
       )}
       {check?.status === 'better' && (
-        <div class="alert risk-safe" role="status">
+        <Callout tone="good" role="status">
           <p>
             <strong>A faster way just opened up:</strong> {check.suggestion.lines.map((l) => l.split(' ')[1]).join(', ')}, arriving{' '}
             {clock(check.suggestion.arrive)} ({duration((Date.parse(check.current.arrive) - Date.parse(check.suggestion.arrive)) / 1000)} sooner).
           </p>
-          <button class="primary" onClick={() => switchTo(check.suggestion)}>
+          <Button variant="primary" onClick={() => switchTo(check.suggestion)}>
             Switch to this
-          </button>
-        </div>
+          </Button>
+        </Callout>
       )}
 
       <section class="now">
@@ -348,25 +349,25 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
         </div>
       ) : null}
       {saved && !timing && (
-        <p class="notice" role="status">
+        <Callout role="status">
           {saved}
-        </p>
+        </Callout>
       )}
 
       <div class="actions">
-        <button class="ghost" onClick={() => setMapOpen(true)}>
+        <Button variant="ghost" onClick={() => setMapOpen(true)}>
           Show on map
-        </button>
+        </Button>
         {locState === 'denied' && navigator.geolocation && (
-          <button class="ghost" onClick={() => setLocState('on')}>
+          <Button variant="ghost" onClick={() => setLocState('on')}>
             Try my location again
-          </button>
+          </Button>
         )}
       </div>
       <p class="muted small">
         {locState === 'on' && (pos ? `Location on (±${Math.round(pos.accuracy)} m). ` : 'Finding your location… ')}
         {locState === 'denied' && 'Location unavailable; following the timetable. '}
-        {checkedAt ? `Checked ${new Date(checkedAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' })}.` : 'Checking…'}
+        {checkedAt ? `Checked ${statusTime(checkedAt)}.` : 'Checking…'}
         {error && ` ${error}`}
       </p>
 

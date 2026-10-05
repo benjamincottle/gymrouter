@@ -9,8 +9,9 @@ import type { Leg, Option } from '../types.ts'
 import { Timeline, type Ends, type Tracking } from './option.tsx'
 import { changesAndStops, reselect, tripKey } from '../options.ts'
 import type { MapViewProps } from '../map/mapview.tsx'
+import { Button, TextButton } from './ui.tsx'
+import { hex, LINE_FALLBACK, WHITE } from '../colour.ts'
 
-const hex = (c?: string) => (c && /^[0-9a-fA-F]{6}$/.test(c) ? `#${c}` : undefined)
 const ms = (iso: string) => Date.parse(iso)
 
 interface Props {
@@ -35,12 +36,12 @@ export type Shift = (dir: -1 | 1) => void
 export function WindowShift({ shift }: { shift: Shift }) {
   return (
     <div class="shift">
-      <button class="link" onClick={() => shift(-1)}>
+      <TextButton onClick={() => shift(-1)}>
         Earlier trips
-      </button>
-      <button class="link" onClick={() => shift(1)}>
+      </TextButton>
+      <TextButton onClick={() => shift(1)}>
         Later trips
-      </button>
+      </TextButton>
     </div>
   )
 }
@@ -95,13 +96,13 @@ export function Board(p: Props) {
           </p>
           <span class="actions">
             {p.onStart && (
-              <button class="primary" onClick={() => p.onStart!(sel)}>
+              <Button variant="primary" onClick={() => p.onStart!(sel)}>
                 Start trip
-              </button>
+              </Button>
             )}
-            <button class="ghost" onClick={() => setMapOpen(true)}>
+            <Button variant="ghost" onClick={() => setMapOpen(true)}>
               Show on map
-            </button>
+            </Button>
           </span>
         </div>
         <Timeline option={sel} ends={p.ends} walks={p.walks} />
@@ -149,8 +150,8 @@ export function Strip({ option: o, start, end }: { option: Option; start: number
         const left = pct(ms(l.dep))
         const width = `${Math.max(0.8, ((ms(l.arr) - ms(l.dep)) / span) * 100)}%`
         if (l.kind === 'walk') return <span class="seg walk" style={{ left, width }} />
-        const bg = hex(l.line?.color) ?? '#5e6670'
-        const fg = hex(l.line?.text_color) ?? '#ffffff'
+        const bg = hex(l.line?.color) ?? LINE_FALLBACK
+        const fg = hex(l.line?.text_color) ?? WHITE
         // Only label segments wide enough to show the whole name; a cut-off "2" for 292 misleads.
         const fits = ((ms(l.arr) - ms(l.dep)) / span) * 100 >= 3 + 2.2 * (l.line?.name.length ?? 0)
         return (
@@ -195,9 +196,9 @@ export function MapSheet({ option, now, onClose, onStart, token, walks, places, 
   return (
     <div class="sheet" role="dialog" aria-modal="true" aria-label={`Map: ${title}`}>
       <header class="sheet-bar">
-        <button class="ghost" onClick={onClose}>
+        <Button variant="ghost" onClick={onClose}>
           Close map
-        </button>
+        </Button>
         <span class="sheet-title">{title}</span>
       </header>
       {failed ? (
@@ -236,9 +237,9 @@ export function MapSheet({ option, now, onClose, onStart, token, walks, places, 
           )}
         </div>
         {onStart && (
-          <button class="primary start" onClick={onStart}>
+          <Button variant="primary" class="start" onClick={onStart}>
             Start trip
-          </button>
+          </Button>
         )}
       </footer>
     </div>

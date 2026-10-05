@@ -119,7 +119,8 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
 
 ## Components
 
-Each exists once in code and is reused. Don't restyle one locally; add a variant here if one is really needed.
+Each exists once in code and is reused: `web/src/views/ui.tsx` (Button, TextButton, Segmented, Section, Field,
+Callout), the tokens in `web/src/style.css`, and data colours in `web/src/colour.ts`. Don't restyle one locally; add a variant here if one is really needed.
 
 - **Button**, four looks at one size:
   - default: ink outline, transparent;
