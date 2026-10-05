@@ -1,3 +1,55 @@
+# Security and hardening review (2026-10-05)
+
+For review: the unticked items are still open. The baseline is already good (256-bit token compared as a digest,
+unauthenticated requests look like a 404, strict CSP and headers, bounded bodies and inputs, query strings and
+bodies never logged, distroless non-root read-only container, pinned actions, govulncheck and npm audit
+clean today). Roughly in order of value.
+
+- [ ] **Images don't pick up Go security fixes.** `build.yml` rebuilds on a schedule only when the distroless
+      digest changes, so a Go standard-library fix (the binary is static, built on `golang:1.27-trixie`)
+      only ships with the next code push. `audit.yml` runs govulncheck with `check-latest: true`, so it
+      checks the newest Go, not the one the published image was built with: it can't see this gap. Options:
+      fold the `golang` (and `node`) image digests into the scheduled change check, or rebuild weekly.
+- [ ] **Deploy a fixed image, not `:latest`.** `deploy/compose.example.yaml` pulls `:latest`. Deploy by the
+      `:<sha>` tag or a digest (Ansible variable), so a deploy is reproducible and can be rolled back;
+      optionally check the build provenance with `gh attestation verify` / cosign before rolling out.
+- [ ] **Pin the build images by digest.** `node:26-trixie-slim` and `golang:1.27-trixie` are floating tags
+      (the pmtiles image is already pinned by digest). Dependabot's docker ecosystem would keep them current.
+- [x] **HSTS.** Neither the app nor the compose labels set `Strict-Transport-Security`. Add a Traefik headers
+      middleware (`stsSeconds`, `stsIncludeSubdomains`), or set it in `securityHeaders` when
+      `server.public_url` is https.
+- [ ] **Secrets from files, not the environment.** `GYMROUTER_TOKEN` is unset after start-up, but that
+      doesn't hide it: `/proc/1/environ` keeps the start-up environment (and `docker inspect` shows both
+      variables). `TFNSW_API_KEY` stays in the environment for the process's life. Support
+      `GYMROUTER_TOKEN_FILE` / `TFNSW_API_KEY_FILE` (compose `secrets:` mounted at `/run/secrets`) and
+      document that as the way to deploy.
+- [ ] **Limit concurrent planning.** `/api/plan`, `/api/stops/near` and `/api/vehicles` have no
+      concurrency limit (only suggest-lines and the catalogue are one-at-a-time). Anyone holding the token,
+      or a leaked one, can run many plans at once inside the 640 MB / 64-pid container. A small semaphore
+      (e.g. 4) answering 429 with `Retry-After` would bound CPU and memory.
+- [ ] **Network isolation in compose.** On the shared `traefik_default` network, any other container can
+      reach `:8080` directly (skipping Traefik's rate limit and setting its own `X-Forwarded-For`, which
+      `trust_proxy` then logs as the client), and this container can reach the others. A dedicated network
+      shared only with Traefik closes both. Outbound could also be limited to the TfNSW API,
+      `download.bbbike.org` and `build.protomaps.com` at the host firewall.
+- [ ] **One shared token, no per-device revocation.** Every device and every settings/backup link (QR,
+      share sheet) carries the same long-lived token, so a link that leaks into a chat history works
+      forever, and revoking it signs out everything. Worth deciding in `docs/spec.md` whether to keep this
+      (simple, single user) or move to per-device tokens issued from a one-time setup code. At least: say
+      on the "Set up another device" screen that the link is a password.
+- [x] **Upstream text in `/api/status`.** Errors can carry TfNSW's `X-Error-Detail` header and up to 300
+      characters of pmtiles output into `Health`. Only token holders see it, but it's unbounded upstream
+      text; trimming and length-capping it (as pmtiles output already is) is cheap.
+- [ ] **Small ones** (all done but the image scan):
+  - [x] `Cross-Origin-Resource-Policy: same-origin` alongside the other headers.
+  - [x] `#z=` settings links are inflated in full before the 100 kB check (a 20 kB deflate stream can expand
+    ~1000×); stop reading the stream past the limit.
+  - [x] GTFS `.txt` files inside the downloaded zips are read without a size cap (`internal/gtfs/load.go`
+    `readCSV`); TfNSW is trusted, but a per-file `UncompressedSize64` limit would bound a bad feed.
+  - [ ] An image scan (Trivy/Grype) of the published image in `build.yml`, mainly for the bundled pmtiles
+    binary, which govulncheck never sees.
+  - [x] Local dev: `.env` holding the real API key is mode 0644 (`config.toml` is 0600); `chmod 600 .env`.
+
 # TODO: field-test feedback (2026-10-05)
 
 ## Round 9

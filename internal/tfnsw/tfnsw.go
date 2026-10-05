@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/benjamincottle/gymrouter/internal/lines"
 )
@@ -91,7 +92,7 @@ func (c *Client) Get(ctx context.Context, path string, maxBytes int64) ([]byte, 
 	defer resp.Body.Close()
 	switch {
 	case resp.StatusCode == http.StatusForbidden:
-		return nil, fmt.Errorf("%w: %s", ErrLimited, resp.Header.Get("X-Error-Detail"))
+		return nil, fmt.Errorf("%w: %s", ErrLimited, errorDetail(resp))
 	case resp.StatusCode != http.StatusOK:
 		return nil, fmt.Errorf("tfnsw %s: HTTP %d", pathOnly(path), resp.StatusCode)
 	}
@@ -131,7 +132,7 @@ func (c *Client) Download(ctx context.Context, path, dest string, maxBytes int64
 		_ = os.Chtimes(dest, now, now) // mtime records when the copy was last confirmed current
 		return false, nil
 	case resp.StatusCode == http.StatusForbidden:
-		return false, fmt.Errorf("%w: %s", ErrLimited, resp.Header.Get("X-Error-Detail"))
+		return false, fmt.Errorf("%w: %s", ErrLimited, errorDetail(resp))
 	case resp.StatusCode != http.StatusOK:
 		return false, fmt.Errorf("tfnsw %s: HTTP %d", path, resp.StatusCode)
 	}
@@ -164,6 +165,20 @@ func (c *Client) Download(ctx context.Context, path, dest string, maxBytes int64
 		_ = os.Remove(etagFile)
 	}
 	return true, nil
+}
+
+// errorDetail is TfNSW's reason for a refusal, trimmed: it ends up in /api/status, so keep it short and printable.
+func errorDetail(resp *http.Response) string {
+	d := strings.Map(func(r rune) rune {
+		if unicode.IsPrint(r) {
+			return r
+		}
+		return -1
+	}, resp.Header.Get("X-Error-Detail"))
+	if r := []rune(d); len(r) > 120 {
+		d = string(r[:120]) + "…"
+	}
+	return d
 }
 
 func pathOnly(p string) string {

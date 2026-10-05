@@ -144,10 +144,12 @@ func TestSecurityHeaders(t *testing.T) {
 	h := newHarness(t)
 	rec := h.do(t, "GET", "/api/defaults", token, nil)
 	for k, want := range map[string]string{
-		"Content-Security-Policy": "default-src 'self'",
-		"X-Content-Type-Options":  "nosniff",
-		"Referrer-Policy":         "no-referrer",
-		"Cache-Control":           "no-store",
+		"Content-Security-Policy":      "default-src 'self'",
+		"X-Content-Type-Options":       "nosniff",
+		"Referrer-Policy":              "no-referrer",
+		"Cache-Control":                "no-store",
+		"Strict-Transport-Security":    "max-age=",
+		"Cross-Origin-Resource-Policy": "same-origin",
 	} {
 		if !strings.Contains(rec.Header().Get(k), want) {
 			t.Errorf("%s = %q", k, rec.Header().Get(k))

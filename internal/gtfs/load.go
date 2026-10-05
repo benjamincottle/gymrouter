@@ -344,6 +344,10 @@ func (r row) get(col string) string {
 	return ""
 }
 
+// maxCSVBytes bounds one file inside a feed, about 4× the largest today (shapes.txt, ~1 GB). archive/zip fails a
+// read that runs past the size a file declares, so checking the declared size is enough.
+const maxCSVBytes = 4 << 30
+
 func readCSV(files map[string]*zip.File, name string, required bool, fn func(row) error) error {
 	f, ok := files[name]
 	if !ok {
@@ -351,6 +355,9 @@ func readCSV(files map[string]*zip.File, name string, required bool, fn func(row
 			return fmt.Errorf("%s missing from feed", name)
 		}
 		return nil
+	}
+	if f.UncompressedSize64 > maxCSVBytes {
+		return fmt.Errorf("%s: %d bytes, over the %d limit", name, f.UncompressedSize64, maxCSVBytes)
 	}
 	rc, err := f.Open()
 	if err != nil {

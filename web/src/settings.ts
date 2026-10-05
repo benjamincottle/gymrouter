@@ -167,10 +167,32 @@ function base64UrlToBytes(b64: string): Uint8Array {
   return Uint8Array.from(bin, (c) => c.charCodeAt(0))
 }
 
-async function pipe(bytes: Uint8Array, stream: CompressionStream | DecompressionStream): Promise<Uint8Array> {
-  const out = new Blob([bytes as BlobPart]).stream().pipeThrough(stream)
-  return new Uint8Array(await new Response(out).arrayBuffer())
+/** Runs bytes through a (de)compression stream, giving up once the output passes maxOut bytes. */
+async function pipe(bytes: Uint8Array, stream: CompressionStream | DecompressionStream, maxOut = Infinity): Promise<Uint8Array> {
+  const reader = new Blob([bytes as BlobPart]).stream().pipeThrough(stream).getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.length
+    if (size > maxOut) {
+      await reader.cancel()
+      throw new Error('too large')
+    }
+    chunks.push(value)
+  }
+  const out = new Uint8Array(size)
+  let at = 0
+  for (const c of chunks) {
+    out.set(c, at)
+    at += c.length
+  }
+  return out
 }
+
+/** The most a settings link may inflate to: far more than any real settings, far less than a deflate bomb. */
+const MAX_SETTINGS_JSON = 100_000
 
 /**
  * A link carrying the full settings (including the token), for backup and setting up another device.
@@ -192,8 +214,8 @@ export async function parseFragment(hash: string): Promise<FragmentData | null> 
   try {
     const z = params.get('z')
     if (z && z.length < 20000) {
-      const json = new TextDecoder().decode(await pipe(base64UrlToBytes(z), new DecompressionStream('deflate-raw')))
-      if (json.length > 100_000) return null
+      const raw = await pipe(base64UrlToBytes(z), new DecompressionStream('deflate-raw'), MAX_SETTINGS_JSON)
+      const json = new TextDecoder().decode(raw)
       return { kind: 'settings', settings: sanitize(JSON.parse(json)) }
     }
     const data = params.get('s')
