@@ -150,19 +150,13 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         paint: { 'line-color': dark ? '#e9ece8' : '#1f2328', 'line-width': 3, 'line-dasharray': [0.5, 2] },
         layout: { 'line-cap': 'round' },
       })
-      // The stops passed on the way: white dots on the line with a 1px ink outline, as wide as the line.
+      // A ride's stops, where you get on and off and those passed on the way: white dots on the line with a 1px ink
+      // outline, as wide as the line.
       m.addLayer({
-        id: 'route-via', type: 'circle', source: 'route', filter: ['==', ['get', 'kind'], 'via'],
+        id: 'route-stops', type: 'circle', source: 'route', filter: ['in', ['get', 'kind'], ['literal', ['via', 'stop']]],
         paint: {
           'circle-radius': RIDE_W / 2 - 1, 'circle-color': '#ffffff',
           'circle-stroke-width': 1, 'circle-stroke-color': '#1e2226',
-        },
-      })
-      m.addLayer({
-        id: 'route-stops', type: 'circle', source: 'route', filter: ['==', ['get', 'kind'], 'stop'],
-        paint: {
-          'circle-radius': 5, 'circle-color': dark ? '#1c1f22' : '#ffffff',
-          'circle-stroke-color': ['get', 'color'], 'circle-stroke-width': 3,
         },
       })
       m.addLayer({
@@ -245,8 +239,9 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         for (const c of coords) bounds.extend(c) // the line can bow out past its ends
         features.push({ type: 'Feature', properties: { kind: 'ride', color }, geometry: { type: 'LineString', coordinates: coords } })
         for (const p of via) features.push({ type: 'Feature', properties: { kind: 'via', color }, geometry: { type: 'Point', coordinates: p } })
-        features.push({ type: 'Feature', properties: { kind: 'stop', color }, geometry: { type: 'Point', coordinates: a } })
-        features.push({ type: 'Feature', properties: { kind: 'stop', color }, geometry: { type: 'Point', coordinates: b } })
+        // On the line's ends (the server cuts the shape where each stop sits beside it), not at the kerb.
+        features.push({ type: 'Feature', properties: { kind: 'stop', color }, geometry: { type: 'Point', coordinates: coords[0] } })
+        features.push({ type: 'Feature', properties: { kind: 'stop', color }, geometry: { type: 'Point', coordinates: coords[coords.length - 1] } })
       }
       if (!live) return
       ;(m.getSource('route') as GeoJSONSource | undefined)?.setData(fc(features))

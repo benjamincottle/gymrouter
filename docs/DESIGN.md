@@ -48,8 +48,8 @@ Line colours come from the feed. Text on a line colour is ink or white, whicheve
 taken from the feed's `text_color`. A line without a colour uses one fallback grey, `#5e6670`, everywhere.
 
 The map's own paint (casing, walk lines, stop dots) and the MapLibre controls (zoom, locate, attribution) use these
-tokens too, in both themes. Controls are square, 44px, edge-outlined, and have no shadow. Stops passed on a ride sit on the
-line's centre (the server places them on the shape): white dots with a 1px ink outline, as wide as the line.
+tokens too, in both themes. Controls are square, 44px, edge-outlined, and have no shadow. A ride's stops (where you get on and
+off, and those passed on the way) sit on the line's centre (the server places them on the shape): white dots with a 1px ink outline, as wide as the line.
 
 ### Type
 
