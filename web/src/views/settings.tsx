@@ -8,7 +8,8 @@ import type { DefaultsResponse } from '../types.ts'
 import { mmss } from '../walkmeasure.ts'
 import { walkSecs } from '../walks.ts'
 import { GymChooser, newGym, newHome, PlaceEditor, type EditorKind } from './places.tsx'
-import { Button, Callout, Field, Section, Segmented, TextButton } from './ui.tsx'
+import { BrandLogo } from './brand.tsx'
+import { Button, Callout, Confirm, Field, Row, Section, Segmented, TextButton } from './ui.tsx'
 
 interface Props {
   settings: Settings
@@ -29,6 +30,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
     settings.homes.length === 0 ? editNew('home') : settings.gyms.length === 0 ? { kind: 'choose-gyms' } : null,
   )
   const [warning, setWarning] = useState('')
+  const [deleting, setDeleting] = useState<string | null>(null) // the row asking to be deleted: "home:<id>", "gym:<id>", "walk:<index>"
   const [paceTest, setPaceTest] = useState(false)
   const d = server?.defaults
   const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
@@ -84,76 +86,80 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
 
   return (
     <div class="stack">
-      <Section title="Homes" icon={<IconHome />}>
-        <p class="muted small">Stored only on this device.</p>
-        <ul class="list">
-          {settings.homes.map((h) => (
-            <li>
-              <span>
-                {h.name}
-                <span class="muted small">
-                  {' '}
-                  · {stopCount(h)}
+      <Section title="Homes" icon={<IconHome />} intro="Stored only on this device.">
+        <ul class="rows">
+          {settings.homes.map((h) =>
+            deleting === `home:${h.id}` ? (
+              <Confirm
+                as="li"
+                question={`Delete ${h.name}?`}
+                detail="Its stops and timed walks to them go with it."
+                confirm="Delete"
+                onKeep={() => setDeleting(null)}
+                onConfirm={() => {
+                  const homes = settings.homes.filter((x) => x.id !== h.id)
+                  setSettings({ ...settings, homes, activeHome: homes[0]?.id })
+                  setDeleting(null)
+                }}
+              />
+            ) : (
+              <Row main={h.name} meta={stopCount(h)}>
+                <span class="row-actions">
+                  <EditButton label={`Edit ${h.name}`} onClick={() => setEditing({ kind: 'home', place: { ...h, lines: [] }, isNew: false })} />
+                  <DeleteButton label={`Delete ${h.name}`} onClick={() => setDeleting(`home:${h.id}`)} />
                 </span>
-              </span>
-              <span class="row-actions">
-                <EditButton label={`Edit ${h.name}`} onClick={() => setEditing({ kind: 'home', place: { ...h, lines: [] }, isNew: false })} />
-                <DeleteButton
-                  label={`Delete ${h.name}`}
-                  onClick={() => {
-                    if (!confirm(`Delete ${h.name}?`)) return
-                    const homes = settings.homes.filter((x) => x.id !== h.id)
-                    setSettings({ ...settings, homes, activeHome: homes[0]?.id })
-                  }}
-                />
-              </span>
-            </li>
-          ))}
+              </Row>
+            ),
+          )}
         </ul>
         <Button onClick={() => setEditing(editNew('home'))}>Add home</Button>
       </Section>
 
-      <Section title="Gyms" icon={<IconGym />}>
-        <p class="muted small">Stored only on this device, with the lines used to get to each one.</p>
+      <Section title="Gyms" icon={<IconGym />} intro="Stored only on this device, with the lines used to get to each one.">
         {warning && (
-          <Callout tone="caution" role="status">
+          <Callout tone="caution" role="status" onDismiss={() => setWarning('')}>
             {warning}
           </Callout>
         )}
-        <ul class="list">
-          {settings.gyms.map((g) => (
-            <li>
-              <span>
-                {g.name}
-                <span class="muted small">
-                  {' '}
-                  · {g.lines.length} line{g.lines.length === 1 ? '' : 's'}
-                  {!g.homeId && home ? ` · none near ${home.name} yet` : ''}
+        <ul class="rows">
+          {settings.gyms.map((g) =>
+            deleting === `gym:${g.id}` ? (
+              <Confirm
+                as="li"
+                question={`Delete ${g.name}?`}
+                detail={`Its ${g.lines.length} line${g.lines.length === 1 ? '' : 's'} go with it.`}
+                confirm="Delete"
+                onKeep={() => setDeleting(null)}
+                onConfirm={() => {
+                  setSettings({ ...settings, gyms: settings.gyms.filter((x) => x.id !== g.id) })
+                  setDeleting(null)
+                }}
+              />
+            ) : (
+              <Row
+                lead={<BrandLogo brand={server?.gyms.find((k) => k.id === g.ref)?.brand} />}
+                main={g.name}
+                meta={`${g.lines.length} line${g.lines.length === 1 ? '' : 's'}${!g.homeId && home ? `, none near ${home.name} yet` : ''}`}
+              >
+                <span class="row-actions">
+                  <EditButton label={`Edit ${g.name}`} onClick={() => setEditing({ kind: 'gym', place: g, isNew: false })} />
+                  <DeleteButton label={`Delete ${g.name}`} onClick={() => setDeleting(`gym:${g.id}`)} />
                 </span>
-              </span>
-              <span class="row-actions">
-                <EditButton label={`Edit ${g.name}`} onClick={() => setEditing({ kind: 'gym', place: g, isNew: false })} />
-                <DeleteButton
-                  label={`Delete ${g.name}`}
-                  onClick={() => {
-                    if (confirm(`Delete ${g.name}?`)) setSettings({ ...settings, gyms: settings.gyms.filter((x) => x.id !== g.id) })
-                  }}
-                />
-              </span>
-            </li>
-          ))}
+              </Row>
+            ),
+          )}
         </ul>
         {settings.gyms.length > 1 && (
-          <p class="muted small">
+          <p class="meta">
             Trips put your most used gyms first.{' '}
             {settings.gyms.some((g) => g.uses) && (
-              <TextButton small onClick={() => setSettings(resetGymOrder(settings))}>
+              <TextButton quiet onClick={() => setSettings(resetGymOrder(settings))}>
                 Reset the order
               </TextButton>
             )}
           </p>
         )}
-        <div class="actions">
+        <div class="actions section-actions">
           <Button disabled={settings.gyms.length >= MAX_GYMS} onClick={() => setEditing({ kind: 'choose-gyms' })}>
             Add gym
           </Button>
@@ -171,7 +177,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
             <>
               Used for walks you haven't timed.{' '}
               {!paceTest && (
-                <TextButton small onClick={() => setPaceTest(true)}>
+                <TextButton quiet onClick={() => setPaceTest(true)}>
                   Measure my pace
                 </TextButton>
               )}
@@ -211,8 +217,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
         />
       </Section>
 
-      <Section title="Connection risk" icon={<IconRisk />}>
-        <p class="muted small">How much spare time a change needs to count as safe or tight. Below "tight" it's at risk.</p>
+      <Section title="Connection risk" icon={<IconRisk />} intro={'How much spare time a change needs to count as safe or tight. Below "tight" it\'s at risk.'}>
         <NumberField
           label="Safe from (min)"
           value={(settings.risk?.safe_s ?? d?.risk.safe_s ?? 180) / 60}
@@ -240,33 +245,39 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
         )}
       </Section>
 
-      <Section title="Timed walks" icon={<IconTimer />}>
-        <p class="muted small">
-          Walks and changes you've timed during trips (tap "Time my walk" while travelling). They're used whenever the same
-          walk comes up, either way round, and the route you walked is drawn on the map.
-        </p>
+      <Section
+        title="Timed walks"
+        icon={<IconTimer />}
+        intro={'Walks and changes you\'ve timed during trips (tap "Time my walk" while travelling). They\'re used whenever the same walk comes up, either way round, and the route you walked is drawn on the map.'}
+      >
         {settings.walks.length === 0 ? (
-          <p class="muted small">None yet.</p>
+          <p class="meta">None yet.</p>
         ) : (
-          <ul class="list">
-            {settings.walks.map((w) => (
-              <li>
-                <span>
-                  {w.label}{' '}
-                  <span class="muted small">
-                    · {mmss(walkSecs(w))}
-                    {w.times.length > 1 ? `, average of ${w.times.length}` : ''}
-                    {w.trace ? ', traced' : ''}
+          <ul class="rows">
+            {settings.walks.map((w, i) =>
+              deleting === `walk:${i}` ? (
+                <Confirm
+                  as="li"
+                  question={`Delete ${w.label}?`}
+                  detail="The street map's estimate is used again."
+                  confirm="Delete"
+                  onKeep={() => setDeleting(null)}
+                  onConfirm={() => {
+                    setSettings({ ...settings, walks: settings.walks.filter((x) => x !== w) })
+                    setDeleting(null)
+                  }}
+                />
+              ) : (
+                <Row
+                  main={w.label}
+                  meta={`${mmss(walkSecs(w))}${w.times.length > 1 ? `, average of ${w.times.length}` : ''}${w.trace ? ', traced' : ''}`}
+                >
+                  <span class="row-actions">
+                    <DeleteButton label={`Delete the timed walk ${w.label}`} onClick={() => setDeleting(`walk:${i}`)} />
                   </span>
-                </span>
-                <span class="row-actions">
-                  <DeleteButton
-                    label={`Delete the timed walk ${w.label}`}
-                    onClick={() => setSettings({ ...settings, walks: settings.walks.filter((x) => x !== w) })}
-                  />
-                </span>
-              </li>
-            ))}
+                </Row>
+              ),
+            )}
           </ul>
         )}
         <fieldset class="choice">
@@ -295,13 +306,12 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
       <Section title="Appearance" icon={<IconColour />}>
         <Segmented
           label="Light or dark"
-          small
           options={[[undefined, 'Auto'], ['light', 'Light'], ['dark', 'Dark']] as const}
           value={settings.theme}
           onChange={(t) => setSettings({ ...settings, theme: t })}
         />
         <h3>Highlight colour</h3>
-        <p class="muted small">For underlines and what's selected. The grade colours at 9 Degrees.</p>
+        <p class="meta">For underlines and what's selected. The grade colours at 9 Degrees.</p>
         <ul class="swatches" role="radiogroup" aria-label="Highlight colour">
           {HIGHLIGHTS.map((c) => {
             const on = (settings.highlight ?? 'black') === c
@@ -328,8 +338,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError }: Pro
 
       <Backup settings={settings} setSettings={setSettings} />
 
-      <Section title="This device" icon={<IconPhone />}>
-        <p class="muted small">Removes this device's access, homes, gyms and timed walks. Backups and other devices keep theirs.</p>
+      <Section title="This device" icon={<IconPhone />} intro="Removes this device's access, homes, gyms and timed walks. Backups and other devices keep theirs.">
         <Button variant="danger"
          
           onClick={() => {
@@ -414,10 +423,7 @@ function Backup({ settings, setSettings }: { settings: Settings; setSettings: (s
   }
 
   return (
-    <Section title="Backup and other devices" icon={<IconDevices />}>
-      <p class="muted small">
-        Backups and setup links include your access token and homes. Treat them like a password.
-      </p>
+    <Section title="Backup and other devices" icon={<IconDevices />} intro="Backups and setup links include your access token and homes. Treat them like a password.">
       <div class="actions">
         <Button onClick={() => setShowShare(!showShare)}>{showShare ? 'Hide setup link' : 'Set up another device'}</Button>
         <Button onClick={download}>Export backup</Button>
@@ -434,10 +440,10 @@ function Backup({ settings, setSettings }: { settings: Settings; setSettings: (s
           }}
         />
       </div>
-      {msg && <p class="muted small">{msg}</p>}
+      {msg && <p class="meta">{msg}</p>}
       {showShare && (
         <div class="share">
-          <p class="small">Scan with the other device, or copy the link to it privately.</p>
+          <p>Scan with the other device, or copy the link to it privately.</p>
           {link && <QRCode text={link} />}
           <Button
             onClick={() =>

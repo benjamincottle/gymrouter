@@ -2,19 +2,19 @@
 // you are (or the vehicle you're on), and suggests a switch when something slips.
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
-import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, statusTime } from '../format.ts'
-import { useNow, useVisible } from '../hooks.ts'
+import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, spare, statusTime } from '../format.ts'
+import { useNow, useVisible, useWide } from '../hooks.ts'
 import { assess, instruction, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, type Assessment, type Phase, type Position } from '../intrip.ts'
 import type { Option, PlanRequest } from '../types.ts'
 import type { Walk } from '../walkmeasure.ts'
 import { existing, segments, type PlaceRef, type Retime, type Segment, type TimedWalk } from '../walks.ts'
-import { MapSheet } from './board.tsx'
+import { MapPane, MapSheet } from './board.tsx'
 import { Timeline, type Tracking } from './option.tsx'
 import { position, rows } from '../options.ts'
 import { advance, phaseOf, rowLines, shapeKey, type At, type LonLat } from '../progress.ts'
 import { boarding, type Fix, type Sighting } from '../boarding.ts'
 import { WalkTimer } from './walktimer.tsx'
-import { Button, Callout } from './ui.tsx'
+import { ActionBar, Button, Callout, Confirm, TextButton } from './ui.tsx'
 
 /** Everything needed to resume a trip after a reload; kept on this device only. */
 export interface ActiveTrip {
@@ -55,6 +55,8 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   const [checkedAt, setCheckedAt] = useState(0)
   const [error, setError] = useState('')
   const [mapOpen, setMapOpen] = useState(false)
+  const [ending, setEnding] = useState(false)
+  const wide = useWide()
   const [timing, setTiming] = useState<Segment | null>(null)
   const [saved, setSaved] = useState('')
   const timerRef = useRef<HTMLDivElement>(null)
@@ -232,23 +234,35 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   }
   const lateBy = check && check.status !== 'missed' ? check.lateBy : 0
   const nextRide = phase.kind === 'before' ? o.legs[phase.ride] : undefined
-  const spare = nextRide ? spareToBoard(nextRide, pos, now, trip.walkSpeedMps) : null
+  const spareS = nextRide ? spareToBoard(nextRide, pos, now, trip.walkSpeedMps) : null
   // The next change: the one after the ride you're on or heading for.
   const upcoming = o.transfers.find((t) => (phase.kind === 'riding' || phase.kind === 'before') && t.from_leg === phase.ride)
   const start = Date.parse(o.leave_at)
 
   return (
     <div class="intrip">
-      <header class="sheet-bar">
-        <Button variant="ghost" onClick={onEnd}>
-          End trip
-        </Button>
+      <header class="trip-bar">
         <span class="sheet-title">{trip.title}</span>
+        {!ending && (
+          <TextButton quiet onClick={() => setEnding(true)}>
+            End trip
+          </TextButton>
+        )}
       </header>
+      {ending && (
+        <Confirm
+          question="End this trip?"
+          detail="Live tracking and re-checks stop."
+          keep="Keep going"
+          confirm="End trip"
+          onKeep={() => setEnding(false)}
+          onConfirm={onEnd}
+        />
+      )}
 
       <section class="hero">
-        <p class="hero-label">{phase.kind === 'arrived' ? 'Arrived' : 'Arrive'}</p>
-        <p class="hero-time">{clock(o.arrive)}</p>
+        <p class="label">{phase.kind === 'arrived' ? 'Arrived' : 'Arrive'}</p>
+        <p class="hero-time num">{clock(o.arrive)}</p>
         <p class="hero-arrive">
           {check?.status === 'missed'
             ? 'if the plan still worked'
@@ -261,33 +275,41 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
       </section>
 
       {check?.status === 'missed' && (
-        <Callout tone="bad" role="alert">
-          {check.suggestion ? (
-            <>
-              <p>
-                <strong>You won't make the planned connection.</strong> Next best: {check.suggestion.lines.map((l) => l.split(' ')[1]).join(', ')},
-                arriving {clock(check.suggestion.arrive)}.
-              </p>
+        <Callout
+          tone="bad"
+          role="alert"
+          action={
+            check.suggestion && (
               <Button variant="primary" onClick={() => switchTo(check.suggestion!)}>
                 Switch to this
               </Button>
+            )
+          }
+        >
+          {check.suggestion ? (
+            <>
+              <strong>You won't make the planned connection.</strong> Next best: {check.suggestion.lines.map((l) => l.split(' ')[1]).join(', ')},
+              arriving {clock(check.suggestion.arrive)}.
             </>
           ) : (
-            <p>
+            <>
               <strong>The planned connection is gone</strong> and there's no other way on these lines right now.
-            </p>
+            </>
           )}
         </Callout>
       )}
       {check?.status === 'better' && (
-        <Callout tone="good" role="status">
-          <p>
-            <strong>A faster way just opened up:</strong> {check.suggestion.lines.map((l) => l.split(' ')[1]).join(', ')}, arriving{' '}
-            {clock(check.suggestion.arrive)} ({duration((Date.parse(check.current.arrive) - Date.parse(check.suggestion.arrive)) / 1000)} sooner).
-          </p>
-          <Button variant="primary" onClick={() => switchTo(check.suggestion)}>
-            Switch to this
-          </Button>
+        <Callout
+          tone="good"
+          role="status"
+          action={
+            <Button variant="primary" onClick={() => switchTo(check.suggestion)}>
+              Switch to this
+            </Button>
+          }
+        >
+          <strong>A faster way just opened up:</strong> {check.suggestion.lines.map((l) => l.split(' ')[1]).join(', ')}, arriving{' '}
+          {clock(check.suggestion.arrive)}, {duration((Date.parse(check.current.arrive) - Date.parse(check.suggestion.arrive)) / 1000)} sooner.
         </Callout>
       )}
 
@@ -305,9 +327,9 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
               ? `${ins.detail.line?.name} was due ${clock(ins.detail.dep)} (${countdown(ins.detail.dep, now).replace(/^left /, '')})`
               : `${ins.detail.line?.name} leaves ${clock(ins.detail.dep)} (${countdown(ins.detail.dep, now)})`}
             {ins.detail.status === 'predicted' && `, ${delay(ins.detail.delay_s)}`}
-            {spare !== null && !(phase.kind === 'before' && phase.waiting) && (
-              <span class={spare < 0 ? 'spare bad' : spare < 60 ? 'spare tight' : 'spare'}>
-                {spare < 0 ? ` You need to hurry: ${Math.ceil(-spare / 60)} min short at walking pace.` : ` ${Math.floor(spare / 60)} min to spare from here.`}
+            {spareS !== null && !(phase.kind === 'before' && phase.waiting) && (
+              <span class={spareS < 0 ? 'spare bad' : spareS < 60 ? 'spare tight' : 'spare'}>
+                {spareS < 0 ? `You need to hurry: ${Math.ceil(-spareS / 60)} min short at walking pace.` : `${spare(spareS)} from here.`}
               </span>
             )}
           </p>
@@ -324,58 +346,71 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           <p class="label">Then</p>
           <p>
             <span class={`badge risk-${upcoming.risk}`}>{riskLabel(upcoming.risk)}</span> Change at {placeName(o.legs[upcoming.from_leg].to)}:{' '}
-            {Math.round(upcoming.walk_s / 60)} min, {upcoming.slack_s >= 60 ? `${Math.floor(upcoming.slack_s / 60)} min ` : ''}
-            {upcoming.slack_s % 60}s spare.
-            {upcoming.fallback_dep && ` If missed, the next one is ${clock(upcoming.fallback_dep)}.`}
+            {Math.max(1, Math.round(upcoming.walk_s / 60))} min walk, {spare(upcoming.slack_s)}.
+            {upcoming.fallback_dep && ` If missed, the next one is at ${clock(upcoming.fallback_dep)}.`}
           </p>
         </section>
       )}
 
       {timing ? (
         <div ref={timerRef}>
-        <WalkTimer
-          from={timing.from}
-          to={timing.to}
-          earlier={existing(walks, timing)?.times ?? []}
-          estimateS={timing.estimateS}
-          retime={retime}
-          onSave={(w, replace) => {
-            onSaveWalk(timing, w, replace)
-            setSaved(`Saved: ${timing.label}. It's used from now on.`)
-            setTiming(null)
-          }}
-          onCancel={() => setTiming(null)}
-        />
+          <WalkTimer
+            from={timing.from}
+            to={timing.to}
+            earlier={existing(walks, timing)?.times ?? []}
+            estimateS={timing.estimateS}
+            retime={retime}
+            onSave={(w, replace) => {
+              onSaveWalk(timing, w, replace)
+              setSaved(`Saved: ${timing.label}. It's used from now on.`)
+              setTiming(null)
+            }}
+            onCancel={() => setTiming(null)}
+          />
         </div>
       ) : null}
       {saved && !timing && (
-        <Callout role="status">
+        <Callout role="status" onDismiss={() => setSaved('')}>
           {saved}
         </Callout>
       )}
 
-      <div class="actions">
-        <Button variant="ghost" onClick={() => setMapOpen(true)}>
-          Show on map
-        </Button>
-        {locState === 'denied' && navigator.geolocation && (
-          <Button variant="ghost" onClick={() => setLocState('on')}>
-            Try my location again
-          </Button>
-        )}
-      </div>
-      <p class="muted small">
+      <p class="meta status-line">
         {locState === 'on' && (pos ? `Location on (±${Math.round(pos.accuracy)} m). ` : 'Finding your location… ')}
         {locState === 'denied' && 'Location unavailable; following the timetable. '}
         {checkedAt ? `Checked ${statusTime(checkedAt)}.` : 'Checking…'}
         {error && ` ${error}`}
+        {locState === 'denied' && navigator.geolocation && (
+          <>
+            {' '}
+            <TextButton onClick={() => setLocState('on')}>Try my location again</TextButton>
+          </>
+        )}
       </p>
 
       <section class="steps" aria-label="The trip">
         <Timeline option={o} ends={trip.ends} walks={walks} track={track} />
       </section>
 
-      {mapOpen && (
+      {!wide && (
+        <ActionBar>
+          <Button onClick={() => setMapOpen(true)}>Show on map</Button>
+        </ActionBar>
+      )}
+      {wide && (
+        <MapPane
+          serviceDate={trip.serviceDate}
+          token={token}
+          me={pos}
+          walks={walks}
+          places={{ start: trip.ends.start.key, end: trip.ends.end.key }}
+          origin={trip.origin}
+          destination={trip.destination}
+          option={o}
+        />
+      )}
+
+      {!wide && mapOpen && (
         <MapSheet
           live
           serviceDate={trip.serviceDate}

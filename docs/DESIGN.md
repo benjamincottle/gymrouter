@@ -63,13 +63,14 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
 | `--fs-num` | 32px | the big secondary number (arrive time in the hero) |
 | `--fs-lead` | 24px | the in-trip "Now" instruction, the map footer's leave time |
 | `--fs-title` | 20px | section and screen titles |
+| `--fs-strong` | 18px | times in lists and on the board (700, narrow), gym names (800, semi) |
 | `--fs-body` | 16px | reading text, buttons, fields, list rows |
 | `--fs-small` | 14px | secondary lines, hints, meta |
 | `--fs-micro` | 12px | line chips, risk badges, tape labels, the footer |
 
 - **Widths:** `--narrow` (68%) for times and numbers; `--semi` (84%) for titles and gym names; 100% for reading.
 - **Weights:** 400 for reading, 600 for labels, buttons and emphasis, 800 for titles and numerals. 700 is allowed only
-  for times in lists and the board (18px, narrow).
+  for times in lists and the board (`--fs-strong`, narrow).
 - Fields always use weight 400, whatever their label's weight.
 - **Line height:** 1.45 for text, 1.15 for titles, 1 for numerals.
 - Use `font-variant-numeric: tabular-nums` everywhere.
@@ -98,9 +99,9 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
 
 - **Phone (below 1024px):** one column, at most 34rem wide, with `--s4` gutters. The header is sticky, with no rule;
   the current screen is underlined in `--hl`.
-- **Desktop (1024px and up):** the header spans the page over two panes. The trip pane on the left is 400–460px wide
-  and scrolls; the map on the right fills the rest, sticky at full height, and always shows the selected option. There's
-  no "Show on map" button on desktop.
+- **Desktop (1024px and up):** the header spans the page (fixed, `--header-h`) over two panes. The trip pane on the
+  left is `--pane-w` (460px) and scrolls with the page; the map (`.map-pane`, fixed) fills the rest and always shows the
+  selected option, or says what will appear there before there is one. There's no "Show on map" button on desktop.
   - In-trip uses the same split: Now/Then and the steps on the left, the map on the right.
   - Settings and the editors use a single readable column, max 40rem, centred.
 - **The commit action lives in the action bar.** The screen's main action ("Start trip", "Save gym") sits in a bar
@@ -146,6 +147,7 @@ Callout), the tokens in `web/src/style.css`, and data colours in `web/src/colour
   - Panels with their own job (pace test, walk timer) are sections, not callouts.
 - **Section:** a heavy top rule, then a title (20px/800/semi) with an optional 24px icon (ink lines, one `--hl` part).
   An intro line in 14px pencil may follow.
+- **Pick rows:** a search result is a whole-row button with a `›` at the end, not a link.
 - **Rows:** a hairline-separated list, min 56px tall. The main text sits on line 1 and details on a second 14px pencil
   line. **Never join details with middle dots.** Actions (icon buttons) go on the right.
 - **Route row** (trip screen): a tape in `--hl`, the gym's logo, the gym's name (18px/800/semi, a button that changes

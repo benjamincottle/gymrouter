@@ -9,7 +9,7 @@ import { IconSettings } from './views/icons.tsx'
 import { InTrip, TRIP_KEY, type ActiveTrip } from './views/intrip.tsx'
 import { record } from './walks.ts'
 import { applyTheme } from './theme.ts'
-import { Callout, TextButton } from './views/ui.tsx'
+import { Callout, IconButton } from './views/ui.tsx'
 
 function loadTrip(storage: Storage | undefined): ActiveTrip | null {
   try {
@@ -97,7 +97,7 @@ export function App({ initial, imported, storage }: AppProps) {
 
   if (trip) {
     return (
-      <div class="app">
+      <div class="app in-trip">
         <InTrip
           trip={trip}
           token={settings.token}
@@ -113,7 +113,7 @@ export function App({ initial, imported, storage }: AppProps) {
   }
 
   return (
-    <div class="app">
+    <div class={view === 'settings' ? 'app wide-column' : 'app'}>
       <header class="topbar">
         <h1>
           <button
@@ -129,20 +129,19 @@ export function App({ initial, imported, storage }: AppProps) {
           </button>
         </h1>
         <nav>
-          <button
-            class={view === 'settings' ? 'tab cog active' : 'tab cog'}
-            aria-label="Settings"
-            title="Settings"
-            aria-pressed={view === 'settings'}
+          <IconButton
+            label="Settings"
+            class={view === 'settings' ? 'active' : undefined}
+            aria-current={view === 'settings' ? 'page' : undefined}
             onClick={() => setView('settings')}
           >
             <IconSettings />
-          </button>
+          </IconButton>
         </nav>
       </header>
       {notice && (
-        <Callout role="status">
-          {notice} <TextButton onClick={() => setNotice('')}>Dismiss</TextButton>
+        <Callout role="status" onDismiss={() => setNotice('')}>
+          {notice}
         </Callout>
       )}
       {!storageOk && (
@@ -165,10 +164,7 @@ export function App({ initial, imported, storage }: AppProps) {
           <SettingsView settings={settings} setSettings={setSettings} server={server} onAuthError={onAuthError} />
         )}
       </main>
-      <footer class="footer">
-        <p>Contains Transport for NSW data (CC BY 4.0).</p>
-        <p>Map data © OpenStreetMap contributors.</p>
-      </footer>
+      <footer class="footer">Contains Transport for NSW data (CC BY 4.0). Map data © OpenStreetMap contributors.</footer>
     </div>
   )
 }

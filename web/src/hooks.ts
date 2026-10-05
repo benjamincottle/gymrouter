@@ -10,6 +10,19 @@ export function useNow(ms = 1000): number {
   return now
 }
 
+/** True on a screen wide enough for the trip and the map side by side (docs/DESIGN.md, Layout). */
+export function useWide(): boolean {
+  const q = '(min-width: 1024px)'
+  const [wide, setWide] = useState(() => window.matchMedia(q).matches)
+  useEffect(() => {
+    const m = window.matchMedia(q)
+    const on = () => setWide(m.matches)
+    m.addEventListener('change', on)
+    return () => m.removeEventListener('change', on)
+  }, [])
+  return wide
+}
+
 /** True while the page is visible; polling pauses in the background. */
 export function useVisible(): boolean {
   const [visible, setVisible] = useState(document.visibilityState === 'visible')

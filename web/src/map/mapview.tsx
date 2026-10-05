@@ -10,7 +10,8 @@ import { ApiError, api } from '../api.ts'
 import { legTrace, type TimedWalk } from '../walks.ts'
 import { isDark } from '../theme.ts'
 import type { Leg, Option } from '../types.ts'
-import { hex, LINE_FALLBACK, WHITE } from '../colour.ts'
+import { INK, lineColour, textOn, token, WHITE } from '../colour.ts'
+import { Callout } from '../views/ui.tsx'
 
 maplibregl.setWorkerUrl(workerUrl)
 
@@ -43,31 +44,21 @@ function style(token: string, dark: boolean): StyleSpecification {
   }
 }
 
+/** RGB of a CSS hex colour ("#1e2226"), for drawing the walk dots. */
+const rgb = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)) as [number, number, number]
+
 /**
- * The map's own colours, in one place. MapLibre paint can't read CSS tokens, so these mirror style.css: the ink for
- * walks and stop outlines, white stops, and the "you" blue. (Vehicle outlines and text on a vehicle are a shade off the
- * ink; the restyle moves them onto it.)
+ * The map's own colours, taken from style.css when the map is made (MapLibre paint can't read CSS variables): the ink
+ * for walks, stop and vehicle outlines, white stops, and the "you" blue.
  */
-const mapColours = (dark: boolean) => ({
-  walk: (dark ? [232, 235, 231] : [30, 34, 38]) as [number, number, number],
-  stop: WHITE,
-  stopEdge: '#1e2226',
-  vehicleEdge: dark ? '#e9ece8' : '#1f2328',
-  you: '#2457d6',
-  youEdge: WHITE,
-})
-const DARK_TEXT = '#1f2328' // on a pale line colour
+const mapColours = () => {
+  const ink = token('--ink') || INK
+  return { walk: rgb(ink), ink, stop: WHITE, you: token('--you') || '#2457d6' }
+}
 
 const RIDE_W = 6 // a ride's line on the map, in pixels; the stops along it are as wide
 
-const lineColour = (c?: string) => hex(c) ?? LINE_FALLBACK
 
-/** Black or white, whichever reads better on the line colour (some lines are pale, e.g. yellow). */
-function textOn(c?: string): string {
-  if (!c || !/^[0-9a-fA-F]{6}$/.test(c)) return WHITE
-  const [r, g, b] = [0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16) / 255)
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.6 ? DARK_TEXT : WHITE
-}
 
 type Geometry =
   | { type: 'Point'; coordinates: [number, number] }
@@ -141,7 +132,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
   useEffect(() => {
     if (!el.current) return
     const dark = isDark()
-    const col = mapColours(dark)
+    const col = mapColours()
     const m = new maplibregl.Map({
       container: el.current,
       style: style(token, dark),
@@ -187,14 +178,14 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         id: 'route-stops', type: 'circle', source: 'route', filter: ['in', ['get', 'kind'], ['literal', ['via', 'stop']]],
         paint: {
           'circle-radius': RIDE_W / 2 - 1, 'circle-color': col.stop,
-          'circle-stroke-width': 1, 'circle-stroke-color': col.stopEdge,
+          'circle-stroke-width': 1, 'circle-stroke-color': INK, // black in both themes
         },
       })
       m.addLayer({
         id: 'vehicles-mine', type: 'circle', source: 'vehicles',
         paint: {
           'circle-radius': 14, 'circle-color': ['get', 'color'],
-          'circle-stroke-color': col.vehicleEdge, 'circle-stroke-width': 3,
+          'circle-stroke-color': col.ink, 'circle-stroke-width': 3,
         },
       })
       m.addLayer({
@@ -215,7 +206,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
       })
       m.addLayer({
         id: 'me', type: 'circle', source: 'me',
-        paint: { 'circle-radius': 7, 'circle-color': col.you, 'circle-stroke-color': col.youEdge, 'circle-stroke-width': 2.5 },
+        paint: { 'circle-radius': 7, 'circle-color': col.you, 'circle-stroke-color': col.stop, 'circle-stroke-width': 2.5 },
       })
       map.current = m
     })
@@ -307,7 +298,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
             fc(
               r.vehicles.map((v): Feature => ({
                 type: 'Feature',
-                properties: { color: lineColour(v.color), text: textOn(v.color), name: v.line.split(' ').slice(1).join(' ') },
+                properties: { color: lineColour(v.color), text: textOn(lineColour(v.color)), name: v.line.split(' ').slice(1).join(' ') },
                 geometry: { type: 'Point', coordinates: [v.lon, v.lat] },
               })),
             ),
@@ -339,14 +330,11 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
   return (
     <div class="map-wrap">
       <div ref={el} class="map" role="region" aria-label="Map of the trip with live vehicles" data-my-vehicles={vehicleCount ?? ''} />
-      {error && <p class="map-note">{error}</p>}
+      {error && <Callout tone="caution">{error}</Callout>}
       {vehicleCount === 0 && !noteGone && (
-        <p class="map-note subtle" role="status">
+        <Callout class="subtle" role="status" onDismiss={() => setNoteGone(true)}>
           Your services appear here once they're a few stops away.
-          <button class="close" aria-label="Dismiss" onClick={() => setNoteGone(true)}>
-            ×
-          </button>
-        </p>
+        </Callout>
       )}
     </div>
   )

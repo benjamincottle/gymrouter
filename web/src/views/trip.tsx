@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import { api, AuthError } from '../api.ts'
 import { addDays, dayLabel, fromLocalInput, roundUp, statusTime, toLocalInput } from '../format.ts'
-import { usePolling, useVisible } from '../hooks.ts'
-import { byUse, placeRef, planPlace, prefs, usedGym, type Settings } from '../settings.ts'
+import { usePolling, useVisible, useWide } from '../hooks.ts'
+import { byUse, placeRef, planPlace, prefs, usedGym, type Gym, type Settings } from '../settings.ts'
 import type { DefaultsResponse, PlanRequest } from '../types.ts'
 import { Board, WindowShift, type Shift } from './board.tsx'
 import { BrandLogo } from './brand.tsx'
 import type { ActiveTrip } from './intrip.tsx'
-import { Button, Segmented } from './ui.tsx'
+import { Button, Callout, IconButton, Segmented } from './ui.tsx'
 
 type Direction = 'to-gym' | 'home'
 
@@ -47,6 +47,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   useEffect(() => setMoved(null), [when, gymId, direction])
   const leaveAt = when === 'now' ? null : at
   const visible = useVisible()
+  const wide = useWide()
   const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
 
   const request: PlanRequest | null = useMemo(() => {
@@ -88,7 +89,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   }, [plan.error, onAuthError])
 
 
-  if (!server) return <p class="muted">Loading…</p>
+  if (!server) return <p class="loading">Loading…</p>
   if (!home || settings.gyms.length === 0) {
     return (
       <div class="empty">
@@ -103,29 +104,45 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   const gym = settings.gyms.find((g) => g.id === gymId)
   const ends = gym && (direction === 'to-gym' ? { start: placeRef('home', home), end: placeRef('gym', gym) } : { start: placeRef('gym', gym), end: placeRef('home', home) })
   const places = { start: ends?.start.key, end: ends?.end.key }
+  const title = gym && (direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`)
+  const brandOf = (g: Gym) => server.gyms.find((k) => k.id === g.ref)?.brand
 
   return (
-    <div class="stack">
-      <div class="when">
-        <Segmented
-          label="When"
-          small
-          options={[['now', 'Leave now'], ['leave', 'Leave at'], ['arrive', 'Arrive by']] as const}
-          value={when}
-          onChange={(w) => (w === 'now' ? setWhen('now') : chooseTime(w))}
-        />
-        {when !== 'now' && <DayTime value={at} onChange={setAt} label={when === 'arrive' ? 'Arrive by' : 'Leave at'} />}
-      </div>
-
-      <Segmented
-        label="Direction"
-        options={[['to-gym', 'To the gym'], ['home', 'Home']] as const}
-        value={direction}
-        onChange={setDirection}
-      />
+    <div class="stack trip">
+      {gym ? (
+        // The chosen gym leads: tap its name to choose another; the arrows reverse the trip.
+        <div class="route">
+          <BrandLogo brand={brandOf(gym)} />
+          <button class="to" aria-label={`${gym.name}: choose a different gym`} onClick={() => chooseGym(null)}>
+            {gym.name}
+            <svg class="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path d="M6 9.5l6 6 6-6" />
+            </svg>
+          </button>
+          <span class="from meta">{direction === 'to-gym' ? `from ${home.name}` : `to ${home.name}`}</span>
+          <IconButton
+            label={direction === 'to-gym' ? `Reverse: from ${gym.name} to ${home.name}` : `Reverse: from ${home.name} to ${gym.name}`}
+            onClick={() => setDirection(direction === 'to-gym' ? 'home' : 'to-gym')}
+          >
+            <svg class="icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <path d="M8 4v15m-4-4 4 4 4-4M16 20V5m-4 4 4-4 4 4" />
+            </svg>
+          </IconButton>
+        </div>
+      ) : (
+        <div class="gyms" role="group" aria-label="Choose a gym">
+          {[...settings.gyms].sort((a, b) => rank(a.id) - rank(b.id)).map((g) => (
+            <button class="gym" onClick={() => chooseGym(g.id)}>
+              <BrandLogo brand={brandOf(g)} />
+              <span class="gym-name">{g.name}</span>
+              {g.address && <span class="gym-address">{g.address}</span>}
+            </button>
+          ))}
+        </div>
+      )}
 
       {settings.homes.length > 1 && (
-        <label class="inline">
+        <label class="inline-choice">
           {direction === 'to-gym' ? 'From' : 'To'}
           <select
             value={home.id}
@@ -138,37 +155,27 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
         </label>
       )}
 
-      <div class="gyms">
-        {(gym ? [gym] : [...settings.gyms].sort((a, b) => rank(a.id) - rank(b.id))).map((g) => (
-          <button
-            class={g.id === gymId ? 'gym selected' : 'gym'}
-            aria-pressed={g.id === gymId}
-            aria-label={g.id === gymId ? `${g.name}: choose a different gym` : undefined}
-            onClick={() => chooseGym(g.id === gymId ? null : g.id)}
-          >
-            <BrandLogo brand={server.gyms.find((k) => k.id === g.ref)?.brand} />
-            <span class="gym-name">{g.name}</span>
-            {g.id === gymId ? (
-              <span class="gym-address">{settings.gyms.length > 1 ? 'Change gym' : g.address}</span>
-            ) : (
-              g.address && <span class="gym-address">{g.address}</span>
-            )}
-          </button>
-        ))}
+      <div class="when">
+        <Segmented
+          label="When"
+          options={[['now', 'Leave now'], ['leave', 'Leave at'], ['arrive', 'Arrive by']] as const}
+          value={when}
+          onChange={(w) => (w === 'now' ? setWhen('now') : chooseTime(w))}
+        />
+        {when !== 'now' && <DayTime value={at} onChange={setAt} label={when === 'arrive' ? 'Arrive by' : 'Leave at'} />}
       </div>
 
       {gym && (
-        <section class="results">
-          <h2 class="results-title">
-            {direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`}
-          </h2>
+        <section class="results" aria-label={title}>
           <DataStatus realtime={plan.data?.realtime} loading={plan.loading} updatedAt={plan.updatedAt} walking={plan.data?.walking} />
           {plan.error !== null && !(plan.error instanceof AuthError) && (
-            <p class="error">{(plan.error as Error).message}</p>
+            <Callout tone="bad" role="alert">
+              {(plan.error as Error).message}
+            </Callout>
           )}
           {plan.data && plan.data.options.length === 0 && <WindowShift shift={shift} />}
           {plan.data && plan.data.options.length === 0 && (
-            <p class="muted">
+            <p class="meta">
               {when === 'arrive'
                 ? 'No way to get there by then on these lines. Try later trips.'
                 : `Nothing leaves in these ${WINDOW_MIN} minutes. Try later trips.`}
@@ -184,7 +191,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
               places={places}
               origin={direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat]}
               destination={direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat]}
-              title={direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`}
+              title={title!}
               ends={ends!}
               onShift={shift}
               onStart={(o) =>
@@ -193,7 +200,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
                   plannedArrive: o.arrive,
                   request: request!,
                   ends: ends!, // a gym is chosen whenever there are options
-                  title: direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`,
+                  title: title!,
                   origin: direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat],
                   destination: direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat],
                   serviceDate: plan.data!.service_date,
@@ -203,6 +210,11 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
             />
           )}
         </section>
+      )}
+      {wide && !(gym && plan.data && plan.data.options.length > 0) && (
+        <aside class="map-pane">
+          <p class="empty-map">{gym ? 'The map shows a trip once there is one.' : 'Choose a gym and the trip shows here on the map.'}</p>
+        </aside>
       )}
     </div>
   )
@@ -247,12 +259,11 @@ function DayTime({ value, onChange, label }: { value: string; onChange: (v: stri
 function DataStatus({
   realtime, loading, updatedAt, walking,
 }: { realtime?: boolean; loading: boolean; updatedAt: number; walking?: 'streets' | 'estimate' }) {
-  if (!updatedAt) return <p class="muted small">{loading ? 'Planning…' : ''}</p>
-  const t = statusTime(updatedAt)
+  if (!updatedAt) return <p class="meta status-line">{loading ? 'Planning…' : ''}</p>
   return (
-    <p class="muted small">
-      <span class={realtime ? 'dot live' : 'dot'} aria-hidden="true" />
-      {realtime ? 'Live data' : 'Timetable only'}, updated {t}
+    <p class="meta status-line">
+      <span class={realtime ? 'live-dot live' : 'live-dot'} aria-hidden="true" />
+      {realtime ? 'Live data' : 'Timetable only'}, updated {statusTime(updatedAt)}
       {loading && ', refreshing…'}
       {walking === 'estimate' && (
         <>

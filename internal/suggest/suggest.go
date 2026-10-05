@@ -196,14 +196,14 @@ func describe(net *raptor.Network, j raptor.Journey) (string, []lines.Key) {
 		if i == 0 {
 			b.WriteString(k.String())
 		} else {
-			fmt.Fprintf(&b, " → %s", k)
+			fmt.Fprintf(&b, ", %s", k)
 		}
 		if i < len(rides)-1 {
-			fmt.Fprintf(&b, " → [%s", stationName(net, l.To))
+			// In words: "metro M1, change at North Ryde Station (walk to Epping Rd At Rivett Rd), bus 533"
+			fmt.Fprintf(&b, ", change at %s", stationName(net, l.To))
 			if next := stationName(net, rides[i+1].From); next != stationName(net, l.To) {
-				fmt.Fprintf(&b, " ~ %s", next)
+				fmt.Fprintf(&b, " (walk to %s)", next)
 			}
-			b.WriteString("]")
 		}
 	}
 	return b.String(), ks

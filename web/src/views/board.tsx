@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { ComponentType } from 'preact'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, shortDuration } from '../format.ts'
-import { useNow } from '../hooks.ts'
+import { useNow, useWide } from '../hooks.ts'
 import type { TimedWalk } from '../walks.ts'
 import type { Leg, Option } from '../types.ts'
 import { Timeline, type Ends, type Tracking } from './option.tsx'
 import { changesAndStops, reselect, tripKey } from '../options.ts'
 import type { MapViewProps } from '../map/mapview.tsx'
-import { Button, TextButton } from './ui.tsx'
-import { hex, LINE_FALLBACK, WHITE } from '../colour.ts'
+import { ActionBar, Button, Callout, TextButton } from './ui.tsx'
+import { lineColour, textOn } from '../colour.ts'
 
 const ms = (iso: string) => Date.parse(iso)
 
@@ -36,10 +36,10 @@ export type Shift = (dir: -1 | 1) => void
 export function WindowShift({ shift }: { shift: Shift }) {
   return (
     <div class="shift">
-      <TextButton onClick={() => shift(-1)}>
+      <TextButton quiet onClick={() => shift(-1)}>
         Earlier trips
       </TextButton>
-      <TextButton onClick={() => shift(1)}>
+      <TextButton quiet onClick={() => shift(1)}>
         Later trips
       </TextButton>
     </div>
@@ -49,6 +49,7 @@ export function WindowShift({ shift }: { shift: Shift }) {
 export function Board(p: Props) {
   const [selected, setSelected] = useState(0)
   const [mapOpen, setMapOpen] = useState(false)
+  const wide = useWide()
   const now = useNow(1000)
   const opts = p.options
   // Keep the selection on the same option when the list refreshes (live times move, so match on the
@@ -73,8 +74,8 @@ export function Board(p: Props) {
       <WindowShift shift={p.onShift} />
       <ol class="strips" aria-label="Options">
         {opts.map((o, i) => (
-          <li>
-            <button class={i === selected ? 'strip-row selected' : 'strip-row'} aria-pressed={i === selected} onClick={() => choose(i)}>
+          <li class={i === selected ? 'selected' : undefined}>
+            <button class="strip-row" aria-pressed={i === selected} onClick={() => choose(i)}>
               <span class="strip-leave">{clock(o.leave_at)}</span>
               <Strip option={o} start={start} end={end} />
               <span class="strip-arrive">{clock(o.arrive)}</span>
@@ -89,25 +90,24 @@ export function Board(p: Props) {
           </li>
         ))}
       </ol>
-      <div class="details">
-        <div class="details-head">
-          <p>
-            <strong>{duration(sel.duration_s)}</strong> door to door, {changesAndStops(sel)}
-          </p>
-          <span class="actions">
-            {p.onStart && (
-              <Button variant="primary" onClick={() => p.onStart!(sel)}>
-                Start trip
-              </Button>
-            )}
-            <Button variant="ghost" onClick={() => setMapOpen(true)}>
-              Show on map
-            </Button>
-          </span>
-        </div>
-        <Timeline option={sel} ends={p.ends} walks={p.walks} />
-      </div>
-      {mapOpen && (
+      <p class="summary">
+        <strong>{duration(sel.duration_s)}</strong> door to door, {changesAndStops(sel)}
+      </p>
+      <Timeline option={sel} ends={p.ends} walks={p.walks} />
+      <ActionBar>
+        {!wide && (
+          <Button class="phone-only" onClick={() => setMapOpen(true)}>
+            Show on map
+          </Button>
+        )}
+        {p.onStart && (
+          <Button variant="primary" onClick={() => p.onStart!(sel)}>
+            Start trip
+          </Button>
+        )}
+      </ActionBar>
+      {wide && <MapPane {...p} option={sel} />}
+      {!wide && mapOpen && (
         <MapSheet {...p} option={sel} now={now} onClose={() => setMapOpen(false)} onStart={p.onStart && (() => p.onStart!(sel))} />
       )}
     </div>
@@ -120,22 +120,28 @@ function firstRide(o: Option): Leg | undefined {
 
 function Hero({ option: o, live, now }: { option: Option; live: boolean; now: number }) {
   const ride = firstRide(o)
-  const cd = countdown(o.leave_at, now)
-  const gone = cd.startsWith('left ') // an earlier trip, already on its way
-  const label = live ? (gone ? 'Left' : 'Leave') : dayOf(o.leave_at, now) ? `Leave ${dayOf(o.leave_at, now)} at` : 'Leave at'
+  const cd = countdown(o.leave_at, now) // "in 18 min", "now", "left 3 min ago"
+  const day = dayOf(o.leave_at, now)
+  const [label, value] = !live
+    ? [day ? `Leave ${day} at` : 'Leave at', clock(o.leave_at)]
+    : cd.startsWith('in ')
+      ? ['Leave in', cd.slice(3)]
+      : cd.startsWith('left ')
+        ? ['Left', cd.slice(5)]
+        : ['Leave', cd]
   return (
     <section class="hero" aria-live="polite">
-      <p class="hero-label">{label}</p>
-      <p class="hero-time">{live ? cd.replace(/^(in|left) /, '') : clock(o.leave_at)}</p>
+      <p class="label">{label}</p>
+      <p class="hero-time num">{value}</p>
+      <p class="hero-arrive">
+        Arrive <span class="num">{clock(o.arrive)}</span>
+      </p>
       {ride && (
         <p class="hero-sub">
           for the {ride.line?.name} at {clock(ride.dep)} from {placeName(ride.from)}
           {ride.status === 'predicted' && ride.delay_s !== undefined && ` (${delay(ride.delay_s)})`}
         </p>
       )}
-      <p class="hero-arrive">
-        Arrive <strong>{clock(o.arrive)}</strong>
-      </p>
     </section>
   )
 }
@@ -150,14 +156,13 @@ export function Strip({ option: o, start, end }: { option: Option; start: number
         const left = pct(ms(l.dep))
         const width = `${Math.max(0.8, ((ms(l.arr) - ms(l.dep)) / span) * 100)}%`
         if (l.kind === 'walk') return <span class="seg walk" style={{ left, width }} />
-        const bg = hex(l.line?.color) ?? LINE_FALLBACK
-        const fg = hex(l.line?.text_color) ?? WHITE
+        const bg = lineColour(l.line?.color)
         // Only label segments wide enough to show the whole name; a cut-off "2" for 292 misleads.
         const fits = ((ms(l.arr) - ms(l.dep)) / span) * 100 >= 3 + 2.2 * (l.line?.name.length ?? 0)
         return (
           <span
             class={`seg ride${l.status === 'predicted' && (l.delay_s ?? 0) >= 120 ? ' late' : ''}`}
-            style={{ left, width, background: bg, color: fg }}
+            style={{ left, width, background: bg, color: textOn(bg) }}
             title={l.line?.name}
           >
             {fits ? l.line?.name : ''}
@@ -165,6 +170,49 @@ export function Strip({ option: o, start, end }: { option: Option; start: number
         )
       })}
     </span>
+  )
+}
+
+/** The map, loaded only when it's first needed (MapLibre is a large download). */
+function useMapView(): { View: ComponentType<MapViewProps> | null; failed: boolean } {
+  const [View, setView] = useState<ComponentType<MapViewProps> | null>(null)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    import('../map/mapview.tsx').then((m) => setView(() => m.MapView)).catch(() => setFailed(true))
+  }, [])
+  return { View, failed }
+}
+
+type MapProps = Pick<Props, 'token' | 'walks' | 'places' | 'serviceDate' | 'origin' | 'destination'> & {
+  option: Option
+  me?: MapViewProps['me']
+}
+
+function MapBody({ View, failed, ...p }: MapProps & { View: ComponentType<MapViewProps> | null; failed: boolean }) {
+  if (failed) {
+    return (
+      <div class="map-wrap">
+        <Callout tone="bad">Couldn't load the map. Check your connection and try again.</Callout>
+      </div>
+    )
+  }
+  if (!View) {
+    return (
+      <div class="map-wrap">
+        <Callout class="subtle">Loading map…</Callout>
+      </div>
+    )
+  }
+  return <View {...p} />
+}
+
+/** Desktop: the map beside the trip, always showing the option chosen. */
+export function MapPane(p: MapProps) {
+  const map = useMapView()
+  return (
+    <aside class="map-pane" aria-label="Map of the trip">
+      <MapBody {...p} {...map} />
+    </aside>
   )
 }
 
@@ -177,15 +225,12 @@ type MapSheetProps = Omit<Props, 'onStart' | 'options' | 'onShift' | 'ends'> & {
   steps?: { ends: Ends; track: Tracking } // during a trip: the trip's description under the map
 }
 
-export function MapSheet({ option, now, onClose, onStart, token, walks, places, serviceDate, origin, destination, title, live, me, steps }: MapSheetProps) {
+/** Phones: the map over everything, with the way back first and, while planning, Start trip where the thumb is. */
+export function MapSheet({ option, now, onClose, onStart, title, live, steps, ...p }: MapSheetProps) {
   // Open with the step you're on in view.
   const stepsRef = useRef<HTMLDivElement>(null)
   useEffect(() => stepsRef.current?.querySelector('.you')?.scrollIntoView({ block: 'center' }), [])
-  const [View, setView] = useState<ComponentType<MapViewProps> | null>(null)
-  const [failed, setFailed] = useState(false)
-  useEffect(() => {
-    import('../map/mapview.tsx').then((m) => setView(() => m.MapView)).catch(() => setFailed(true))
-  }, [])
+  const map = useMapView()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -196,50 +241,46 @@ export function MapSheet({ option, now, onClose, onStart, token, walks, places, 
   return (
     <div class="sheet" role="dialog" aria-modal="true" aria-label={`Map: ${title}`}>
       <header class="sheet-bar">
-        <Button variant="ghost" onClick={onClose}>
-          Close map
+        <Button onClick={onClose}>
+          <svg class="icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M15 5l-7 7 7 7" />
+          </svg>
+          {steps ? 'Back to trip' : 'Back'}
         </Button>
         <span class="sheet-title">{title}</span>
       </header>
-      {failed ? (
-        <p class="map-note">Couldn't load the map. Check your connection and try again.</p>
-      ) : View ? (
-        <View token={token} me={me} walks={walks} places={places} option={option} serviceDate={serviceDate} origin={origin} destination={destination} />
-      ) : (
-        <p class="map-note subtle">Loading map…</p>
-      )}
-      <footer class={onStart ? 'sheet-summary with-start' : 'sheet-summary'}>
+      <MapBody {...p} option={option} {...map} />
+      <footer class="sheet-summary">
         <div>
           {steps ? (
             // Under way: what matters is when you get there.
             <p>
-              <span class="sheet-leave">Arrive {clock(option.arrive)}</span>
-              <span>{countdown(option.arrive, now).replace(/^left .*/, 'arrived')}</span>
+              <span class="sheet-leave num">Arrive {clock(option.arrive)}</span>
+              <span class="meta">{countdown(option.arrive, now).replace(/^left .*/, 'arrived')}</span>
             </p>
           ) : (
             <p>
-              <span class="sheet-leave">
+              <span class="sheet-leave num">
                 {live
                   ? Date.parse(option.leave_at) < now - 60_000
                     ? `Left ${countdown(option.leave_at, now).replace(/^left /, '')}`
                     : `Leave ${countdown(option.leave_at, now)}`
                   : `Leave ${[dayOf(option.leave_at, now), clock(option.leave_at)].filter(Boolean).join(' ')}`}
               </span>
-              <span>arrive {clock(option.arrive)}</span>
+              <span class="meta">Arrive {clock(option.arrive)}</span>
             </p>
           )}
-          {steps ? (
-            <div class="sheet-steps" ref={stepsRef}>
-              <Timeline option={option} ends={steps.ends} walks={walks} track={steps.track} />
-            </div>
-          ) : (
-            <Strip option={option} start={start} end={end} />
-          )}
+          {!steps && <Strip option={option} start={start} end={end} />}
         </div>
         {onStart && (
-          <Button variant="primary" class="start" onClick={onStart}>
+          <Button variant="primary" onClick={onStart}>
             Start trip
           </Button>
+        )}
+        {steps && (
+          <div class="sheet-steps" ref={stepsRef}>
+            <Timeline option={option} ends={steps.ends} walks={p.walks} track={steps.track} />
+          </div>
         )}
       </footer>
     </div>

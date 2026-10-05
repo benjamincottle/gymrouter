@@ -1,18 +1,17 @@
-import { clock, delay, placeName, platform, riskLabel } from '../format.ts'
+import { clock, delay, placeName, platform, riskLabel, spare } from '../format.ts'
 import type { ComponentChildren } from 'preact'
 import { findChange, type PlaceRef, type Segment, type TimedWalk } from '../walks.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 import { position, rows, type Row } from '../options.ts'
 import { HOLD } from './icons.tsx'
 import { TextButton } from './ui.tsx'
-import { CHIP_FALLBACK, hex, LINE_FALLBACK, WHITE } from '../colour.ts'
+import { lineColour, textOn } from '../colour.ts'
 
 
 export function LineChip({ line }: { line: Line }) {
-  const bg = hex(line.color) ?? CHIP_FALLBACK
-  const fg = hex(line.text_color) ?? WHITE
+  const bg = lineColour(line.color)
   return (
-    <span class={`chip mode-${line.mode}`} style={{ background: bg, color: fg }}>
+    <span class={`chip mode-${line.mode}`} style={{ background: bg, color: textOn(bg) }}>
       {line.name}
     </span>
   )
@@ -121,7 +120,8 @@ function Rail({ kind, place, line, me }: {
   line?: Line
   me?: number
 }) {
-  const style = line && { '--c': hex(line.color) ?? LINE_FALLBACK, '--t': hex(line.text_color) ?? WHITE }
+  const bg = line && lineColour(line.color)
+  const style = bg && { '--c': bg, '--t': textOn(bg) }
   return (
     <span class={`rail ${kind}`} style={style} aria-hidden="true">
       {kind === 'ride' && (
@@ -192,7 +192,7 @@ function LegRow({ leg, last, destination, rail, onTime }: {
           {onTime && (
             <>
               {' '}
-              <TextButton small onClick={onTime}>
+              <TextButton onClick={onTime}>
                 Time my walk
               </TextButton>
             </>
@@ -202,8 +202,11 @@ function LegRow({ leg, last, destination, rail, onTime }: {
     )
   }
   const pf = platform(leg.from)
+  const late = leg.delay_s ?? 0
   const status =
     leg.status === 'predicted' ? delay(leg.delay_s) : leg.status === 'added' ? 'extra service' : 'timetable'
+  const statusClass =
+    leg.status === 'predicted' ? (late < 60 ? 'status ok' : late < 120 ? 'status slight' : 'status late') : leg.status === 'added' ? 'status' : 'status sched'
   return (
     <li class="step ride">
       <span class="time">{clock(leg.dep)}</span>
@@ -212,18 +215,16 @@ function LegRow({ leg, last, destination, rail, onTime }: {
         <div class="ride-head">
           {leg.line && <LineChip line={leg.line} />}
           <span>{leg.headsign ? `towards ${leg.headsign}` : ''}</span>
-          <span class={leg.status === 'predicted' ? `rt ${(leg.delay_s ?? 0) >= 120 ? 'late' : 'ok'}` : 'rt sched'}>{status}</span>
+          <span class={statusClass}>{status}</span>
         </div>
-        <div class="muted small">
+        <span class="meta">
           from {placeName(leg.from)}
-          {pf && ` · ${pf}`}
-        </div>
-        <div class="muted small">
+          {pf && `, ${pf[0].toLowerCase()}${pf.slice(1)}`}
+        </span>
+        <span class="meta">
           to {placeName(leg.to)} at {clock(leg.arr)}
-        </div>
-        <div class="muted small">
-          {leg.stops ? `${leg.stops} stop${leg.stops === 1 ? '' : 's'} (${mins} min)` : `${mins} min`}
-        </div>
+        </span>
+        <span class="meta">{leg.stops ? `${leg.stops} stop${leg.stops === 1 ? '' : 's'} (${mins} min)` : `${mins} min`}</span>
       </div>
     </li>
   )
@@ -250,8 +251,8 @@ function TransferRow({
   onTime?: () => void
 }) {
   const mine = from && to ? findChange(walks, { stop: from, mode: modes[0] }, { stop: to, mode: modes[1] }) : undefined
-  const where = placeName(from) === placeName(to) ? placeName(from) : `${placeName(from)} → ${placeName(to)}`
-  const spare = t.slack_s >= 60 ? `${Math.floor(t.slack_s / 60)} min ${t.slack_s % 60}s spare` : `${t.slack_s}s spare`
+  const sameStop = placeName(from) === placeName(to)
+  const walk = `${Math.max(1, Math.round(t.walk_s / 60))} min walk${sameStop ? '' : ` to ${placeName(to)}`}${mine ? ' (timed)' : ''}`
 
   return (
     <li class={`step change risk-${t.risk}`}>
@@ -261,20 +262,17 @@ function TransferRow({
       {rail}
       <div>
         <div>
-          <span class={`badge risk-${t.risk}`}>{riskLabel(t.risk)}</span> Change at {where}: {Math.round(t.walk_s / 60)} min
-          {mine ? ' (timed)' : ''}, {spare}
+          <span class={`badge risk-${t.risk}`}>{riskLabel(t.risk)}</span> Change at {placeName(from)}
         </div>
-        <div class="muted small">
-          {t.fallback_dep ? `If missed, next one at ${clock(t.fallback_dep)}` : 'No later service on this line'}
-          {onTime && (
-            <>
-              {' · '}
-              <TextButton onClick={onTime}>
-                Time my walk
-              </TextButton>
-            </>
-          )}
-        </div>
+        <span class="meta">
+          {walk}, {spare(t.slack_s)}
+        </span>
+        <span class="meta">{t.fallback_dep ? `If missed, the next one is at ${clock(t.fallback_dep)}` : 'No later service on this line'}</span>
+        {onTime && (
+          <span class="meta">
+            <TextButton onClick={onTime}>Time my walk</TextButton>
+          </span>
+        )}
       </div>
     </li>
   )
