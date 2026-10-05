@@ -121,7 +121,7 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
   const canSave = hasLocation && p.name.trim() !== '' && (!gym || p.lines.length > 0)
 
   return (
-    <div class="stack">
+    <div class="stack settings">
       <Section title={isNew ? `Add ${kind}` : `Edit ${kind}`}>
         <Field label="Name">
           <input
@@ -214,7 +214,7 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
       {gym && hasLocation && p.lines.length === 0 && <p class="meta">Choose at least one line to save the gym.</p>}
       <ActionBar>
         <Button onClick={onCancel}>Cancel</Button>
-        <Button variant="primary" disabled={!canSave} onClick={() => onSave({ ...p, name: p.name.trim() })}>
+        <Button disabled={!canSave} onClick={() => onSave({ ...p, name: p.name.trim() })}>
           Save {kind}
         </Button>
       </ActionBar>
@@ -491,7 +491,7 @@ export function GymChooser({ known, have, home, token, onAuthError, onAdd, onCus
           Add another gym
         </Button>
         {available.length > 0 && (
-          <Button variant="primary" disabled={busy || sel.size === 0} onClick={add}>
+          <Button disabled={busy || sel.size === 0} onClick={add}>
             {busy ? 'Finding lines…' : sel.size === 1 ? 'Add gym' : `Add ${sel.size} gyms`}
           </Button>
         )}

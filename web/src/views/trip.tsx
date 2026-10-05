@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
-import { addDays, dayLabel, fromLocalInput, roundUp, statusTime, toLocalInput } from '../format.ts'
+import { addDays, dayLabel, fromLocalInput, orList, roundUp, statusTime, toLocalInput } from '../format.ts'
 import { usePolling, useSettled, useVisible, useWide } from '../hooks.ts'
 import { byUse, placeRef, planPlace, prefs, usedGym, type Gym, type Settings } from '../settings.ts'
 import type { DefaultsResponse, PlanRequest } from '../types.ts'
 import { Board, WindowShift, type Shift } from './board.tsx'
 import { BrandLogo } from './brand.tsx'
 import type { ActiveTrip } from './intrip.tsx'
+import { LineChip } from './option.tsx'
 import { Button, Callout, IconButton, Segmented } from './ui.tsx'
 
 type Direction = 'to-gym' | 'home'
@@ -101,7 +102,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
     return (
       <div class="empty">
         <p>{home ? 'Add a gym to plan trips to.' : 'Add your home and a gym, so trips can start (or end) there.'}</p>
-        <Button variant="primary" onClick={goToSettings}>
+        <Button onClick={goToSettings}>
           {home ? 'Add a gym' : 'Get started'}
         </Button>
       </div>
@@ -181,6 +182,12 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
               {plan.data ? ` The plan below is from ${statusTime(plan.updatedAt)}.` : ''}
             </Callout>
           )}
+          {plan.data?.trackwork?.map((t) => (
+            <Callout tone="caution">
+              <LineChip line={t.line} /> <strong>Trackwork:</strong> buses replace some trains. Their signs say{' '}
+              {orList(t.buses)}.
+            </Callout>
+          ))}
           {!plan.data && plan.loading && <BoardSkeleton />}
           {plan.data && plan.data.options.length === 0 && <WindowShift shift={shift} />}
           {plan.data && plan.data.options.length === 0 && (

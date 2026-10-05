@@ -1,5 +1,5 @@
 /* Gym Router: chalk wall, graphite ink, and colour only where it means something (transit lines, connection risk,
-   the highlight and focus). The rules are in docs/DESIGN.md; this file holds its tokens and components. */
+   focus). The rules are in docs/DESIGN.md; this file holds its tokens and components. */
 
 /* ---- tokens ---- */
 
@@ -11,7 +11,6 @@
   --rule: #c9cfc9;   /* dividers only */
   --edge: #7c837e;   /* outlines of fields and controls: 3:1 on the wall */
   --dot: rgba(30, 34, 38, 0.09);
-  --on-ink: #f7f8f6;
   --focus: #2457d6;
   --you: #2457d6;    /* the "you" marker, here and on the map */
   --safe: #2a6e45;
@@ -21,9 +20,6 @@
   --on-tone: #ffffff; /* text on a risk colour */
   --white: #ffffff;
   --line-fallback: #5e6670; /* a line without a colour */
-  /* highlight: underlines and selection marks (Settings > Highlight colour); the edge keeps pale ones visible */
-  --hl: var(--ink);
-  --hl-edge: transparent;
 
   /* type: one family, three widths, three weights */
   --narrow: 68%;
@@ -70,7 +66,6 @@
   --rule: #383e44;
   --edge: #6b737a;
   --dot: rgba(232, 235, 231, 0.06);
-  --on-ink: #1b1e21;
   --focus: #7aa2ff;
   --you: #4d8df0;
   --safe: #5cc285;
@@ -89,25 +84,6 @@
   }
 }
 
-/* the 9 Degrees grade colours */
-.swatch[data-hl='black'] { --hl: var(--ink); --hl-edge: transparent; }
-:root[data-hl='green'], .swatch[data-hl='green'] { --hl: #2f9e44; --hl-edge: transparent; }
-:root[data-hl='blue'], .swatch[data-hl='blue'] { --hl: #1c64d6; --hl-edge: transparent; }
-:root[data-hl='teal'], .swatch[data-hl='teal'] { --hl: #0f9f9f; --hl-edge: transparent; }
-:root[data-hl='pink'], .swatch[data-hl='pink'] { --hl: #e2418f; --hl-edge: transparent; }
-:root[data-hl='red'], .swatch[data-hl='red'] { --hl: #d62f2f; --hl-edge: transparent; }
-:root[data-hl='purple'], .swatch[data-hl='purple'] { --hl: #7b3fc4; --hl-edge: transparent; }
-:root[data-hl='white'], .swatch[data-hl='white'] { --hl: #ffffff; --hl-edge: #9aa2a9; }
-:root[data-hl='yellow'], .swatch[data-hl='yellow'] { --hl: #f5c400; --hl-edge: #b38f00; }
-
-/* dark: grade colours that need lifting off the dark wall */
-:root[data-theme='dark'][data-hl='blue'], [data-theme='dark'] .swatch[data-hl='blue'] { --hl: #4d8df0; }
-:root[data-theme='dark'][data-hl='red'], [data-theme='dark'] .swatch[data-hl='red'] { --hl: #ef5350; }
-:root[data-theme='dark'][data-hl='purple'], [data-theme='dark'] .swatch[data-hl='purple'] { --hl: #a074e8; }
-:root[data-theme='dark'][data-hl='white'], [data-theme='dark'] .swatch[data-hl='white'],
-:root[data-theme='dark'][data-hl='yellow'], [data-theme='dark'] .swatch[data-hl='yellow'] { --hl-edge: transparent; }
-/* black means the ink, which is pale here; the swatch still shows a black hold */
-[data-theme='dark'] .swatch[data-hl='black'] .hold { fill: #0d0f10; stroke: #6b737a; }
 
 
 /* ---- base ---- */
@@ -184,7 +160,7 @@ select {
   color: inherit;
 }
 
-/* ---- buttons: four looks, one size ---- */
+/* ---- buttons: outline only, three looks, one size ---- */
 
 .btn {
   display: inline-flex;
@@ -199,11 +175,6 @@ select {
   font-weight: 600;
   line-height: 1.15;
   cursor: pointer;
-}
-
-.btn.primary {
-  background: var(--ink);
-  color: var(--on-ink);
 }
 
 .btn.danger {
@@ -287,7 +258,7 @@ select {
   margin-right: auto;
 }
 
-/* ---- icons: ink line drawings, one part in the highlight colour ---- */
+/* ---- icons: ink line drawings, one part filled ---- */
 
 .icon {
   flex: none;
@@ -299,11 +270,11 @@ select {
 }
 
 .icon .acc {
-  fill: var(--hl);
+  fill: currentColor;
 }
 
 .icon .acc-line {
-  stroke: var(--hl);
+  stroke: currentColor;
   stroke-width: 2.2;
 }
 
@@ -339,9 +310,9 @@ select {
   border-left: 1.5px solid var(--ink);
 }
 
+/* the chosen option: a bar along its bottom in the control's own ink, part of its frame */
 .segmented button[aria-checked='true'] {
-  background: var(--ink);
-  color: var(--on-ink);
+  box-shadow: inset 0 calc(-1 * var(--bar)) 0 var(--ink);
 }
 
 /* ---- fields ---- */
@@ -501,6 +472,12 @@ details > summary {
 .section {
   padding-top: var(--s3);
   border-top: var(--heavy);
+}
+
+/* the top of Settings and its editors needs no rule: the header is right above it */
+.settings > .section:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .section > .title {
@@ -710,7 +687,7 @@ details > summary {
 .home-link.active,
 .topbar .icon-btn.active {
   color: var(--ink);
-  box-shadow: inset 0 -3px 0 var(--hl), inset 0 -4px 0 var(--hl-edge);
+  box-shadow: inset 0 -3px 0 var(--ink);
 }
 
 .topbar .icon-btn.active:hover {
@@ -740,6 +717,32 @@ details > summary {
   font-size: var(--fs-micro);
   color: var(--pencil);
 }
+
+.footer p {
+  margin: 0;
+}
+
+.server-status {
+  margin-bottom: var(--s2);
+}
+
+.server-status p + p {
+  padding-left: calc(8px + var(--s2)); /* under the text, past the dot */
+}
+
+/* The server's state: the status colours (DESIGN.md, Server status). */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--s2);
+  border-radius: 50%;
+  background: var(--pencil);
+}
+
+.status-dot[data-state='ok'] { background: var(--safe); }
+.status-dot[data-state='warning'] { background: var(--tight); }
+.status-dot[data-state='error'] { background: var(--missed); }
 
 /* ---- planning a trip ---- */
 
@@ -832,8 +835,7 @@ details > summary {
 }
 
 .route::before {
-  background: var(--hl);
-  box-shadow: 0 0 0 1px var(--hl-edge);
+  background: var(--ink);
 }
 
 .route .to {
@@ -939,7 +941,7 @@ details > summary {
 
 .strips > li.selected > .strip-row {
   background: var(--panel);
-  box-shadow: inset var(--bar) 0 0 var(--hl), inset calc(var(--bar) + 1px) 0 0 var(--hl-edge);
+  box-shadow: inset var(--bar) 0 0 var(--ink);
 }
 
 .strip-leave,
@@ -1192,7 +1194,7 @@ details > summary {
 }
 
 .rail .origin.hold path {
-  fill: var(--hl);
+  fill: var(--ink);
 }
 
 .rail .origin.hold circle {
@@ -1475,51 +1477,6 @@ details > summary {
 
 /* ---- settings ---- */
 
-.swatches {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--s2);
-  margin: var(--s2) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-/* each colour is a hold, as on the wall */
-.swatch {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  width: 100%;
-  padding: var(--s2) var(--s1) var(--s1);
-  border: 1.5px solid transparent;
-  border-radius: var(--r-control);
-  background: none;
-  font-size: var(--fs-micro);
-  cursor: pointer;
-}
-
-.swatch svg {
-  width: 40px;
-  height: 36px;
-}
-
-.swatch .hold {
-  fill: var(--hl);
-  stroke: var(--hl-edge);
-  stroke-width: 0.8;
-}
-
-.swatch .bolt {
-  fill: var(--wall);
-}
-
-.swatch[aria-checked='true'] {
-  border-color: var(--ink);
-  background: var(--panel);
-  font-weight: 800;
-}
-
 .section .segmented {
   margin-top: var(--s1);
 }
@@ -1780,12 +1737,6 @@ details > summary {
 
 .results > .callout {
   margin-top: var(--s3);
-}
-
-@media (min-width: 640px) {
-  .swatches {
-    grid-template-columns: repeat(9, 1fr);
-  }
 }
 
 /* a place found by a search: the whole row picks it */

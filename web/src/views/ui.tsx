@@ -5,8 +5,8 @@ import type { ComponentChildren, JSX } from 'preact'
 
 type ButtonAttrs = Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, 'class'> & { class?: string }
 
-/** A button: outlined in ink; `primary` is filled, `danger` is red. Always 44px tall. */
-export function Button({ variant, class: cls, ...rest }: ButtonAttrs & { variant?: 'primary' | 'danger' }) {
+/** A button: outlined in ink, never filled; `danger` is red. Always 44px tall. */
+export function Button({ variant, class: cls, ...rest }: ButtonAttrs & { variant?: 'danger' }) {
   return <button class={['btn', variant, cls].filter(Boolean).join(' ')} {...rest} />
 }
 
@@ -252,7 +252,7 @@ export function ConfirmSheet({ title, children, confirm, danger = true, onConfir
           <button ref={cancelRef} class="btn" onClick={onCancel}>
             Cancel
           </button>
-          <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
+          <Button variant={danger ? 'danger' : undefined} onClick={onConfirm}>
             {confirm}
           </Button>
         </div>

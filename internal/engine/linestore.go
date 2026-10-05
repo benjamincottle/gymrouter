@@ -105,6 +105,7 @@ func writeAtomic(path string, b []byte) error {
 // while a load is under way are merged into one more load. Lines the timetable doesn't have are skipped: a search
 // that names one says so. It fails only when the lines would go over MaxLoadedLines.
 func (e *Engine) Prefetch(set lines.Set) error {
+	set = set.Chosen()
 	have := e.Lines()
 	want := lines.Set{}
 	c := e.Catalog()

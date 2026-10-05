@@ -34,6 +34,7 @@ var gyms = map[string]geo.Point{
 	"lanecove":  {Lat: -33.807948, Lon: 151.150629},
 	"chatswood": {Lat: -33.7856633, Lon: 151.2003558},
 	"rydalmere": {Lat: -33.816213, Lon: 151.039465},
+	"waterloo":  {Lat: -33.897869, Lon: 151.211832},
 }
 
 var sydney = func() *time.Location {

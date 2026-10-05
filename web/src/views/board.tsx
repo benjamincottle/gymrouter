@@ -103,7 +103,7 @@ export function Board(p: Props) {
           </Button>
         )}
         {p.onStart && (
-          <Button variant="primary" onClick={() => p.onStart!(sel)}>
+          <Button onClick={() => p.onStart!(sel)}>
             Start trip
           </Button>
         )}
@@ -272,7 +272,7 @@ export function MapSheet({ option, now, onClose, onStart, title, live, steps, ..
           {!steps && <Strip option={option} start={start} end={end} />}
         </div>
         {onStart && (
-          <Button variant="primary" onClick={onStart}>
+          <Button onClick={onStart}>
             Start trip
           </Button>
         )}

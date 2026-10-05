@@ -1,4 +1,4 @@
-// Section icons for Settings: ink line drawings, each with one part in the highlight colour (class "acc").
+// Section icons for Settings: ink line drawings, each with one part filled (class "acc").
 import type { ComponentChildren } from 'preact'
 import { IconButton } from './ui.tsx'
 

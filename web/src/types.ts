@@ -85,6 +85,13 @@ export interface PlanResponse {
   realtime_at?: string
   walking: 'streets' | 'estimate' // how walks to and from stops were timed
   options: Option[]
+  trackwork?: Trackwork[] // lines that buses stand in for during the search
+}
+
+/** A line with trackwork: the buses replacing its trains, by the names on their signs ("23T4"). */
+export interface Trackwork {
+  line: Line
+  buses: string[]
 }
 
 export interface NearStop extends StopRef {
@@ -163,4 +170,10 @@ export interface SuggestResult {
 /** One result per destination, in the order asked. */
 export interface SuggestResponse {
   results: SuggestResult[]
+}
+
+/** GET /api/status, the part the app shows: the verdict and what needs looking at. */
+export interface ServerStatus {
+  state: 'ok' | 'warning' | 'error'
+  issues?: string[]
 }

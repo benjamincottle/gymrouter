@@ -11,7 +11,6 @@ build it. If code and this file disagree, the code is wrong. The decisions behin
 - **Colour only means something.** Saturated colour is reserved for:
   - transit line colours;
   - connection risk: safe, tight, at risk, missed;
-  - the highlight colour, used only for selection marks and the current-screen underline;
   - the focus ring and the "you" marker, in blue.
 - **Times read like a departure board.** Times are set in condensed Archivo numerals.
 - **The tape strips are the signature.** Options are tape strips on one shared time axis, and the trip's steps hang off
@@ -30,11 +29,10 @@ raw colour, size or spacing value in a component. Use a token, or add one here f
 |---|---|---|---|
 | `--wall` | `#ebeeea` | `#1b1e21` | page background (with `--dot` holes every 24px) |
 | `--panel` | `#f7f8f6` | `#23272b` | field fill, selected row, callout and change-step fill |
-| `--ink` | `#1e2226` | `#e8ebe7` | text, primary buttons, heavy rules, icons |
+| `--ink` | `#1e2226` | `#e8ebe7` | text, button outlines, heavy rules, icons |
 | `--pencil` | `#59616a` | `#9aa2a9` | secondary text, walking steps, quiet actions |
 | `--rule` | `#c9cfc9` | `#383e44` | hairline dividers between rows; disabled outlines. Never the outline of a working control |
 | `--edge` | `#7c837e` | `#6b737a` | outlines of fields and controls (≥3:1 on wall and panel) |
-| `--on-ink` | `#f7f8f6` | `#1b1e21` | text on ink |
 | `--dot` | ink at 9% | ink at 6% | the wall's bolt holes |
 | `--focus`, `--you` | `#2457d6` | `#7aa2ff` / `#4d8df0` | the focus ring; the "you" marker on the rail and the map |
 | `--safe` | `#2a6e45` | `#5cc285` | safe connections, on time, good-news callouts |
@@ -42,7 +40,6 @@ raw colour, size or spacing value in a component. Use a token, or add one here f
 | `--risk` | `#b13a0a` | `#f08a4b` | at-risk connections |
 | `--missed` | `#b42318` | `#f2766b` | missed or late, errors, danger actions |
 | `--on-tone` | `#ffffff` | `#1b1e21` | text on a risk colour (badges) |
-| `--hl` | `--ink` or a grade colour | | Settings > Highlight colour: underlines and selection marks only |
 
 Line colours come from the feed. Text on a line colour is ink or white, whichever contrasts better; it is computed, never
 taken from the feed's `text_color`. A line without a colour uses one fallback grey, `#5e6670`, everywhere.
@@ -98,7 +95,7 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
 ## Layout
 
 - **Phone (below 1024px):** one column, at most 34rem wide, with `--s4` gutters. The header is sticky, with no rule;
-  the current screen is underlined in `--hl`.
+  the current screen is underlined in ink.
 - **Desktop (1024px and up):** the header spans the page (fixed, `--header-h`) over two panes. The trip pane on the
   left is `--pane-w` (460px) and scrolls with the page; the map (`.map-pane`, fixed) fills the rest and always shows the
   selected option, or says what will appear there before there is one. There's no "Show on map" button on desktop.
@@ -126,9 +123,8 @@ Each exists once in code and is reused: `web/src/views/ui.tsx` (Button, TextButt
 Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onRadioKeys`), the tokens in
 `web/src/style.css`, data colours in `web/src/colour.ts`, and error wording in `problem()` (`web/src/api.ts`). Don't restyle one locally; add a variant here if one is really needed.
 
-- **Button**, four looks at one size:
+- **Button**, outline only (no button is ever filled), three looks at one size:
   - default: ink outline, transparent;
-  - `primary`: ink fill, `--on-ink` text;
   - `danger`: `--missed` outline and text;
   - **disabled**: a thin `--rule` outline, `--pencil` text, no fill.
   - There's no "ghost" variant. A row of buttons puts the commit action last.
@@ -136,8 +132,9 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   through `::after`. Use it for things like "Earlier trips", "Time my walk" and "Measure my pace".
 - **Icon button:** 44×44, no outline, `--panel` on hover. The `danger` variant colours the icon `--missed`. Always has
   an `aria-label`.
-- **Segmented control:** one size (16px/600, 44px), a radio group (one tab stop, arrow keys). The chosen option is
-  filled with ink.
+- **Segmented control:** one size (16px/600, 44px), a radio group (one tab stop, arrow keys). The chosen option has
+  a 4px ink bar along its bottom (inset), the same ink as the control's outline so it reads as part of the frame;
+  the others stay ink, never greyed (grey means disabled).
 - **Field:** a label (600) above, then a 44px input in `--panel` with a 1.5px `--edge` outline that turns ink on focus,
   then an optional hint (14px pencil, 400).
   - Defaults: an empty field means "use the default", and its hint says what the default is ("Empty uses the default,
@@ -150,15 +147,15 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   - `bad` (`--missed`) for failed or missed.
   - At most one action. A dismiss × only if it can safely be ignored.
   - Panels with their own job (pace test, walk timer) are sections, not callouts.
-- **Section:** a heavy top rule, then a title (20px/800/semi) with an optional 24px icon (ink lines, one `--hl` part).
+- **Section:** a heavy top rule (except the first section on Settings and the screens opened from it, right under the header), then a title (20px/800/semi) with an optional 24px icon (ink lines, one part filled).
   An intro line in 14px pencil may follow.
 - **Pick rows:** a search result is a whole-row button with a `›` at the end, not a link.
 - **Rows:** a hairline-separated list, min 56px tall. The main text sits on line 1 and details on a second 14px pencil
   line. **Never join details with middle dots.** Actions (icon buttons) go on the right.
-- **Route row** (trip screen): a tape in `--hl`, the gym's logo, the gym's name (18px/800/semi, a button that changes
+- **Route row** (trip screen): an ink tape, the gym's logo, the gym's name (18px/800/semi, a button that changes
   the gym, with a chevron), "from Home" beneath it, and a reverse button (⇅) on the right.
 - **Options board:** one row per option: leave, tape strip, arrive, risk mark, compact duration.
-  - The selected row gets a `--panel` fill and an inset 4px `--hl` bar. Its content doesn't move.
+  - The selected row gets a `--panel` fill and an inset 4px ink bar. Its content doesn't move.
   - Tape labels appear only where the whole line name fits.
   - The board is one tab stop; arrow keys move between options (radio group).
 - **Timeline:** time | rail | description, sharing columns through subgrid.
@@ -172,6 +169,14 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
     badge.
   - The house or hold marks each end. The "you" marker never covers text.
 - **Line chip, risk badge, risk mark:** 12px/800 on `--r-mark`. Badge text is `--on-tone`.
+- **Trackwork:** a `caution` callout above the board for each line whose trains the options replace with buses: the
+  line's chip, "**Trackwork:** buses replace some trains. Their signs say 20T4 or 23T4." The buses keep their own names
+  and colour everywhere (chip, tape, map): they're the names on the buses' signs.
+- **Server status** (the footer, above the data credits): a status dot and one short line, so a problem on the server
+  gets noticed without anyone checking it. The dot uses the status colours: `--safe` "Server OK", `--tight` "Server
+  working, needs a look", `--missed` "Server can't plan" or "Can't reach the server". Each issue follows on its own line
+  in plain words. Only what's actionable and usually absent turns it orange (not lines that don't run on a weekend).
+  Checked on opening and every 5 minutes while the app is open; checking doesn't count as using the app.
 - **Status text** for a service:
   - on time (or under a minute late): `--safe`;
   - 1 min late: `--tight`;
@@ -227,7 +232,7 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
   - A server that can't be reached is an error, not "Loading…".
 - **Degraded but working** (timetable only, walks estimated, location off) is a `caution` callout or the status line.
   It's not an error.
-- **Empty states** say what to do and offer the action as a primary button ("Add a gym").
+- **Empty states** say what to do and offer the action as a button ("Add a gym").
 - **Loading:** show what's coming in place, as a skeleton of rows or the board's ruled lines (`.skeleton`), rather
   than a bare "Loading…". Long jobs (suggesting lines) show progress beside the job, not only inside the button label.
 - **Searching as you choose:** a pick (a gym, reversing the trip) searches at once; editing the time (the When choice,
@@ -245,7 +250,7 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
   - make the page behind `inert`;
   - close on Escape;
   - return focus to the control that opened them.
-- Groups of choices (options board, swatches, segmented controls) are radio groups: one tab stop, arrow keys inside
+- Groups of choices (options board, segmented controls) are radio groups: one tab stop, arrow keys inside
   (`role="radio"`, `aria-checked`, `tabIndex` 0 only on the chosen one, `onRadioKeys` on the group).
 
 ### Copy
@@ -265,7 +270,7 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
 
 - Rounded card stacks, drop shadows, gradients as decoration.
 - A single accent colour for buttons or links.
-- Colour that doesn't mean a line, a risk level, the highlight or focus.
+- Colour that doesn't mean a line, a risk level or status, or focus. Selection marks and underlines are ink.
 - Middle-dot meta strings, all-caps labels, `→` appended to buttons or links.
 - Native `alert()`, `confirm()` or `prompt()`.
 - One-off sizes, spacings or radii in a component.

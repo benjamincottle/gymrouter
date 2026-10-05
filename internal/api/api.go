@@ -127,7 +127,9 @@ func (n noDirs) Open(name string) (fs.File, error) {
 
 func (s *Server) touch(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.eng.Touch()
+		if r.URL.Path != "/api/status" { // the app checks the server's state now and then: that isn't using it
+			s.eng.Touch()
+		}
 		h.ServeHTTP(w, r)
 	})
 }

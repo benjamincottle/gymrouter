@@ -134,9 +134,11 @@ type Engine struct {
 	staticAt     time.Time
 	staticErr    string
 	missing      []lines.Key
-	walkErr      string
-	mapErr       string
-	lastGeocode  time.Time
+	// trackwork buses that call at our lines' stations but can't be matched to a line (see timetable.UnknownTrackwork)
+	unknownTrackwork []lines.Key
+	walkErr          string
+	mapErr           string
+	lastGeocode      time.Time
 }
 
 // New creates an engine. Call Start before serving.
@@ -210,8 +212,9 @@ const lineKeep = 14 * 24 * time.Hour
 
 // Ensure makes the timetable and realtime polling cover set, loading the union of everything asked for
 // so far if it doesn't already. Loading takes a few seconds, so callers may wait. Lines nobody asks for
-// drop out again (PruneLines).
+// drop out again (PruneLines). A trackwork bus (named by the map for a ride) comes with the line it stands in for.
 func (e *Engine) Ensure(set lines.Set) error {
+	set = set.Chosen()
 	if e.covers(set) {
 		e.used(set)
 		return nil
@@ -465,6 +468,13 @@ func (e *Engine) reloadTodayFor(set lines.Set) error {
 		e.log.Warn("configured lines have no trips today", "lines", fmt.Sprint(missing))
 	}
 	e.today.Store(s)
+	for _, t := range s.Day.Trips {
+		r := s.Day.Routes[t.Route]
+		if k := lines.Of(r.Type, r.ShortName); k.Mode == lines.ReplacementBus { // trackwork today: poll the bus feed too
+			e.addFeeds(lines.Set{k: true})
+			break
+		}
+	}
 	e.applyRealtime() // re-apply current predictions to the new day
 	return nil
 }
@@ -731,14 +741,14 @@ func (e *Engine) Vehicles(set lines.Set) []Vehicle {
 	}
 	routes := map[string]lineInfo{}
 	for _, r := range s.Day.Routes {
-		if k := lines.Of(r.Type, r.ShortName); set[k] {
+		if k := lines.Of(r.Type, r.ShortName); set.Covers(k) {
 			routes[r.ID] = lineInfo{k, r.Color}
 		}
 	}
 	tripLine := func(id string) (lineInfo, bool) {
 		for _, ti := range s.Day.TripIndex[id] {
 			r := s.Day.Routes[s.Day.Trips[ti].Route]
-			if k := lines.Of(r.Type, r.ShortName); set[k] {
+			if k := lines.Of(r.Type, r.ShortName); set.Covers(k) {
 				return lineInfo{k, r.Color}, true
 			}
 		}
@@ -836,16 +846,22 @@ func callsOutside(i, a, b int) int {
 
 // Health summarises data freshness for /healthz.
 type Health struct {
-	OK            bool            `json:"ok"`
-	ServiceDate   string          `json:"service_date"`
-	StaticAgeS    int64           `json:"static_age_s"`
-	StaticError   string          `json:"static_error,omitempty"`
-	PollingActive bool            `json:"polling_active"`
-	RequestsToday int             `json:"upstream_requests_today"`
-	Feeds         []FeedHealth    `json:"feeds"`
-	MissingLines  []string        `json:"missing_lines,omitempty"`
-	RealtimeStats *realtime.Stats `json:"realtime,omitempty"`
-	Data          DataStatus      `json:"data"`
+	OK bool `json:"ok"`
+	// State is the verdict at a glance: "ok"; "warning" when the server works but something needs looking at (Issues);
+	// "error" when it can't plan (no timetable, or one too old).
+	State         string       `json:"state"`
+	Issues        []string     `json:"issues,omitempty"`
+	ServiceDate   string       `json:"service_date"`
+	StaticAgeS    int64        `json:"static_age_s"`
+	StaticError   string       `json:"static_error,omitempty"`
+	PollingActive bool         `json:"polling_active"`
+	RequestsToday int          `json:"upstream_requests_today"`
+	Feeds         []FeedHealth `json:"feeds"`
+	MissingLines  []string     `json:"missing_lines,omitempty"`
+	// UnknownTrackwork lists trackwork buses left out of searches because their line code is new.
+	UnknownTrackwork []string        `json:"unknown_trackwork,omitempty"`
+	RealtimeStats    *realtime.Stats `json:"realtime,omitempty"`
+	Data             DataStatus      `json:"data"`
 }
 
 // FeedHealth is one realtime feed's state.
@@ -877,6 +893,9 @@ func (e *Engine) Health() Health {
 	for _, k := range e.missing {
 		h.MissingLines = append(h.MissingLines, k.String())
 	}
+	for _, k := range e.unknownTrackwork {
+		h.UnknownTrackwork = append(h.UnknownTrackwork, k.String())
+	}
 	age := func(t time.Time) *int64 {
 		if t.IsZero() {
 			return nil
@@ -884,9 +903,48 @@ func (e *Engine) Health() Health {
 		v := int64(now.Sub(t).Seconds())
 		return &v
 	}
+	liveFailing := false
 	for _, fs := range e.feeds {
 		h.Feeds = append(h.Feeds, FeedHealth{Name: fs.feed.Name, TripsAgeS: age(fs.tripsAt), VehiclesAgeS: age(fs.vehiclesAt), Error: fs.lastErr})
+		// A failed poll matters once the feed's data is too old to use; one blip before the next good poll doesn't.
+		liveFailing = liveFailing || fs.lastErr != "" && (fs.tripsAt.IsZero() || now.Sub(fs.tripsAt) > maxRealtimeAge)
 	}
 	h.OK = s != nil && h.StaticAgeS < 3*24*3600
+	h.State, h.Issues = verdict(h, s != nil, liveFailing && h.PollingActive)
 	return h
+}
+
+// Issues reported in Health, for the app to put into words. Lines missing today aren't one: weekday-only buses are
+// missing every weekend.
+const (
+	IssueNoTimetable  = "no-timetable"      // nothing loaded yet: the server can't plan
+	IssueOldTimetable = "old-timetable"     // more than three days old: the server won't vouch for it
+	IssueTimetable    = "timetable-refresh" // the last download failed (the one in use is still fine)
+	IssueLiveData     = "live-data"         // a realtime feed is failing while the app is in use
+	IssueTrackwork    = "trackwork"         // trackwork buses that can't be tied to a line (UnknownTrackwork)
+	IssueStreets      = "street-map"        // the street network couldn't be fetched
+	IssueBasemap      = "basemap"           // the basemap couldn't be fetched
+)
+
+func verdict(h Health, loaded, liveFailing bool) (string, []string) {
+	var issues []string
+	add := func(cond bool, issue string) {
+		if cond {
+			issues = append(issues, issue)
+		}
+	}
+	add(!loaded, IssueNoTimetable)
+	add(loaded && !h.OK, IssueOldTimetable)
+	add(h.StaticError != "", IssueTimetable)
+	add(liveFailing, IssueLiveData)
+	add(len(h.UnknownTrackwork) > 0, IssueTrackwork)
+	add(h.Data.WalkError != "", IssueStreets)
+	add(h.Data.MapError != "", IssueBasemap)
+	switch {
+	case !h.OK:
+		return "error", issues
+	case len(issues) > 0:
+		return "warning", issues
+	}
+	return "ok", nil
 }

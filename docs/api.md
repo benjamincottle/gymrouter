@@ -39,6 +39,8 @@ measured walks from the gym door.
   loaded ahead with `POST /api/lines`). A line the timetable doesn't have is a 400, and so is going over the cap on the
   total the server will hold. Lines no request has named for two weeks are dropped again at the next day rollover (the
   built-in gyms' lines always stay). The loaded lines are kept in the data directory, so they survive a restart.
+  A train line brings the buses that replace its trains during trackwork (`replacement-bus 23T4` for the T4, matched by
+  the line code at the end of the bus's name; `10M` for the metro); they aren't listed in `lines`.
 - A place is `lat`/`lon`, optionally with curated `access` stops and walk times. Without
   them, stops within `max_walk_m` are used. Either end can be home or gym.
 - A place can also carry `walks` (up to 40, `[{"stop": "<stop or station ID>", "walk_s": 540}]`): walks the traveller
@@ -66,8 +68,11 @@ Response:
       "trip_id": "…", "headsign": "…", "status": "predicted", "delay_s": 60, "sched_dep": "…", "stops": 6}
    ],
    "transfers": [{"from_leg": 1, "to_leg": 3, "walk_s": 120, "slack_s": 95, "risk": "tight", "fallback_dep": "…"}]
- }]}
+ }],
+ "trackwork": [{"line": {"mode": "train", "name": "T4", "color": "005AA3", "text_color": "FFFFFF"}, "buses": ["23T4"]}]}
 ```
+`trackwork` (left out when empty) lists the lines whose trains the options replace with buses, and those buses' names
+(the names on their signs).
 `walking` is `streets` when walks to and from stops, and changes between stops, follow real streets and paths (the server's OpenStreetMap-based
 network), or `estimate` (straight line × a detour factor) while that network is still being prepared. Curated `access`
 walks apply either way. The first and last walk legs of an option carry a `path` (`[[lon, lat], …]`) along the streets
@@ -131,8 +136,19 @@ The self-hosted basemap (PMTiles), served with HTTP range requests. 404 if not i
 through the TfNSW Trip Planner; used once when setting up a home. Limited to one request per second (429 otherwise),
 counted against the daily upstream budget; the query is never logged.
 
+
 ## `GET /api/status`
-Detailed health: feed ages and errors, upstream requests today, realtime match stats, configured lines missing today, and
+`state` is the verdict at a glance: `ok`; `warning` when the server works but something needs looking at; `error` when
+it can't plan (no timetable, or one more than three days old). `issues` (left out when there are none) says what:
+`no-timetable`, `old-timetable`, `timetable-refresh` (the last download failed), `live-data` (a realtime feed is failing
+while the app is in use), `trackwork` (see `unknown_trackwork`), `street-map`, `basemap` (their download failed).
+Lines missing today aren't an issue: weekday-only buses are missing every weekend. The app shows this in its footer.
+Asking for the status doesn't count as using the app (it doesn't start realtime polling).
+
+Detailed health: feed ages and errors, upstream requests today, realtime match stats, configured lines missing today
+(`missing_lines`; a line replaced by buses all day isn't missing), buses named like trackwork buses that are left out of
+searches because they can't be tied to a line (`unknown_trackwork`: a new line code, or typed as an ordinary bus; they
+call at a station of a loaded line, so the app needs updating), and
 `data`: whether the street network and basemap are ready, their age and any error from the last attempt to fetch them.
 
 Any authenticated API request counts as activity: realtime polling runs while the app was used in the last

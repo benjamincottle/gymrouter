@@ -119,7 +119,7 @@ export function WalkTimer({ from, to, earlier, estimateS, retime, onSave, onCanc
           )}
           <div class="actions">
             <Button onClick={onCancel}>Cancel</Button>
-            <Button variant="primary" onClick={start}>
+            <Button onClick={start}>
               Start
             </Button>
           </div>
@@ -138,7 +138,7 @@ export function WalkTimer({ from, to, earlier, estimateS, retime, onSave, onCanc
           </p>
           <div class="actions">
             <Button onClick={reset}>Cancel</Button>
-            <Button variant="primary" onClick={arrive}>
+            <Button onClick={arrive}>
               I'm here
             </Button>
           </div>
@@ -175,12 +175,12 @@ export function WalkTimer({ from, to, earlier, estimateS, retime, onSave, onCanc
             <Button onClick={onCancel}>Cancel</Button>
             <Button onClick={reset}>Try again</Button>
             {earlier.length === 0 ? (
-              <Button variant="primary" disabled={walk.secs < MIN_WALK_S} onClick={() => onSave(walk, true)}>
+              <Button disabled={walk.secs < MIN_WALK_S} onClick={() => onSave(walk, true)}>
                 Save
               </Button>
             ) : (
-              (retime === 'replace' ? [false, true] : [true, false]).map((replace, i) => (
-                <Button variant={i === 1 ? 'primary' : undefined} disabled={walk.secs < MIN_WALK_S} onClick={() => onSave(walk, replace)}>
+              (retime === 'replace' ? [false, true] : [true, false]).map((replace) => (
+                <Button disabled={walk.secs < MIN_WALK_S} onClick={() => onSave(walk, replace)}>
                   {replace ? 'Replace earlier' : 'Save and average'}
                 </Button>
               ))

@@ -404,3 +404,28 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - 2026-10-05: On the trip screen, When (and which home) now comes before the gym, and stays on top once a gym is chosen
   (follows on from "the gym leads the trip screen"). Choosing a gym starts the search, so setting the time first means
   no search runs for a trip that wasn't meant. Time edits search once they've been still for half a second.
+- 2026-10-05: Trackwork buses come with the train line they replace. TfNSW plans trackwork into the timetable: the trains
+  are left out, and the buses are added as replacement-bus routes named afresh for each closure (20T4 and 23T4 for a T4
+  weekend, 12CN for the Central Coast & Newcastle line), and those names are on the buses' signs. A gym's lines name
+  `train T4`, so before this the buses were never loaded and a trackwork weekend planned as if the closed section had no
+  service ("Nothing leaves", or a worse route with no reason given). Now the line code at the end of a bus's name (T1–T9,
+  CN, BM, SC, HU; M for the metro, as in 10M and 11M, which isn't in the timetable yet) ties it to its line: loading, routing, vehicles and the realtime feeds treat it as part of that line.
+  Matching by the stations a bus serves was rejected: event shuttles (Olympic Park, Bathurst) are replacement-bus routes
+  too and would be offered for everyday trips. A bus named like a trackwork bus that can't be tied to a line (a new code, or
+  typed as an ordinary bus, which may be how metro buses turn up) and calls at a loaded line's station is logged and listed in `/api/status` (`unknown_trackwork`), so a new code shows up rather than failing
+  quietly. Replacement buses are never lines you pick: they're left out of the stop list and manual line entry, and line
+  suggestions credit them to the line they replace. The trip screen shows a caution callout for a line whose buses the
+  options use, with the names on the buses' signs. Known gaps: few replacement trips have live data (56 of ~4,200 seen),
+  so their times and connection risks are mostly timetable; unplanned disruptions (buses called in on the day) aren't in
+  the timetable and aren't covered; route shapes are loaded for today's trips, so a future day's bus is drawn straight.
+- 2026-10-05: The app's footer shows the server's state: a green, orange or red dot with "Server OK", "Server working,
+  needs a look" or "Server can't plan" ("Can't reach the server" when it doesn't answer), then each issue in plain words.
+  So a problem the server can see (a failing timetable or street-map download, live data not coming through, trackwork
+  buses it can't tie to a line) gets noticed without anyone calling `/api/status`. The server decides the verdict and
+  reports issues as codes; the app words them. Only what's actionable and usually absent counts: lines missing today
+  don't (weekday-only buses are missing every weekend), nor does one failed poll before the next good one. The app checks
+  on opening and every 5 minutes while open, and checking doesn't count as using the app, so it never keeps TfNSW polling
+  running by itself.
+- 2026-10-05: The highlight colour setting is gone (supersedes "A highlight colour (Settings)"). It wasn't adding
+  anything: underlines, the selected row's bar, the route tape and the icons' filled parts are ink, black on the light
+  theme and white on the dark one. A saved highlight choice is simply dropped.

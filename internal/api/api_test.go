@@ -317,6 +317,18 @@ func TestPlanValidation(t *testing.T) {
 	}
 }
 
+func TestStatus(t *testing.T) {
+	h := newHarness(t)
+	rec := h.do(t, "GET", "/api/status", token, nil)
+	var st struct{ State string }
+	if err := json.Unmarshal(rec.Body.Bytes(), &st); err != nil || rec.Code != 200 || st.State != "ok" {
+		t.Errorf("status: %d %s", rec.Code, rec.Body)
+	}
+	if h.env.Engine.Health().PollingActive {
+		t.Error("checking the server's state shouldn't start polling TfNSW")
+	}
+}
+
 func TestVehiclesAndActivity(t *testing.T) {
 	h := newHarness(t)
 	if h.env.Engine.Health().PollingActive {

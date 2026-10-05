@@ -4,6 +4,7 @@ package lines
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -64,6 +65,56 @@ func Of(routeType int, shortName string) Key {
 
 func (k Key) String() string { return string(k.Mode) + " " + k.Name }
 
+// trackworkName matches the names of trackwork buses: a number, maybe a letter, then the code of the
+// line they stand in for ("23T4", "3AT4", "12CN"). Event shuttles are numbers alone ("8", "5B").
+var trackworkName = regexp.MustCompile(`^\d+[A-Z]?([A-Z][A-Z0-9])$`)
+
+// metroName matches metro replacement buses, which have been named with a bare M ("10M", "11M"); an M with the
+// line's number ("10M1") is allowed for when there's more than one metro line.
+var metroName = regexp.MustCompile(`^\d+(M\d?)$`)
+
+// trackworkCodes maps the line codes at the end of trackwork bus names to the lines they stand in for.
+var trackworkCodes = map[string]Key{
+	"CN": {Train, "CCN"}, "BM": {Train, "BMT"}, "SC": {Train, "SCO"}, "HU": {Train, "HUN"},
+	"M": {Metro, "M1"}, // the only metro line so far
+}
+
+func init() {
+	for i := 1; i <= 9; i++ {
+		trackworkCodes[fmt.Sprintf("T%d", i)] = Key{Train, fmt.Sprintf("T%d", i)}
+		trackworkCodes[fmt.Sprintf("M%d", i)] = Key{Metro, fmt.Sprintf("M%d", i)}
+	}
+}
+
+// trackworkCode returns the line code at the end of a trackwork bus's name, or "" if it isn't named like one.
+func trackworkCode(name string) string {
+	if m := metroName.FindStringSubmatch(name); m != nil {
+		return m[1]
+	}
+	if m := trackworkName.FindStringSubmatch(name); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
+// Replaces returns the line a rail replacement bus stands in for, read from the end of its name. TfNSW names
+// trackwork buses afresh for each closure (20T4 and 23T4 for one T4 weekend), and the buses carry those names.
+func (k Key) Replaces() (Key, bool) {
+	if k.Mode != ReplacementBus {
+		return Key{}, false
+	}
+	l, ok := trackworkCodes[trackworkCode(k.Name)]
+	return l, ok
+}
+
+// UnknownTrackwork reports a bus named like a trackwork bus that can't be matched to the line it stands in for:
+// a replacement bus whose line code isn't known, or one typed as an ordinary bus (no ordinary bus is named like that;
+// it's how metro replacement buses might turn up).
+func (k Key) UnknownTrackwork() bool {
+	_, ok := k.Replaces()
+	return (k.Mode == ReplacementBus || k.Mode == Bus) && !ok && trackworkCode(k.Name) != ""
+}
+
 // Parse reads a key written as "<mode> <name>", e.g. "bus 288" or "light-rail L4".
 func Parse(s string) (Key, error) {
 	mode, name, ok := strings.Cut(strings.TrimSpace(s), " ")
@@ -105,8 +156,29 @@ func MustSet(ss ...string) Set {
 	return s
 }
 
-// Has reports whether the route belongs to a line in the set.
-func (s Set) Has(routeType int, shortName string) bool { return s[Of(routeType, shortName)] }
+// Covers reports whether a line in the set includes k: k itself, or the line a replacement bus stands in for.
+func (s Set) Covers(k Key) bool {
+	if s[k] {
+		return true
+	}
+	l, ok := k.Replaces()
+	return ok && s[l]
+}
+
+// Chosen returns the set with each trackwork bus swapped for the line it stands in for: the lines to load for it.
+func (s Set) Chosen() Set {
+	out := Set{}
+	for k := range s {
+		if l, ok := k.Replaces(); ok {
+			k = l
+		}
+		out[k] = true
+	}
+	return out
+}
+
+// Has reports whether the route belongs to a line in the set (counting replacement buses, see Covers).
+func (s Set) Has(routeType int, shortName string) bool { return s.Covers(Of(routeType, shortName)) }
 
 // Union returns a new set containing all keys of the given sets.
 func Union(sets ...Set) Set {
