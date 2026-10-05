@@ -401,3 +401,6 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   read again (seconds on the Pi). The union, with each line's last use, is now saved in the data directory (reverses
   "never written to disk": line names aren't sensitive, and the volume is private). The app also sends its gyms' lines
   to `POST /api/lines` whenever they become known or change, which loads them in the background.
+- 2026-10-05: On the trip screen, When (and which home) now comes before the gym, and stays on top once a gym is chosen
+  (follows on from "the gym leads the trip screen"). Choosing a gym starts the search, so setting the time first means
+  no search runs for a trip that wasn't meant. Time edits search once they've been still for half a second.

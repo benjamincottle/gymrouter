@@ -38,6 +38,18 @@ export function useVisible(): boolean {
  * Runs `fn` as soon as `key` changes, then every `ms` while `visible` (and once more when the page
  * becomes visible again). Changing `key` aborts the previous request. A null key does nothing.
  */
+/** The value once it has stopped changing for ms (the first value at once; every value at once while ms is 0).
+ * Compare by value: pass a string. */
+export function useSettled<T extends string | number | boolean>(value: T, ms: number): T {
+  const [settled, setSettled] = useState(value)
+  useEffect(() => {
+    if (ms === 0) return setSettled(value)
+    const id = setTimeout(() => setSettled(value), ms)
+    return () => clearTimeout(id)
+  }, [value, ms])
+  return ms === 0 ? value : settled
+}
+
 export function usePolling<T>(
   key: string | null,
   fn: (signal: AbortSignal) => Promise<T>,

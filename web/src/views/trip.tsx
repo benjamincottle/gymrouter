@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
 import { addDays, dayLabel, fromLocalInput, roundUp, statusTime, toLocalInput } from '../format.ts'
-import { usePolling, useVisible, useWide } from '../hooks.ts'
+import { usePolling, useSettled, useVisible, useWide } from '../hooks.ts'
 import { byUse, placeRef, planPlace, prefs, usedGym, type Gym, type Settings } from '../settings.ts'
 import type { DefaultsResponse, PlanRequest } from '../types.ts'
 import { Board, WindowShift, type Shift } from './board.tsx'
@@ -14,6 +14,7 @@ type Direction = 'to-gym' | 'home'
 const REFRESH_MS = 30_000
 const WINDOW_MIN = 45
 const SHIFT_MS = 30 * 60_000
+const SETTLE_MS = 500 // a time edit searches once it has been still this long
 
 interface Props {
   settings: Settings
@@ -48,7 +49,10 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   }
   const [moved, setMoved] = useState<number | null>(null) // "Leave now", moved earlier or later: where the window starts
   useEffect(() => setMoved(null), [when, gymId, direction])
-  const leaveAt = when === 'now' ? null : at
+  // The search uses the time once it has settled, so stepping through day, hour and minute doesn't search every step.
+  // Before a gym is chosen nothing searches, so the time counts at once: choosing a gym straight after it plans for it.
+  const [plannedWhen, plannedAt] = useSettled(`${when} ${at}`, gymId ? SETTLE_MS : 0).split(' ') as [When, string]
+  const leaveAt = plannedWhen === 'now' ? null : plannedAt
   const visible = useVisible()
   const wide = useWide()
   const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
@@ -63,11 +67,11 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
       to: direction === 'to-gym' ? gym : place,
       lines: g.lines,
       time: leaveAt ? fromLocalInput(leaveAt) : moved ? new Date(moved).toISOString() : undefined,
-      arrive_by: when === 'arrive' || undefined,
+      arrive_by: plannedWhen === 'arrive' || undefined,
       window_min: WINDOW_MIN,
       prefs: prefs(settings),
     }
-  }, [gymId, home, direction, leaveAt, moved, when, settings])
+  }, [gymId, home, direction, leaveAt, moved, plannedWhen, settings])
 
   // Earlier / later trips: half an hour each way. With "Leave now", earlier shows what has just gone (useful when
   // you're already on your way or a service is running late); coming back round to now goes back to live.
@@ -112,6 +116,30 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
 
   return (
     <div class="stack trip">
+      {/* When (and which home) come first: they shape the search, which starts when a gym is chosen. */}
+      <div class="when">
+        {settings.homes.length > 1 && (
+          <label class="inline-choice">
+            {direction === 'to-gym' ? 'From' : 'To'}
+            <select
+              value={home.id}
+              onChange={(e) => setSettings({ ...settings, activeHome: (e.target as HTMLSelectElement).value })}
+            >
+              {settings.homes.map((h) => (
+                <option value={h.id}>{h.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <Segmented
+          label="When"
+          options={[['now', 'Leave now'], ['leave', 'Leave at'], ['arrive', 'Arrive by']] as const}
+          value={when}
+          onChange={(w) => (w === 'now' ? setWhen('now') : chooseTime(w))}
+        />
+        {when !== 'now' && <DayTime value={at} onChange={setAt} label={when === 'arrive' ? 'Arrive by' : 'Leave at'} />}
+      </div>
+
       {gym ? (
         // The chosen gym leads: tap its name to choose another; the arrows reverse the trip.
         <div class="route">
@@ -144,30 +172,6 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
         </div>
       )}
 
-      {settings.homes.length > 1 && (
-        <label class="inline-choice">
-          {direction === 'to-gym' ? 'From' : 'To'}
-          <select
-            value={home.id}
-            onChange={(e) => setSettings({ ...settings, activeHome: (e.target as HTMLSelectElement).value })}
-          >
-            {settings.homes.map((h) => (
-              <option value={h.id}>{h.name}</option>
-            ))}
-          </select>
-        </label>
-      )}
-
-      <div class="when">
-        <Segmented
-          label="When"
-          options={[['now', 'Leave now'], ['leave', 'Leave at'], ['arrive', 'Arrive by']] as const}
-          value={when}
-          onChange={(w) => (w === 'now' ? setWhen('now') : chooseTime(w))}
-        />
-        {when !== 'now' && <DayTime value={at} onChange={setAt} label={when === 'arrive' ? 'Arrive by' : 'Leave at'} />}
-      </div>
-
       {gym && (
         <section class="results" aria-label={title}>
           <DataStatus realtime={plan.data?.realtime} loading={plan.loading} updatedAt={plan.updatedAt} walking={plan.data?.walking} />
@@ -181,7 +185,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
           {plan.data && plan.data.options.length === 0 && <WindowShift shift={shift} />}
           {plan.data && plan.data.options.length === 0 && (
             <p class="meta">
-              {when === 'arrive'
+              {plannedWhen === 'arrive'
                 ? 'No way to get there by then on these lines. Try later trips.'
                 : `Nothing leaves in these ${WINDOW_MIN} minutes. Try later trips.`}
             </p>
@@ -189,7 +193,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
           {plan.data && plan.data.options.length > 0 && (
             <Board
               options={[...plan.data.options].sort((a, b) => Date.parse(a.leave_at) - Date.parse(b.leave_at))}
-              preferLatest={when === 'arrive'}
+              preferLatest={plannedWhen === 'arrive'}
               live={leaveAt === null}
               serviceDate={plan.data.service_date}
               token={settings.token!}

@@ -108,8 +108,9 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   pinned to the bottom of the pane, with a hairline above it. The commit button is rightmost; a secondary action (the way
   out, or "Show on map") is leftmost. Long forms never hide their Save at the bottom of the page.
 - **Order of a trip screen:**
-  1. route (the gym leads);
-  2. when;
+  1. when (and which home, when there are several): everything that changes the search comes before the gym, so a
+     search starts only once it's what you meant. It stays on top after a gym is chosen, so it never moves;
+  2. route (the gym leads the results; before one is chosen, the list of gyms);
   3. status line;
   4. hero;
   5. Earlier/Later;
@@ -228,6 +229,9 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
 - **Empty states** say what to do and offer the action as a primary button ("Add a gym").
 - **Loading:** show what's coming in place, as a skeleton of rows or the board's ruled lines (`.skeleton`), rather
   than a bare "Loading…". Long jobs (suggesting lines) show progress beside the job, not only inside the button label.
+- **Searching as you choose:** a pick (a gym, reversing the trip) searches at once; editing the time (the When choice,
+  day, hour, minute, Earlier/Later with a set time) searches once it has been still for half a second, so stepping
+  through a time doesn't search every step on the way. The last result stays on screen meanwhile.
 - **After an action, confirm it in a neutral callout**, using the action's own verb: "Saved", "Deleted", "Settings
   saved on this device". Settings that save as you type show a brief "Saved" beside the field.
 
