@@ -150,7 +150,7 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   - `bad` (`--missed`) for failed or missed.
   - At most one action. A dismiss × only if it can safely be ignored.
   - Panels with their own job (pace test, walk timer) are sections, not callouts.
-- **Section:** a heavy top rule, then a title (20px/800/semi) with an optional 24px icon (ink lines, one `--hl` part).
+- **Section:** a heavy top rule (except the first section on Settings, right under the header), then a title (20px/800/semi) with an optional 24px icon (ink lines, one `--hl` part).
   An intro line in 14px pencil may follow.
 - **Pick rows:** a search result is a whole-row button with a `›` at the end, not a link.
 - **Rows:** a hairline-separated list, min 56px tall. The main text sits on line 1 and details on a second 14px pencil

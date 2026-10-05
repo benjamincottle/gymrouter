@@ -104,7 +104,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
   }
 
   return (
-    <div class="stack">
+    <div class="stack settings">
       <Section title="Homes" icon={<IconHome />} intro="Stored only on this device.">
         <ul class="rows">
           {settings.homes.map((h) =>
