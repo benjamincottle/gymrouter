@@ -121,7 +121,7 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, onAuthErr
   const canSave = hasLocation && p.name.trim() !== '' && (!gym || p.lines.length > 0)
 
   return (
-    <div class="stack">
+    <div class="stack settings">
       <Section title={isNew ? `Add ${kind}` : `Edit ${kind}`}>
         <Field label="Name">
           <input

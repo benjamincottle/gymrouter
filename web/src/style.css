@@ -496,7 +496,7 @@ details > summary {
   border-top: var(--heavy);
 }
 
-/* the top of Settings needs no rule: the header is right above it */
+/* the top of Settings and its editors needs no rule: the header is right above it */
 .settings > .section:first-child {
   padding-top: 0;
   border-top: 0;

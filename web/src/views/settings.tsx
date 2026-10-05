@@ -54,7 +54,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
 
   if (editing?.kind === 'choose-gyms') {
     return (
-      <div class="stack">
+      <div class="stack settings">
         <GymChooser
           known={server?.gyms ?? null}
           have={settings.gyms}
