@@ -634,6 +634,17 @@ details > summary {
   padding: 0 var(--s4) env(safe-area-inset-bottom);
 }
 
+/* the footer sits at the bottom edge when there isn't a screenful above it */
+.app:not(.in-trip) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.app:not(.in-trip) > main {
+  flex: 1;
+}
+
 .topbar {
   position: sticky;
   top: 0;
@@ -711,7 +722,7 @@ details > summary {
 }
 
 .footer {
-  margin-top: var(--s6);
+  margin-top: var(--s5);
   padding: var(--s3) 0 var(--s4);
   border-top: var(--hair);
   font-size: var(--fs-micro);
@@ -720,6 +731,13 @@ details > summary {
 
 .footer p {
   margin: 0;
+}
+
+/* the data credits, at the end of Settings */
+.credits {
+  margin: var(--s6) 0 0;
+  font-size: var(--fs-micro);
+  color: var(--pencil);
 }
 
 .server-status {
@@ -877,7 +895,7 @@ details > summary {
   column-gap: var(--s4);
   margin-top: var(--s4);
   padding-top: var(--s3);
-  border-top: var(--heavy);
+  border-top: var(--hair);
 }
 
 .hero > .label {
