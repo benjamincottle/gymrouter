@@ -8,8 +8,12 @@ clean today). Roughly in order of value.
 - [ ] **Images don't pick up Go security fixes.** `build.yml` rebuilds on a schedule only when the distroless
       digest changes, so a Go standard-library fix (the binary is static, built on `golang:1.27-trixie`)
       only ships with the next code push. `audit.yml` runs govulncheck with `check-latest: true`, so it
-      checks the newest Go, not the one the published image was built with: it can't see this gap. Options:
-      fold the `golang` (and `node`) image digests into the scheduled change check, or rebuild weekly.
+      checks the newest Go, not the one the published image was built with: it can't see this gap.
+      **Decided (2026-10-05): fold the `golang` and `node` image digests into the scheduled change check**,
+      so a Go patch release produces a new image within a day (rather than a blind weekly rebuild).
+      Changing the runtime base wouldn't help: the fix lives in the binary, and `distroless/static:nonroot`
+      is already the right base (`scratch` and Chainguard `static` are equivalent at best). The bundled
+      `pmtiles` binary has its own Go and only updates with upstream releases; the image scan covers it.
 - [ ] **Deploy a fixed image, not `:latest`.** `deploy/compose.example.yaml` pulls `:latest`. Deploy by the
       `:<sha>` tag or a digest (Ansible variable), so a deploy is reproducible and can be rolled back;
       optionally check the build provenance with `gh attestation verify` / cosign before rolling out.
