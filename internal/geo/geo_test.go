@@ -63,3 +63,24 @@ func TestProjectAndCutStopBesideTheLine(t *testing.T) {
 		t.Errorf("projected before the starting point: %+v", back)
 	}
 }
+
+func TestPlaceLegOnALoop(t *testing.T) {
+	// A loop round a 2 km square, starting and ending at the same corner, like a train that runs out and back round a
+	// loop. Boarding at that corner means the start of the loop, not its end, even when the end is a little nearer.
+	m := 1.0 / 111320
+	k := math.Cos(-33.8 * math.Pi / 180)
+	at := func(x, y float64) Point { return Point{Lat: -33.8 + y*m, Lon: 151 + x*m/k} }
+	loop := []Point{at(0, 0), at(2000, 0), at(2000, 2000), at(0, 2000), at(0, 1)}
+	from, to := at(-3, 3), at(1000, 2005)
+	if got := Project(loop, from, Along{}); got.Seg != 3 {
+		t.Fatalf("test setup: on its own, the boarding stop should be nearest the loop's end: %+v", got)
+	}
+	a, b, ok := PlaceLeg(loop, from, to)
+	if !ok || a.Seg != 0 || b.Seg != 2 || !a.Before(b) {
+		t.Fatalf("leg placed at %+v to %+v (ok %v)", a, b, ok)
+	}
+	// Getting off back at the start corner is the loop's end.
+	if _, b, ok := PlaceLeg(loop, at(2000, 1000), at(-3, 3)); !ok || b.Seg != 3 {
+		t.Fatalf("back to the start: %+v (ok %v)", b, ok)
+	}
+}

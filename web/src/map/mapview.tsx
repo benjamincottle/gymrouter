@@ -57,6 +57,20 @@ type Geometry =
   | { type: 'Point'; coordinates: [number, number] }
   | { type: 'LineString'; coordinates: [number, number][] }
 type Feature = { type: 'Feature'; properties: Record<string, unknown>; geometry: Geometry }
+/** A round dot of the given diameter (CSS pixels) and colour, drawn at the screen's pixel ratio for the map. */
+function dot(diameter: number, [r, g, b]: [number, number, number]) {
+  const size = Math.round(diameter * (window.devicePixelRatio || 1))
+  const data = new Uint8ClampedArray(size * size * 4)
+  const c = size / 2
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4
+      data.set([r, g, b, Math.round(255 * Math.max(0, Math.min(1, c - Math.hypot(x + 0.5 - c, y + 0.5 - c) + 0.5)))], i)
+    }
+  }
+  return { width: size, height: size, data }
+}
+
 const fc = (features: Feature[]) => ({ type: 'FeatureCollection' as const, features })
 
 export interface MapViewProps {
@@ -140,10 +154,15 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         paint: { 'line-color': ['get', 'color'], 'line-width': RIDE_W },
         layout: { 'line-cap': 'round', 'line-join': 'round' },
       })
+      // Walking: round dots every few pixels along the street route, like the trip's steps. A dot image placed along
+      // the line rather than a dashed line: MapLibre blends dash patterns between zoom levels, stretching dots into dashes.
+      m.addImage('walk-dot', dot(4.5, dark ? [232, 235, 231] : [30, 34, 38]), { pixelRatio: window.devicePixelRatio || 1 })
       m.addLayer({
-        id: 'route-walk', type: 'line', source: 'route', filter: ['==', ['get', 'kind'], 'walk'],
-        paint: { 'line-color': dark ? '#e9ece8' : '#1f2328', 'line-width': 3, 'line-dasharray': [0.5, 2] },
-        layout: { 'line-cap': 'round' },
+        id: 'route-walk', type: 'symbol', source: 'route', filter: ['==', ['get', 'kind'], 'walk'],
+        layout: {
+          'symbol-placement': 'line', 'symbol-spacing': 8, 'icon-image': 'walk-dot',
+          'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-rotation-alignment': 'map',
+        },
       })
       // A ride's stops, where you get on and off and those passed on the way: white dots on the line with a 1px ink
       // outline, as wide as the line.
