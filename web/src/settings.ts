@@ -63,7 +63,8 @@ const isStr = (v: unknown, max = 200): v is string => typeof v === 'string' && v
 export const MAX_GYMS = 12
 export const MAX_LINES = 60
 
-export const LINE_MODES = ['train', 'metro', 'light-rail', 'bus', 'ferry', 'regional-train', 'coach', 'replacement-bus'] as const
+// Replacement buses aren't chosen: they come with the train line they stand in for.
+export const LINE_MODES = ['train', 'metro', 'light-rail', 'bus', 'ferry', 'regional-train', 'coach'] as const
 
 /** A line key as the server writes it: "<mode> <name>", e.g. "bus 288". */
 export function isLine(v: unknown): v is string {

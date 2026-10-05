@@ -4,6 +4,7 @@ package lines
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -64,6 +65,42 @@ func Of(routeType int, shortName string) Key {
 
 func (k Key) String() string { return string(k.Mode) + " " + k.Name }
 
+// trackworkName matches the names of trackwork buses: a number, maybe a letter, then the code of the
+// line they stand in for ("23T4", "3AT4", "12CN"). Event shuttles are numbers alone ("8", "5B").
+var trackworkName = regexp.MustCompile(`^\d+[A-Z]?([A-Z][A-Z0-9])$`)
+
+// trackworkCodes maps the line codes at the end of trackwork bus names to the train lines they stand in for.
+var trackworkCodes = map[string]Key{
+	"CN": {Train, "CCN"}, "BM": {Train, "BMT"}, "SC": {Train, "SCO"}, "HU": {Train, "HUN"},
+}
+
+func init() {
+	for i := 1; i <= 9; i++ {
+		trackworkCodes[fmt.Sprintf("T%d", i)] = Key{Train, fmt.Sprintf("T%d", i)}
+	}
+}
+
+// Replaces returns the line a rail replacement bus stands in for, read from the end of its name. TfNSW names
+// trackwork buses afresh for each closure (20T4 and 23T4 for one T4 weekend), and the buses carry those names.
+func (k Key) Replaces() (Key, bool) {
+	if k.Mode != ReplacementBus {
+		return Key{}, false
+	}
+	m := trackworkName.FindStringSubmatch(k.Name)
+	if m == nil {
+		return Key{}, false
+	}
+	l, ok := trackworkCodes[m[1]]
+	return l, ok
+}
+
+// UnknownTrackwork reports a replacement bus named like a trackwork bus whose line code isn't known, so
+// it can't be matched to the line it stands in for.
+func (k Key) UnknownTrackwork() bool {
+	_, ok := k.Replaces()
+	return k.Mode == ReplacementBus && !ok && trackworkName.MatchString(k.Name)
+}
+
 // Parse reads a key written as "<mode> <name>", e.g. "bus 288" or "light-rail L4".
 func Parse(s string) (Key, error) {
 	mode, name, ok := strings.Cut(strings.TrimSpace(s), " ")
@@ -105,8 +142,29 @@ func MustSet(ss ...string) Set {
 	return s
 }
 
-// Has reports whether the route belongs to a line in the set.
-func (s Set) Has(routeType int, shortName string) bool { return s[Of(routeType, shortName)] }
+// Covers reports whether a line in the set includes k: k itself, or the line a replacement bus stands in for.
+func (s Set) Covers(k Key) bool {
+	if s[k] {
+		return true
+	}
+	l, ok := k.Replaces()
+	return ok && s[l]
+}
+
+// Chosen returns the set with each trackwork bus swapped for the line it stands in for: the lines to load for it.
+func (s Set) Chosen() Set {
+	out := Set{}
+	for k := range s {
+		if l, ok := k.Replaces(); ok {
+			k = l
+		}
+		out[k] = true
+	}
+	return out
+}
+
+// Has reports whether the route belongs to a line in the set (counting replacement buses, see Covers).
+func (s Set) Has(routeType int, shortName string) bool { return s.Covers(Of(routeType, shortName)) }
 
 // Union returns a new set containing all keys of the given sets.
 func Union(sets ...Set) Set {

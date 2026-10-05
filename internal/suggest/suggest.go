@@ -95,7 +95,9 @@ func Run(net *raptor.Network, access, egress []raptor.Access, w Window, p Params
 			for _, l := range j.Legs {
 				if l.Kind == raptor.Ride {
 					r := net.Day.Routes[l.Route]
-					res.LineColor[lines.Of(r.Type, r.ShortName)] = r.Color
+					if k := lines.Of(r.Type, r.ShortName); k.Mode != lines.ReplacementBus {
+						res.LineColor[k] = r.Color
+					}
 				}
 			}
 		}
@@ -179,7 +181,7 @@ func stationName(net *raptor.Network, s int32) string {
 }
 
 // describe groups a journey by its lines and interchange stations, ignoring which exact stop is
-// used at either end (those differ only by a few minutes of walking).
+// used at either end (those differ only by a few minutes of walking). The keys are the lines to suggest.
 func describe(net *raptor.Network, j raptor.Journey) (string, []lines.Key) {
 	var rides []raptor.Leg
 	for _, l := range j.Legs {
@@ -192,7 +194,15 @@ func describe(net *raptor.Network, j raptor.Journey) (string, []lines.Key) {
 	for i, l := range rides {
 		r := net.Day.Routes[l.Route]
 		k := lines.Of(r.Type, r.ShortName)
-		ks = append(ks, k)
+		if k.Mode == lines.ReplacementBus {
+			// Suggestions are lines to keep: a trackwork bus counts for the line it stands in for, and other
+			// replacement buses (event shuttles) for nothing.
+			if l, ok := k.Replaces(); ok {
+				ks = append(ks, l)
+			}
+		} else {
+			ks = append(ks, k)
+		}
 		if i == 0 {
 			b.WriteString(k.String())
 		} else {

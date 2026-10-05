@@ -172,6 +172,9 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
     badge.
   - The house or hold marks each end. The "you" marker never covers text.
 - **Line chip, risk badge, risk mark:** 12px/800 on `--r-mark`. Badge text is `--on-tone`.
+- **Trackwork:** a `caution` callout above the board for each line whose trains the options replace with buses: the
+  line's chip, "**Trackwork:** buses replace some trains. Their signs say 20T4 or 23T4." The buses keep their own names
+  and colour everywhere (chip, tape, map): they're the names on the buses' signs.
 - **Status text** for a service:
   - on time (or under a minute late): `--safe`;
   - 1 min late: `--tight`;

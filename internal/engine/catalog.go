@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"runtime/debug"
 	"sort"
 	"time"
@@ -53,7 +54,8 @@ func (c *Catalog) Near(p geo.Point, radiusM float64, o raptor.Options) []NearSto
 	return out
 }
 
-// NewCatalog summarises a day's stops and the lines that call at them.
+// NewCatalog summarises a day's stops and the lines that call at them. Replacement buses are left out: they come
+// with the train lines they stand in for, nobody picks them.
 func NewCatalog(d *gtfs.Day) *Catalog {
 	perStop := make([]lines.Set, len(d.Stops))
 	routeLine := make([]lines.Key, len(d.Routes))
@@ -63,6 +65,9 @@ func NewCatalog(d *gtfs.Day) *Catalog {
 	for i := range d.Trips {
 		t := &d.Trips[i]
 		k := routeLine[t.Route]
+		if k.Mode == lines.ReplacementBus {
+			continue
+		}
 		for _, st := range t.StopTimes {
 			if perStop[st.Stop] == nil {
 				perStop[st.Stop] = lines.Set{}
@@ -72,7 +77,9 @@ func NewCatalog(d *gtfs.Day) *Catalog {
 	}
 	c := &Catalog{Date: d.Date, Lines: lines.Set{}}
 	for _, k := range routeLine {
-		c.Lines[k] = true
+		if k.Mode != lines.ReplacementBus {
+			c.Lines[k] = true
+		}
 	}
 	for si, set := range perStop {
 		if len(set) == 0 {
@@ -117,7 +124,14 @@ func (e *Engine) BuildCatalog(ctx context.Context) {
 		return
 	}
 	c := NewCatalog(d)
+	unknown := timetable.UnknownTrackwork(d, e.Lines())
 	d = nil
+	e.rtMu.Lock()
+	e.unknownTrackwork = unknown
+	e.rtMu.Unlock()
+	if len(unknown) > 0 {
+		e.log.Warn("trackwork buses with an unknown line code are left out of searches", "buses", fmt.Sprint(unknown))
+	}
 	debug.FreeOSMemory()
 	e.catalog.Store(c)
 	e.log.Info("stop catalogue built", "stops", len(c.Stops), "took", e.now().Sub(start).Round(time.Millisecond).String())

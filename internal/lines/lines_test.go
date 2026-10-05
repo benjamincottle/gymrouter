@@ -44,3 +44,38 @@ func TestSetHelpers(t *testing.T) {
 		t.Error("ParseSet should fail on an invalid key")
 	}
 }
+
+func TestReplacementBuses(t *testing.T) {
+	for name, want := range map[string]string{
+		"23T4": "train T4", "3AT4": "train T4", "10T9": "train T9", "12CN": "train CCN", "33BM": "train BMT",
+		"27SC": "train SCO", "10HU": "train HUN",
+	} {
+		got, ok := Key{ReplacementBus, name}.Replaces()
+		if !ok || got.String() != want {
+			t.Errorf("%s replaces %v %v, want %s", name, got, ok, want)
+		}
+	}
+	for _, name := range []string{"8", "5B", "1A", "699", "771V8"} { // event shuttles, and an unknown code
+		if l, ok := (Key{ReplacementBus, name}).Replaces(); ok {
+			t.Errorf("%s replaces %v, want nothing", name, l)
+		}
+	}
+	if _, ok := (Key{Bus, "23T4"}).Replaces(); ok {
+		t.Error("only replacement buses replace lines")
+	}
+	if !(Key{ReplacementBus, "771V8"}).UnknownTrackwork() || (Key{ReplacementBus, "5B"}).UnknownTrackwork() ||
+		(Key{ReplacementBus, "23T4"}).UnknownTrackwork() {
+		t.Error("UnknownTrackwork")
+	}
+	if got := MustSet("replacement-bus 23T4", "replacement-bus 5B", "bus 392").Chosen().Strings(); !reflect.DeepEqual(got,
+		[]string{"bus 392", "replacement-bus 5B", "train T4"}) {
+		t.Errorf("Chosen = %v", got)
+	}
+	if !MustSet("replacement-bus 23T4").Covers(Key{ReplacementBus, "23T4"}) {
+		t.Error("a set naming a replacement bus covers it")
+	}
+	s := MustSet("train T4", "bus 392")
+	if !s.Has(714, "23T4") || s.Has(714, "10T9") || s.Has(714, "5B") || !s.Has(2, "T4") {
+		t.Error("a set should cover the buses replacing its train lines, and nothing else")
+	}
+}

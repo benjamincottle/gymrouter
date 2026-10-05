@@ -134,9 +134,11 @@ type Engine struct {
 	staticAt     time.Time
 	staticErr    string
 	missing      []lines.Key
-	walkErr      string
-	mapErr       string
-	lastGeocode  time.Time
+	// trackwork buses that call at our lines' stations but can't be matched to a line (see timetable.UnknownTrackwork)
+	unknownTrackwork []lines.Key
+	walkErr          string
+	mapErr           string
+	lastGeocode      time.Time
 }
 
 // New creates an engine. Call Start before serving.
@@ -210,8 +212,9 @@ const lineKeep = 14 * 24 * time.Hour
 
 // Ensure makes the timetable and realtime polling cover set, loading the union of everything asked for
 // so far if it doesn't already. Loading takes a few seconds, so callers may wait. Lines nobody asks for
-// drop out again (PruneLines).
+// drop out again (PruneLines). A trackwork bus (named by the map for a ride) comes with the line it stands in for.
 func (e *Engine) Ensure(set lines.Set) error {
+	set = set.Chosen()
 	if e.covers(set) {
 		e.used(set)
 		return nil
@@ -465,6 +468,13 @@ func (e *Engine) reloadTodayFor(set lines.Set) error {
 		e.log.Warn("configured lines have no trips today", "lines", fmt.Sprint(missing))
 	}
 	e.today.Store(s)
+	for _, t := range s.Day.Trips {
+		r := s.Day.Routes[t.Route]
+		if k := lines.Of(r.Type, r.ShortName); k.Mode == lines.ReplacementBus { // trackwork today: poll the bus feed too
+			e.addFeeds(lines.Set{k: true})
+			break
+		}
+	}
 	e.applyRealtime() // re-apply current predictions to the new day
 	return nil
 }
@@ -731,14 +741,14 @@ func (e *Engine) Vehicles(set lines.Set) []Vehicle {
 	}
 	routes := map[string]lineInfo{}
 	for _, r := range s.Day.Routes {
-		if k := lines.Of(r.Type, r.ShortName); set[k] {
+		if k := lines.Of(r.Type, r.ShortName); set.Covers(k) {
 			routes[r.ID] = lineInfo{k, r.Color}
 		}
 	}
 	tripLine := func(id string) (lineInfo, bool) {
 		for _, ti := range s.Day.TripIndex[id] {
 			r := s.Day.Routes[s.Day.Trips[ti].Route]
-			if k := lines.Of(r.Type, r.ShortName); set[k] {
+			if k := lines.Of(r.Type, r.ShortName); set.Covers(k) {
 				return lineInfo{k, r.Color}, true
 			}
 		}
@@ -836,16 +846,18 @@ func callsOutside(i, a, b int) int {
 
 // Health summarises data freshness for /healthz.
 type Health struct {
-	OK            bool            `json:"ok"`
-	ServiceDate   string          `json:"service_date"`
-	StaticAgeS    int64           `json:"static_age_s"`
-	StaticError   string          `json:"static_error,omitempty"`
-	PollingActive bool            `json:"polling_active"`
-	RequestsToday int             `json:"upstream_requests_today"`
-	Feeds         []FeedHealth    `json:"feeds"`
-	MissingLines  []string        `json:"missing_lines,omitempty"`
-	RealtimeStats *realtime.Stats `json:"realtime,omitempty"`
-	Data          DataStatus      `json:"data"`
+	OK            bool         `json:"ok"`
+	ServiceDate   string       `json:"service_date"`
+	StaticAgeS    int64        `json:"static_age_s"`
+	StaticError   string       `json:"static_error,omitempty"`
+	PollingActive bool         `json:"polling_active"`
+	RequestsToday int          `json:"upstream_requests_today"`
+	Feeds         []FeedHealth `json:"feeds"`
+	MissingLines  []string     `json:"missing_lines,omitempty"`
+	// UnknownTrackwork lists trackwork buses left out of searches because their line code is new.
+	UnknownTrackwork []string        `json:"unknown_trackwork,omitempty"`
+	RealtimeStats    *realtime.Stats `json:"realtime,omitempty"`
+	Data             DataStatus      `json:"data"`
 }
 
 // FeedHealth is one realtime feed's state.
@@ -876,6 +888,9 @@ func (e *Engine) Health() Health {
 	h.RequestsToday = e.budgetUsed
 	for _, k := range e.missing {
 		h.MissingLines = append(h.MissingLines, k.String())
+	}
+	for _, k := range e.unknownTrackwork {
+		h.UnknownTrackwork = append(h.UnknownTrackwork, k.String())
 	}
 	age := func(t time.Time) *int64 {
 		if t.IsZero() {

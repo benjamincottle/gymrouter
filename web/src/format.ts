@@ -136,3 +136,8 @@ export function roundUp(v: string, step = 5): string {
   const t = Date.parse(fromLocalInput(v))
   return toLocalInput(new Date(Math.ceil(t / (step * 60_000)) * step * 60_000))
 }
+
+/** Names joined for a sentence: "23T4", "20T4 or 23T4", "20T4, 23T4 or 28T4". */
+export function orList(names: string[]): string {
+  return names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`
+}

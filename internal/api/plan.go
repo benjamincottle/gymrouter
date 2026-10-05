@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/benjamincottle/gymrouter/internal/engine"
@@ -139,6 +140,14 @@ type planResp struct {
 	// "estimate" (straight line, while the street network is still being prepared). Curated walks apply either way.
 	Walking string       `json:"walking"`
 	Options []optionResp `json:"options"`
+	// Trackwork lists the lines whose trains the options replace with buses.
+	Trackwork []trackworkResp `json:"trackwork,omitempty"`
+}
+
+// trackworkResp is a line with trackwork: the buses replacing its trains, by the names on their signs.
+type trackworkResp struct {
+	Line  lineResp `json:"line"`
+	Buses []string `json:"buses"`
 }
 
 type badRequest struct{ msg string }
@@ -277,7 +286,8 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 		options = plan.Plan(snap.Net, preq)
 	}
 
-	resp := &planResp{ServiceDate: snap.Date.Format("2006-01-02"), Realtime: snap.Realtime, Walking: "estimate"}
+	resp := &planResp{ServiceDate: snap.Date.Format("2006-01-02"), Realtime: snap.Realtime, Walking: "estimate",
+		Trackwork: trackwork(day, options)}
 	if s.eng.Walker() != nil {
 		resp.Walking = "streets"
 	}
@@ -298,6 +308,38 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 
 // arriveByLookback is how far before the deadline arrive-by searches for departures.
 const arriveByLookback = 150 * 60
+
+// trackwork lists the lines whose trains the options replace with buses, with those buses' names.
+func trackwork(d *gtfs.Day, options []plan.Option) []trackworkResp {
+	buses := map[lines.Key]map[string]bool{}
+	for _, o := range options {
+		for _, k := range o.Lines {
+			if l, ok := k.Replaces(); ok {
+				if buses[l] == nil {
+					buses[l] = map[string]bool{}
+				}
+				buses[l][k.Name] = true
+			}
+		}
+	}
+	var out []trackworkResp
+	for l, names := range buses {
+		tw := trackworkResp{Line: lineResp{Mode: string(l.Mode), Name: l.Name}}
+		for _, r := range d.Routes {
+			if lines.Of(r.Type, r.ShortName) == l {
+				tw.Line.Color, tw.Line.TextColor = r.Color, r.TextColor
+				break
+			}
+		}
+		for n := range names {
+			tw.Buses = append(tw.Buses, n)
+		}
+		sort.Strings(tw.Buses)
+		out = append(out, tw)
+	}
+	sort.Slice(out, func(a, b int) bool { return out[a].Line.Name < out[b].Line.Name })
+	return out
+}
 
 // boarded finds the trip the traveller is on and where they boarded.
 func boarded(snap *engine.Snapshot, ot *onTripReq, now int32) (*plan.Onboard, error) {

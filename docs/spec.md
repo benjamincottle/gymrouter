@@ -404,3 +404,17 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - 2026-10-05: On the trip screen, When (and which home) now comes before the gym, and stays on top once a gym is chosen
   (follows on from "the gym leads the trip screen"). Choosing a gym starts the search, so setting the time first means
   no search runs for a trip that wasn't meant. Time edits search once they've been still for half a second.
+- 2026-10-05: Trackwork buses come with the train line they replace. TfNSW plans trackwork into the timetable: the trains
+  are left out, and the buses are added as replacement-bus routes named afresh for each closure (20T4 and 23T4 for a T4
+  weekend, 12CN for the Central Coast & Newcastle line), and those names are on the buses' signs. A gym's lines name
+  `train T4`, so before this the buses were never loaded and a trackwork weekend planned as if the closed section had no
+  service ("Nothing leaves", or a worse route with no reason given). Now the line code at the end of a bus's name (T1–T9,
+  CN, BM, SC, HU) ties it to its line: loading, routing, vehicles and the realtime feeds treat it as part of that line.
+  Matching by the stations a bus serves was rejected: event shuttles (Olympic Park, Bathurst) are replacement-bus routes
+  too and would be offered for everyday trips. A bus with a code the app doesn't know that calls at a loaded line's
+  station is logged and listed in `/api/status` (`unknown_trackwork`), so a new code shows up rather than failing
+  quietly. Replacement buses are never lines you pick: they're left out of the stop list and manual line entry, and line
+  suggestions credit them to the line they replace. The trip screen shows a caution callout for a line whose buses the
+  options use, with the names on the buses' signs. Known gaps: few replacement trips have live data (56 of ~4,200 seen),
+  so their times and connection risks are mostly timetable; unplanned disruptions (buses called in on the day) aren't in
+  the timetable and aren't covered; route shapes are loaded for today's trips, so a future day's bus is drawn straight.
