@@ -1,7 +1,10 @@
 // Package geo provides small geographic helpers.
 package geo
 
-import "math"
+import (
+	"math"
+	"sort"
+)
 
 const earthRadiusM = 6371000.0
 
@@ -57,10 +60,14 @@ func (g *Grid) Within(p Point, radiusM float64, fn func(i int32, distM float64))
 }
 
 // Simplify reduces a polyline with the Douglas–Peucker algorithm, keeping points that deviate more
-// than tolM metres from the simplified line. Endpoints are always kept.
-func Simplify(pts []Point, tolM float64) []Point {
+// than tolM metres from the simplified line. Endpoints are always kept. It returns the indexes of the kept points.
+func Simplify(pts []Point, tolM float64) []int {
 	if len(pts) < 3 {
-		return pts
+		out := make([]int, len(pts))
+		for i := range out {
+			out[i] = i
+		}
+		return out
 	}
 	keep := make([]bool, len(pts))
 	keep[0], keep[len(pts)-1] = true, true
@@ -80,10 +87,10 @@ func Simplify(pts []Point, tolM float64) []Point {
 			stack = append(stack, span{s.a, idx}, span{idx, s.b})
 		}
 	}
-	out := make([]Point, 0, len(pts)/4+2)
+	out := make([]int, 0, len(pts)/4+2)
 	for i, k := range keep {
 		if k {
-			out = append(out, pts[i])
+			out = append(out, i)
 		}
 	}
 	return out
@@ -184,6 +191,21 @@ func passes(pts []Point, p Point, slackM float64) []Along {
 		}
 	}
 	return out
+}
+
+// AtDist finds the place x along the line, given how far along it each of its points is (dist, never decreasing, in
+// the same unit as x). Before the first point or past the last, it's that end.
+func AtDist(pts []Point, dist []float32, x float32) Along {
+	if len(pts) < 2 {
+		return Project(pts, Point{}, Along{})
+	}
+	i := min(max(sort.Search(len(dist), func(i int) bool { return dist[i] > x })-1, 0), len(pts)-2)
+	t := 0.0
+	if l := dist[i+1] - dist[i]; l > 0 {
+		t = math.Max(0, math.Min(1, float64(x-dist[i])/float64(l)))
+	}
+	a, b := pts[i], pts[i+1]
+	return Along{Seg: i, T: t, Pt: Point{Lat: a.Lat + t*(b.Lat-a.Lat), Lon: a.Lon + t*(b.Lon-a.Lon)}}
 }
 
 // Cut returns the part of the line from a to b (a before b).
