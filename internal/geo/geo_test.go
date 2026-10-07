@@ -19,11 +19,9 @@ func TestSimplifyKeepsShape(t *testing.T) {
 	for i := 0; i <= 50; i++ {
 		pts = append(pts, Point{-33.8 + float64(i)*0.0001, 151.0 + float64(i%2)*0.000001})
 	}
-	corner := Point{-33.795, 151.01}
-	pts = append(pts, corner)
-	s := Simplify(pts, 5)
-	if len(s) != 3 || s[0] != pts[0] || s[1] != pts[50] || s[2] != corner {
-		t.Fatalf("simplified to %d points: %v", len(s), s)
+	pts = append(pts, Point{-33.795, 151.01}) // the corner
+	if s := Simplify(pts, 5); len(s) != 3 || s[0] != 0 || s[1] != 50 || s[2] != 51 {
+		t.Fatalf("simplified to %v", s)
 	}
 }
 
@@ -82,5 +80,25 @@ func TestPlaceLegOnALoop(t *testing.T) {
 	// Getting off back at the start corner is the loop's end.
 	if _, b, ok := PlaceLeg(loop, at(2000, 1000), at(-3, 3)); !ok || b.Seg != 3 {
 		t.Fatalf("back to the start: %+v (ok %v)", b, ok)
+	}
+}
+
+func TestAtDist(t *testing.T) {
+	m := 1.0 / 111320
+	k := math.Cos(-33.8 * math.Pi / 180)
+	at := func(x, y float64) Point { return Point{Lat: -33.8 + y*m, Lon: 151 + x*m/k} }
+	// Out along a street and back the same way: distances tell the two ways apart where positions can't.
+	street := []Point{at(0, 0), at(1000, 0), at(1000, 0), at(0, 0)}
+	dist := []float32{100, 1100, 1100, 2100}
+	for _, c := range []struct {
+		x   float32
+		seg int
+		pt  Point
+	}{
+		{0, 0, at(0, 0)}, {600, 0, at(500, 0)}, {1100, 2, at(1000, 0)}, {1700, 2, at(400, 0)}, {2100, 2, at(0, 0)}, {5000, 2, at(0, 0)},
+	} {
+		if got := AtDist(street, dist, c.x); got.Seg != c.seg || DistanceM(got.Pt, c.pt) > 0.5 {
+			t.Errorf("at %v: %+v, want segment %d at %v", c.x, got, c.seg, c.pt)
+		}
 	}
 }

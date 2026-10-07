@@ -466,3 +466,10 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   line rather than being reported. Names ending in anything else (V8) are event shuttles, like 8 and 5B. The cost: a
   new code shaped like a letter other than T, M or L and a digit wouldn't be reported. The L names aren't in the
   timetable yet, so, like the metro's 10M, they're unchecked against real data.
+- 2026-10-08: Ride shapes are cut, and the stops passed placed, at each call's `shape_dist_traveled` (how far along the
+  shape the feed says the stop is) when the feed gives it for the shape and the ride's calls; it supersedes cutting where
+  each stop sits beside the line (2026-10-04), which stays only for the trains feed, whose distances are empty. Placing by
+  position went wrong wherever a bus runs both ways along a street (loops, out-and-back runs, turning loops): both passes
+  are a few metres from the kerb, and the map drew 613 of 2,483 Sydney bus shapes on some leg out to the loop and back,
+  up to the whole route (the 680 drew 45 km for a 123 m ride). The feed's stop distances land within 12 m of the stop
+  (95th percentile) and in the same unit as the shapes.

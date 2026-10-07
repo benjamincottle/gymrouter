@@ -4,18 +4,17 @@ import (
 	"archive/zip"
 	"encoding/csv"
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/benjamincottle/gymrouter/internal/geo"
 )
 
 // WriteZip writes a minimal GTFS feed containing the trips of the given days (DayOffset 0 only),
 // with services expressed as calendar_dates, plus the given shapes. Trip, stop and route IDs are
 // preserved so realtime updates still match. It's used to build small test fixtures from real data.
-func WriteZip(path string, shapes map[string][]geo.Point, days ...*Day) error {
+func WriteZip(path string, shapes map[string]Shape, days ...*Day) error {
 	type tripRec struct {
 		t       Trip
 		route   Route
@@ -96,7 +95,7 @@ func WriteZip(path string, shapes map[string][]geo.Point, days ...*Day) error {
 		services[svc] = ds
 		tripRows = append(tripRows, []string{rec.route.ID, svc, id, rec.t.Headsign, rec.t.Shape})
 		for i, st := range rec.t.StopTimes {
-			timeRows = append(timeRows, []string{id, hms(st.Arr), hms(st.Dep), rec.stopIDs[i], strconv.Itoa(int(st.Seq))})
+			timeRows = append(timeRows, []string{id, hms(st.Arr), hms(st.Dep), rec.stopIDs[i], strconv.Itoa(int(st.Seq)), dtoa(st.Dist)})
 		}
 	}
 	var routeRows, calRows [][]string
@@ -119,9 +118,9 @@ func WriteZip(path string, shapes map[string][]geo.Point, days ...*Day) error {
 		{"stops.txt", []string{"stop_id", "stop_name", "stop_lat", "stop_lon", "location_type", "parent_station"}, stopRows},
 		{"routes.txt", []string{"route_id", "agency_id", "route_short_name", "route_long_name", "route_desc", "route_type", "route_color", "route_text_color"}, routeRows},
 		{"trips.txt", []string{"route_id", "service_id", "trip_id", "trip_headsign", "shape_id"}, tripRows},
-		{"stop_times.txt", []string{"trip_id", "arrival_time", "departure_time", "stop_id", "stop_sequence"}, timeRows},
+		{"stop_times.txt", []string{"trip_id", "arrival_time", "departure_time", "stop_id", "stop_sequence", "shape_dist_traveled"}, timeRows},
 		{"calendar_dates.txt", []string{"service_id", "date", "exception_type"}, calRows},
-		{"shapes.txt", []string{"shape_id", "shape_pt_lat", "shape_pt_lon", "shape_pt_sequence"}, shapeRows(shapes)},
+		{"shapes.txt", []string{"shape_id", "shape_pt_lat", "shape_pt_lon", "shape_pt_sequence", "shape_dist_traveled"}, shapeRows(shapes)},
 		{"pathways.txt", []string{"pathway_id", "from_stop_id", "to_stop_id", "pathway_mode", "is_bidirectional", "traversal_time"}, pathwayRows(days, stops)},
 	} {
 		if err := write(w.name, w.header, w.rows); err != nil {
@@ -138,6 +137,14 @@ func WriteZip(path string, shapes map[string][]geo.Point, days ...*Day) error {
 }
 
 func ftoa(v float64) string { return strconv.FormatFloat(v, 'f', 7, 64) }
+
+// dtoa writes a shape_dist_traveled value, empty when there is none.
+func dtoa(v float32) string {
+	if math.IsNaN(float64(v)) {
+		return ""
+	}
+	return strconv.FormatFloat(float64(v), 'f', 2, 32)
+}
 
 func hms(t int32) string {
 	return fmt.Sprintf("%02d:%02d:%02d", t/3600, t/60%60, t%60)
@@ -187,7 +194,7 @@ func pathwayRows(days []*Day, stops map[string]Stop) [][]string {
 	return rows
 }
 
-func shapeRows(shapes map[string][]geo.Point) [][]string {
+func shapeRows(shapes map[string]Shape) [][]string {
 	ids := make([]string, 0, len(shapes))
 	for id := range shapes {
 		ids = append(ids, id)
@@ -195,8 +202,13 @@ func shapeRows(shapes map[string][]geo.Point) [][]string {
 	sort.Strings(ids)
 	var rows [][]string
 	for _, id := range ids {
-		for i, p := range shapes[id] {
-			rows = append(rows, []string{id, ftoa(p.Lat), ftoa(p.Lon), strconv.Itoa(i + 1)})
+		sh := shapes[id]
+		for i, p := range sh.Pts {
+			d := ""
+			if sh.Dist != nil {
+				d = dtoa(sh.Dist[i])
+			}
+			rows = append(rows, []string{id, ftoa(p.Lat), ftoa(p.Lon), strconv.Itoa(i + 1), d})
 		}
 	}
 	return rows

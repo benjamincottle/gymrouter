@@ -2,6 +2,7 @@ package gtfs
 
 import (
 	"archive/zip"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -134,5 +135,36 @@ func TestLoadServiceOvernightAndSources(t *testing.T) {
 	}
 	if ids := d.TripIndex["late-mon"]; len(ids) != 1 || d.Trips[ids[0]].ID != "late-mon" {
 		t.Errorf("TripIndex wrong: %v", ids)
+	}
+}
+
+func TestShapeDistances(t *testing.T) {
+	p := writeFeed(t, map[string]string{
+		"stops.txt":    "stop_id,stop_name,stop_lat,stop_lon\nS1,One,-33.8,151.0\nS2,Two,-33.81,151.0\n",
+		"routes.txt":   "route_id,route_type\nR,700\n",
+		"calendar.txt": "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\nWK,1,1,1,1,1,1,1,20260101,20261231\n",
+		"trips.txt":    "route_id,service_id,trip_id,shape_id\nR,WK,t,A\n",
+		"stop_times.txt": "trip_id,arrival_time,departure_time,stop_id,stop_sequence,shape_dist_traveled\n" +
+			"t,08:00:00,08:00:00,S1,1,0.00\nt,08:10:00,08:10:00,S2,2,\n",
+		// A has a distance at every point (out of order on purpose); B is missing one.
+		"shapes.txt": "shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence,shape_dist_traveled\n" +
+			"A,-33.81,151.0,2,1112.5\nA,-33.8,151.0,1,0\nB,-33.8,151.0,1,0\nB,-33.81,151.0,2,\n",
+	})
+	d, err := LoadDay(p, time.Date(2026, 10, 6, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := d.Trips[0].StopTimes; st[0].Dist != 0 || !math.IsNaN(float64(st[1].Dist)) {
+		t.Errorf("stop distances %v, %v", st[0].Dist, st[1].Dist)
+	}
+	sh, err := LoadShapes(p, map[string]bool{"A": true, "B": true}, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a := sh["A"]; len(a.Pts) != 2 || len(a.Dist) != 2 || a.Dist[1] != 1112.5 || a.Pts[0].Lat != -33.8 {
+		t.Errorf("shape A: %+v", a)
+	}
+	if b := sh["B"]; len(b.Pts) != 2 || b.Dist != nil {
+		t.Errorf("shape B: %+v", b)
 	}
 }

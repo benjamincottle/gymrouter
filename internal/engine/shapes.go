@@ -34,7 +34,7 @@ func (e *Engine) LoadShapes() {
 			wantOther[t.Shape] = true
 		}
 	}
-	all := map[string][]geo.Point{}
+	all := map[string]gtfs.Shape{}
 	for path, want := range map[string]map[string]bool{e.paths.Complete: wantOther, e.paths.Trains: wantTrains} {
 		if len(want) == 0 {
 			continue
@@ -73,12 +73,23 @@ func (e *Engine) LegGeometry(s *Snapshot, tripID, fromStop, toStop string) (path
 	}
 	from, to := d.Stops[trip.StopTimes[fi].Stop].Pos, d.Stops[trip.StopTimes[ti].Stop].Pos
 	if shapes := e.shapes.Load(); shapes != nil {
-		if pts, ok := (*shapes)[trip.Shape]; ok && len(pts) > 1 {
-			// Cut the shape where each stop sits beside it, not at the nearest corner: shapes are simplified, so the
-			// nearest corner can be past the stop and the line would run on and double back. PlaceLeg also copes with
-			// a shape that passes the boarding stop twice (Hornsby, on a train out round the North Shore and back).
-			if a, b, ok := geo.PlaceLeg(pts, from, to); ok {
-				path = geo.Cut(pts, a, b)
+		if sh, ok := (*shapes)[trip.Shape]; ok && len(sh.Pts) > 1 {
+			calls := trip.StopTimes[fi : ti+1]
+			if sh.Dist != nil && distsKnown(calls) {
+				// The feed says how far along the shape each call is: cut there, and put the stops passed there too.
+				// Placing stops by where they sit beside the line goes wrong where a bus runs both ways along a street.
+				a, b := geo.AtDist(sh.Pts, sh.Dist, calls[0].Dist), geo.AtDist(sh.Pts, sh.Dist, calls[len(calls)-1].Dist)
+				for _, st := range calls[1 : len(calls)-1] {
+					stops = append(stops, geo.AtDist(sh.Pts, sh.Dist, st.Dist).Pt)
+				}
+				return geo.Cut(sh.Pts, a, b), stops, true
+			}
+			// No distances (the trains feed): cut the shape where each stop sits beside it, not at the nearest corner:
+			// shapes are simplified, so the nearest corner can be past the stop and the line would run on and double
+			// back. PlaceLeg also copes with a shape that passes the boarding stop twice (Hornsby, on a train out round
+			// the North Shore and back).
+			if a, b, ok := geo.PlaceLeg(sh.Pts, from, to); ok {
+				path = geo.Cut(sh.Pts, a, b)
 				// Stop positions are at the kerb; put each one on the line, in order, so the map draws it on the line.
 				at := geo.Along{}
 				for _, st := range trip.StopTimes[fi+1 : ti] {
@@ -97,6 +108,17 @@ func (e *Engine) LegGeometry(s *Snapshot, tripID, fromStop, toStop string) (path
 		path = append(path, d.Stops[st.Stop].Pos)
 	}
 	return path, stops, true
+}
+
+// distsKnown reports whether every call says how far along the shape it is, never going back, and the ride goes
+// somewhere.
+func distsKnown(calls []gtfs.StopTime) bool {
+	for i, st := range calls {
+		if !(st.Dist >= 0 && (i == 0 || st.Dist >= calls[i-1].Dist)) { // NaN (not given) fails too
+			return false
+		}
+	}
+	return calls[len(calls)-1].Dist > calls[0].Dist
 }
 
 // callRange finds where a ride boards and gets off: the call indexes of fromStop and of the first toStop after it,

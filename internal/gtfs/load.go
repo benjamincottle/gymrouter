@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -37,6 +38,7 @@ type StopTime struct {
 	Stop     int32
 	Seq      int32 // GTFS stop_sequence
 	Arr, Dep int32
+	Dist     float32 // shape_dist_traveled: how far along the trip's shape the stop is; NaN when not given
 }
 
 // Trip is a trip running on the loaded day, with its calls in order.
@@ -242,7 +244,8 @@ func (d *Day) load(src Source) error {
 			dep = arr
 		}
 		for _, ti := range ts {
-			d.Trips[ti].StopTimes = append(d.Trips[ti].StopTimes, StopTime{Stop: si, Seq: int32(seq), Arr: arr, Dep: dep})
+			d.Trips[ti].StopTimes = append(d.Trips[ti].StopTimes, StopTime{Stop: si, Seq: int32(seq), Arr: arr, Dep: dep,
+				Dist: parseDist(r.get("shape_dist_traveled"))})
 		}
 		return nil
 	})
@@ -273,6 +276,15 @@ func (d *Day) load(src Source) error {
 	}
 	d.Trips = kept
 	return nil
+}
+
+// parseDist reads a shape_dist_traveled value, NaN when it's empty or not a number.
+func parseDist(s string) float32 {
+	v, err := strconv.ParseFloat(s, 32)
+	if err != nil {
+		return float32(math.NaN())
+	}
+	return float32(v)
 }
 
 // fillMissingTimes carries the previous time forward for calls without times (non-timepoints).
