@@ -66,8 +66,9 @@ func Of(routeType int, shortName string) Key {
 func (k Key) String() string { return string(k.Mode) + " " + k.Name }
 
 // trackworkName matches the names of trackwork buses: a number, maybe a letter, then the code of the
-// line they stand in for ("23T4", "3AT4", "12CN"). Event shuttles are numbers alone ("8", "5B").
-var trackworkName = regexp.MustCompile(`^\d+[A-Z]?([A-Z][A-Z0-9])$`)
+// line they stand in for ("23T4", "3AT4", "12CN", "1L1"). A line code is T, M or L and a digit, or two letters. Event
+// shuttles are numbers alone ("8", "5B") or end in something else (the Bathurst 1000's "771V8").
+var trackworkName = regexp.MustCompile(`^\d+[A-Z]?([A-Z]{2}|[TML]\d)$`)
 
 // metroName matches metro replacement buses, which have been named with a bare M ("10M", "11M"); an M with the
 // line's number ("10M1") is allowed for when there's more than one metro line.
@@ -83,6 +84,7 @@ func init() {
 	for i := 1; i <= 9; i++ {
 		trackworkCodes[fmt.Sprintf("T%d", i)] = Key{Train, fmt.Sprintf("T%d", i)}
 		trackworkCodes[fmt.Sprintf("M%d", i)] = Key{Metro, fmt.Sprintf("M%d", i)}
+		trackworkCodes[fmt.Sprintf("L%d", i)] = Key{LightRail, fmt.Sprintf("L%d", i)}
 	}
 }
 

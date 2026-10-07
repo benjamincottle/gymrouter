@@ -34,8 +34,8 @@ func TestUnknownTrackwork(t *testing.T) {
 		Stops: []gtfs.Stop{{ID: "A"}, {ID: "A1", Parent: "A"}, {ID: "A-stand", Parent: "A"}, {ID: "B-stand", Parent: "B"}},
 		Routes: []gtfs.Route{
 			{ShortName: "T4", Type: 2},
-			{ShortName: "12X9", Type: 714}, // an unknown code, at our station
-			{ShortName: "13X9", Type: 714}, // an unknown code, elsewhere
+			{ShortName: "12XY", Type: 714}, // an unknown code, at our station
+			{ShortName: "13XY", Type: 714}, // an unknown code, elsewhere
 			{ShortName: "5B", Type: 714},   // an event shuttle
 			{ShortName: "23T4", Type: 714}, // known
 			{ShortName: "10M", Type: 700},  // named like a metro replacement bus, typed as an ordinary bus
@@ -50,7 +50,7 @@ func TestUnknownTrackwork(t *testing.T) {
 		},
 	}
 	got := UnknownTrackwork(d, lines.MustSet("train T4"))
-	if len(got) != 2 || got[0].String() != "bus 10M" || got[1].String() != "replacement-bus 12X9" {
-		t.Errorf("UnknownTrackwork = %v, want [bus 10M replacement-bus 12X9]", got)
+	if len(got) != 2 || got[0].String() != "bus 10M" || got[1].String() != "replacement-bus 12XY" {
+		t.Errorf("UnknownTrackwork = %v, want [bus 10M replacement-bus 12XY]", got)
 	}
 }

@@ -49,13 +49,14 @@ func TestReplacementBuses(t *testing.T) {
 	for name, want := range map[string]string{
 		"23T4": "train T4", "3AT4": "train T4", "10T9": "train T9", "12CN": "train CCN", "33BM": "train BMT",
 		"27SC": "train SCO", "10HU": "train HUN", "7BM": "train BMT", "10M": "metro M1", "12M": "metro M1", "10M1": "metro M1",
+		"1L1": "light-rail L1", "2L4": "light-rail L4",
 	} {
 		got, ok := Key{ReplacementBus, name}.Replaces()
 		if !ok || got.String() != want {
 			t.Errorf("%s replaces %v %v, want %s", name, got, ok, want)
 		}
 	}
-	for _, name := range []string{"8", "5B", "1A", "699", "771V8"} { // event shuttles, and an unknown code
+	for _, name := range []string{"8", "5B", "1A", "699", "771V8", "12XY"} { // event shuttles, and an unknown code
 		if l, ok := (Key{ReplacementBus, name}).Replaces(); ok {
 			t.Errorf("%s replaces %v, want nothing", name, l)
 		}
@@ -63,7 +64,8 @@ func TestReplacementBuses(t *testing.T) {
 	if _, ok := (Key{Bus, "23T4"}).Replaces(); ok {
 		t.Error("only replacement buses replace lines")
 	}
-	if !(Key{ReplacementBus, "771V8"}).UnknownTrackwork() || (Key{ReplacementBus, "5B"}).UnknownTrackwork() ||
+	if !(Key{ReplacementBus, "12XY"}).UnknownTrackwork() || (Key{ReplacementBus, "5B"}).UnknownTrackwork() ||
+		(Key{ReplacementBus, "771V8"}).UnknownTrackwork() || (Key{ReplacementBus, "1L1"}).UnknownTrackwork() ||
 		(Key{ReplacementBus, "23T4"}).UnknownTrackwork() || !(Key{Bus, "10M"}).UnknownTrackwork() ||
 		(Key{Bus, "288"}).UnknownTrackwork() || (Key{Bus, "160X"}).UnknownTrackwork() {
 		t.Error("UnknownTrackwork")

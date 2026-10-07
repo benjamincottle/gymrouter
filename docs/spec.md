@@ -458,3 +458,11 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   place uses every stop within the longest walk on foot or within 500 m (on foot) of its nearest stop, whichever reaches
   further. The setting is called "Longest walk to a stop", so on foot is what it always claimed to be. The note on the
   trip screen still shows only when even the nearest stop is beyond the setting.
+- 2026-10-08: A trackwork bus's line code is T, M or L and a digit, or two letters; light-rail replacement buses (1L1,
+  1L2) come with their light-rail line. Follows on from "trackwork buses come with the train line they replace". The
+  Bathurst 1000 shuttles (771V8, 772V8, 773V8) call at Bathurst Station, a train station, and their names read as an
+  unknown code V8, so the server reported "trackwork buses it can't tie to a line" for an event shuttle. Light-rail
+  replacement buses are named the same way as trackwork buses, with the light-rail line's code, so they now join that
+  line rather than being reported. Names ending in anything else (V8) are event shuttles, like 8 and 5B. The cost: a
+  new code shaped like a letter other than T, M or L and a digit wouldn't be reported. The L names aren't in the
+  timetable yet, so, like the metro's 10M, they're unchecked against real data.
