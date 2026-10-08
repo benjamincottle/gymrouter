@@ -42,7 +42,7 @@ measured walks from the gym door.
   A train line brings the buses that replace its trains during trackwork (`replacement-bus 23T4` for the T4, matched by
   the line code at the end of the bus's name; `10M` for the metro); they aren't listed in `lines`.
 - A place is `lat`/`lon`, optionally with curated `access` stops and walk times. Without
-  them, it uses every stop on the lines within `max_walk_m` or within 500 m of the nearest stop, whichever reaches
+  them, it uses every stop on the lines within `max_walk_m` or within 500 m of the nearest stop on them, whichever reaches
   further, measured on foot along the streets when known (straight line otherwise), and none past 3 km in a straight line. Past that the plan is a 400 ("no stops on those lines
   within 3 km"). Either end can be home or gym.
 - A place can also carry `walks` (up to 40, `[{"stop": "<stop or station ID>", "walk_s": 540}]`): walks the traveller
@@ -79,8 +79,9 @@ Response:
 within `max_walk_m` (even its nearest is further), the walk to that nearest stop in metres. An end with timed `walks` never reports it.
 `walking` is `streets` when walks to and from stops, and changes between stops, follow real streets and paths (the server's OpenStreetMap-based
 network), or `estimate` (straight line × a detour factor) while that network is still being prepared. Curated `access`
-walks apply either way. The first and last walk legs of an option carry a `path` (`[[lon, lat], …]`) along the streets
-when it is known. `max_walk_m` is measured on foot (see the place rules above).
+walks apply either way. Walk legs carry a `path` (`[[lon, lat], …]`) along the streets when it is known. A walk that
+passes a stop on the way (off at one stop, on foot to another and from there to the place) is drawn through that stop,
+each piece along the streets where known and straight otherwise. `max_walk_m` is measured on foot (see the place rules above).
 
 `stops` on a ride is the number of stops travelled, counting the one you get off at.
 `status` is `scheduled`, `predicted` (live data) or `added` (a realtime-only trip). `risk` is `safe`, `tight`,

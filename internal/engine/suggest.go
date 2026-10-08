@@ -185,7 +185,7 @@ func (e *Engine) suggestAccess(net *raptor.Network, p SuggestPlace, radiusM floa
 		return out, nil
 	}
 	// The same stops the planner would use, so every suggested line is one it can reach.
-	out := e.Approach(net, p.Pos, radiusM, o).Access
+	out := e.Approach(net, p.Pos, radiusM, o, nil).Access
 	if len(out) == 0 {
 		return nil, fmt.Errorf("%w within %.0f km", ErrNoStops, BandCapM/1000.0)
 	}
