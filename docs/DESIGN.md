@@ -185,6 +185,10 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   working, needs a look", `--missed` "Server can't plan" or "Can't reach the server". Each issue follows on its own line
   in plain words. Only what's actionable and usually absent turns it orange (not lines that don't run on a weekend).
   Checked on opening and every 5 minutes while the app is open; checking doesn't count as using the app.
+- **Version** (the footer, last): `Version 87692b5`, the first seven characters of the commit the server was built
+  from (`dev` for an unstamped local build, a trailing `+` for one with uncommitted changes), in `--pencil` like the
+  rest of the footer. Shown once the server has answered; the app is built into the same binary, so it's the app's
+  version too.
 - **Status text** for a service:
   - on time (or under a minute late): `--safe`;
   - 1 min late: `--tight`;

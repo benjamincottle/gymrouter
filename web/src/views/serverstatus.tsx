@@ -21,6 +21,7 @@ export function ServerStatusLine({ token }: { token: string }) {
       {s.issues.map((i) => (
         <p>{i}</p>
       ))}
+      {status.data?.version && <p>Version {status.data.version}</p>}
     </div>
   )
 }

@@ -178,4 +178,5 @@ export interface SuggestResponse {
 export interface ServerStatus {
   state: 'ok' | 'warning' | 'error'
   issues?: string[]
+  version: string // the commit the server (and this app, built into it) came from
 }
