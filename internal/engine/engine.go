@@ -25,6 +25,7 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/realtime"
 	"github.com/benjamincottle/gymrouter/internal/tfnsw"
 	"github.com/benjamincottle/gymrouter/internal/timetable"
+	"github.com/benjamincottle/gymrouter/internal/version"
 	"github.com/benjamincottle/gymrouter/internal/walk"
 )
 
@@ -851,6 +852,7 @@ type Health struct {
 	// "error" when it can't plan (no timetable, or one too old).
 	State         string       `json:"state"`
 	Issues        []string     `json:"issues,omitempty"`
+	Version       string       `json:"version"` // the commit the server was built from (see internal/version)
 	ServiceDate   string       `json:"service_date"`
 	StaticAgeS    int64        `json:"static_age_s"`
 	StaticError   string       `json:"static_error,omitempty"`
@@ -875,7 +877,7 @@ type FeedHealth struct {
 // Health reports the engine's state.
 func (e *Engine) Health() Health {
 	now := e.now()
-	h := Health{PollingActive: e.active(), Data: e.dataStatus()}
+	h := Health{PollingActive: e.active(), Data: e.dataStatus(), Version: version.Short()}
 	s := e.today.Load()
 	if s != nil {
 		h.ServiceDate = s.Date.Format("2006-01-02")

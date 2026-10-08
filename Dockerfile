@@ -13,13 +13,16 @@ RUN npm run build
 # --- Server: cross-compiled from the build platform (fast on any runner) ---
 FROM --platform=$BUILDPLATFORM golang:1.27-trixie AS build
 ARG TARGETOS TARGETARCH
+# The commit being built (CI passes github.sha); the footer shows it. The context has no .git to read it from.
+ARG REVISION=""
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download && go mod verify
 COPY . .
 COPY --from=web /src/internal/webui/dist ./internal/webui/dist
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -ldflags="-s -w" -o /out/gymrouter ./cmd/gymrouter \
+    go build -trimpath -ldflags="-s -w -X github.com/benjamincottle/gymrouter/internal/version.Revision=${REVISION}" \
+       -o /out/gymrouter ./cmd/gymrouter \
  && mkdir -p /out/data
 
 # --- The pmtiles tool: the server runs it to cut the Sydney basemap out of the Protomaps build ---

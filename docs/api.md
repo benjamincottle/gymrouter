@@ -149,6 +149,8 @@ it can't plan (no timetable, or one more than three days old). `issues` (left ou
 `no-timetable`, `old-timetable`, `timetable-refresh` (the last download failed), `live-data` (a realtime feed is failing
 while the app is in use), `trackwork` (see `unknown_trackwork`), `street-map`, `basemap` (their download failed).
 Lines missing today aren't an issue: weekday-only buses are missing every weekend. The app shows this in its footer.
+`version` is the commit the server was built from, shortened to seven characters (`dev` when the build didn't record
+it, a trailing `+` when built from uncommitted changes); the footer shows it too.
 Asking for the status doesn't count as using the app (it doesn't start realtime polling).
 
 Detailed health: feed ages and errors, upstream requests today, realtime match stats, configured lines missing today
