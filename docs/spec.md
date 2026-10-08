@@ -62,7 +62,8 @@ Non-goals (v1)
   distance × walking factor; **personal overrides win**.
 - Access/egress: device-supplied home access stops + walk times; gym access stops from config.
 - **The longest walk is a preference, not a wall, and it's measured on foot.** A place with no ticked stops uses every
-  stop on the trip's lines within the longest walk (Settings, default 1000 m) **or within 500 m of the nearest stop**,
+  stop on the trip's lines within the longest walk (Settings, default 1000 m) **or within 500 m of the nearest stop on
+  them**,
   whichever reaches further. Walks are measured along the streets when the street network is there (straight line
   otherwise), so a stop that's close in a straight line but a long way round on foot (across a railway, a river or a
   gully) doesn't crowd out one that's nearer to walk to. Nothing past 3 km in a straight line counts; beyond that the
@@ -473,3 +474,12 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   are a few metres from the kerb, and the map drew 613 of 2,483 Sydney bus shapes on some leg out to the loop and back,
   up to the whole route (the 680 drew 45 km for a 123 m ride). The feed's stop distances land within 12 m of the stop
   (95th percentile) and in the same unit as the shapes.
+- 2026-10-08: A place's band starts at the nearest stop on the trip's lines, as §5 always said; the server had been taking
+  the nearest stop on any line it had loaded, which includes lines only someone else's home uses. At Lane Cove the Mars Rd
+  stops (258, 285: 423 m on foot) set the band to 1300 m, so the 291's stop on Epping Rd (1430 m round by the streets,
+  290 m in a straight line) was left out; the trip still got off there and walked on to another stop. Whether a stop
+  counted depended on what other people's lines happened to be loaded. A walk joined from a change and the final walk
+  (off at one stop, on foot to another, then to the place) is now drawn through the stop between them, each piece along
+  the streets; it was drawn as one straight line, because the street search from the place doesn't reach the stop you
+  get off at. Raising the default longest walk to 1500 m was rejected as the fix: it would have caught this stop by
+  70 m and widened every search for everyone (see 2026-10-05).

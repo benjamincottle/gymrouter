@@ -222,3 +222,17 @@ func TestArriveBy(t *testing.T) {
 		t.Error("nothing arrives by 1000")
 	}
 }
+
+func TestMergedWalksKeepTheStopBetween(t *testing.T) {
+	got := mergeWalks([]raptor.Leg{
+		{Kind: raptor.Ride, From: 0, To: 1, Dep: 0, Arr: 100},
+		{Kind: raptor.Walk, From: 1, To: 2, Dep: 100, Arr: 160},
+		{Kind: raptor.Walk, From: 2, To: -1, Dep: 160, Arr: 400},
+	})
+	if len(got) != 2 {
+		t.Fatalf("legs: %+v", got)
+	}
+	if w := got[1]; w.From != 1 || w.To != -1 || w.Arr != 400 || len(w.Via) != 1 || w.Via[0] != 2 {
+		t.Errorf("joined walk: %+v", w)
+	}
+}

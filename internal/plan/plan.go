@@ -435,11 +435,13 @@ func build(n *raptor.Network, j raptor.Journey, req Request, transfer func(a, b 
 	return o
 }
 
-// mergeWalks joins consecutive walking legs (a transfer footpath followed by the final walk).
+// mergeWalks joins consecutive walking legs (a transfer footpath followed by the final walk), keeping the stops
+// between them as the walk's Via.
 func mergeWalks(legs []raptor.Leg) []raptor.Leg {
 	out := make([]raptor.Leg, 0, len(legs))
 	for _, l := range legs {
 		if n := len(out); n > 0 && l.Kind == raptor.Walk && out[n-1].Kind == raptor.Walk {
+			out[n-1].Via = append(append(out[n-1].Via, out[n-1].To), l.Via...)
 			out[n-1].To, out[n-1].Arr = l.To, out[n-1].Arr+(l.Arr-l.Dep)
 			continue
 		}

@@ -1,10 +1,12 @@
 package engine_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -346,12 +348,12 @@ func TestApproachFollowsStreetsWhenTheyAreKnown(t *testing.T) {
 	epping := geo.Point{Lat: -33.7727, Lon: 151.0821}
 	o := e.RoutingOptions()
 
-	est := e.Approach(snap.Net, epping, 400, o)
+	est := e.Approach(snap.Net, epping, 400, o, nil)
 	if est.Streets || len(est.Access) == 0 {
 		t.Fatalf("without a street network: streets=%v stops=%d", est.Streets, len(est.Access))
 	}
 	e.SetWalker(walktest.Grid(t, epping))
-	st := e.Approach(snap.Net, epping, 400, o)
+	st := e.Approach(snap.Net, epping, 400, o, nil)
 	if !st.Streets || len(st.Access) == 0 {
 		t.Fatalf("with streets: streets=%v stops=%d", st.Streets, len(st.Access))
 	}
@@ -375,7 +377,7 @@ func TestApproachFollowsStreetsWhenTheyAreKnown(t *testing.T) {
 		t.Error("street times should differ from the straight-line estimate")
 	}
 	// A place off the map falls back to the estimate rather than failing.
-	far := e.Approach(snap.Net, geo.Point{Lat: -33.80, Lon: 151.20}, 400, o)
+	far := e.Approach(snap.Net, geo.Point{Lat: -33.80, Lon: 151.20}, 400, o, nil)
 	if far.Streets {
 		t.Error("a place outside the street network must fall back to estimates")
 	}
@@ -403,7 +405,7 @@ func TestApproachFallsBackToTheBand(t *testing.T) {
 	}
 	short := nearest - 100 // nothing within the longest walk
 
-	ap := e.Approach(snap.Net, home, short, o)
+	ap := e.Approach(snap.Net, home, short, o, nil)
 	if math.Abs(ap.StretchedM-nearest) > 1 || len(ap.Access) == 0 {
 		t.Fatalf("straight-line band: stretched %.0f m (nearest %.0f), %d stops", ap.StretchedM, nearest, len(ap.Access))
 	}
@@ -416,14 +418,14 @@ func TestApproachFallsBackToTheBand(t *testing.T) {
 			t.Errorf("stop %d at %.0f m: in the band %v, want %v", s, d, in[s], want)
 		}
 	}
-	if within := e.Approach(snap.Net, home, nearest+50, o); within.StretchedM != 0 || len(within.Access) == 0 {
+	if within := e.Approach(snap.Net, home, nearest+50, o, nil); within.StretchedM != 0 || len(within.Access) == 0 {
 		t.Errorf("a stop within the longest walk: stretched %.0f, %d stops", within.StretchedM, len(within.Access))
 	}
 
 	// Along the streets: the band is measured on foot, and every walk in it is within 500 m of the shortest.
 	e.SetWalker(walktest.Grid(t, home))
 	snap, _ = e.SnapshotFor(env.Clock.Now())
-	st := e.Approach(snap.Net, home, short, o)
+	st := e.Approach(snap.Net, home, short, o, nil)
 	if !st.Streets || st.StretchedM < nearest || len(st.Access) == 0 {
 		t.Fatalf("street band: streets %v, stretched %.0f m (crow %.0f), %d stops", st.Streets, st.StretchedM, nearest, len(st.Access))
 	}
@@ -440,8 +442,53 @@ func TestApproachFallsBackToTheBand(t *testing.T) {
 	}
 
 	// Past 3 km there are no stops.
-	if far := e.Approach(snap.Net, geo.Point{Lat: -34.2, Lon: 150.5}, 1000, o); len(far.Access) != 0 {
+	if far := e.Approach(snap.Net, geo.Point{Lat: -34.2, Lon: 150.5}, 1000, o, nil); len(far.Access) != 0 {
 		t.Errorf("a place far from the lines got %d stops", len(far.Access))
+	}
+}
+
+// Lines the trip doesn't use don't count: their stops are left out, and the band starts at the nearest stop on the
+// trip's lines, not at a nearer one that only serves someone else's.
+func TestApproachOnlyCountsTheTripsLines(t *testing.T) {
+	env := enginetest.New(t, "", nil)
+	e := env.Engine
+	snap, _ := e.SnapshotFor(env.Clock.Now())
+	o := e.RoutingOptions()
+	home := geo.Point{Lat: -33.7727 + 0.009, Lon: 151.0821} // 1 km north of Epping
+	all := e.Approach(snap.Net, home, 100, o, nil)
+	if len(all.Access) == 0 {
+		t.Fatal("the fixture has no stops near the place")
+	}
+	near := slices.MinFunc(all.Access, func(a, b raptor.Access) int { return cmp.Compare(a.Secs, b.Secs) })
+	nearRoutes := snap.Net.RoutesAt(near.Stop)
+	// The routes at the nearest stop that shares none with the nearest.
+	var routes []int32
+	for _, a := range all.Access {
+		if rs := snap.Net.RoutesAt(a.Stop); !slices.ContainsFunc(rs, func(r int32) bool { return slices.Contains(nearRoutes, r) }) {
+			routes = rs
+			break
+		}
+	}
+	if routes == nil {
+		t.Fatal("the fixture needs a stop near the place on other routes than the nearest one")
+	}
+	allow := func(r int32) bool { return slices.Contains(routes, r) }
+	nearest := math.Inf(1)
+	for _, a := range snap.Net.StopsNear(home, engine.BandCapM, o) {
+		if snap.Net.Serves(a.Stop, allow) {
+			nearest = min(nearest, geo.DistanceM(home, snap.Day.Stops[a.Stop].Pos))
+		}
+	}
+
+	ap := e.Approach(snap.Net, home, 100, o, allow)
+	if len(ap.Access) == 0 || math.Abs(ap.StretchedM-nearest) > 1 || ap.StretchedM <= all.StretchedM {
+		t.Errorf("band starts at %.0f m, want the nearest stop on the lines at %.0f m (any line: %.0f m); %d stops",
+			ap.StretchedM, nearest, all.StretchedM, len(ap.Access))
+	}
+	for _, a := range ap.Access {
+		if !snap.Net.Serves(a.Stop, allow) {
+			t.Errorf("stop %d isn't on the trip's lines", a.Stop)
+		}
 	}
 }
 

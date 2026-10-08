@@ -1,10 +1,13 @@
 package api
 
 import (
+	"slices"
 	"testing"
 
+	"github.com/benjamincottle/gymrouter/internal/engine"
 	"github.com/benjamincottle/gymrouter/internal/geo"
 	"github.com/benjamincottle/gymrouter/internal/gtfs"
+	"github.com/benjamincottle/gymrouter/internal/raptor"
 )
 
 func TestChangePathRules(t *testing.T) {
@@ -38,5 +41,26 @@ func TestChangePathRules(t *testing.T) {
 				t.Errorf("drawn = %v, want %v", ok, tc.want)
 			}
 		})
+	}
+}
+
+// A walk joined from a change and the final walk is drawn through the stop between them, each piece along the
+// streets where there's a route and straight where there isn't.
+func TestWalkLegPathGoesThroughTheStopsItPasses(t *testing.T) {
+	stop := func(east float64) gtfs.Stop { return gtfs.Stop{Pos: geo.Point{Lat: -33.8, Lon: 151.2 + east/92000}} }
+	d := &gtfs.Day{Stops: []gtfs.Stop{stop(0), stop(300)}}
+	gym := engine.Approach{Place: geo.Point{Lat: -33.81, Lon: 151.2}}
+	bend := geo.Point{Lat: -33.799, Lon: 151.2015}
+	walk := func(a, b geo.Point) ([]geo.Point, bool) { return []geo.Point{a, bend, b}, true }
+
+	// Off at stop 0, along the streets to stop 1, then (no street route known) straight on to the gym.
+	pts, ok := walkLegPath(d, raptor.Leg{Kind: raptor.Walk, From: 0, To: -1, Via: []int32{1}}, engine.Approach{}, gym, walk)
+	want := []geo.Point{d.Stops[0].Pos, bend, d.Stops[1].Pos, gym.Place}
+	if !ok || !slices.Equal(pts, want) {
+		t.Errorf("through the stop: %v %v, want %v", pts, ok, want)
+	}
+	// A single walk with no route is left to the map's straight line.
+	if pts, ok := walkLegPath(d, raptor.Leg{Kind: raptor.Walk, From: 1, To: -1}, engine.Approach{}, gym, walk); ok {
+		t.Errorf("no route: got %v", pts)
 	}
 }

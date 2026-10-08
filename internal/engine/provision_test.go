@@ -104,7 +104,7 @@ func TestStreetNetworkFailuresLeaveTheAppWorking(t *testing.T) {
 		t.Fatal(err)
 	}
 	snap, _ := e.SnapshotFor(env.Clock.Now())
-	if ap := e.Approach(snap.Net, geo.Point{Lat: -33.7727, Lon: 151.0821}, 400, e.RoutingOptions()); ap.Streets || len(ap.Access) == 0 {
+	if ap := e.Approach(snap.Net, geo.Point{Lat: -33.7727, Lon: 151.0821}, 400, e.RoutingOptions(), nil); ap.Streets || len(ap.Access) == 0 {
 		t.Errorf("fallback approach: %+v", ap)
 	}
 }

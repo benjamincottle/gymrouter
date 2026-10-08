@@ -320,6 +320,8 @@ type Leg struct {
 	// Ride legs: pattern and call indexes, e.g. to look up the next service.
 	Pattern             int32
 	BoardIdx, AlightIdx int32
+	// Via lists, for a walk made of several walks joined into one, the stops it passes on the way.
+	Via []int32
 }
 
 // Journey is a door-to-door result.
@@ -694,6 +696,16 @@ func (n *Network) RoutesAt(s int32) []int32 {
 		}
 	}
 	return out
+}
+
+// Serves says whether any route that allow accepts calls at stop s.
+func (n *Network) Serves(s int32, allow func(route int32) bool) bool {
+	for _, pr := range n.stopPatterns[s] {
+		if allow(n.Patterns[pr.pat].Route) {
+			return true
+		}
+	}
+	return false
 }
 
 // PatternOf returns the pattern a trip (Day.Trips index) belongs to; its call indexes match the trip's.

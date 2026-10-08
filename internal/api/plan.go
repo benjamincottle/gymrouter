@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"slices"
 	"sort"
 	"time"
 
@@ -235,6 +236,12 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	if req.Prefs.MaxWalkM > 0 {
 		maxWalk = req.Prefs.MaxWalkM
 	}
+	day := snap.Day
+	allowed := make([]bool, len(day.Routes))
+	for i, rt := range day.Routes {
+		allowed[i] = set.Has(rt.Type, rt.ShortName)
+	}
+	allow := func(r int32) bool { return allowed[r] }
 	var ob *plan.Onboard
 	var access, egress []raptor.Access
 	var fromAp, toAp engine.Approach
@@ -243,9 +250,9 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	par.Do(2, func(i int) {
 		switch {
 		case i == 1:
-			egress, toAp, toErr = s.access(snap, req.To, maxWalk, opts)
+			egress, toAp, toErr = s.access(snap, req.To, maxWalk, opts, allow)
 		case !onboard:
-			access, fromAp, fromErr = s.access(snap, req.From, maxWalk, opts)
+			access, fromAp, fromErr = s.access(snap, req.From, maxWalk, opts, allow)
 		default:
 			if ob, fromErr = boarded(snap, req.From.OnTrip, snap.Secs(leave)); fromErr == nil {
 				if access = plan.OnboardAccess(snap.Net, ob, snap.Secs(leave)); len(access) == 0 {
@@ -275,16 +282,11 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	for _, t := range req.Prefs.Transfers {
 		overrides = append(overrides, plan.TransferOverride{From: t.From, To: t.To, Secs: t.Secs})
 	}
-	day := snap.Day
-	allowed := make([]bool, len(day.Routes))
-	for i, rt := range day.Routes {
-		allowed[i] = set.Has(rt.Type, rt.ShortName)
-	}
 	preq := plan.Request{
 		Access: access, Egress: egress, Depart: snap.Secs(leave), Window: window,
 		MinChange: minChange, Overrides: overrides, Thresholds: th,
 		MaxRides: cfg.Routing.MaxRides, AltSlack: cfg.Routing.AlternativesS,
-		Allow:   func(r int32) bool { return allowed[r] },
+		Allow:   allow,
 		Onboard: ob,
 	}
 	var options []plan.Option
@@ -490,10 +492,10 @@ func validatePrefs(p prefsReq) error {
 }
 
 // access resolves a place to stops with walking times: curated stops if given, otherwise nearby stops
-// reached along the streets (or by a straight-line estimate until the street network exists). Timed walks
-// then override those times and add their stops.
-func (s *Server) access(snap *engine.Snapshot, p placeReq, maxWalk float64, o raptor.Options) ([]raptor.Access, engine.Approach, error) {
-	out, ap, err := s.baseAccess(snap, p, maxWalk, o)
+// on the trip's lines (allow) reached along the streets (or by a straight-line estimate until the street network
+// exists). Timed walks then override those times and add their stops.
+func (s *Server) access(snap *engine.Snapshot, p placeReq, maxWalk float64, o raptor.Options, allow func(route int32) bool) ([]raptor.Access, engine.Approach, error) {
+	out, ap, err := s.baseAccess(snap, p, maxWalk, o, allow)
 	if len(p.Walks) == 0 {
 		return out, ap, err
 	}
@@ -541,7 +543,7 @@ func withWalks(d *gtfs.Day, rail []bool, access []raptor.Access, walks []accessR
 	return out
 }
 
-func (s *Server) baseAccess(snap *engine.Snapshot, p placeReq, maxWalk float64, o raptor.Options) ([]raptor.Access, engine.Approach, error) {
+func (s *Server) baseAccess(snap *engine.Snapshot, p placeReq, maxWalk float64, o raptor.Options, allow func(route int32) bool) ([]raptor.Access, engine.Approach, error) {
 	if len(p.Access) > 0 {
 		var out []raptor.Access
 		for _, a := range p.Access {
@@ -560,7 +562,7 @@ func (s *Server) baseAccess(snap *engine.Snapshot, p placeReq, maxWalk float64, 
 		reachM := math.Min(math.Max(float64(far)*o.WalkSpeedMps*1.5, 1500), 6000)
 		return out, s.eng.PathsFrom(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, reachM), nil
 	}
-	ap := s.eng.Approach(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, maxWalk, o)
+	ap := s.eng.Approach(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, maxWalk, o, allow)
 	if len(ap.Access) == 0 {
 		return nil, ap, badf("no stops on those lines within %.0f km", engine.BandCapM/1000.0)
 	}
@@ -600,22 +602,8 @@ func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32, fromAp, toAp
 		lr := legResp{From: stopJSON(d, l.From), To: stopJSON(d, l.To), Dep: snap.Clock(dep), Arr: snap.Clock(l.Arr)}
 		if l.Kind == raptor.Walk {
 			lr.Kind = "walk"
-			switch {
-			case l.From < 0 && l.To >= 0:
-				if pts, ok := fromAp.Path(l.To); ok {
-					lr.Path = coords(pts)
-				}
-			case l.From >= 0 && l.To >= 0:
-				if pts, ok := changePath(d.Stops[l.From], d.Stops[l.To], walkPath); ok {
-					lr.Path = coords(pts)
-				}
-			case l.To < 0 && l.From >= 0:
-				if pts, ok := toAp.Path(l.From); ok {
-					for i, j := 0, len(pts)-1; i < j; i, j = i+1, j-1 { // the path runs from the place to the stop
-						pts[i], pts[j] = pts[j], pts[i]
-					}
-					lr.Path = coords(pts)
-				}
+			if pts, ok := walkLegPath(d, l, fromAp, toAp, walkPath); ok {
+				lr.Path = coords(pts)
 			}
 		} else {
 			lr.Kind = "ride"
@@ -758,6 +746,46 @@ func suggestPlace(p suggestPlaceReq) (engine.SuggestPlace, error) {
 		out.Access = append(out.Access, engine.StopWalk{Stop: a.Stop, WalkS: a.WalkS})
 	}
 	return out, nil
+}
+
+// walkLegPath is the route to draw for a walk leg: from the place, between stops, to the place, piece by piece
+// through any stops it passes (a change walked on to another stop near the gym). Each piece follows the streets
+// where there's a route and is straight where there isn't; with no route for a one-piece walk there's nothing to add
+// to the straight line the map draws anyway.
+func walkLegPath(d *gtfs.Day, l raptor.Leg, fromAp, toAp engine.Approach, walkPath func(a, b geo.Point) ([]geo.Point, bool)) ([]geo.Point, bool) {
+	ends := append(append([]int32{l.From}, l.Via...), l.To)
+	pos := func(s int32, place geo.Point) geo.Point {
+		if s < 0 {
+			return place
+		}
+		return d.Stops[s].Pos
+	}
+	var out []geo.Point
+	routed := false
+	for i := 1; i < len(ends); i++ {
+		a, b := ends[i-1], ends[i]
+		var pts []geo.Point
+		var ok bool
+		switch {
+		case a < 0:
+			pts, ok = fromAp.Path(b)
+		case b < 0:
+			if pts, ok = toAp.Path(a); ok {
+				slices.Reverse(pts) // the path runs from the place to the stop
+			}
+		default:
+			pts, ok = changePath(d.Stops[a], d.Stops[b], walkPath)
+		}
+		if !ok {
+			pts = []geo.Point{pos(a, fromAp.Place), pos(b, toAp.Place)}
+		}
+		routed = routed || ok
+		if len(out) > 0 {
+			pts = pts[1:] // the previous piece ended here
+		}
+		out = append(out, pts...)
+	}
+	return out, routed || len(l.Via) > 0
 }
 
 // Hops shorter than this (platform to platform) aren't worth a route: a straight line is the walk.

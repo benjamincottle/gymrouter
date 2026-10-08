@@ -4,6 +4,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 
 	"github.com/benjamincottle/gymrouter/internal/geo"
@@ -125,13 +126,18 @@ type Approach struct {
 	Streets bool // times come from the street network, not a straight-line guess
 	// StretchedM is the walk to the nearest stop when even that is beyond the longest walk, else 0.
 	StretchedM float64
+	Place      geo.Point // where the walks start
 	reach      *walk.Reach
 	net        *raptor.Network
 }
 
-// Approach finds the stops a place walks to (see nearby) and how long each walk takes.
-func (e *Engine) Approach(net *raptor.Network, p geo.Point, maxWalkM float64, o raptor.Options) Approach {
+// Approach finds the stops a place walks to (see nearby) and how long each walk takes. Only stops that a route allow
+// accepts calls at count (nil: any), so lines the trip doesn't use can't narrow the band.
+func (e *Engine) Approach(net *raptor.Network, p geo.Point, maxWalkM float64, o raptor.Options, allow func(route int32) bool) Approach {
 	cand := net.StopsNear(p, max(maxWalkM, BandCapM), o)
+	if allow != nil {
+		cand = slices.DeleteFunc(cand, func(a raptor.Access) bool { return !net.Serves(a.Stop, allow) })
+	}
 	pos := make([]geo.Point, len(cand))
 	for i, a := range cand {
 		pos[i] = net.Day.Stops[a.Stop].Pos
@@ -141,7 +147,7 @@ func (e *Engine) Approach(net *raptor.Network, p geo.Point, maxWalkM float64, o 
 	for k, i := range nb.idx {
 		out[k] = raptor.Access{Stop: cand[i].Stop, Secs: nb.secs(k, o)}
 	}
-	return Approach{Access: out, Streets: nb.streets, StretchedM: nb.stretched, reach: nb.reach, net: net}
+	return Approach{Access: out, Streets: nb.streets, StretchedM: nb.stretched, Place: p, reach: nb.reach, net: net}
 }
 
 // Path returns the walk between the place and a stop along the streets, if known.
@@ -175,13 +181,13 @@ func (e *Engine) NearbyStops(c *Catalog, p geo.Point, radiusM float64, o raptor.
 func (e *Engine) PathsFrom(net *raptor.Network, p geo.Point, maxM float64) Approach {
 	g := e.Walker()
 	if g == nil {
-		return Approach{net: net}
+		return Approach{Place: p, net: net}
 	}
 	reach, ok := g.From(p, maxM)
 	if !ok {
-		return Approach{net: net}
+		return Approach{Place: p, net: net}
 	}
-	return Approach{Streets: true, reach: reach, net: net}
+	return Approach{Streets: true, Place: p, reach: reach, net: net}
 }
 
 // WalkPath returns the route along the streets between two points (for drawing a walk between stops).
