@@ -40,8 +40,8 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-          # Always the latest patch release, so standard-library fixes are picked up.
-          check-latest: true
+          # go.mod names an exact patch release, so that's the one audited: a standard-library advisory
+          # fails this job until the go directive is bumped, and that push rebuilds the image.
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
