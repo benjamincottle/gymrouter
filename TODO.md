@@ -1,3 +1,24 @@
+# Random thought, leave this please
+
+❯ Could you give a very high level (bullet point steps high level) idea of what needs to change apart from gyms.toml in order to add another gym
+
+  Ran 2 shell commands
+
+For the common case, nothing else needs to change: append a [[gym]] block, rebuild and deploy. Devices are offered the new gym in the gym chooser, and they add it themselves. The rest is only needed in some cases:
+
+- Pick the lines: gymrouter suggest-lines finds the lines worth listing for the gym end, from a few varied starting points.
+- Curated walks (optional): add [[gym.access]] entries only for stops where the street routing is wrong.
+- New brand (only if it isn't 9 Degrees or ClimbFit):
+  - Add the logo to web/public/brands/<brand>.png.
+  - Add the brand to Brands in internal/gyms/gyms.go:58, or validation rejects it.
+- Outside the current area (only if the gym isn't in Sydney):
+  - The walking network only covers BBBike's Sydney extract (walk_source).
+  - The basemap is cut to mapBBox in internal/engine/provision.go:20 (lon 150.55–151.35, lat −34.15 to −33.45).
+  - Both would need widening.
+- Tests (optional): TestBuiltInGymsAreValid in internal/gyms/gyms_test.go checks a list of gym IDs. Adding the new one keeps it from being dropped by accident; validation runs either way.
+- Docs: the spec's places section describes the built-in gyms in general terms, so it only needs a decision-log line if the change is notable.
+
+
 # Security and hardening review (2026-10-05)
 
 For review: the unticked items are still open. The baseline is already good (256-bit token compared as a digest,
