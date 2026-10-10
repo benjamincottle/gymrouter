@@ -174,11 +174,14 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   - **The tape** fills its row on the trip's own scale; there is no time axis shared between rows (the times either
     side say when). Each piece is as wide as its share of the trip's time.
     - A ride is 18px tall in its line's colour with the line's name centred, and is **never narrower than its name**
-      (plus `--s1` either side). The room it needs comes out of the walks, each in proportion to its size, and from the
-      other rides only when the walks have none left.
+      (plus `--s1` either side). The room it needs comes out of the walks, each in proportion to its size, and then out
+      of the rides that are wider than their names, so a long ride is trimmed before a short one is squeezed.
     - Walking is a run of whole round dots (3.2px `--pencil`, about 8px apart, spread evenly from end to end): the walk
-      to the first stop, the walk from the last, and between two rides the walk and the wait as one run. A run is never
-      narrower than 13px, so two rides never touch.
+      to the first stop, the walk from the last, and between two rides the walk and the wait as one run. A run is at
+      least 13px wide while there's room, and two rides never touch.
+    - **The tape never leaves its column.** When a trip has too many rides for every name and 13px runs (four rides on
+      a 360px phone), the runs narrow evenly, down to one dot (6px). Past that the tape is cut at the end of its column
+      rather than run into the arrive time.
     - A ride running 2 min or more late has a 2px `--missed` outline.
   - The board is one tab stop; arrow keys move between options (radio group).
 - **Timeline:** time | rail | description, sharing columns through subgrid.

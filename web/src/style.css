@@ -1068,17 +1068,26 @@ details > summary {
 
 /* the tape fills its row on the trip's own scale. Each piece starts at its share of the trip's time (flex-basis,
    set inline). A ride is never narrower than its name; the room it needs comes out of the walks, which shrink (each
-   in proportion to its size, down to one dot's worth), and from the other rides only when the walks have none left. */
+   in proportion to its size, down to 13px), and then out of the rides that are wider than their names. A trip with
+   too many rides for that gets narrower walks, down to one dot each (--names, --rides and --walks, set inline, say
+   how much room the names need); past that the tape is cut at the end of its row, never run into the arrive time. */
 .strip {
+  container-type: inline-size;
   display: flex;
   align-items: center;
   min-width: 0;
   height: 22px;
+  overflow-x: clip;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  font-stretch: var(--narrow);
 }
 
+/* the rides shrink a millionth as readily as the walks, so only once the walks have stopped. (Not a factor under 1:
+   factors that add up to less than 1 give up only that fraction of the room, and the tape overflows.) */
 .seg.ride {
   flex-grow: 0;
-  flex-shrink: 0.001;
+  flex-shrink: 1;
   box-sizing: content-box;
   min-width: max-content;
   height: 18px;
@@ -1086,9 +1095,6 @@ details > summary {
   overflow: hidden;
   border-radius: var(--r-mark);
   text-align: center;
-  font-size: var(--fs-micro);
-  font-weight: 800;
-  font-stretch: var(--narrow);
   line-height: 18px;
   white-space: nowrap;
 }
@@ -1101,8 +1107,9 @@ details > summary {
 /* walking, and waiting between rides: whole round dots (3.2px, about 8px apart), evenly spaced from end to end */
 .seg.walk {
   flex-grow: 1;
-  flex-shrink: 1000;
-  min-width: 13px;
+  flex-shrink: 1000000;
+  /* 13px, or an even share of what the names leave when that's less, down to one dot */
+  min-width: clamp(6px, (100cqw - var(--names) * 1ch - var(--rides) * (2 * var(--s1) + 1px)) / var(--walks), 13px);
   height: 5px;
   background: radial-gradient(circle at 50% 50%, var(--pencil) 1.6px, transparent 2.1px) 0 0 / 8px 5px;
   background-repeat: round no-repeat;
