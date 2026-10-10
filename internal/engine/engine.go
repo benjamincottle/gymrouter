@@ -122,7 +122,7 @@ type Engine struct {
 	prefetching bool
 
 	today      atomic.Pointer[Snapshot]
-	shapes     atomic.Pointer[map[string]gtfs.Shape]
+	shapes     atomic.Pointer[shapeSet]
 	lastActive atomic.Int64 // unix nanos
 	wake       chan struct{}
 
