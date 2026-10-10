@@ -169,8 +169,8 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Direction toggle** (trip screen, at the end of the When row, above the runners): an outlined button, 44px tall
   with `--s2` padding, holding the rail's own drawings at 20px and 2px: the house, an arrow, the hold when the trip
   goes from home to the gym; the hold, an arrow, the house when it goes home. A tap reverses it. It says which way
-  the gyms' rows and their runners go before a gym is chosen, at no cost in height; with a gym chosen it stays, in
-  step with the route row's reverse button.
+  the gyms' rows and their runners go before a gym is chosen, at no cost in height; with a gym chosen it stays where
+  it is and reverses that trip. It's the only control that does: the route row has no reverse button.
   - The When control gives up the room: its options are padded `--s1` in this row and never wrap. On a screen too
     narrow for both (under about 340px) the toggle wraps onto a line of its own, still at the right.
   - Its label says which way and what a tap does: "From Home to a gym: reverse", "From 9 Degrees Chatswood to Home:
@@ -186,7 +186,7 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
     are none.
   - There's no runner with "Leave at" or "Arrive by": a trip that starts, starts now.
 - **Route row** (trip screen): an ink tape, the gym's logo, the gym's name (18px/800/semi, a button that changes
-  the gym, with a chevron), "from Home" beneath it, and a reverse button (⇅) on the right.
+  the gym, with a chevron), and "from Home" (or "to Home") beneath it. The direction toggle above reverses the trip.
 - **Options board:** one row per option: leave, tape strip, arrive, risk mark, compact duration.
   - The selected row gets a `--panel` fill and an inset 4px ink bar. Its content doesn't move.
   - The rows share their columns: the times and the duration are as wide as their widest entry, the duration is

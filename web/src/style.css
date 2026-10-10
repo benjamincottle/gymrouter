@@ -984,9 +984,8 @@ details > summary {
   color: var(--pencil);
 }
 
-/* the chosen gym leads: tap its name to change it, the arrows reverse the trip */
+/* the chosen gym leads: tap its name to change it */
 .route {
-  grid-template-columns: 8px 32px 1fr auto;
   cursor: default;
   border-top: var(--hair);
 }
@@ -1014,11 +1013,6 @@ details > summary {
 
 .route .from {
   grid-column: 3;
-}
-
-.route .icon-btn {
-  grid-column: 4;
-  grid-row: 1 / span 2;
 }
 
 .status-line {

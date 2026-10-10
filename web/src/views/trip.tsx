@@ -187,7 +187,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
       </div>
 
       {gym ? (
-        // The chosen gym leads: tap its name to choose another; the arrows reverse the trip.
+        // The chosen gym leads: tap its name to choose another (the toggle above reverses the trip).
         <div class="route">
           <BrandLogo brand={brandOf(gym)} />
           <button class="to" aria-label={`${gym.name}: choose a different gym`} onClick={() => chooseGym(null)}>
@@ -197,14 +197,6 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
             </svg>
           </button>
           <span class="from meta">{direction === 'to-gym' ? `from ${home.name}` : `to ${home.name}`}</span>
-          <IconButton
-            label={direction === 'to-gym' ? `Reverse: from ${gym.name} to ${home.name}` : `Reverse: from ${home.name} to ${gym.name}`}
-            onClick={reverse}
-          >
-            <svg class="icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-              <path d="M8 4v15m-4-4 4 4 4-4M16 20V5m-4 4 4-4 4 4" />
-            </svg>
-          </IconButton>
         </div>
       ) : (
         <div class="gyms" role="group" aria-label="Choose a gym">
