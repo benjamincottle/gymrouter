@@ -592,3 +592,10 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   extract is itself rebuilt weekly, so an edit can be up to a week from being there to fetch; showing the extract's own
   date was left out until that turns out to be a guess worth removing. The basemap has no such action: it's a picture,
   and nothing is routed over it.
+- 2026-10-10: Climber Collective is no longer built in (supersedes its entry above): sixteen gyms again. The street
+  network doesn't reach it. The basemap is cut to a wider box (west to 150.55°E) than the street map (BBBike's Sydney
+  extract stops at 150.83°E), so Penrith draws on the map but every walk there is a straight-line estimate; the earlier
+  entry's "the map and street network cover" was true of the map only. Widening the street map (Geofabrik's New South
+  Wales extract, 269 MB, clipped to the basemap's box) wasn't worth it for a gym nobody here climbs at; BBBike's custom
+  extracts are made by hand, one at a time, and can't be fetched on a schedule. A built-in gym has to be inside the
+  street map, not just the basemap.

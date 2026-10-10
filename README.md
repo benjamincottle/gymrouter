@@ -3,7 +3,7 @@
 Public transport routing for a handful of destinations (bouldering gyms), using Transport for NSW
 open data. Instead of searching the whole network like a general planner, it checks every
 option within each gym's own set of lines against live data, using your own walking and transfer
-times. Seventeen Sydney climbing gyms are built in; you add your home and the app finds the lines near it from the
+times. Sixteen Sydney climbing gyms are built in; you add your home and the app finds the lines near it from the
 timetable. Homes and their lines stay on your device. See [docs/spec.md](docs/spec.md).
 
 Status: all milestones built (router, server, web app, live map, in-trip mode, deployment). Field
