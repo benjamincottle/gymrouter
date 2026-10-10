@@ -168,7 +168,8 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
     as a ride does. A walk or change step has a walker (heading right) in the middle instead of a dot. From the house,
     the dots run to just above the rule; into the hold, from just below it. Changes get a `--panel` row with a risk
     badge.
-  - The house or hold marks each end. The "you" marker never covers text.
+  - The house or hold marks each end, centred on its row's line of text (the time, "Leave Home", "Arrive"). The "you"
+    marker never covers text.
 - **Line chip, risk badge, risk mark:** 12px/800 on `--r-mark`. Badge text is `--on-tone`.
 - **Trackwork:** a `caution` callout above the board for each line whose trains the options replace with buses: the
   line's chip, "**Trackwork:** buses replace some trains. Their signs say 20T4 or 23T4." The buses keep their own names
@@ -193,7 +194,7 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   - on time (or under a minute late): `--safe`;
   - 1 min late: `--tight`;
   - 2 min or more late: `--missed`;
-  - timetable only: `--pencil`.
+  - no live data, "timetabled": `--pencil`.
   - The word and the colour always agree.
 - **Inline confirm:** see Destructive actions.
 - **Dialog sheet:** a scrim at 45%, then a sheet on the wall colour with a heavy top rule. It rises from the bottom on

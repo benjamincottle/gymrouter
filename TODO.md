@@ -88,8 +88,8 @@ map, the footer, and last the two that need a decision together (the options boa
 
 ## Quick fixes
 
-- [ ] **"timetabled", not "timetable"**, on a ride with no live data.
-- [ ] **The house and the hold on the rail line up** with the time on their left and "Leave Home" / "Arrive" on their
+- [x] **"timetabled", not "timetable"**, on a ride with no live data.
+- [x] **The house and the hold on the rail line up** with the time on their left and "Leave Home" / "Arrive" on their
       right (both sit a little too high).
 
 ## In a trip

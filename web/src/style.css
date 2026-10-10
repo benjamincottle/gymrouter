@@ -1191,18 +1191,19 @@ details > summary {
 
 /* the home or gym at either end, with the walk dotted away below it (or up to it) */
 .rail.start::before {
-  top: 26px;
+  top: 32px;
   background-position: 0 100%;
 }
 
 .rail.arrive::before {
   bottom: auto;
-  height: 10px;
+  height: 16px;
 }
 
+/* centred on the row's line of text: the time on its left, "Leave Home" or "Arrive" on its right */
 .rail .origin {
   position: absolute;
-  top: 8px;
+  top: 14px;
   left: calc(50% - 11px);
   fill: var(--wall);
   stroke: var(--ink);
@@ -1222,7 +1223,7 @@ details > summary {
 
 .rail.start .you,
 .rail.arrive .you {
-  margin-top: 5px; /* over the house (or the hold), drawn in the marker: you're there */
+  margin-top: 11px; /* over the house (or the hold), drawn in the marker: you're there */
 }
 
 /* you: the same blue dot as on the map */

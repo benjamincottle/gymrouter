@@ -204,7 +204,7 @@ function LegRow({ leg, last, destination, rail, onTime }: {
   const pf = platform(leg.from)
   const late = leg.delay_s ?? 0
   const status =
-    leg.status === 'predicted' ? delay(leg.delay_s) : leg.status === 'added' ? 'extra service' : 'timetable'
+    leg.status === 'predicted' ? delay(leg.delay_s) : leg.status === 'added' ? 'extra service' : 'timetabled'
   const statusClass =
     leg.status === 'predicted' ? (late < 60 ? 'status ok' : late < 120 ? 'status slight' : 'status late') : leg.status === 'added' ? 'status' : 'status sched'
   return (
