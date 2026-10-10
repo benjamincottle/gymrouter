@@ -3,9 +3,11 @@ import { api, AuthError, problem } from '../api.ts'
 import { addDays, dayLabel, distance, fromLocalInput, orList, roundUp, statusTime, toLocalInput } from '../format.ts'
 import { usePolling, useSettled, useVisible, useWide } from '../hooks.ts'
 import { byUse, dismissWalk, placeRef, planPlace, prefs, usedGym, walkDismissed, walkSpeed, type Gym, type Settings } from '../settings.ts'
-import type { DefaultsResponse, PlanRequest } from '../types.ts'
+import { fastest } from '../options.ts'
+import type { DefaultsResponse, Option, PlanRequest } from '../types.ts'
 import { Board, WindowShift, type Shift } from './board.tsx'
 import { BrandLogo } from './brand.tsx'
+import { IconHurry } from './icons.tsx'
 import type { ActiveTrip } from './intrip.tsx'
 import { LineChip } from './option.tsx'
 import { Button, Callout, IconButton, Segmented } from './ui.tsx'
@@ -35,8 +37,11 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   // The most used gyms first, in the order they had when this screen opened (choosing one doesn't reshuffle the list).
   const [order] = useState(() => byUse(settings.gyms).map((g) => g.id))
   const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length)
-  const chooseGym = (id: string | null) => {
+  // The runner on a gym's row chooses the gym and starts its fastest trip as soon as it's planned.
+  const [quick, setQuick] = useState(false)
+  const chooseGym = (id: string | null, startFastest = false) => {
     setGymId(id)
+    setQuick(startFastest)
     if (id) setSettings(usedGym(settings, id))
   }
   const [when, setWhen] = useState<When>('now')
@@ -50,6 +55,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   }
   const [moved, setMoved] = useState<number | null>(null) // "Leave now", moved earlier or later: where the window starts
   useEffect(() => setMoved(null), [when, gymId, direction])
+  useEffect(() => setQuick(false), [when, direction]) // changed while it was planned: not the trip that was asked for
   // The search uses the time once it has settled, so stepping through day, hour and minute doesn't search every step.
   // Before a gym is chosen nothing searches, so the time counts at once: choosing a gym straight after it plans for it.
   const [plannedWhen, plannedAt] = useSettled(`${when} ${at}`, gymId ? SETTLE_MS : 0).split(' ') as [When, string]
@@ -96,6 +102,32 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
     if (plan.error instanceof AuthError) onAuthError()
   }, [plan.error, onAuthError])
 
+  const gym = settings.gyms.find((g) => g.id === gymId)
+  const ends = gym && home && (direction === 'to-gym' ? { start: placeRef('home', home), end: placeRef('gym', gym) } : { start: placeRef('gym', gym), end: placeRef('home', home) })
+  const title = gym && home && (direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`)
+  const start = (o: Option) => {
+    if (!server || !gym || !home || !request || !ends || !title || !plan.data) return // a gym is chosen whenever there are options
+    onStartTrip({
+      option: o,
+      plannedArrive: o.arrive,
+      request,
+      ends,
+      title,
+      origin: direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat],
+      destination: direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat],
+      serviceDate: plan.data.service_date,
+      walkSpeedMps: walkSpeed(settings) ?? server.defaults.walk_speed_mps,
+      tightS: settings.risk?.tight_s ?? server.defaults.risk.tight_s,
+    })
+  }
+  // Asked for the fastest trip: it starts as soon as there's a plan. When nothing can be caught (or the plan fails),
+  // the gym's screen stays up as if the gym had been chosen, with the options or the reason there are none.
+  useEffect(() => {
+    if (!quick || (!plan.data && plan.error === null)) return
+    setQuick(false)
+    const o = plan.data && fastest(plan.data.options, Date.now())
+    if (o) start(o)
+  }, [quick, plan.data, plan.error])
 
   if (!server) return serverError ? null : <GymsSkeleton />
   if (!home || settings.gyms.length === 0) {
@@ -109,10 +141,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
     )
   }
 
-  const gym = settings.gyms.find((g) => g.id === gymId)
-  const ends = gym && (direction === 'to-gym' ? { start: placeRef('home', home), end: placeRef('gym', gym) } : { start: placeRef('gym', gym), end: placeRef('home', home) })
   const places = { start: ends?.start.key, end: ends?.end.key }
-  const title = gym && (direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`)
   const brandOf = (g: Gym) => server.gyms.find((k) => k.id === g.ref)?.brand
   // Ends whose nearest stop is beyond the longest walk (on foot), which the server planned from anyway.
   const sw = plan.data?.stretched_walk
@@ -172,78 +201,83 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
       ) : (
         <div class="gyms" role="group" aria-label="Choose a gym">
           {[...settings.gyms].sort((a, b) => rank(a.id) - rank(b.id)).map((g) => (
-            <button class="gym" onClick={() => chooseGym(g.id)}>
-              <BrandLogo brand={brandOf(g)} />
-              <span class="gym-name">{g.name}</span>
-              {g.address && <span class="gym-address">{g.address}</span>}
-            </button>
+            <div class="gym-row">
+              <button class="gym" onClick={() => chooseGym(g.id)}>
+                <BrandLogo brand={brandOf(g)} />
+                <span class="gym-name">{g.name}</span>
+                {g.address && <span class="gym-address">{g.address}</span>}
+              </button>
+              {/* Leaving now, the runner starts the fastest trip without stopping at the options. */}
+              {when === 'now' && (
+                <IconButton
+                  label={`Start the fastest trip ${direction === 'to-gym' ? 'to' : 'from'} ${g.name}`}
+                  onClick={() => chooseGym(g.id, true)}
+                >
+                  <IconHurry />
+                </IconButton>
+              )}
+            </div>
           ))}
         </div>
       )}
 
       {gym && (
         <section class="results" aria-label={title}>
-          <DataStatus realtime={plan.data?.realtime} loading={plan.loading} updatedAt={plan.updatedAt} walking={plan.data?.walking} />
-          {plan.error !== null && !(plan.error instanceof AuthError) && (
-            <Callout tone="bad" role="alert" action={<Button onClick={plan.refresh}>Try again</Button>}>
-              <strong>Couldn't plan this trip.</strong> {problem(plan.error)}
-              {plan.data ? ` The plan below is from ${statusTime(plan.updatedAt)}.` : ''}
-            </Callout>
-          )}
-          {plan.data?.trackwork?.map((t) => (
-            <Callout tone="caution">
-              <LineChip line={t.line} /> <strong>Trackwork:</strong> buses replace some trains. Their signs say{' '}
-              {orList(t.buses)}.
-            </Callout>
-          ))}
-          {stretched.map((s) => (
-            <Callout key={s.place} onDismiss={() => setSettings(dismissWalk(settings, s.place, s.stop))}>
-              <strong>Longer walk:</strong> no stops on these lines within a{' '}
-              {distance(settings.maxWalkM ?? server.defaults.max_walk_m)} walk of {s.name}. The nearest is a {distance(s.m)} walk.
-            </Callout>
-          ))}
-          {!plan.data && plan.loading && <BoardSkeleton />}
-          {plan.data && plan.data.options.length === 0 && <WindowShift shift={shift} />}
-          {plan.data && plan.data.options.length === 0 && (
-            <p class="meta">
-              {plannedWhen === 'arrive'
-                ? 'No way to get there by then on these lines. Try later trips.'
-                : `Nothing leaves in these ${WINDOW_MIN} minutes. Try later trips.`}
-            </p>
-          )}
-          {plan.data && plan.data.options.length > 0 && (
-            <Board
-              options={[...plan.data.options].sort((a, b) => Date.parse(a.leave_at) - Date.parse(b.leave_at))}
-              preferLatest={plannedWhen === 'arrive'}
-              live={leaveAt === null}
-              serviceDate={plan.data.service_date}
-              token={settings.token!}
-              walks={settings.walks}
-              places={places}
-              origin={direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat]}
-              destination={direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat]}
-              title={title!}
-              ends={ends!}
-              onShift={shift}
-              onStart={(o) =>
-                onStartTrip({
-                  option: o,
-                  plannedArrive: o.arrive,
-                  request: request!,
-                  ends: ends!, // a gym is chosen whenever there are options
-                  title: title!,
-                  origin: direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat],
-                  destination: direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat],
-                  serviceDate: plan.data!.service_date,
-                  walkSpeedMps: walkSpeed(settings) ?? server.defaults.walk_speed_mps,
-                  tightS: settings.risk?.tight_s ?? server.defaults.risk.tight_s,
-                })
-              }
-            />
+          <DataStatus realtime={plan.data?.realtime} loading={plan.loading} updatedAt={plan.updatedAt} walking={plan.data?.walking} starting={quick} />
+          {/* On the way to starting the fastest trip, the options aren't shown: they'd only flash past. */}
+          {quick ? (
+            <BoardSkeleton />
+          ) : (
+            <>
+              {plan.error !== null && !(plan.error instanceof AuthError) && (
+                <Callout tone="bad" role="alert" action={<Button onClick={plan.refresh}>Try again</Button>}>
+                  <strong>Couldn't plan this trip.</strong> {problem(plan.error)}
+                  {plan.data ? ` The plan below is from ${statusTime(plan.updatedAt)}.` : ''}
+                </Callout>
+              )}
+              {plan.data?.trackwork?.map((t) => (
+                <Callout tone="caution">
+                  <LineChip line={t.line} /> <strong>Trackwork:</strong> buses replace some trains. Their signs say{' '}
+                  {orList(t.buses)}.
+                </Callout>
+              ))}
+              {stretched.map((s) => (
+                <Callout key={s.place} onDismiss={() => setSettings(dismissWalk(settings, s.place, s.stop))}>
+                  <strong>Longer walk:</strong> no stops on these lines within a{' '}
+                  {distance(settings.maxWalkM ?? server.defaults.max_walk_m)} walk of {s.name}. The nearest is a {distance(s.m)} walk.
+                </Callout>
+              ))}
+              {!plan.data && plan.loading && <BoardSkeleton />}
+              {plan.data && plan.data.options.length === 0 && <WindowShift shift={shift} />}
+              {plan.data && plan.data.options.length === 0 && (
+                <p class="meta">
+                  {plannedWhen === 'arrive'
+                    ? 'No way to get there by then on these lines. Try later trips.'
+                    : `Nothing leaves in these ${WINDOW_MIN} minutes. Try later trips.`}
+                </p>
+              )}
+              {plan.data && plan.data.options.length > 0 && (
+                <Board
+                  options={[...plan.data.options].sort((a, b) => Date.parse(a.leave_at) - Date.parse(b.leave_at))}
+                  preferLatest={plannedWhen === 'arrive'}
+                  live={leaveAt === null}
+                  serviceDate={plan.data.service_date}
+                  token={settings.token!}
+                  walks={settings.walks}
+                  places={places}
+                  origin={direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat]}
+                  destination={direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat]}
+                  title={title!}
+                  ends={ends!}
+                  onShift={shift}
+                  onStart={start}
+                />
+              )}
+            </>
           )}
         </section>
       )}
-      {wide && !(gym && plan.data && plan.data.options.length > 0) && (
+      {wide && (quick || !(gym && plan.data && plan.data.options.length > 0)) && (
         <aside class="map-pane">
           <p class="empty-map">{gym ? 'The map shows a trip once there is one.' : 'Choose a gym and the trip shows here on the map.'}</p>
         </aside>
@@ -289,8 +323,9 @@ function DayTime({ value, onChange, label }: { value: string; onChange: (v: stri
 }
 
 function DataStatus({
-  realtime, loading, updatedAt, walking,
-}: { realtime?: boolean; loading: boolean; updatedAt: number; walking?: 'streets' | 'estimate' }) {
+  realtime, loading, updatedAt, walking, starting,
+}: { realtime?: boolean; loading: boolean; updatedAt: number; walking?: 'streets' | 'estimate'; starting?: boolean }) {
+  if (starting) return <p class="meta status-line">Finding the fastest trip…</p>
   if (!updatedAt) return <p class="meta status-line">{loading ? 'Planning…' : ''}</p>
   return (
     <p class="meta status-line">

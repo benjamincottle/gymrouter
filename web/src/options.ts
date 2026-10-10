@@ -23,6 +23,20 @@ export function reselect(opts: Option[], trips: string, leave: number): number {
   return best
 }
 
+/**
+ * The option that arrives soonest among those that can still be caught: none of its changes is already missed, and
+ * it isn't shown as having left (that starts a minute after its leave time). Of two arriving together, the one that
+ * leaves later.
+ */
+export function fastest(opts: Option[], now: number): Option | undefined {
+  let best: Option | undefined
+  for (const o of opts) {
+    if (o.risk === 'missed' || ms(o.leave_at) <= now - 60_000) continue
+    if (!best || ms(o.arrive) < ms(best.arrive) || (ms(o.arrive) === ms(best.arrive) && ms(o.leave_at) > ms(best.leave_at))) best = o
+  }
+  return best
+}
+
 /** Stops travelled over all of an option's rides. */
 export function stopCount(o: Option): number {
   return o.legs.reduce((n, l) => n + (l.kind === 'ride' ? (l.stops ?? 0) : 0), 0)

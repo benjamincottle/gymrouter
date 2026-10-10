@@ -599,3 +599,13 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   Wales extract, 269 MB, clipped to the basemap's box) wasn't worth it for a gym nobody here climbs at; BBBike's custom
   extracts are made by hand, one at a time, and can't be fetched on a schedule. A built-in gym has to be inside the
   street map, not just the basemap.
+- 2026-10-10: A runner at the end of each gym's row starts the fastest trip there in one tap, without stopping at the
+  options; anywhere else on the row still chooses the gym and shows them. Most trips are the next good one to the usual
+  gym, and choosing the gym, reading the board and pressing Start trip was three steps for it. "Fastest" is the option
+  that arrives soonest among those that can still be caught: none of its changes already missed, and not shown as
+  having left (of two arriving together, the one leaving later). It isn't the first to leave, which is what the board
+  selects: that one is often a slower way that just happens to go first. It's planned as choosing the gym plans it (the
+  same direction too), on the gym's own screen, so when nothing can be caught or the plan fails you're where a tap on
+  the row would have put you. The runner is hidden with "Leave at" and "Arrive by": a trip that starts, starts now.
+  Chosen from mockups of four treatments (a bare icon, an outlined button, a split row, a labelled "Go" button) and
+  three drawings: the bare icon, like the route row's reverse button, with the sprinter and its speed lines.

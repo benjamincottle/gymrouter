@@ -165,6 +165,16 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Tick lists** (the gym chooser): checkbox rows start unticked, and the commit button counts what's ticked. At a
   limit the unticked rows are disabled (pencil text) and a 14px pencil line under the list says what the limit is and
   how to free a place ("A device holds up to 12 gyms. Untick one to tick another.").
+- **Gym rows** (trip screen, before a gym is chosen): a `--rule` tape, the gym's logo, its name (18px/800/semi) and
+  its address beneath in 14px pencil. The row is a button that chooses the gym and shows its options.
+  - **The runner** (with "Leave now" only): an icon button at the far right of the row, someone running with speed
+    lines behind (drawn 2px like the walker on the rail, the lines 1.5px). It starts the fastest trip without
+    stopping at the options: the option that arrives soonest among those you can still catch. The gym's screen shows
+    while it's planned, its status line reading "Finding the fastest trip…" over the board's skeleton (the options
+    aren't shown on the way: they'd only flash past), and the trip starts as soon as there's a plan. If nothing can
+    be caught, or the plan fails, the screen stays as if the gym had been chosen: the options, or the reason there
+    are none.
+  - There's no runner with "Leave at" or "Arrive by": a trip that starts, starts now.
 - **Route row** (trip screen): an ink tape, the gym's logo, the gym's name (18px/800/semi, a button that changes
   the gym, with a chevron), "from Home" beneath it, and a reverse button (⇅) on the right.
 - **Options board:** one row per option: leave, tape strip, arrive, risk mark, compact duration.

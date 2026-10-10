@@ -285,6 +285,15 @@ select {
   stroke: none;
 }
 
+/* the runner on a gym's row: drawn as heavy as the walker on the rail, its speed lines lighter */
+.icon.hurry {
+  stroke-width: 2;
+}
+
+.icon.hurry .streaks {
+  stroke-width: 1.5;
+}
+
 .icon .risk-safe-fill { fill: var(--safe); stroke: none; }
 .icon .risk-tight-fill { fill: var(--tight); stroke: none; }
 .icon .risk-risk-fill { fill: var(--risk); stroke: none; }
@@ -892,6 +901,20 @@ details > summary {
   background: none;
   text-align: left;
   cursor: pointer;
+}
+
+/* a gym's row: the gym (the whole row but its end), then the runner that starts the fastest trip there */
+.gym-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  border-bottom: var(--hair);
+}
+
+.gym-row .gym {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
 }
 
 .gym::before,
