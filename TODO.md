@@ -101,24 +101,17 @@ map, the footer, and last the two that need a decision together (the options boa
       and that share of its time.
 - [x] **Learn the walking pace** from timed, traced walks (an average). A pace set in Settings wins. All the traced
       distance over all the time, crossings included; the Walking speed field says what an empty field uses.
-- [ ] **Connection warnings.** Look at how they work, find the logic errors, compare with what happened on real trips,
-      then adjust. Worked through together. How they work: every 30 s the app plans again (from your position, or from
-      the vehicle you're on) and looks for an option with the same vehicles still ahead. Found: on track (and "a faster
-      way" if another arrives 3 min sooner). Not found: "You won't make the planned connection". Found so far, each
-      reproduced against the server:
-  - **A better option hides yours.** The search drops an option when another leaves no earlier and arrives no later.
-    Start the 12:14 trip and the first re-check lists the 12:24 one (same arrival) instead, so yours "won't make the
-    connection" before you've left.
-  - **Just off the vehicle, still counted as riding.** You stay "riding" until you've moved along the change, and at a
-    same-stop change until you're on the next vehicle. Once the vehicle's arrival at your stop is in the past, the
-    server can't put you on it, so the planned trip is gone: a warning with 11 minutes in hand.
-  - **A timed change is forgotten on board.** From the vehicle, the first change is timed by the street map (463 s)
-    whatever you timed it at (200 s), so its risk and spare time are wrong, and it can read as missed.
-  - **The change buffer isn't applied to the first change from the vehicle,** so a same-stop change under the buffer
-    stays "on track" with a Missed badge.
-  - Not errors, but worth deciding: nothing damps a connection that flips with each live update; "a faster way" goes
-    by arrival alone, whatever its own risk; when the trip reads as missed its times stop updating.
-  - Fixed already (see "Time to spare"): re-checks on the way to a stop went by the street map, not your timed walk.
+- [x] **Connection warnings.** They came up on trips that were fine, and sometimes went away again. Every 30 s the app
+      planned again and looked for an option with the same vehicles; none meant "You won't make the planned
+      connection". But a search only lists the best trips. Reproduced against the server: a later departure with the
+      same arrival hides yours; just off a vehicle you still counted as riding, and the server couldn't start from a
+      stop the vehicle had passed; from the vehicle, a timed change and the change buffer were both forgotten.
+      Now the server checks the trip itself: the app names the rides still ahead and gets that trip back with live
+      times and each change rated. Only that decides whether it still works; the search is just for something better.
+      The warning says what won't be made. Also: you're off a ride once you're at its stop and its time has come; a
+      location quiet for 90 s (a tunnel) isn't used; with no location you're taken to be walking as planned.
+      For the field test, still as they were: nothing damps a connection that flips with each live update, and "a
+      faster way" goes by arrival time alone.
 
 ## Map
 

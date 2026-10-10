@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, spare, statusTime } from '../format.ts'
 import { useNow, useVisible, useWide } from '../hooks.ts'
-import { assess, instruction, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, USABLE_M, type Assessment, type Phase, type Position } from '../intrip.ts'
+import { assess, instruction, keepFrom, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, USABLE_M, type Assessment, type Missed, type Phase, type Position } from '../intrip.ts'
 import type { Option, PlanRequest } from '../types.ts'
 import type { Walk } from '../walkmeasure.ts'
 import { existing, legTrace, segments, stopKey, type PlaceRef, type Retime, type Segment, type TimedWalk } from '../walks.ts'
@@ -35,6 +35,7 @@ const REPLAN_MS = 30_000
 const VEHICLE_MS = 10_000 // how often your vehicle's position is checked while you wait for it or ride it
 const HISTORY_MS = 180_000 // your recent fixes, kept to compare with the vehicle's reports
 const STALE_MS = 20_000 // a fix older than this isn't where you are now
+const LOST_MS = 90_000 // no fix for this long (a tunnel, an underground platform): the clock says where you are
 
 export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd, onAuthError }: {
   trip: ActiveTrip
@@ -62,8 +63,6 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   const timerRef = useRef<HTMLDivElement>(null)
   useEffect(() => timerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), [timing])
   const o = trip.option
-  const posRef = useRef(pos)
-  posRef.current = pos
   const phaseRef = useRef<Phase>(phaseAt(o, now))
 
   // Where you are on the steps: from your location along each step's line, the clock only as a fallback.
@@ -135,16 +134,27 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   const clockAt = position(steps, now)
   let at: At = clockAt
   let phase: Phase = phaseAt(o, now)
+  // A fix that's gone quiet isn't where you are: underground the last one is the station entrance, and going by it
+  // you'd never board. Without a recent one the clock decides, as it does with no location at all.
+  const fixAge = now - (history.current.at(-1)?.t ?? 0)
+  const here = pos && fixAge <= LOST_MS ? pos : null
+  const posRef = useRef(here)
+  posRef.current = here
   let where: Position | null = pos // you, on the map too
-  if (pos) {
+  const vehicleAt = (ride: number) => {
+    const s = sightings.current[o.legs[ride]?.trip_id ?? '']?.at(-1)
+    return s && { lat: s.lat, lon: s.lon, accuracy: 30 }
+  }
+  if (here) {
     // Aboard with no fresh fix of your own (a tunnel): where your vehicle is, is where you are.
-    const ride = phaseRef.current.kind === 'riding' ? o.legs[phaseRef.current.ride] : undefined
-    const latest = ride?.trip_id && aboard.has(ride.trip_id) ? sightings.current[ride.trip_id]?.at(-1) : undefined
-    const stale = Date.now() - (history.current.at(-1)?.t ?? 0) > STALE_MS || pos.accuracy > 100
-    where = stale && latest ? { lat: latest.lat, lon: latest.lon, accuracy: 30 } : pos
+    const ride = phaseRef.current.kind === 'riding' && onVehicle(phaseRef.current.ride) ? phaseRef.current.ride : -1
+    const stale = fixAge > STALE_MS || here.accuracy > 100
+    where = (stale && vehicleAt(ride)) || here
     at = advance(lastAt.current?.key === stepsKey ? lastAt.current.at : null, stepLines, where, clockAt)
     lastAt.current = { key: stepsKey, at }
-    phase = phaseOf(o, steps, at, stepLines, where, onVehicle)
+    phase = phaseOf(o, steps, at, stepLines, where, onVehicle, now)
+  } else if (phase.kind === 'riding') {
+    where = vehicleAt(phase.ride) || pos // riding by the clock: your vehicle's last report, if it has made one
   }
   phaseRef.current = phase
   const riding = phase.kind === 'riding' ? o.legs[phase.ride].trip_id : undefined
@@ -153,7 +163,9 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   // route from wherever your location puts you). The time to spare and the re-checks both go by it.
   const nextRide = phase.kind === 'before' ? o.legs[phase.ride] : undefined
   const toRide = phase.kind === 'before' ? walkTo(steps, o, phase.ride, trip.request.prefs.leave_buffer_s) : null
-  const leftS = toRide && pos && pos.accuracy <= USABLE_M ? walkLeftS(stepLines[toRide.row], toRide.secs, pos, trip.walkSpeedMps) : null
+  const leftS = !toRide || !here || here.accuracy > USABLE_M ? null
+    : phase.kind === 'before' && phase.waiting ? 0 // at the stop already
+      : walkLeftS(stepLines[toRide.row], toRide.secs, here, trip.walkSpeedMps)
   const leftRef = useRef<{ stop: string; secs: number } | null>(null)
   leftRef.current = nextRide?.from && leftS !== null ? { stop: stopKey({ stop: nextRide.from, mode: nextRide.line?.mode }), secs: leftS } : null
 
@@ -201,16 +213,18 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
       if (!from || (ph.kind !== 'before' && ph.kind !== 'riding')) return
       const time = from.on_trip ? undefined : replanTime(trip.option, ph, nowMs)
       try {
-        const res = await api.plan(token, { from, to: trip.request.to, lines: trip.request.lines, time, window_min: 45, prefs: trip.request.prefs })
+        // The rides still ahead are checked as they stand (keep); the search is for something better, or something else.
+        const res = await api.plan(token, {
+          from, to: trip.request.to, lines: trip.request.lines, time, window_min: 45, prefs: trip.request.prefs,
+          keep: keepFrom(trip.option, ph.ride),
+        })
         if (!live) return
-        const a = assess(tripsFrom(trip.option, ph.ride), res.options, trip.plannedArrive)
+        const a = assess(tripsFrom(trip.option, ph.ride), res.kept, res.options, trip.plannedArrive)
         setCheck(a)
         setCheckedAt(Date.now())
         setError('')
-        if (a.status !== 'missed') {
-          // Same trips: take the live times for what's still ahead.
-          onUpdate({ ...trip, option: merge(trip.option, ph.ride, a.current) })
-        }
+        // The same trip: take the live times for what's still ahead (also when a change in it has gone).
+        if (a.current) onUpdate({ ...trip, option: merge(trip.option, ph.ride, a.current) })
       } catch (e) {
         if (e instanceof AuthError) onAuthError()
         else if (live) setError(`Couldn't re-check the trip: ${problem(e)}`)
@@ -247,7 +261,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
     },
   }
   const lateBy = check && check.status !== 'missed' ? check.lateBy : 0
-  const spareS = nextRide ? spareToBoard(nextRide, pos, now, trip.walkSpeedMps, leftS) : null
+  const spareS = nextRide ? spareToBoard(nextRide, here, now, trip.walkSpeedMps, leftS) : null
   // The next change: the one after the ride you're on or heading for.
   const upcoming = o.transfers.find((t) => (phase.kind === 'riding' || phase.kind === 'before') && t.from_leg === phase.ride)
   const start = Date.parse(o.leave_at)
@@ -299,16 +313,10 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
             )
           }
         >
-          {check.suggestion ? (
-            <>
-              <strong>You won't make the planned connection.</strong> Next best: {check.suggestion.lines.map((l) => l.split(' ')[1]).join(', ')},
-              arriving {clock(check.suggestion.arrive)}.
-            </>
-          ) : (
-            <>
-              <strong>The planned connection is gone</strong> and there's no other way on these lines right now.
-            </>
-          )}
+          <strong>{missedText(check.missed)}</strong>{' '}
+          {check.suggestion
+            ? `Next best: ${check.suggestion.lines.map((l) => l.split(' ')[1]).join(', ')}, arriving ${clock(check.suggestion.arrive)}.`
+            : "There's no other way on these lines right now."}
         </Callout>
       )}
       {check?.status === 'better' && (
@@ -389,7 +397,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
       )}
 
       <p class="meta status-line">
-        {locState === 'on' && (pos ? `Location on (±${Math.round(pos.accuracy)} m). ` : 'Finding your location… ')}
+        {locState === 'on' && (here ? `Location on (±${Math.round(here.accuracy)} m). ` : pos ? 'No location just now; following the timetable. ' : 'Finding your location… ')}
         {locState === 'denied' && 'Location unavailable; following the timetable. '}
         {checkedAt ? `Checked ${statusTime(checkedAt)}.` : 'Checking…'}
         {error && ` ${error}`}
@@ -444,6 +452,18 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
       )}
     </div>
   )
+}
+
+/** What can't be made, in a sentence. */
+function missedText(m: Missed): string {
+  switch (m.why) {
+    case 'gone':
+      return 'One of your services is no longer running.'
+    case 'board':
+      return `You won't make the ${m.ride.line?.name ?? 'next service'} at ${clock(m.ride.dep)}.`
+    case 'change':
+      return `You won't make the change at ${placeName(m.at.to)}: the ${m.ride.line?.name ?? 'next service'} leaves at ${clock(m.ride.dep)}.`
+  }
 }
 
 /** Keeps the legs already travelled and takes the rest (with live times) from `fresh`. */

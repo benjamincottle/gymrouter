@@ -58,6 +58,11 @@ not bus stands that belong to the station)
 - While travelling, the origin can be the vehicle you're on: `"from": {"on_trip": {"trip_id": "…",
   "from_stop": "<stop where you boarded>"}}`. Planning then starts now, on that vehicle: the first leg is that
   ride, and the change off it is rated like any other. `time` and `arrive_by` don't apply.
+- While travelling, `"keep": [{"trip_id": "…", "from": "<stop ID>", "to": "<stop ID>"}, …]` (up to 8, in order) names
+  the rides still ahead on the trip being followed. The answer's `kept` says how that trip stands now, whatever the
+  search returns (a search only lists the best trips, and a good trip can drop out of them). With `on_trip`, the first
+  ride kept must be that trip from `from_stop`, and the stop it's kept to stays reachable for the search once the
+  vehicle's time there has passed. Not allowed with `arrive_by`.
 
 Response:
 ```json
@@ -84,6 +89,14 @@ network), or `estimate` (straight line × a detour factor) while that network is
 walks apply either way. Walk legs carry a `path` (`[[lon, lat], …]`) along the streets when it is known. A walk that
 passes a stop on the way (off at one stop, on foot to another and from there to the place) is drawn through that stop,
 each piece along the streets where known and straight otherwise. `max_walk_m` is measured on foot (see the place rules above).
+
+`kept` (only with `keep`) is `{"option": {…}, "catch_s": 95}`. `option` is the kept trip as an option like any other,
+with live times; each change is rated with the traveller's own change times and the change buffer, and is `missed`
+when there's no longer time for it (the option is still returned). It's left out when the trip can't be made at all: a
+ride is cancelled, isn't in the timetable, or doesn't call at those stops, or the trip doesn't reach the places asked
+for. `catch_s`, when not on a vehicle, is the time to spare on reaching the first ride from `from` at `time` (negative:
+too late); it's left out with `on_trip`. Still on the first ride after its time at the stop kept to, the change off it
+has what's left from now, less the walk.
 
 `stops` on a ride is the number of stops travelled, counting the one you get off at.
 `status` is `scheduled`, `predicted` (live data) or `added` (a realtime-only trip). `risk` is `safe`, `tight`,

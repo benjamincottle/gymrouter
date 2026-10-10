@@ -88,6 +88,25 @@ export interface PlanResponse {
   trackwork?: Trackwork[] // lines that buses stand in for during the search
   /** Set when an end had no stop within the longest walk, so the nearest ones were used: the walk to the nearest (m). */
   stretched_walk?: { from_m?: number; to_m?: number }
+  kept?: Kept // the answer to a request's `keep`
+}
+
+/** One ride of the trip being followed: a vehicle from one of its stops to a later one. */
+export interface KeepRide {
+  trip_id: string
+  from: string
+  to: string
+}
+
+/**
+ * The trip being followed, checked as it stands now rather than searched for. `option` is that trip with its live
+ * times and each change rated ("missed" when there's no longer time for it); it's absent when the trip can't be made at
+ * all (a ride cancelled, or no longer calling there). `catch_s`, before the first ride, is the time to spare on
+ * reaching it (negative: too late); absent on board.
+ */
+export interface Kept {
+  option?: Option
+  catch_s?: number
 }
 
 /** A line with trackwork: the buses replacing its trains, by the names on their signs ("23T4"). */
@@ -123,6 +142,7 @@ export interface PlanRequest {
   time?: string
   arrive_by?: boolean
   window_min?: number
+  keep?: KeepRide[] // during a trip: the rides still ahead, to be checked as they stand (PlanResponse.kept)
   prefs: {
     walk_speed_mps?: number
     min_change_s?: number

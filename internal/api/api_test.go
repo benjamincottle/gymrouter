@@ -643,6 +643,101 @@ func TestPlanFromOnboard(t *testing.T) {
 	}
 }
 
+// keptPlan is a plan response with the trip being followed.
+type keptPlan struct {
+	simplePlan
+	Kept *struct {
+		Option *struct {
+			Arrive    string
+			Legs      []rideLeg
+			Transfers []struct {
+				Risk   string
+				SlackS int `json:"slack_s"`
+			}
+		}
+		CatchS *int `json:"catch_s"`
+	}
+}
+
+func TestPlanKeepChecksTheTripBeingFollowed(t *testing.T) {
+	h := newHarness(t)
+	req := map[string]any{"from": eppingToLaneCove["from"], "to": laneCove, "lines": laneCoveLines, "window_min": 60}
+	var before simplePlan
+	_ = json.Unmarshal(h.do(t, "POST", "/api/plan", token, req).Body.Bytes(), &before)
+	// A trip with a change, so there's something to rate.
+	pick := -1
+	for i, o := range before.Options {
+		if o.Rides >= 2 {
+			pick = i
+			break
+		}
+	}
+	if pick < 0 {
+		t.Skip("no option with a change in the fixture window")
+	}
+	o := before.Options[pick]
+	var rides []rideLeg
+	var keep []map[string]any
+	for _, l := range o.Legs {
+		if l.Kind == "ride" {
+			rides = append(rides, l)
+			keep = append(keep, map[string]any{"trip_id": l.TripID, "from": l.From.ID, "to": l.To.ID})
+		}
+	}
+	ask := func(from any, keep any) keptPlan {
+		t.Helper()
+		rec := h.do(t, "POST", "/api/plan", token, map[string]any{"from": from, "to": laneCove, "lines": laneCoveLines, "window_min": 45, "keep": keep})
+		if rec.Code != 200 {
+			t.Fatalf("plan with keep: %d %s", rec.Code, rec.Body)
+		}
+		var p keptPlan
+		_ = json.Unmarshal(rec.Body.Bytes(), &p)
+		return p
+	}
+	sameRides := func(p keptPlan) bool {
+		if p.Kept == nil || p.Kept.Option == nil {
+			return false
+		}
+		var got []string
+		for _, l := range p.Kept.Option.Legs {
+			if l.Kind == "ride" {
+				got = append(got, l.TripID)
+			}
+		}
+		return len(got) == len(rides) && got[0] == rides[0].TripID && got[len(got)-1] == rides[len(rides)-1].TripID
+	}
+
+	// Before setting off: the trip as planned, with time to reach the first stop.
+	p := ask(eppingToLaneCove["from"], keep)
+	if !sameRides(p) || p.Kept.Option.Arrive != o.Arrive || p.Kept.CatchS == nil || *p.Kept.CatchS < 0 || len(p.Kept.Option.Transfers) != len(rides)-1 {
+		t.Fatalf("before leaving: %+v", p.Kept)
+	}
+
+	// On board, a minute after the vehicle's time at the stop you get off at (still counted as riding): the trip is
+	// still yours, and the search still has somewhere to start.
+	arr, _ := time.Parse(time.RFC3339, rides[0].Arr)
+	h.env.Clock.Advance(arr.Sub(h.env.Clock.Now()) + time.Minute)
+	onTrip := map[string]any{"on_trip": map[string]any{"trip_id": rides[0].TripID, "from_stop": rides[0].From.ID}}
+	p = ask(onTrip, keep)
+	if !sameRides(p) || p.Kept.CatchS != nil || p.Kept.Option.Legs[0].Kind != "ride" {
+		t.Fatalf("just off the first ride: %+v", p.Kept)
+	}
+
+	// A ride that isn't in the timetable: nothing to describe, but the search still answers.
+	gone := []map[string]any{keep[0], {"trip_id": "no-such-trip", "from": "x", "to": "y"}}
+	if p = ask(onTrip, gone); p.Kept == nil || p.Kept.Option != nil {
+		t.Errorf("a ride that's gone: %+v", p.Kept)
+	}
+	for name, bad := range map[string]any{
+		"another trip than the one boarded": []map[string]any{{"trip_id": "other", "from": rides[0].From.ID, "to": rides[0].To.ID}},
+		"a ride without stops":              []map[string]any{{"trip_id": rides[0].TripID}},
+	} {
+		if rec := h.do(t, "POST", "/api/plan", token, map[string]any{"from": onTrip, "to": laneCove, "lines": laneCoveLines, "keep": bad}); rec.Code != 400 {
+			t.Errorf("%s: %d", name, rec.Code)
+		}
+	}
+}
+
 func TestPlanArriveBy(t *testing.T) {
 	h := newHarness(t)
 	req := map[string]any{

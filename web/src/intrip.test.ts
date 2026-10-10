@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { assess, instruction, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom } from './intrip.ts'
+import { assess, instruction, keepFrom, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom } from './intrip.ts'
 import type { Leg, Option } from './types.ts'
 
 const stop = (id: string, lat: number, lon: number, station?: string) => ({ id, name: station ? `${station}, Platform 1` : id, station, lat, lon })
@@ -55,7 +55,7 @@ test('re-plan origin depends on the phase', () => {
   const now = ms('13:40')
   const here = { lat: -33.8, lon: 151.1, accuracy: 10 }
   assert.deepEqual(replanOrigin(planned, { kind: 'riding', ride: 1 }, null, home, now), { on_trip: { trip_id: 't9', from_stop: 'A' } })
-  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 1 }, null, home, now), home)
+  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 1 }, null, home, ms('13:30')), home)
   assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 1 }, here, home, now), { lat: -33.8, lon: 151.1 })
   assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 3 }, null, home, now), { lat: C.lat, lon: C.lon, access: [{ stop: 'C', walk_s: 0 }] })
   assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 3 }, here, home, now), { lat: -33.8, lon: 151.1 })
@@ -64,7 +64,12 @@ test('re-plan origin depends on the phase', () => {
   assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 1 }, here, home, now, { stop: 'central', secs: 200.4 }), {
     lat: -33.8, lon: 151.1, walks: [{ stop: 'central', walk_s: 200 }],
   })
-  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 1 }, null, home, now, { stop: 'central', secs: 200 }), home)
+  // Past the time to leave with no location: taken to be walking as planned, so what's left is the time until the
+  // ride goes (14 min to the 13:54), for its station, alongside the home's own walks.
+  const timed = { ...home, walks: [{ stop: 'other', walk_s: 300 }, { stop: 'central', walk_s: 900 }] }
+  assert.deepEqual(replanOrigin({ ...planned, legs: [planned.legs[0], { ...planned.legs[1], from: { ...A, station_id: 'central' } }, ...planned.legs.slice(2)] },
+    { kind: 'before', ride: 1 }, null, timed, now, { stop: 'central', secs: 200 }),
+  { ...home, walks: [{ stop: 'other', walk_s: 300 }, { stop: 'central', walk_s: 840 }] })
 })
 
 test('a trip started well before it leaves is re-planned from its own start and time', () => {
@@ -77,28 +82,40 @@ test('a trip started well before it leaves is re-planned from its own start and 
   assert.equal(replanTime(planned, { kind: 'riding', ride: 1 }, early), undefined)
 })
 
-test('assessment: on track, running late, better option, missed connection', () => {
+test('assessment: the trip is judged by the check of the trip itself, not by whether a search still lists it', () => {
   const committed = tripsFrom(planned, 1)
   assert.deepEqual(committed, ['t9', 'm1'])
+  assert.deepEqual(keepFrom(planned, 1), [{ trip_id: 't9', from: 'A', to: 'B' }, { trip_id: 'm1', from: 'C', to: 'D' }])
+  assert.deepEqual(keepFrom(planned, 2), [{ trip_id: 'm1', from: 'C', to: 'D' }])
 
   const same = option(planned.legs.slice(1), '14:29') // same trips, 2 min late
-  let a = assess(committed, [same], planned.arrive)
-  assert.equal(a.status, 'on-track')
+  let a = assess(committed, { option: same }, [], planned.arrive)
+  assert.equal(a.status, 'on-track', 'on track though the search no longer lists it')
   assert.equal(a.status === 'on-track' && a.lateBy, 120)
+  assert.equal(assess(committed, { option: same, catch_s: 40 }, [same], planned.arrive).status, 'on-track', 'itself is never "a faster way"')
 
   const faster = option([ride('t9', 'T9', A, B, '13:54', '14:09'), ride('bus', '288', B, D, '14:10', '14:20')], '14:22')
-  a = assess(committed, [same, faster], planned.arrive)
+  a = assess(committed, { option: same }, [same, faster], planned.arrive)
   assert.equal(a.status, 'better')
   assert.equal(a.status === 'better' && a.suggestion, faster)
-
   const slightlyFaster = option(faster.legs, '14:28') // only 1 min better: not worth switching
-  assert.equal(assess(committed, [same, slightlyFaster], planned.arrive).status, 'on-track')
+  assert.equal(assess(committed, { option: same }, [same, slightlyFaster], planned.arrive).status, 'on-track')
+  // A way with a change there's no time for is no suggestion.
+  const hopeless = { ...faster, transfers: [{ from_leg: 0, to_leg: 1, walk_s: 60, slack_s: -20, risk: 'missed' as const }] }
+  assert.equal(assess(committed, { option: same }, [hopeless], planned.arrive).status, 'on-track')
 
+  // Can't reach the next ride in time.
   const later = option([ride('t9', 'T9', A, B, '13:54', '14:09'), ride('m1-next', 'M1', C, D, '14:22', '14:29')], '14:37')
-  a = assess(committed, [later], planned.arrive)
-  assert.equal(a.status, 'missed')
-  assert.equal(a.status === 'missed' && a.suggestion, later)
-  assert.deepEqual(assess(committed, [], planned.arrive), { status: 'missed', suggestion: null })
+  a = assess(committed, { option: same, catch_s: -30 }, [later], planned.arrive)
+  assert.deepEqual(a.status === 'missed' && [a.missed.why, a.missed.why === 'board' && a.missed.ride.trip_id, a.suggestion, a.current], ['board', 't9', later, same])
+  // No longer time for a change: the live times are still worth having.
+  const broken = { ...same, transfers: [{ from_leg: 0, to_leg: 2, walk_s: 180, slack_s: -45, risk: 'missed' as const }] }
+  a = assess(committed, { option: broken }, [later, hopeless], planned.arrive)
+  assert.deepEqual(a.status === 'missed' && [a.missed.why, a.missed.why === 'change' && a.missed.ride.trip_id, a.missed.why === 'change' && a.missed.at.trip_id, a.suggestion, a.current],
+    ['change', 'm1', 't9', later, broken])
+  // A ride cancelled, or the server said nothing about the trip.
+  assert.deepEqual(assess(committed, {}, [], planned.arrive), { status: 'missed', missed: { why: 'gone' }, current: undefined, suggestion: null })
+  assert.equal(assess(committed, undefined, [later], planned.arrive).status, 'missed')
 })
 
 test('instructions', () => {

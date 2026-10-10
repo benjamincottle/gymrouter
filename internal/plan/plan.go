@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/benjamincottle/gymrouter/internal/geo"
 	"github.com/benjamincottle/gymrouter/internal/gtfs"
 	"github.com/benjamincottle/gymrouter/internal/lines"
 	"github.com/benjamincottle/gymrouter/internal/par"
@@ -76,30 +77,45 @@ type Request struct {
 type Onboard struct {
 	Trip      int32
 	BoardCall int32
+	// AlightCall is the call the traveller means to get off at, when that's known (0 otherwise). It stays reachable
+	// once the vehicle's time there has passed: the traveller has just got off, or the vehicle is behind its
+	// prediction, and either way that stop is where they are or are about to be.
+	AlightCall int32
 	// via records, for stops reached by walking after getting off, where to get off.
 	via map[int32]int32
 }
 
 // OnboardAccess lists where the traveller can be, and how many seconds from now, by staying on the
-// trip to one of its remaining stops, optionally then walking to a nearby stop. It must be called
-// before planning with ob.
-func OnboardAccess(n *raptor.Network, ob *Onboard, now int32) []raptor.Access {
+// trip to one of its remaining stops, optionally then walking to a nearby stop (in the traveller's own time for
+// that walk, if overrides has one). It must be called before planning with ob.
+func OnboardAccess(n *raptor.Network, ob *Onboard, now int32, overrides []TransferOverride) []raptor.Access {
 	t := &n.Day.Trips[ob.Trip]
+	transfer := overrideFunc(n, overrides)
 	best := map[int32]int32{}
 	ob.via = map[int32]int32{}
 	for i := int(ob.BoardCall) + 1; i < len(t.StopTimes); i++ {
 		st := t.StopTimes[i]
-		if st.Arr == gtfs.NoTime || st.Arr < now {
+		if st.Arr == gtfs.NoTime {
 			continue
 		}
 		secs := st.Arr - now
+		if secs < 0 {
+			if int32(i) != ob.AlightCall {
+				continue
+			}
+			secs = 0
+		}
 		if cur, ok := best[st.Stop]; !ok || secs < cur {
 			best[st.Stop] = secs
 			delete(ob.via, st.Stop)
 		}
 		for _, fp := range n.Footpaths[st.Stop] {
-			if cur, ok := best[fp.To]; !ok || secs+fp.Secs < cur {
-				best[fp.To] = secs + fp.Secs
+			walk := fp.Secs
+			if v, ok := transfer(st.Stop, fp.To); ok {
+				walk = v
+			}
+			if cur, ok := best[fp.To]; !ok || secs+walk < cur {
+				best[fp.To] = secs + walk
 				ob.via[fp.To] = st.Stop
 			}
 		}
@@ -413,13 +429,21 @@ func build(n *raptor.Network, j raptor.Journey, req Request, transfer func(a, b 
 		o.Legs = append([]raptor.Leg(nil), j.Legs...)
 		o.Legs[0].Dep, o.Legs[0].Arr = o.LeaveAt, o.LeaveAt+walk
 	}
+	o.Transfers = rate(n, j.Legs, rides, req, transfer)
+	return o
+}
+
+// rate describes each change between the rides (legs' indexes) of legs: the time it needs (the walk between two
+// stops, or the change buffer at one), the time to spare, and the next service if it's missed.
+func rate(n *raptor.Network, legs []raptor.Leg, rides []int, req Request, transfer func(a, b int32) (int32, bool)) []Transfer {
+	var ts []Transfer
 	for k := 1; k < len(rides); k++ {
-		in, out := j.Legs[rides[k-1]], j.Legs[rides[k]]
+		in, out := legs[rides[k-1]], legs[rides[k]]
 		need := req.MinChange
 		if in.To != out.From {
 			need = 0
 			for i := rides[k-1] + 1; i < rides[k]; i++ {
-				need += j.Legs[i].Arr - j.Legs[i].Dep
+				need += legs[i].Arr - legs[i].Dep
 			}
 		} else if v, ok := transfer(in.To, in.To); ok {
 			need = v
@@ -430,9 +454,132 @@ func build(n *raptor.Network, j raptor.Journey, req Request, transfer func(a, b 
 		if ft, fd, ok := n.NextDeparture(out.Pattern, out.BoardIdx, out.Dep, out.Trip); ok {
 			t.FallbackTrip, t.FallbackDep = ft, fd
 		}
-		o.Transfers = append(o.Transfers, t)
+		ts = append(ts, t)
 	}
-	return o
+	return ts
+}
+
+// Kept is a ride the traveller is committed to: a trip (Day.Trips index) from one of its calls to a later one.
+type Kept struct {
+	Trip, Board, Alight int32
+}
+
+// Check describes the trip that takes exactly these rides, as the timetable and live times have them now. It
+// doesn't search: the rides are taken as given and each change between them is rated like any other, Missed when
+// there's no longer time for it. A search can't be asked whether a trip still works, because it only returns the
+// best trips, and a trip can drop out of those while it's still perfectly good.
+//
+// With req.Onboard set the traveller is on the first ride. Otherwise they still have to reach it: catch is the time
+// to spare on getting there from req.Depart by req.Access (negative: they won't make it). ok is false when the trip
+// can't be described: a ride no longer runs or calls there, or it isn't reachable from the places in req.
+func Check(n *raptor.Network, req Request, kept []Kept) (o Option, catch int32, ok bool) {
+	if req.Thresholds == (Thresholds{}) {
+		req.Thresholds = DefaultThresholds
+	}
+	d := n.Day
+	if len(kept) == 0 {
+		return o, 0, false
+	}
+	transfer := overrideFunc(n, req.Overrides)
+	var legs []raptor.Leg
+	var rides []int
+	for k, r := range kept {
+		t := &d.Trips[r.Trip]
+		pat, found := n.PatternOf(r.Trip)
+		if !found || t.Status == gtfs.Cancelled || r.Board < 0 || r.Alight <= r.Board || int(r.Alight) >= len(t.StopTimes) {
+			return o, 0, false
+		}
+		b, a := t.StopTimes[r.Board], t.StopTimes[r.Alight]
+		if b.Dep == gtfs.NoTime || a.Arr == gtfs.NoTime {
+			return o, 0, false
+		}
+		switch {
+		case k > 0:
+			if prev := legs[len(legs)-1]; prev.To != b.Stop {
+				legs = append(legs, raptor.Leg{Kind: raptor.Walk, From: prev.To, To: b.Stop, Dep: prev.Arr,
+					Arr: prev.Arr + changeSecs(n, prev.To, b.Stop, transfer)})
+			}
+		case req.Onboard == nil:
+			walk, found := int32(0), false
+			for _, ac := range req.Access {
+				if ac.Stop == b.Stop && (!found || ac.Secs < walk) {
+					walk, found = ac.Secs, true
+				}
+			}
+			if !found {
+				return o, 0, false
+			}
+			catch = b.Dep - (req.Depart + walk)
+			legs = append(legs, raptor.Leg{Kind: raptor.Walk, From: -1, To: b.Stop, Dep: b.Dep - walk, Arr: b.Dep})
+		}
+		rides = append(rides, len(legs))
+		legs = append(legs, raptor.Leg{Kind: raptor.Ride, From: b.Stop, To: a.Stop, Dep: b.Dep, Arr: a.Arr,
+			Route: t.Route, Trip: r.Trip, Pattern: pat, BoardIdx: r.Board, AlightIdx: r.Alight})
+		rt := d.Routes[t.Route]
+		o.Lines = append(o.Lines, lines.Of(rt.Type, rt.ShortName))
+	}
+	// From the last stop to the place: straight there, or on foot by way of a nearby stop, whichever is sooner.
+	last := legs[len(legs)-1]
+	egress := map[int32]int32{}
+	for _, e := range req.Egress {
+		if cur, ok := egress[e.Stop]; !ok || e.Secs < cur {
+			egress[e.Stop] = e.Secs
+		}
+	}
+	walk, via, found := int32(0), int32(-1), false
+	if e, ok := egress[last.To]; ok {
+		walk, found = e, true
+	}
+	for _, fp := range n.Footpaths[last.To] {
+		if e, ok := egress[fp.To]; ok {
+			if w := changeSecs(n, last.To, fp.To, transfer) + e; !found || w < walk {
+				walk, via, found = w, fp.To, true
+			}
+		}
+	}
+	if !found {
+		return o, 0, false
+	}
+	end := raptor.Leg{Kind: raptor.Walk, From: last.To, To: -1, Dep: last.Arr, Arr: last.Arr + walk}
+	if via >= 0 {
+		end.Via = []int32{via}
+	}
+	legs = append(legs, end)
+
+	o.Legs, o.Rides, o.Arrive, o.LeaveAt = legs, len(rides), end.Arr, legs[0].Dep
+	if req.Onboard != nil {
+		o.LeaveAt = req.Depart // already on the way
+	}
+	o.Transfers = rate(n, legs, rides, req, transfer)
+	// Still on the first ride after its time at the stop (it's running behind what was predicted): the change off it
+	// has only what's left from now, less the walk. The change buffer isn't asked for again: at the same stop it's
+	// only missed once the next ride has gone.
+	if req.Onboard != nil && len(o.Transfers) > 0 && req.Depart > legs[rides[0]].Arr {
+		in, out, t := legs[rides[0]], legs[rides[1]], &o.Transfers[0]
+		walk := int32(0)
+		if in.To != out.From {
+			walk = t.Walk
+		}
+		if left := out.Dep - (req.Depart + walk); left < t.Slack {
+			t.Slack, t.Risk = left, req.Thresholds.Classify(left)
+		}
+	}
+	return o, catch, true
+}
+
+// changeSecs is the walk between two stops: the traveller's own time for it, else the network's, else (two stops the
+// network doesn't join on foot) the straight line with the usual detour.
+func changeSecs(n *raptor.Network, a, b int32, transfer func(a, b int32) (int32, bool)) int32 {
+	if v, ok := transfer(a, b); ok {
+		return v
+	}
+	for _, fp := range n.Footpaths[a] {
+		if fp.To == b {
+			return fp.Secs
+		}
+	}
+	o := raptor.DefaultOptions()
+	return int32(geo.DistanceM(n.Day.Stops[a].Pos, n.Day.Stops[b].Pos) * o.DetourFactor / o.WalkSpeedMps)
 }
 
 // mergeWalks joins consecutive walking legs (a transfer footpath followed by the final walk), keeping the stops

@@ -81,6 +81,13 @@ test('what you are doing, from where you are', () => {
   assert.deepEqual(ph(300), { kind: 'before', ride: 1, waiting: true }, 'at the stop: waiting')
   assert.deepEqual(ph(360, 2), { kind: 'before', ride: 1, waiting: true }, 'pulling away: not yet sure you are aboard')
   assert.deepEqual(ph(900, 25), { kind: 'riding', ride: 1 }, 'well along the route: aboard')
+  // At the stop you get off at: still riding until the bus's time there (08:15), then off it.
+  const atB = (hhmm: string) => {
+    const p = here(2300)
+    return phaseOf(o, rs, { row: 2, frac: 1 }, lines, p, undefined, Date.parse(iso(hhmm)))
+  }
+  assert.deepEqual(atB('08:14'), { kind: 'riding', ride: 1 }, 'pulling in')
+  assert.deepEqual(atB('08:16'), { kind: 'final-walk' }, 'off the bus, though not yet along the walk')
   assert.deepEqual(ph(2450), { kind: 'final-walk' })
   assert.deepEqual(ph(2600), { kind: 'arrived' })
 })

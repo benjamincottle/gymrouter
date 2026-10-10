@@ -1,7 +1,8 @@
 // In-trip tracking: where you are in the chosen option, what to re-plan from, and whether a
 // different option is now better. Pure functions, so they can be tested without a browser.
 
-import type { Leg, Option, PlaceRequest } from './types.ts'
+import type { KeepRide, Kept, Leg, Option, PlaceRequest } from './types.ts'
+import { stopKey } from './walks.ts'
 
 export interface Position {
   lat: number
@@ -73,7 +74,15 @@ export function replanOrigin(
         const walks = left ? [{ stop: left.stop, walk_s: Math.min(3600, Math.max(0, Math.round(left.secs))) }] : undefined
         return { lat: pos.lat, lon: pos.lon, ...(walks ? { walks } : {}) }
       }
-      if (phase.ride === first) return original // still at the start: plan as originally
+      if (phase.ride === first) {
+        // Still at the start: plan as originally. Past the time to leave with no location to go by, you're taken to
+        // be walking to the stop as planned (what's left of the walk is the time until the ride goes), not still at home.
+        const l = o.legs[first]
+        if (nowMs <= t(o.leave_at) || !l?.from) return original
+        const stop = stopKey({ stop: l.from, mode: l.line?.mode })
+        const walk_s = Math.min(3600, Math.max(0, Math.round((t(l.dep) - nowMs) / 1000)))
+        return { ...original, walks: [...(original.walks ?? []).filter((w) => w.stop !== stop), { stop, walk_s }] }
+      }
       const s = o.legs[phase.ride].from
       return s ? { lat: s.lat, lon: s.lon, access: [{ stop: s.id, walk_s: 0 }] } : null
     }
@@ -97,27 +106,51 @@ export function tripsFrom(o: Option, from: number): string[] {
   return o.legs.slice(from).filter((l) => l.kind === 'ride').map((l) => l.trip_id ?? '')
 }
 
+/** The rides still ahead, from leg index `from` on, for the server to check as they stand (PlanRequest.keep). */
+export function keepFrom(o: Option, from: number): KeepRide[] {
+  return o.legs.slice(from).flatMap((l) => (l.kind === 'ride' && l.trip_id && l.from && l.to ? [{ trip_id: l.trip_id, from: l.from.id, to: l.to.id }] : []))
+}
+
+/**
+ * Why the trip can't be made as planned: a ride no longer runs ('gone'), you can't reach the next ride in time
+ * ('board'), or there's no longer time for a change ('change'). `ride` is the one you won't make; `at`, for a change,
+ * the ride you'd be coming off.
+ */
+export type Missed = { why: 'gone' } | { why: 'board'; ride: Leg } | { why: 'change'; ride: Leg; at: Leg }
+
 export type Assessment =
   | { status: 'on-track'; current: Option; lateBy: number }
   | { status: 'better'; current: Option; suggestion: Option; lateBy: number }
-  | { status: 'missed'; suggestion: Option | null }
+  | { status: 'missed'; missed: Missed; current?: Option; suggestion: Option | null }
 
 /** Minimum improvement before suggesting a switch (seconds). */
 export const SWITCH_GAIN_S = 180
 
+/** What stops the kept trip being made, if anything. */
+function missedIn(kept: Kept | undefined): Missed | null {
+  const o = kept?.option
+  if (!o) return { why: 'gone' }
+  const first = o.legs.find((l) => l.kind === 'ride')
+  if ((kept.catch_s ?? 0) < 0 && first) return { why: 'board', ride: first }
+  const gone = o.transfers.find((tr) => tr.risk === 'missed')
+  return gone ? { why: 'change', ride: o.legs[gone.to_leg], at: o.legs[gone.from_leg] } : null
+}
+
 /**
- * Compares the fresh options with the trips you're committed to. `committed` are the trip IDs still
- * ahead (see tripsFrom); `plannedArrive` is the original arrival time.
+ * Whether the trip you're on still works, and whether another is now better. `kept` is the server's check of the
+ * trip itself (the rides in `committed`, see tripsFrom), which decides whether it works: a search only returns the
+ * best trips, and yours can drop out of those while it's still good. `fresh` are the options a search from where you
+ * are returns now, for something better or something else; `plannedArrive` is the original arrival time.
  */
-export function assess(committed: string[], fresh: Option[], plannedArrive: string): Assessment {
-  const same = fresh.find((o) => {
-    const ids = tripsFrom(o, 0)
-    return ids.length === committed.length && ids.every((id, i) => id === committed[i])
-  })
-  const best = fresh.reduce<Option | null>((b, o) => (!b || t(o.arrive) < t(b.arrive) ? o : b), null)
-  if (!same) return { status: 'missed', suggestion: best }
+export function assess(committed: string[], kept: Kept | undefined, fresh: Option[], plannedArrive: string): Assessment {
+  // Another way: not the trip you're on, and not one with a change there's no time for.
+  const others = fresh.filter((o) => tripsFrom(o, 0).join('|') !== committed.join('|') && !o.transfers.some((tr) => tr.risk === 'missed'))
+  const best = others.reduce<Option | null>((b, o) => (!b || t(o.arrive) < t(b.arrive) ? o : b), null)
+  const missed = missedIn(kept)
+  if (missed) return { status: 'missed', missed, current: kept?.option, suggestion: best }
+  const same = kept!.option!
   const lateBy = Math.round((t(same.arrive) - t(plannedArrive)) / 1000)
-  if (best && best !== same && t(same.arrive) - t(best.arrive) >= SWITCH_GAIN_S * 1000) {
+  if (best && t(same.arrive) - t(best.arrive) >= SWITCH_GAIN_S * 1000) {
     return { status: 'better', current: same, suggestion: best, lateBy }
   }
   return { status: 'on-track', current: same, lateBy }

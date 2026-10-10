@@ -174,18 +174,17 @@ const AT_STOP_M = 40
 export function phaseOf(
   o: Option, rs: Row[], at: At, lines: LonLat[][], pos: { lat: number; lon: number; accuracy: number } | null,
   aboard: (ride: number) => boolean = () => false, // seen moving with the vehicle of legs[ride] (boarding.ts)
+  nowMs = 0, // to tell when a ride has reached your stop
 ): Phase {
-  const ph = phaseFromSteps(o, rs, at, lines, pos)
+  const ph = phaseFromSteps(o, rs, at, lines, pos, nowMs)
   return ph.kind === 'before' && aboard(ph.ride) ? { kind: 'riding', ride: ph.ride } : ph
 }
 
-function phaseFromSteps(o: Option, rs: Row[], at: At, lines: LonLat[][], pos: { lat: number; lon: number; accuracy: number } | null): Phase {
+function phaseFromSteps(o: Option, rs: Row[], at: At, lines: LonLat[][], pos: { lat: number; lon: number; accuracy: number } | null, nowMs: number): Phase {
   const r = rs[at.row]
   const nextRide = (from: number) => o.legs.findIndex((l, j) => j >= from && l.kind === 'ride')
-  const waiting = (ride: number) => {
-    const s = o.legs[ride].from
-    return !!(pos && s && onLine([[s.lon, s.lat]], pos).d <= Math.max(AT_STOP_M, pos.accuracy))
-  }
+  const near = (s?: { lat: number; lon: number }) => !!(pos && s && onLine([[s.lon, s.lat]], pos).d <= Math.max(AT_STOP_M, pos.accuracy))
+  const waiting = (ride: number) => near(o.legs[ride].from)
   const before = (ride: number): Phase => (ride < 0 ? { kind: 'final-walk' } : { kind: 'before', ride, waiting: waiting(ride) })
   switch (r.kind) {
     case 'start':
@@ -196,6 +195,9 @@ function phaseFromSteps(o: Option, rs: Row[], at: At, lines: LonLat[][], pos: { 
       return before(r.t.to_leg)
     case 'leg':
       if (r.leg.kind === 'walk') return before(nextRide(r.i + 1))
+      // At the stop you get off at, once the ride's time there has come: you're off it, on to the next thing (you
+      // stay on this step until you've moved along the next, but you're no longer riding).
+      if (nowMs >= Date.parse(r.leg.arr) && near(r.leg.to)) return before(nextRide(r.i + 1))
       // On the ride's line: aboard once you've moved along it; until then, at the stop waiting.
       return at.frac * lengthM(lines[at.row]) >= BOARDED_M ? { kind: 'riding', ride: r.i } : { kind: 'before', ride: r.i, waiting: true }
   }

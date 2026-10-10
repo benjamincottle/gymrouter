@@ -509,4 +509,30 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   alternatives; kept-axis versions (a minimum ride width, names as tags above the tape, a slim axis bar under a fitted
   tape) were rejected as more to read for the same answer. The risk mark now sits evenly between the arrive time and the
   door-to-door time.
+- 2026-10-10: A trip under way is checked as it stands, not searched for. Every 30 s the app planned again and looked
+  for an option with the same vehicles; none meant "You won't make the planned connection". But a search returns the
+  best trips, not every possible one, so a good trip could be missing for reasons that had nothing to do with making
+  it. In the field the warning came up on trips that were fine and went away again. Four causes, each reproduced:
+  - a later departure with the same arrival beats yours, so the search drops yours (start the 12:14, and the first
+    re-check lists the 12:24 instead);
+  - you stay "riding" until you've moved along the change (at a same-stop change, until the next vehicle), and once
+    the vehicle's time at your stop has passed the server couldn't start a search from it;
+  - from the vehicle, the first change used the street map's time whatever you had timed it at;
+  - from the vehicle, the first change skipped the change buffer.
+
+  Now the app names the rides still ahead (`keep`) and the server describes exactly that trip with live times
+  (`kept`): each change rated as when planning, with your own change times and the buffer, `missed` when there's no
+  time left for it; and, before a ride, the time to spare on reaching it. That alone decides whether the trip still
+  works. The search still runs alongside, only to offer something faster or something else, and never offers a trip
+  with a change there's no time for. The warning says what won't be made ("You won't make the change at North Ryde
+  Station: the 288 leaves at 12:34"). Around it:
+  - at the stop you get off at, once the ride's time there has come, you're off it (waiting for, or walking to, the
+    next), rather than riding until you've moved on;
+  - a location that has been quiet for 90 s (a tunnel, an underground platform) isn't used: the clock decides, as
+    with no location at all. Before, the last fix at a station entrance kept you "walking to the stop" while you rode;
+  - with no location, after the time to leave you're taken to be walking to the stop as planned, not still at home;
+  - the trip's live times keep updating when a change in it has gone.
+
+  Left as they were, to judge after field use: nothing damps a connection that flips with each live update, and "a
+  faster way" goes by arrival time alone.
 
