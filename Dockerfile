@@ -27,7 +27,7 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
 
 # --- The pmtiles tool: the server runs it to cut the Sydney basemap out of the Protomaps build ---
 # A static Go binary, pinned by digest (Dependabot keeps it current). Per target platform.
-FROM --platform=$TARGETPLATFORM ghcr.io/protomaps/go-pmtiles:v1.31.2@sha256:06574f01f55a78f78f887bc7ebf729a5c093c0d6e17d9876300cfcb0758b59d3 AS pmtiles
+FROM ghcr.io/protomaps/go-pmtiles:v1.31.2@sha256:06574f01f55a78f78f887bc7ebf729a5c093c0d6e17d9876300cfcb0758b59d3 AS pmtiles
 
 # --- Final Stage ---
 # Static binary, no shell, no package manager. :nonroot runs as uid 65532.
