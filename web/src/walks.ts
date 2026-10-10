@@ -4,7 +4,7 @@
 // Pure logic; the screens are views/intrip.tsx (timing) and views/settings.tsx (the list).
 
 import type { Option, PlaceRequest, StopRef } from './types.ts'
-import { meanSecs, MAX_SAMPLES, type LonLat, type Walk } from './walkmeasure.ts'
+import { distanceM, meanSecs, MAX_SAMPLES, PACE_MIN_M, PACE_MIN_S, type LonLat, type Walk } from './walkmeasure.ts'
 
 interface Timed {
   label: string // e.g. "Home – Epping Station"
@@ -222,6 +222,31 @@ export function legTrace(walks: TimedWalk[], o: Option, i: number, start?: strin
     t = tr && [...tr].reverse()
   }
   return t && t.length > 1 ? t : undefined
+}
+
+// --- Your walking pace, learned from them ---
+
+/** A walk slower or faster than this (m/s) says more about its trace than about how you walk (a lift, a lost signal). */
+const PACE_RANGE = [0.6, 2.5]
+
+/**
+ * Your walking pace (m/s) as your timed, traced walks show it: all their distance over all their time, so a long walk
+ * counts for more than a short one. It's door to stop, waits at crossings included, which is what planning a walk
+ * needs. Null until a walk long enough to go by has been traced.
+ */
+export function learnedPace(walks: TimedWalk[]): number | null {
+  let metres = 0
+  let secs = 0
+  for (const w of walks) {
+    if (!w.trace || w.trace.length < 2) continue
+    let m = 0
+    for (let i = 1; i < w.trace.length; i++) m += distanceM({ lon: w.trace[i - 1][0], lat: w.trace[i - 1][1] }, { lon: w.trace[i][0], lat: w.trace[i][1] })
+    const t = walkSecs(w)
+    if (m < PACE_MIN_M || t < PACE_MIN_S || m / t < PACE_RANGE[0] || m / t > PACE_RANGE[1]) continue
+    metres += m
+    secs += t
+  }
+  return secs > 0 ? Math.round((metres / secs) * 100) / 100 : null
 }
 
 // --- Stored data ---

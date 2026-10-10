@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
 import { addDays, dayLabel, distance, fromLocalInput, orList, roundUp, statusTime, toLocalInput } from '../format.ts'
 import { usePolling, useSettled, useVisible, useWide } from '../hooks.ts'
-import { byUse, placeRef, planPlace, prefs, usedGym, type Gym, type Settings } from '../settings.ts'
+import { byUse, placeRef, planPlace, prefs, usedGym, walkSpeed, type Gym, type Settings } from '../settings.ts'
 import type { DefaultsResponse, PlanRequest } from '../types.ts'
 import { Board, WindowShift, type Shift } from './board.tsx'
 import { BrandLogo } from './brand.tsx'
@@ -233,7 +233,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
                   origin: direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat],
                   destination: direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat],
                   serviceDate: plan.data!.service_date,
-                  walkSpeedMps: settings.walkSpeedMps ?? server.defaults.walk_speed_mps,
+                  walkSpeedMps: walkSpeed(settings) ?? server.defaults.walk_speed_mps,
                 })
               }
             />

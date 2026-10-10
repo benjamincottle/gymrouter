@@ -157,6 +157,13 @@ test('requests carry curated access and preferences', () => {
     walk_speed_mps: 1.4, risk: { safe_s: 120, tight_s: 30 },
     transfers: [{ from: '2121', to: '2121', secs: 150 }],
   })
+  // No pace set: the one the timed, traced walks show (about 700 m in 500 s), else the server's default.
+  const { walkSpeedMps: _, ...unset } = sample
+  const traced = { kind: 'access' as const, place: 'home:h1', stop: ['2077'], label: 'x', times: [500], trace: [[151.1, -33.8], [151.1, -33.8063]] as [number, number][] }
+  assert.equal(prefs({ ...unset, walks: [traced] }).walk_speed_mps, 1.4)
+  assert.equal(prefs({ ...sample, walks: [traced] }).walk_speed_mps, 1.4, 'a pace set in Settings wins (it is 1.4 too)')
+  assert.equal(prefs({ ...sample, walkSpeedMps: 1.1, walks: [traced] }).walk_speed_mps, 1.1)
+  assert.equal(prefs({ ...unset, walks: [] }).walk_speed_mps, undefined)
   // A home's timed walks go with it; suggestions (placeRequest) never carry them.
   assert.deepEqual(planPlace('home', sample.homes[0], sample.walks).walks, [{ stop: '2077', walk_s: 510 }])
   assert.equal(planPlace('gym', { ...sample.gyms[0], ref: 'lane-cove' }, sample.walks).walks, undefined)

@@ -493,4 +493,11 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   are placed on the walk's own line (your trace if there is one, else the street route) and what's left is that share
   of the walk's time, plus getting back to the line if you're off it; the re-check sends that figure for the stop you're
   heading to along with your position (`walks`), so other stops are still routed from where you are.
+- 2026-10-10: The walking pace is learned from timed walks. With no speed set in Settings, walks that haven't been timed
+  are planned at the pace the timed, traced ones show: all their traced distance over all their time, so a long walk
+  counts for more than a short one, and waits at crossings are in it (it's the door-to-stop pace planning needs, where
+  "Measure my pace" counts only the moving stretches). A walk under 100 m or a minute, or one whose trace works out
+  slower than 0.6 m/s or faster than 2.5 m/s (a lift, a lost signal), is left out. A speed typed into Settings, or
+  taken from "Measure my pace", wins; clearing the field goes back to the learned pace, and to the server's default
+  when no walk has been traced. Nothing new is stored: it's worked out from the walks each time.
 

@@ -139,7 +139,8 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Field:** a label (600) above, then a 44px input in `--panel` with a 1.5px `--edge` outline that turns ink on focus,
   then an optional hint (14px pencil, 400).
   - Defaults: an empty field means "use the default", and its hint says what the default is ("Empty uses the default,
-    4.7"). A changed field shows its value and offers "Use the default (3)". Settings save as they change and say
+    4.7"). A changed field shows its value and offers "Use the default (3)". When an empty field uses something learned on the
+    device instead, both say what ("Empty uses your pace on timed walks, 5.1", "Use your pace on timed walks (5.1)"). Settings save as they change and say
     "Saved." in the hint for two seconds (`NumberField` in Settings).
 - **Callout:** a `--panel` fill with a 4px left bar. Tones:
   - neutral (ink) for information and confirmations;

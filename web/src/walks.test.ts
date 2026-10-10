@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { changeTimes, existing, findAccess, findChange, legTrace, placeKey, placeWalks, record, sanitizeWalks, segments, stopKey, type At, type TimedWalk } from './walks.ts'
+import { changeTimes, existing, findAccess, findChange, learnedPace, legTrace, placeKey, placeWalks, record, sanitizeWalks, segments, stopKey, type At, type TimedWalk } from './walks.ts'
 import type { Leg, Option, StopRef } from './types.ts'
 import type { LonLat } from './walkmeasure.ts'
 
@@ -95,4 +95,17 @@ test('stored walks are checked', () => {
   assert.deepEqual(sanitizeWalks([good, { ...good, times: [] }, { ...good, kind: 'x' }, { ...good, from: [] },
     { ...good, trace: [[500, 1], [1, 1]] }, null, 'x']), [good, good])
   assert.deepEqual(sanitizeWalks('nope'), [])
+})
+
+test('walking pace is learned from timed walks that were traced', () => {
+  // 0.001° of latitude is about 111 m.
+  const north = (m: number): LonLat[] => [[151.1, -33.8], [151.1, -33.8 + m / 111_195]]
+  const access = (times: number[], trace?: LonLat[]): TimedWalk => ({ kind: 'access', place: 'home:h1', stop: ['epp'], label: 'x', times, ...(trace ? { trace } : {}) })
+  assert.equal(learnedPace([]), null)
+  assert.equal(learnedPace([access([300])]), null, 'timed but not traced: no distance to go by')
+  assert.equal(learnedPace([access([20], north(40))]), null, 'too short to mean anything')
+  assert.equal(learnedPace([access([400, 500], north(630))]), 1.4, 'the trace over the walk\'s average time')
+  // All the distance over all the time: 630 m + 270 m in 450 s + 300 s.
+  assert.equal(learnedPace([access([450], north(630)), { kind: 'change', from: ['a'], to: ['b'], label: 'y', times: [300], trace: north(270) }]), 1.2)
+  assert.equal(learnedPace([access([450], north(630)), access([60], north(600))]), 1.4, 'a trace no one walked (10 m/s) is left out')
 })

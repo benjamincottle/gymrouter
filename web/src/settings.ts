@@ -1,7 +1,7 @@
 // Device-side settings: everything personal lives here, never on the server.
 
 import type { KnownGym, PlaceRequest, PlanRequest, SuggestResult } from './types.ts'
-import { changeTimes, placeKey, placeWalks, sanitizeWalks, type PlaceRef, type Retime, type TimedWalk } from './walks.ts'
+import { changeTimes, learnedPace, placeKey, placeWalks, sanitizeWalks, type PlaceRef, type Retime, type TimedWalk } from './walks.ts'
 
 export interface AccessStop {
   stop: string
@@ -280,9 +280,15 @@ export function placeRef(kind: 'home' | 'gym', p: Place & { ref?: string }): Pla
   return { key: placeKey(kind, p), name: p.name, lat: p.lat, lon: p.lon }
 }
 
+/** The pace walks are planned at: the one set in Settings, else the one your timed walks show, else the server's default (undefined). */
+export function walkSpeed(s: Pick<Settings, 'walkSpeedMps' | 'walks'>): number | undefined {
+  return s.walkSpeedMps ?? learnedPace(s.walks) ?? undefined
+}
+
 export function prefs(s: Settings): PlanRequest['prefs'] {
   const p: PlanRequest['prefs'] = {}
-  if (s.walkSpeedMps !== undefined) p.walk_speed_mps = s.walkSpeedMps
+  const speed = walkSpeed(s)
+  if (speed !== undefined) p.walk_speed_mps = speed
   if (s.minChangeS !== undefined) p.min_change_s = s.minChangeS
   if (s.maxWalkM !== undefined) p.max_walk_m = s.maxWalkM
   if (s.leaveBufferS !== undefined) p.leave_buffer_s = s.leaveBufferS
