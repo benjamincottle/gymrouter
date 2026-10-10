@@ -44,7 +44,9 @@ rebuilt weekly) and builds the walking network from it (a few seconds, ~40 MB ca
 basemap (~63 MB) from the Protomaps daily build with the `pmtiles` tool shipped in the image. Both refresh themselves
 every month or two. The container needs outbound HTTPS to `download.bbbike.org` and `build.protomaps.com`. Until they
 arrive (a minute or two) walks are straight-line estimates and the map is blank; if a download fails the app keeps
-working and retries every few hours. `GET /api/status` shows `data` with their state and any error. To use other
+working and retries every few hours. `GET /api/status` shows `data` with their state and any error. The street map
+can be fetched early from the app: open the server status in the footer and choose "Update now" on the Street map row
+(after adding a path to OpenStreetMap, once BBBike's weekly rebuild has it). To use other
 sources or turn this off, see `[data]` in `config.example.toml`.
 
 ## 5. Set up a device

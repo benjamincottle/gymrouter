@@ -47,11 +47,15 @@ export function summarise(status: ServerStatus | null, error: unknown): Summary 
   }
 }
 
-/** One line of the status in full: what it's about, what the server said, and whether that's a problem. */
+/**
+ * One line of the status in full: what it's about, what the server said, whether that's a problem, and what can be
+ * done from the row.
+ */
 export interface Detail {
   label: string
   value: string
   tone?: 'caution' | 'bad'
+  action?: 'update-street-map'
 }
 
 const FEEDS: Record<string, string> = {
@@ -90,9 +94,12 @@ export function details(s: ServerStatus): Detail[] {
   if (s.unknown_trackwork?.length) out.push({ label: 'Trackwork buses left out', value: s.unknown_trackwork.join(', '), tone: 'caution' })
   const d = s.data
   if (d) {
-    out.push(d.walk_error
-      ? { label: 'Street map', value: `${d.walk_ready ? 'In use, but the last download failed' : "Couldn't be downloaded"}: ${d.walk_error}`, tone: 'caution' }
-      : { label: 'Street map', value: d.walk_ready ? aged('Ready, built', d.walk_age_s) : 'Being prepared: walks are estimates until then' })
+    // The street map can be fetched again once there is one (or a try at one); before that the server is on it.
+    const update = d.walk_updating ? {} : { action: 'update-street-map' as const }
+    if (d.walk_updating && d.walk_ready) out.push({ label: 'Street map', value: 'Updating now: walks use the one from before until it\'s ready' })
+    else if (d.walk_error) out.push({ label: 'Street map', value: `${d.walk_ready ? 'In use, but the last download failed' : "Couldn't be downloaded"}: ${d.walk_error}`, tone: 'caution', ...update })
+    else if (d.walk_ready) out.push({ label: 'Street map', value: aged('Ready, built', d.walk_age_s), ...update })
+    else out.push({ label: 'Street map', value: 'Being prepared: walks are estimates until then' })
     out.push(d.map_error
       ? { label: 'Map', value: `${d.map_ready ? 'In use, but the last download failed' : "Couldn't be downloaded"}: ${d.map_error}`, tone: 'caution' }
       : { label: 'Map', value: d.map_ready ? aged('Ready, built', d.map_age_s) : 'Being prepared: the map is blank until then' })

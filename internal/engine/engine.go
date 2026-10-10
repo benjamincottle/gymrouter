@@ -110,7 +110,11 @@ type Engine struct {
 	heavy    chan struct{}           // held while a whole-network pass runs (one at a time bounds memory)
 	catalog  atomic.Pointer[Catalog]
 	walker   atomic.Pointer[walk.Graph]
-	foot     footCache
+	// The street network is being fetched and rebuilt, or has been asked for (UpdateStreetMap); walkNow wakes the
+	// provisioning loop to do it.
+	walkUpdating atomic.Bool
+	walkNow      chan struct{}
+	foot         footCache
 
 	// Lines waiting to be loaded in the background (Prefetch), and whether a load is under way.
 	prefetchMu  sync.Mutex
@@ -156,6 +160,7 @@ func New(cfg *config.Config, loc *time.Location, f Fetcher, log *slog.Logger, pr
 		lastUsed: map[lines.Key]time.Time{},
 		heavy:    make(chan struct{}, 1),
 		wake:     make(chan struct{}, 1),
+		walkNow:  make(chan struct{}, 1),
 		cache:    map[string]*Snapshot{},
 	}
 	e.addFeeds(e.all)

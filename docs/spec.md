@@ -583,3 +583,12 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   station included, by itself), and the dismissal is the place and that stop. The notice shows again when the place's
   nearest stop is another one. Dropping the gym but still matching on the distance was rejected: two gyms' lines can
   call at different platforms of one station, a few metres apart on foot, and "1.4 km" turns into "1.5 km".
+- 2026-10-10: The street map can be updated when asked: "Update now" on the Street map row of the server status in
+  full, and `POST /api/street-map/update` behind it. The server fetches it every 35 days, which is right for streets
+  but long for the one case that matters: a path added to OpenStreetMap so the app stops walking around it. The request
+  only wakes the provisioning loop, so there's still one download and one build at a time, and the status says it's
+  updating (`walk_updating`). A failed try is now tried again after 6 hours even when the street map in use isn't old
+  (before, only an old or missing one was), so a failed update doesn't leave its warning up for a month. BBBike's
+  extract is itself rebuilt weekly, so an edit can be up to a week from being there to fetch; showing the extract's own
+  date was left out until that turns out to be a guess worth removing. The basemap has no such action: it's a picture,
+  and nothing is routed over it.

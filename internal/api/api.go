@@ -48,6 +48,7 @@ type Engine interface {
 	Walker() *walk.Graph
 	PathsFrom(net *raptor.Network, p geo.Point, maxM float64) engine.Approach
 	WalkPath(a, b geo.Point) ([]geo.Point, bool)
+	UpdateStreetMap() error
 	Suggest(ctx context.Context, from engine.SuggestPlace, targets []engine.SuggestPlace, radiusM float64,
 		progress func(done, of int)) ([]*engine.SuggestResult, error)
 }
@@ -81,6 +82,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/suggest-lines/{id}", s.suggestStatus)
 	api.HandleFunc("GET /api/vehicles", s.vehicles)
 	api.HandleFunc("GET /api/status", s.status)
+	api.HandleFunc("POST /api/street-map/update", s.updateStreetMap)
 	api.HandleFunc("POST /api/geocode", s.geocode)
 	api.HandleFunc("GET /api/shape", s.legShape)
 	api.HandleFunc("GET /api/map.pmtiles", s.mapTiles)
@@ -279,6 +281,15 @@ func (s *Server) geocode(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.eng.Health())
+}
+
+// updateStreetMap asks for the street map to be downloaded and rebuilt now; the status says when it's done.
+func (s *Server) updateStreetMap(w http.ResponseWriter, r *http.Request) {
+	if err := s.eng.UpdateStreetMap(); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusAccepted, struct{}{})
 }
 
 // defaults returns the gyms the app knows about and the routing defaults.

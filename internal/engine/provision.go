@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/benjamincottle/gymrouter/internal/walk"
@@ -30,12 +31,15 @@ const (
 
 // DataStatus reports the self-provisioned files.
 type DataStatus struct {
-	WalkReady bool   `json:"walk_ready"`
-	WalkAgeS  *int64 `json:"walk_age_s,omitempty"`
-	WalkError string `json:"walk_error,omitempty"`
-	MapReady  bool   `json:"map_ready"`
-	MapAgeS   *int64 `json:"map_age_s,omitempty"`
-	MapError  string `json:"map_error,omitempty"`
+	WalkReady bool `json:"walk_ready"`
+	// WalkUpdating: the street network is being downloaded and rebuilt, or is about to be (the one in use stays
+	// in use until it's done).
+	WalkUpdating bool   `json:"walk_updating,omitempty"`
+	WalkAgeS     *int64 `json:"walk_age_s,omitempty"`
+	WalkError    string `json:"walk_error,omitempty"`
+	MapReady     bool   `json:"map_ready"`
+	MapAgeS      *int64 `json:"map_age_s,omitempty"`
+	MapError     string `json:"map_error,omitempty"`
 }
 
 func (e *Engine) dataStatus() DataStatus {
@@ -50,6 +54,7 @@ func (e *Engine) dataStatus() DataStatus {
 	}
 	d.WalkAgeS, d.WalkReady = age(filepath.Join(e.cfg.Server.DataDir, walkFile))
 	d.WalkReady = d.WalkReady && e.Walker() != nil
+	d.WalkUpdating = e.walkUpdating.Load()
 	d.MapAgeS, d.MapReady = age(filepath.Join(e.cfg.Server.DataDir, mapFile))
 	e.rtMu.Lock()
 	d.WalkError, d.MapError = e.walkErr, e.mapErr
@@ -62,9 +67,16 @@ func (e *Engine) dataStatus() DataStatus {
 // log, show in /api/status and retry later.
 func (e *Engine) provisionLoop(ctx context.Context) {
 	next := map[string]time.Time{} // when to look at each item again
-	step := func(name string, due func() bool, run func(context.Context) error, setErr func(string)) {
-		if e.now().Before(next[name]) || !due() {
+	failed := map[string]bool{}    // the last try failed: try again even if the file in use isn't old yet
+	// busy, when there is one, is set while the item is being fetched; set from outside, it asks for that now.
+	step := func(name string, busy *atomic.Bool, due func() bool, run func(context.Context) error, setErr func(string)) {
+		asked := busy != nil && busy.Load()
+		if !asked && (e.now().Before(next[name]) || !(due() || failed[name])) {
 			return
+		}
+		if busy != nil {
+			busy.Store(true)
+			defer busy.Store(false)
 		}
 		var err error
 		if perr := e.guard(name, func() { err = run(ctx) }); perr != nil {
@@ -76,22 +88,43 @@ func (e *Engine) provisionLoop(ctx context.Context) {
 			}
 			e.log.Warn("could not prepare "+name+"; will retry", "err", err)
 			setErr(err.Error())
-			next[name] = e.now().Add(provisionRetry)
+			next[name], failed[name] = e.now().Add(provisionRetry), true
 			return
 		}
 		setErr("")
+		failed[name] = false
 	}
 	t := time.NewTicker(provisionTick)
 	defer t.Stop()
 	for {
-		step("street network", e.walkDue, e.RefreshWalk, func(s string) { e.rtMu.Lock(); e.walkErr = s; e.rtMu.Unlock() })
-		step("basemap", e.mapDue, e.RefreshMap, func(s string) { e.rtMu.Lock(); e.mapErr = s; e.rtMu.Unlock() })
+		step("street network", &e.walkUpdating, e.walkDue, e.RefreshWalk, func(s string) { e.rtMu.Lock(); e.walkErr = s; e.rtMu.Unlock() })
+		step("basemap", nil, e.mapDue, e.RefreshMap, func(s string) { e.rtMu.Lock(); e.mapErr = s; e.rtMu.Unlock() })
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+		case <-e.walkNow:
 		}
 	}
+}
+
+// ErrNoStreetMap means the server isn't set up to download a street map (see [data] in the config).
+var ErrNoStreetMap = errors.New("this server doesn't download a street map")
+
+// UpdateStreetMap asks for the street network to be downloaded and rebuilt now rather than when it's next due
+// (someone has mapped a path and doesn't want to wait). It returns at once: the provisioning loop does the work
+// and /api/status says when it's done. Asking while one is under way changes nothing.
+func (e *Engine) UpdateStreetMap() error {
+	if !e.cfg.Data.AutoDownload || e.cfg.Data.WalkSource == "" {
+		return ErrNoStreetMap
+	}
+	if e.walkUpdating.CompareAndSwap(false, true) {
+		select {
+		case e.walkNow <- struct{}{}:
+		default:
+		}
+	}
+	return nil
 }
 
 func (e *Engine) fileOlderThan(name string, d time.Duration) bool {

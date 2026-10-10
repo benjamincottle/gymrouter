@@ -2,13 +2,18 @@
 package engine_test
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/benjamincottle/gymrouter/internal/engine"
 	"github.com/benjamincottle/gymrouter/internal/engine/enginetest"
 	"github.com/benjamincottle/gymrouter/internal/geo"
 	"github.com/benjamincottle/gymrouter/internal/lines"
@@ -106,6 +111,90 @@ func TestStreetNetworkFailuresLeaveTheAppWorking(t *testing.T) {
 	snap, _ := e.SnapshotFor(env.Clock.Now())
 	if ap := e.Approach(snap.Net, geo.Point{Lat: -33.7727, Lon: 151.0821}, 400, e.RoutingOptions(), nil); ap.Streets || len(ap.Access) == 0 {
 		t.Errorf("fallback approach: %+v", ap)
+	}
+}
+
+func TestStreetMapUpdatesWhenAsked(t *testing.T) {
+	env := enginetest.NewWith(t, noPresets, nil)
+	e := env.Engine
+	var hits atomic.Int32
+	var broken atomic.Bool
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		if broken.Load() {
+			http.Error(w, "nope", http.StatusInternalServerError)
+			return
+		}
+		w.Write(streetsPBF())
+	}))
+	defer srv.Close()
+	e.SetTransport(srv.Client().Transport)
+	env.Config.Data.WalkSource = srv.URL + "/Sydney.osm.pbf"
+	env.Config.Data.PMTilesBin = "" // no basemap: this is about the streets
+	loopCtx, stop := context.WithCancel(ctx)
+	defer stop()
+	go e.ProvisionLoop(loopCtx)
+	// settled waits for the loop to finish its nth download and returns what the status then says.
+	settled := func(n int32) engine.DataStatus {
+		t.Helper()
+		for deadline := time.Now().Add(30 * time.Second); ; time.Sleep(5 * time.Millisecond) {
+			if d := e.Health().Data; hits.Load() >= n && !d.WalkUpdating {
+				return d
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("download %d never finished: %d made, status %+v", n, hits.Load(), e.Health().Data)
+			}
+		}
+	}
+	if d := settled(1); !d.WalkReady || d.WalkError != "" { // the first start's own download
+		t.Fatalf("after the first download: %+v", d)
+	}
+	first := e.Walker()
+
+	// A fresh street map isn't due for weeks, but asking fetches it now; the status says so meanwhile.
+	if err := e.UpdateStreetMap(); err != nil {
+		t.Fatal(err)
+	}
+	if !e.Health().Data.WalkUpdating && hits.Load() < 2 {
+		t.Error("the status should say the street map is updating")
+	}
+	if d := settled(2); !d.WalkReady || d.WalkError != "" || e.Walker() == first {
+		t.Errorf("after asking: %+v, same network %v", d, e.Walker() == first)
+	}
+	if hits.Load() != 2 {
+		t.Errorf("downloads: %d, want 2", hits.Load())
+	}
+
+	// A failed update keeps the street map in use and says why; asking again clears it.
+	broken.Store(true)
+	second := e.Walker()
+	if err := e.UpdateStreetMap(); err != nil {
+		t.Fatal(err)
+	}
+	if d := settled(3); !d.WalkReady || d.WalkError == "" || e.Walker() != second {
+		t.Errorf("after a failed update: %+v", d)
+	}
+	broken.Store(false)
+	if err := e.UpdateStreetMap(); err != nil {
+		t.Fatal(err)
+	}
+	if d := settled(4); !d.WalkReady || d.WalkError != "" {
+		t.Errorf("after trying again: %+v", d)
+	}
+}
+
+func TestStreetMapUpdateNeedsASource(t *testing.T) {
+	env := enginetest.NewWith(t, noPresets, nil)
+	env.Config.Data.WalkSource = ""
+	if err := env.Engine.UpdateStreetMap(); !errors.Is(err, engine.ErrNoStreetMap) {
+		t.Errorf("no source: %v", err)
+	}
+	env.Config.Data.WalkSource, env.Config.Data.AutoDownload = "https://example.com/x.osm.pbf", false
+	if err := env.Engine.UpdateStreetMap(); !errors.Is(err, engine.ErrNoStreetMap) {
+		t.Errorf("downloads turned off: %v", err)
+	}
+	if env.Engine.Health().Data.WalkUpdating {
+		t.Error("nothing should be updating")
 	}
 }
 

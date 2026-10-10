@@ -1,5 +1,5 @@
-import { useState } from 'preact/hooks'
-import { api } from '../api.ts'
+import { useEffect, useState } from 'preact/hooks'
+import { api, problem } from '../api.ts'
 import { statusTime } from '../format.ts'
 import { usePolling, useVisible } from '../hooks.ts'
 import { details, outdated, summarise } from '../serverstatus.ts'
@@ -8,6 +8,9 @@ import { TextButton } from './ui.tsx'
 
 /** How often the footer checks the server while the app is open. */
 const CHECK_MS = 5 * 60_000
+
+/** And while the server is updating its street map, so the row says when it's done. */
+const UPDATING_MS = 5_000
 
 const Chevron = () => (
   <svg class="chevron" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
@@ -25,6 +28,12 @@ export function ServerStatusLine({ token }: { token: string }) {
   const [open, setOpen] = useState(false)
   const s = summarise(status.data, status.error)
   const version = status.data?.version
+  const updating = status.data?.data?.walk_updating ?? false
+  useEffect(() => {
+    if (!updating || !open || !visible) return
+    const id = setInterval(status.refresh, UPDATING_MS)
+    return () => clearInterval(id)
+  }, [updating, open, visible])
   const toggle = () => {
     if (!open) status.refresh() // what you open is what the server says now
     setOpen(!open)
@@ -44,7 +53,7 @@ export function ServerStatusLine({ token }: { token: string }) {
       ))}
       {open && (
         <div id="server-detail" class="server-detail">
-          {status.data ? <Detail status={status.data} /> : <p>{s.state === 'error' ? 'Nothing to show until the server answers.' : 'Asking the server…'}</p>}
+          {status.data ? <Detail status={status.data} token={token} refresh={status.refresh} /> : <p>{s.state === 'error' ? 'Nothing to show until the server answers.' : 'Asking the server…'}</p>}
         </div>
       )}
       {version &&
@@ -59,16 +68,45 @@ export function ServerStatusLine({ token }: { token: string }) {
   )
 }
 
-/** The status in full: a row for each thing the server reported, then its reply as it came. */
-function Detail({ status }: { status: ServerStatus }) {
+/**
+ * The status in full: a row for each thing the server reported, then its reply as it came. The street map's row can
+ * ask the server to download it again (`refresh` then asks for the status, which says it's updating).
+ */
+function Detail({ status, token, refresh }: { status: ServerStatus; token: string; refresh: () => void }) {
   const [raw, setRaw] = useState(false)
+  const [asking, setAsking] = useState(false)
+  const [failed, setFailed] = useState('')
+  const update = async () => {
+    setAsking(true)
+    setFailed('')
+    try {
+      await api.updateStreetMap(token)
+      refresh()
+    } catch (e) {
+      setFailed(problem(e))
+    } finally {
+      setAsking(false)
+    }
+  }
   return (
     <>
       <dl>
         {details(status).map((d) => (
           <div class={d.tone}>
             <dt>{d.label}</dt>
-            <dd>{d.value}</dd>
+            <dd>
+              {d.value}
+              {d.action === 'update-street-map' && (
+                <p>
+                  <TextButton disabled={asking} onClick={update}>Update now</TextButton>
+                </p>
+              )}
+              {d.action === 'update-street-map' && failed && (
+                <p class="problem" role="alert">
+                  {failed}
+                </p>
+              )}
+            </dd>
           </div>
         ))}
       </dl>

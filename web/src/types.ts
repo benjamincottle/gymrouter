@@ -211,5 +211,5 @@ export interface ServerStatus {
   missing_lines?: string[] // loaded lines with no services today
   unknown_trackwork?: string[]
   realtime?: { updates: number; matched: number; matched_by_run: number; added: number; cancelled: number; empty: number; unmatched: number }
-  data?: { walk_ready: boolean; walk_age_s?: number; walk_error?: string; map_ready: boolean; map_age_s?: number; map_error?: string }
+  data?: { walk_ready: boolean; walk_updating?: boolean; walk_age_s?: number; walk_error?: string; map_ready: boolean; map_age_s?: number; map_error?: string }
 }
