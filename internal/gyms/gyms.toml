@@ -171,3 +171,16 @@ address = "144 Old Pittwater Rd, Brookvale"
 lat = -33.767600
 lon = 151.262268
 lines = ["bus B1", "bus 173X", "bus 142", "bus 154X", "bus 180X", "bus 174X", "bus 280", "bus 160X", "metro M1", "train T1", "train T8"]
+
+# Climber Collective: address from climbercollective.com.au, coordinates from the Transport for NSW address lookup,
+# lines found the same way. The Blue Mountains line is listed because its trains are the quick way out to Penrith; the
+# T5 and the 611 because trackwork on the T1 leaves them (with the metro) as the way round to Seven Hills.
+
+[[gym]]
+id = "climbercollective"
+name = "Climber Collective"
+brand = "climbercollective"
+address = "4/55-61 York Rd, Jamisontown"
+lat = -33.767272
+lon = 150.687465
+lines = ["train T1", "train BMT", "train T5", "bus 797", "bus 799", "bus 770", "bus 791", "bus 776", "bus 793", "bus 689", "bus 611", "metro M1"]

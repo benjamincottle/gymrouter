@@ -567,3 +567,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - 2026-10-10: The gym chooser starts with nothing ticked (supersedes "adds the gyms (all ticked)" of 2026-10-03). With
   three gyms, all ticked was the quickest way through setup; with sixteen nobody climbs at them all, and a device holds
   12 (as many as one line search takes). At 12 the remaining boxes are disabled and a line says why.
+- 2026-10-10: A seventeenth built-in gym, Climber Collective in Jamisontown (Penrith), the first at the western edge of
+  the area the map and street network cover. Its lines include the Blue Mountains line, whose trains are the quick way
+  out, and the T5 and bus 611: with trackwork on the T1 there was otherwise no way there from the city. The built-in
+  gyms now keep 93 lines loaded.
