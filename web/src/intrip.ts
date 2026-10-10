@@ -114,9 +114,10 @@ export function keepFrom(o: Option, from: number): KeepRide[] {
 /**
  * Why the trip can't be made as planned: a ride no longer runs ('gone'), you can't reach the next ride in time
  * ('board'), or there's no longer time for a change ('change'). `ride` is the one you won't make; `at`, for a change,
- * the ride you'd be coming off.
+ * the ride you'd be coming off. `unsure` marks a warning that's only still showing (see stillMissed): there's a little to
+ * spare again, so it's "may not" rather than "won't".
  */
-export type Missed = { why: 'gone' } | { why: 'board'; ride: Leg } | { why: 'change'; ride: Leg; at: Leg }
+export type Missed = { why: 'gone' } | { why: 'board'; ride: Leg; unsure?: boolean } | { why: 'change'; ride: Leg; at: Leg; unsure?: boolean }
 
 export type Assessment =
   | { status: 'on-track'; current: Option; lateBy: number }
@@ -137,23 +138,58 @@ function missedIn(kept: Kept | undefined): Missed | null {
 }
 
 /**
+ * A warning already showing stays until the thing it's about has `clearS` to spare again (the "tight" setting), so a
+ * connection hovering around nothing to spare doesn't come and go with every live update. Returns the warning to keep
+ * showing, or null once it's clear, or no longer the question (you're on that ride, or past that change).
+ */
+function stillMissed(kept: Kept | undefined, held: Missed | null | undefined, clearS: number): Missed | null {
+  const o = kept?.option
+  if (!o || !held || held.why === 'gone') return null
+  if (held.why === 'board') {
+    const first = o.legs.find((l) => l.kind === 'ride')
+    return first && first.trip_id === held.ride.trip_id && kept.catch_s !== undefined && kept.catch_s < clearS ? { why: 'board', ride: first, unsure: true } : null
+  }
+  const tr = o.transfers.find((x) => o.legs[x.to_leg]?.trip_id === held.ride.trip_id && o.legs[x.from_leg]?.trip_id === held.at.trip_id)
+  return tr && tr.slack_s < clearS ? { why: 'change', ride: o.legs[tr.to_leg], at: o.legs[tr.from_leg], unsure: true } : null
+}
+
+const RISK_RANK = { safe: 0, tight: 1, 'at-risk': 2, missed: 3 }
+
+/**
  * Whether the trip you're on still works, and whether another is now better. `kept` is the server's check of the
  * trip itself (the rides in `committed`, see tripsFrom), which decides whether it works: a search only returns the
  * best trips, and yours can drop out of those while it's still good. `fresh` are the options a search from where you
  * are returns now, for something better or something else; `plannedArrive` is the original arrival time.
+ *
+ * `hold` is the warning already showing, if any, and the time to spare (s) at which it clears (see stillMissed).
+ * A faster way is only offered if its changes are no riskier than those still ahead of you.
  */
-export function assess(committed: string[], kept: Kept | undefined, fresh: Option[], plannedArrive: string): Assessment {
+export function assess(
+  committed: string[], kept: Kept | undefined, fresh: Option[], plannedArrive: string, hold?: { missed: Missed | null; clearS: number },
+): Assessment {
   // Another way: not the trip you're on, and not one with a change there's no time for.
   const others = fresh.filter((o) => tripsFrom(o, 0).join('|') !== committed.join('|') && !o.transfers.some((tr) => tr.risk === 'missed'))
-  const best = others.reduce<Option | null>((b, o) => (!b || t(o.arrive) < t(b.arrive) ? o : b), null)
-  const missed = missedIn(kept)
-  if (missed) return { status: 'missed', missed, current: kept?.option, suggestion: best }
+  const earliest = (os: Option[]) => os.reduce<Option | null>((b, o) => (!b || t(o.arrive) < t(b.arrive) ? o : b), null)
+  const missed = missedIn(kept) ?? stillMissed(kept, hold?.missed, hold?.clearS ?? 0)
+  if (missed) return { status: 'missed', missed, current: kept?.option, suggestion: earliest(others) }
   const same = kept!.option!
   const lateBy = Math.round((t(same.arrive) - t(plannedArrive)) / 1000)
+  const best = earliest(others.filter((o) => RISK_RANK[o.risk] <= RISK_RANK[same.risk]))
   if (best && t(same.arrive) - t(best.arrive) >= SWITCH_GAIN_S * 1000) {
     return { status: 'better', current: same, suggestion: best, lateBy }
   }
   return { status: 'on-track', current: same, lateBy }
+}
+
+/**
+ * How sure an option's changes are, to go with offering it: "with no changes", "with a tight change",
+ * "with 2 changes, the tightest at risk".
+ */
+export function changesNote(o: Option): string {
+  const n = o.transfers.length
+  if (n === 0) return 'with no changes'
+  if (n === 1) return `with ${o.risk === 'at-risk' ? 'an' : 'a'} ${o.risk} change`
+  return o.risk === 'safe' ? `with ${n} safe changes` : `with ${n} changes, the tightest ${o.risk === 'at-risk' ? 'at risk' : o.risk}`
 }
 
 /** Short instruction for the current phase. `destination` names where the trip ends. */

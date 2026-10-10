@@ -533,6 +533,12 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   - with no location, after the time to leave you're taken to be walking to the stop as planned, not still at home;
   - the trip's live times keep updating when a change in it has gone.
 
-  Left as they were, to judge after field use: nothing damps a connection that flips with each live update, and "a
-  faster way" goes by arrival time alone.
+  Two more, decided the same day:
+  - a warning that's showing stays until the thing it's about has the "tight" setting to spare again (1 min by
+    default). It still appears the moment there's nothing to spare; only clearing waits, so a connection near the
+    line doesn't come and go with each live update. Waiting for two checks in a row was rejected: the warning would
+    come up to 30 s late, when time matters most;
+  - "a faster way" is only offered when its changes are no riskier than those still ahead of you, and both it and
+    "next best" say how sure the alternative's changes are. It had gone by arrival time alone, so a trip 4 minutes
+    faster on paper could be offered over a safe one while hanging on a 20-second change.
 

@@ -191,6 +191,18 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Trackwork:** a `caution` callout above the board for each line whose trains the options replace with buses: the
   line's chip, "**Trackwork:** buses replace some trains. Their signs say 20T4 or 23T4." The buses keep their own names
   and colour everywhere (chip, tape, map): they're the names on the buses' signs.
+- **In-trip warnings** (above Now, at most one at a time):
+  - `bad`, when the trip can't be made as it stands. It says what won't be made, then the next best with how sure its
+    changes are, and offers the switch: "**You won't make the change at North Ryde Station: the 288 leaves at 12:34.**
+    Next best: 291, arriving 12:38, with no changes." [Switch to this]. The other openings: "You won't make the M1 at
+    11:52." and "One of your services is no longer running."
+  - It shows as soon as there's nothing to spare, and then stays until there's the "tight" setting to spare again (1 min
+    unless changed), so a connection near the line doesn't come and go with each live update. While it's only staying, it
+    says "You may not make…" rather than "You won't make…".
+  - `good`, when another way arrives at least 3 minutes sooner and its changes are no riskier than those still ahead
+    of you: "**A faster way just opened up:** 291, arriving 12:38, 4 min sooner, with no changes." [Switch to this].
+  - How sure the changes are reads `with no changes`, `with a safe change` (or tight, at-risk), `with 3 safe changes`,
+    `with 2 changes, the tightest at risk`.
 - **Longer walk:** a neutral callout above the board for each end whose nearest stop on the gym's lines is beyond the
   longest walk on foot (the server planned from the nearest stops anyway): "**Longer walk:** no stops on these lines
   within a 1 km walk of Home. The nearest is a 1.4 km walk." Distances read `800 m` (to 50 m) or `1.4 km`. It's information, not a

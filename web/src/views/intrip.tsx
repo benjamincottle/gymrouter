@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, spare, statusTime } from '../format.ts'
 import { useNow, useVisible, useWide } from '../hooks.ts'
-import { assess, instruction, keepFrom, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, USABLE_M, type Assessment, type Missed, type Phase, type Position } from '../intrip.ts'
+import { assess, changesNote, instruction, keepFrom, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, USABLE_M, type Assessment, type Missed, type Phase, type Position } from '../intrip.ts'
 import type { Option, PlanRequest } from '../types.ts'
 import type { Walk } from '../walkmeasure.ts'
 import { existing, legTrace, segments, stopKey, type PlaceRef, type Retime, type Segment, type TimedWalk } from '../walks.ts'
@@ -27,6 +27,7 @@ export interface ActiveTrip {
   destination: [number, number]
   serviceDate: string
   walkSpeedMps: number
+  tightS: number // the "tight" setting: a warning that's showing clears once there's this much to spare again
 }
 
 export const TRIP_KEY = 'gymrouter.trip'
@@ -170,6 +171,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   leftRef.current = nextRide?.from && leftS !== null ? { stop: stopKey({ stop: nextRide.from, mode: nextRide.line?.mode }), secs: leftS } : null
 
   const checkedRef = useRef(false)
+  const held = useRef<Missed | null>(null) // the warning showing, which stays until it's comfortably clear (assess)
 
   // Open at the top: the planning screen may have been scrolled down to its Start button.
   useEffect(() => window.scrollTo(0, 0), [])
@@ -219,7 +221,8 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           keep: keepFrom(trip.option, ph.ride),
         })
         if (!live) return
-        const a = assess(tripsFrom(trip.option, ph.ride), res.kept, res.options, trip.plannedArrive)
+        const a = assess(tripsFrom(trip.option, ph.ride), res.kept, res.options, trip.plannedArrive, { missed: held.current, clearS: trip.tightS })
+        held.current = a.status === 'missed' ? a.missed : null
         setCheck(a)
         setCheckedAt(Date.now())
         setError('')
@@ -244,6 +247,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
     const ph = phaseRef.current
     const keep = ph.kind === 'riding' || ph.kind === 'before' ? ph.ride : o.legs.length
     onUpdate({ ...trip, option: merge(o, keep, s), plannedArrive: s.arrive })
+    held.current = null
     setCheck(null)
   }
 
@@ -315,7 +319,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
         >
           <strong>{missedText(check.missed)}</strong>{' '}
           {check.suggestion
-            ? `Next best: ${check.suggestion.lines.map((l) => l.split(' ')[1]).join(', ')}, arriving ${clock(check.suggestion.arrive)}.`
+            ? `Next best: ${check.suggestion.lines.map((l) => l.split(' ')[1]).join(', ')}, arriving ${clock(check.suggestion.arrive)}, ${changesNote(check.suggestion)}.`
             : "There's no other way on these lines right now."}
         </Callout>
       )}
@@ -330,7 +334,8 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           }
         >
           <strong>A faster way just opened up:</strong> {check.suggestion.lines.map((l) => l.split(' ')[1]).join(', ')}, arriving{' '}
-          {clock(check.suggestion.arrive)}, {duration((Date.parse(check.current.arrive) - Date.parse(check.suggestion.arrive)) / 1000)} sooner.
+          {clock(check.suggestion.arrive)}, {duration((Date.parse(check.current.arrive) - Date.parse(check.suggestion.arrive)) / 1000)} sooner,{' '}
+          {changesNote(check.suggestion)}.
         </Callout>
       )}
 
@@ -460,9 +465,9 @@ function missedText(m: Missed): string {
     case 'gone':
       return 'One of your services is no longer running.'
     case 'board':
-      return `You won't make the ${m.ride.line?.name ?? 'next service'} at ${clock(m.ride.dep)}.`
+      return `You ${m.unsure ? 'may not' : "won't"} make the ${m.ride.line?.name ?? 'next service'} at ${clock(m.ride.dep)}.`
     case 'change':
-      return `You won't make the change at ${placeName(m.at.to)}: the ${m.ride.line?.name ?? 'next service'} leaves at ${clock(m.ride.dep)}.`
+      return `You ${m.unsure ? 'may not' : "won't"} make the change at ${placeName(m.at.to)}: the ${m.ride.line?.name ?? 'next service'} leaves at ${clock(m.ride.dep)}.`
   }
 }
 

@@ -110,8 +110,8 @@ map, the footer, and last the two that need a decision together (the options boa
       times and each change rated. Only that decides whether it still works; the search is just for something better.
       The warning says what won't be made. Also: you're off a ride once you're at its stop and its time has come; a
       location quiet for 90 s (a tunnel) isn't used; with no location you're taken to be walking as planned.
-      For the field test, still as they were: nothing damps a connection that flips with each live update, and "a
-      faster way" goes by arrival time alone.
+      A warning that's showing stays until there's the "tight" setting to spare again, so it doesn't come and go.
+      "A faster way" is only offered when its changes are no riskier than yours, and says how sure they are.
 
 ## Map
 

@@ -234,6 +234,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
                   destination: direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat],
                   serviceDate: plan.data!.service_date,
                   walkSpeedMps: walkSpeed(settings) ?? server.defaults.walk_speed_mps,
+                  tightS: settings.risk?.tight_s ?? server.defaults.risk.tight_s,
                 })
               }
             />
