@@ -54,6 +54,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   // Before a gym is chosen nothing searches, so the time counts at once: choosing a gym straight after it plans for it.
   const [plannedWhen, plannedAt] = useSettled(`${when} ${at}`, gymId ? SETTLE_MS : 0).split(' ') as [When, string]
   const leaveAt = plannedWhen === 'now' ? null : plannedAt
+  const [dismissed, setDismissed] = useState<string[]>([]) // "Longer walk" notices dismissed while this screen is open
   const visible = useVisible()
   const wide = useWide()
   const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
@@ -116,9 +117,11 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   const brandOf = (g: Gym) => server.gyms.find((k) => k.id === g.ref)?.brand
   // Ends whose nearest stop is beyond the longest walk (on foot), which the server planned from anyway.
   const sw = plan.data?.stretched_walk
-  const stretched = gym && sw
-    ? ([[direction === 'to-gym' ? home : gym, sw.from_m], [direction === 'to-gym' ? gym : home, sw.to_m]] as const)
-        .flatMap(([p, m]) => (m ? [{ name: p.name, m }] : []))
+  // Each is the walk between a place and this gym's lines, so dismissing one keeps it away either way round.
+  const stretched = gym && ends && sw
+    ? ([[ends.start, sw.from_m], [ends.end, sw.to_m]] as const)
+        .flatMap(([p, m]) => (m ? [{ id: `${gym.id} ${p.key}`, name: p.name, m }] : []))
+        .filter((s) => !dismissed.includes(s.id))
     : []
 
   return (
@@ -195,7 +198,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
             </Callout>
           ))}
           {stretched.map((s) => (
-            <Callout>
+            <Callout key={s.id} onDismiss={() => setDismissed([...dismissed, s.id])}>
               <strong>Longer walk:</strong> no stops on these lines within a{' '}
               {distance(settings.maxWalkM ?? server.defaults.max_walk_m)} walk of {s.name}. The nearest is a {distance(s.m)} walk.
             </Callout>
