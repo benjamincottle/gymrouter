@@ -37,7 +37,7 @@ test('the status in full: a row for everything the server reported', () => {
     { label: 'Requests to TfNSW', value: '1,076 today' },
     { label: 'Not running today', value: 'bus 287, bus 612X' },
     { label: 'Trackwork buses left out', value: 'replacement-bus 6SH', tone: 'caution' },
-    { label: 'Street map', value: 'Ready, built 12 min ago' },
+    { label: 'Street map', value: 'Ready, built 12 min ago', action: 'update-street-map' },
     { label: 'Map', value: "Couldn't be downloaded: pmtiles tool not found", tone: 'caution' },
   ])
   // An older server, or one that hasn't loaded anything: only what it said.
@@ -49,6 +49,22 @@ test('the status in full: a row for everything the server reported', () => {
     { label: 'Timetable', value: 'The last download failed: timed out', tone: 'caution' },
     { label: 'Timetable in use', value: 'For Thursday 8th, downloaded 2 days ago' },
   ])
+})
+
+test('the street map can be updated from its row, except while the server is at it', () => {
+  const row = (data: NonNullable<Parameters<typeof details>[0]['data']>) => details({ state: 'ok', version: 'dev', data }).find((d) => d.label === 'Street map')
+  assert.deepEqual(row({ walk_ready: true, walk_age_s: 86_400 * 12, map_ready: true }), { label: 'Street map', value: 'Ready, built 12 days ago', action: 'update-street-map' })
+  assert.deepEqual(row({ walk_ready: true, walk_updating: true, walk_age_s: 86_400 * 12, map_ready: true }), {
+    label: 'Street map', value: "Updating now: walks use the one from before until it's ready",
+  })
+  // A failed download can be tried again, with or without a street map from before.
+  assert.deepEqual(row({ walk_ready: true, walk_error: 'HTTP 503', map_ready: true }), {
+    label: 'Street map', value: 'In use, but the last download failed: HTTP 503', tone: 'caution', action: 'update-street-map',
+  })
+  assert.equal(row({ walk_ready: false, walk_error: 'HTTP 503', map_ready: true })?.action, 'update-street-map')
+  // The first download: the server is already fetching it (or doesn't fetch one at all).
+  assert.deepEqual(row({ walk_ready: false, map_ready: true }), { label: 'Street map', value: 'Being prepared: walks are estimates until then' })
+  assert.deepEqual(row({ walk_ready: false, walk_updating: true, map_ready: true }), { label: 'Street map', value: 'Being prepared: walks are estimates until then' })
 })
 
 test('ages and day names', () => {

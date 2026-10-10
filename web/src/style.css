@@ -816,6 +816,10 @@ details > summary {
 .server-detail .caution dd { color: var(--tight); }
 .server-detail .bad dd { color: var(--missed); }
 
+/* what can be done from a row (updating the street map) is ink whatever the row's tone; why it couldn't be isn't */
+.server-detail dd .text-btn { color: var(--ink); }
+.server-detail dd .problem { color: var(--missed); }
+
 .server-detail pre {
   margin: var(--s2) 0 0;
   padding: var(--s2) var(--s3);

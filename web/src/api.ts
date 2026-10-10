@@ -135,6 +135,8 @@ export const api = {
     ),
   defaults: (t: string) => call<DefaultsResponse>(t, 'GET', '/api/defaults'),
   status: (t: string, signal?: AbortSignal) => call<ServerStatus>(t, 'GET', '/api/status', undefined, signal),
+  /** Asks the server to download the street map again now; the status says when it's done (`walk_updating`). */
+  updateStreetMap: (t: string) => call<object>(t, 'POST', '/api/street-map/update'),
   plan: (t: string, req: PlanRequest, signal?: AbortSignal) => call<PlanResponse>(t, 'POST', '/api/plan', req, signal),
   /** Asks the server to load these lines in the background, so the first search naming them doesn't wait. */
   loadLines: (t: string, lines: string[]) => call<object>(t, 'POST', '/api/lines', { lines }),

@@ -386,6 +386,25 @@ func TestPlanValidation(t *testing.T) {
 	}
 }
 
+func TestStreetMapUpdateIsAskedFor(t *testing.T) {
+	h := newHarness(t)
+	if rec := h.do(t, "POST", "/api/street-map/update", "", nil); rec.Code != http.StatusNotFound {
+		t.Errorf("without the token: %d", rec.Code)
+	}
+	rec := h.do(t, "POST", "/api/street-map/update", token, nil)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("update: %d %s", rec.Code, rec.Body)
+	}
+	if rec := h.do(t, "GET", "/api/status", token, nil); !strings.Contains(rec.Body.String(), `"walk_updating":true`) {
+		t.Errorf("the status should say it's updating: %s", rec.Body)
+	}
+	// A server that doesn't download a street map says so.
+	h.env.Config.Data.WalkSource = ""
+	if rec := h.do(t, "POST", "/api/street-map/update", token, nil); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "street map") {
+		t.Errorf("no source: %d %s", rec.Code, rec.Body)
+	}
+}
+
 func TestStatus(t *testing.T) {
 	h := newHarness(t)
 	rec := h.do(t, "GET", "/api/status", token, nil)

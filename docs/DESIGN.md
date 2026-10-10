@@ -233,6 +233,13 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
     live data and each feed, live services matched, requests to TfNSW, lines not running today, the street map and the map.
     A row that's a problem is in its status colour (`--tight`, or `--missed` when the server can't plan). Opening it
     asks the server again.
+  - **Update now** (the Street map row, on a line of its own under what the server said): a text action, in ink
+    whatever the row's tone, that has the server download the street map again instead of waiting for its monthly
+    refresh (a path was added to OpenStreetMap). Offered once there's a street map or a failed try at one. The row
+    then reads "Updating now: walks use the one from before until it's ready" and the status is asked again every
+    5 s while it's open, until the row is back to "Ready, built 8 s ago": the new age is the confirmation. If the
+    server can't be asked, the row says why in `--missed` under the action (wording from `problem()`); a download
+    that fails is the row's usual `--tight` problem, with Update now to try again.
   - Under the rows, "The server's reply" opens the same way to the reply as it came: JSON on `--panel`, the one place a
     monospace face is used (the system's).
 - **Version** (the footer, last): `Version 87692b5`, the first seven characters of the commit the server was built
@@ -313,6 +320,10 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
 The app refreshes itself: plans every 30 s, the server status every 5 minutes, and both at once when the app comes
 back to the foreground. So there's no pull-to-refresh (`overscroll-behavior-y: contain` on the page), and no refresh
 button. The one thing that needs a reload is a new version of the app, and the footer offers it (see Version).
+
+What the server keeps for itself refreshes on its own schedule too. The one thing that can be asked for early is the
+street map, from its row in the server status (see Server status, Update now): its schedule is a month long, and only
+the person who mapped a path knows there's something new to fetch.
 
 ### Keyboard and focus
 

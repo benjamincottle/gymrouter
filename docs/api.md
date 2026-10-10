@@ -176,6 +176,15 @@ Detailed health: feed ages and errors, upstream requests today, realtime match s
 searches because they can't be tied to a line (`unknown_trackwork`: a new line code, or typed as an ordinary bus; they
 call at a station of a loaded line, so the app needs updating), and
 `data`: whether the street network and basemap are ready, their age and any error from the last attempt to fetch them.
+`data.walk_updating` is there (and true) while the street network is being downloaded and rebuilt, or is about to be.
+
+## `POST /api/street-map/update`
+No body. Asks the server to download the street map and rebuild the street network now, instead of when it's next due
+(every 35 days). `202 {}` at once: the work happens in the background, the network in use stays in use until the new
+one is ready, and the status says how it's going (`data.walk_updating`, then a new `walk_age_s`, or `walk_error`).
+Asking while one is under way changes nothing. A failed update is tried again after 6 hours, like any other.
+`409` when the server doesn't download a street map (`data.auto_download` off, or no `walk_source`).
+BBBike rebuilds its extract weekly, so an edit to OpenStreetMap can take up to a week to be there to fetch.
 
 Any authenticated API request counts as activity: realtime polling runs while the app was used in the last
 `realtime.active_for` (default 10 min).
