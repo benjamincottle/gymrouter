@@ -107,6 +107,8 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   left is `--pane-w` (460px) and scrolls with the page; the map (`.map-pane`, fixed) fills the rest and always shows the
   selected option, or says what will appear there before there is one. There's no "Show on map" button on desktop.
   - In-trip uses the same split: Now/Then and the steps on the left, the map on the right.
+  - The map's own note ("Your services appear here…") sits at the bottom left, only as wide as its text; on the phone's
+    map sheet it spans the sheet.
   - Settings and the editors use a single readable column, max 40rem, centred. So does the trip screen until there
     is a home and a gym (the "Get started" empty state): there's nothing for a map to show yet.
 - **The commit action lives in the action bar.** The screen's main action ("Start trip", "Save gym") sits in a bar

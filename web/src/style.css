@@ -1791,6 +1791,12 @@ details > summary {
     height: 100%;
   }
 
+  /* the wide map's note is only as wide as its text, from the left edge */
+  .map-pane .map-wrap > .callout.subtle {
+    right: auto;
+    max-width: calc(100% - 2 * var(--s3));
+  }
+
   .map-pane > .empty-map {
     place-self: center;
     max-width: 22rem;
