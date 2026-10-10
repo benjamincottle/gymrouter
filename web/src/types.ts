@@ -174,9 +174,19 @@ export interface SuggestResponse {
   results: SuggestResult[]
 }
 
-/** GET /api/status, the part the app shows: the verdict and what needs looking at. */
+/** GET /api/status: the verdict and what needs looking at (the footer's line), then the detail it opens to. */
 export interface ServerStatus {
   state: 'ok' | 'warning' | 'error'
   issues?: string[]
   version: string // the commit the server (and this app, built into it) came from
+  service_date?: string // the day its timetable is loaded for
+  static_age_s?: number // since the timetable was downloaded
+  static_error?: string
+  polling_active?: boolean // live data is being fetched (only while the app is in use)
+  upstream_requests_today?: number
+  feeds?: { name: string; trip_updates_age_s?: number; vehicles_age_s?: number; error?: string }[]
+  missing_lines?: string[] // loaded lines with no services today
+  unknown_trackwork?: string[]
+  realtime?: { updates: number; matched: number; matched_by_run: number; added: number; cancelled: number; empty: number; unmatched: number }
+  data?: { walk_ready: boolean; walk_age_s?: number; walk_error?: string; map_ready: boolean; map_age_s?: number; map_error?: string }
 }

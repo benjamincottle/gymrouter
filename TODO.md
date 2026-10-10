@@ -121,7 +121,8 @@ map, the footer, and last the two that need a decision together (the options boa
 
 ## Footer
 
-- [ ] **The server status opens** to show what the status call returned.
+- [x] **The server status opens** to show what the status call returned: a row for each thing in plain words (problems
+      in their status colour), and under them the reply itself as JSON. Opening it asks the server again.
 
 # TODO: field-test feedback (2026-10-05)
 

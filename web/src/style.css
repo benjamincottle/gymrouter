@@ -744,8 +744,80 @@ details > summary {
   margin-bottom: var(--s2);
 }
 
-.server-status p + p {
+.server-status > p {
   padding-left: calc(8px + var(--s2)); /* under the text, past the dot */
+}
+
+/* the status line is a button: it opens to everything the server reported (DESIGN.md, Server status) */
+.status-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.status-toggle::after {
+  content: '';
+  position: absolute;
+  inset: -14px -8px; /* a 44px target around a 12px line */
+}
+
+.status-toggle .chevron {
+  flex: none;
+  margin-left: var(--s1);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.status-toggle[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+}
+
+.server-detail {
+  margin: var(--s2) 0 var(--s3);
+  padding-left: calc(8px + var(--s2));
+}
+
+.server-detail dl {
+  margin: 0 0 var(--s2);
+  border-bottom: var(--hair);
+}
+
+.server-detail dl > div {
+  display: grid;
+  grid-template-columns: 9.5rem 1fr;
+  column-gap: var(--s3);
+  padding: var(--s1) 0;
+  border-top: var(--hair);
+}
+
+.server-detail dd {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.server-detail .caution dd { color: var(--tight); }
+.server-detail .bad dd { color: var(--missed); }
+
+.server-detail pre {
+  margin: var(--s2) 0 0;
+  padding: var(--s2) var(--s3);
+  overflow-x: auto;
+  background: var(--panel);
+  font: inherit;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  line-height: 1.45;
+  color: var(--ink);
 }
 
 /* The server's state: the status colours (DESIGN.md, Server status). */

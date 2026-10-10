@@ -193,6 +193,13 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   working, needs a look", `--missed` "Server can't plan" or "Can't reach the server". Each issue follows on its own line
   in plain words. Only what's actionable and usually absent turns it orange (not lines that don't run on a weekend).
   Checked on opening and every 5 minutes while the app is open; checking doesn't count as using the app.
+  - The line is a button (a small chevron after it, a 44px hit area): it opens to **everything the status call
+    returned**, as rows of label (pencil) and what the server said (ink), hairlines between: the timetable's day and age,
+    live data and each feed, live services matched, requests to TfNSW, lines not running today, the street map and the map.
+    A row that's a problem is in its status colour (`--tight`, or `--missed` when the server can't plan). Opening it
+    asks the server again.
+  - Under the rows, "The server's reply" opens the same way to the reply as it came: JSON on `--panel`, the one place a
+    monospace face is used (the system's).
 - **Version** (the footer, last): `Version 87692b5`, the first seven characters of the commit the server was built
   from (`dev` for an unstamped local build, a trailing `+` for one with uncommitted changes), in `--pencil` like the
   rest of the footer. Shown once the server has answered; the app is built into the same binary, so it's the app's
@@ -224,6 +231,7 @@ format, everywhere.
 | Compact duration | `42m`, `1h 7m` | only in tabular columns (the options board) |
 | Spare time | `1 min spare`; under a minute `40 s spare` | changes (whole minutes, rounded down) |
 | Measured | `2:23` | walk timer, timed walks, "timed 2:23" on stops, pace results |
+| Age | `14 s ago`, `11 min ago`, `5 h ago`, `3 days ago` | the server status in full |
 
 Estimated walk times carry a tilde (`~3 min`); measured ones don't.
 
