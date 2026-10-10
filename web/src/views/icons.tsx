@@ -23,34 +23,51 @@ export const VEHICLE_PATHS: Record<Vehicle, string> = {
   bus: 'M7 3.5 H17 A2 2 0 0 1 19 5.5 V18 H5 V5.5 A2 2 0 0 1 7 3.5 Z M5 11.5 H19 M8 18 V20.5 M16 18 V20.5',
 }
 
-/** The faceted hold from the app icon, scaled to fit around (12, 11). */
-export const HOLD = 'M4.5 12.5 L6.5 6.5 L12 3.8 L17.8 5.8 L19.5 11.8 L15.8 16 L8.2 16.4 Z'
-
 /** The house from the trip's rail: where a trip starts, or ends, at home. */
 export const HOUSE = 'M3.5 11 L12 4 L20.5 11 M5.5 9.5 V20 H18.5 V9.5 M10 20 V14 H14 V20'
 
-/** Which way a trip goes, in the rail's own drawings: the house, an arrow, the hold (or the hold, an arrow, the house). */
+// A gym's climbing shoe, toe down and to the right, in four parts. Its outline (heel, sole, toe, tongue) and the loop
+// on its heel:
+const SHOE_OUTLINE =
+  'M5.28 6.44 C3.74 7.78 2.4 9.89 2.5 12 C2.69 13.16 3.55 13.92 4.9 13.92 L8.35 14.02 C11.23 14.12 13.54 16.04 15.26 17.67 L19.2 21.41 C19.87 22.08 21.02 21.89 21.31 20.84 C21.98 18.15 21.41 15.27 19.87 12.96 L15.84 7.01 C15.26 6.05 14.11 5.28 13.15 5.86 C12.38 6.44 12 7.4 11.04 7.88 C9.7 8.45 8.54 7.01 7.39 6.24 C6.62 5.76 5.86 5.86 5.28 6.44 Z M5.18 6.44 C4.22 3.94 5.09 2.02 6.62 2.02 C8.16 2.02 8.93 3.75 8.06 6.05'
+// The rubber under the sole line, filled on a light page:
+const SHOE_SOLE =
+  'M2.88 10.28 C4.9 11.81 7.01 12 8.93 12.1 C11.62 12.29 13.73 13.54 15.65 15.65 C17.18 17.38 19.3 18.15 21.41 17.96 C21.63 18.91 21.55 19.89 21.31 20.84 C21.02 21.89 19.87 22.08 19.2 21.41 L15.26 17.67 C13.54 16.04 11.23 14.12 8.35 14.02 L4.9 13.92 C3.55 13.92 2.69 13.16 2.5 12 C2.47 11.41 2.56 10.81 2.73 10.23 Z'
+// The upper, filled on a dark page instead: it stops short of the outline by a sole as thick as the filled one.
+const SHOE_UPPER =
+  'M4.01 8.79 C5.57 9.98 7.45 10.15 9.02 10.23 C12.3 10.46 14.9 12.05 17.03 14.39 C18.05 15.54 19.52 16.25 21.24 16.09 C20.98 14.98 20.51 13.92 19.87 12.96 L15.84 7.01 C15.26 6.05 14.11 5.28 13.15 5.86 C12.38 6.44 12 7.4 11.04 7.88 C9.7 8.45 8.54 7.01 7.39 6.24 C6.62 5.76 5.86 5.86 5.28 6.44 C4.63 7 4.02 7.71 3.53 8.49 Z'
+// The two straps across the upper:
+const SHOE_STRAPS = 'M11.33 8.07 C12.96 8.74 14.88 8.64 16.7 8.26 M14.3 10.18 C15.65 10.76 17.18 10.85 18.72 10.95'
+
+/** The shoe, for an svg with a 24 × 24 box: in its own finer lines, its sole the dark part in either theme (the --shoe tokens). */
+export const Shoe = () => (
+  <g class="shoe">
+    <path class="upper" d={SHOE_UPPER} />
+    <path d={SHOE_OUTLINE} />
+    <path class="sole" d={SHOE_SOLE} />
+    <path class="straps" d={SHOE_STRAPS} />
+  </g>
+)
+
+/** Which way a trip goes, in the rail's own drawings: the house, an arrow, the shoe (or the shoe, an arrow, the house). */
 export function DirectionGlyph({ toGym }: { toGym: boolean }) {
   const house = (
     <svg class="icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
       <path d={HOUSE} />
     </svg>
   )
-  const hold = (
-    // the hold is smaller than the house and sits high in its box (the rail stands it on a rule): drawn a little
-    // larger, in the middle, so the two weigh the same
-    <svg class="icon" viewBox="2 0.1 20 20" width="20" height="20" aria-hidden="true">
-      <path class="acc" d={HOLD} />
-      <circle class="bolt" cx="12" cy="10.5" r="1.6" />
+  const shoe = (
+    <svg class="icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <Shoe />
     </svg>
   )
   return (
     <>
-      {toGym ? house : hold}
+      {toGym ? house : shoe}
       <svg class="icon" viewBox="0 0 16 24" width="12" height="18" aria-hidden="true">
         <path d="M2 12 H13 M9 7.5 L13.5 12 L9 16.5" />
       </svg>
-      {toGym ? hold : house}
+      {toGym ? shoe : house}
     </>
   )
 }
@@ -64,9 +81,7 @@ export const IconHome = () => (
 
 export const IconGym = () => (
   <Icon>
-    <path class="acc" d={HOLD} />
-    <circle cx="12" cy="10.5" r="1.6" class="ink" />
-    <path d="M7 20.5 H17" />
+    <Shoe />
   </Icon>
 )
 

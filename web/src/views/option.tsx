@@ -3,7 +3,7 @@ import type { ComponentChildren } from 'preact'
 import { findChange, type PlaceRef, type Segment, type TimedWalk } from '../walks.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 import { position, rows, type Row } from '../options.ts'
-import { HOLD, HOUSE, VEHICLE_PATHS, vehicleOf } from './icons.tsx'
+import { HOUSE, Shoe, VEHICLE_PATHS, vehicleOf } from './icons.tsx'
 import { TextButton } from './ui.tsx'
 import { lineColour, textOn } from '../colour.ts'
 
@@ -134,16 +134,8 @@ function Rail({ kind, place, line, me }: {
         </svg>
       )}
       {(kind === 'start' || kind === 'arrive') && (
-        <svg class={`origin ${place === 'home' ? 'house' : 'hold'}`} viewBox="0 0 24 24" width="22" height="22">
-          {place === 'home' ? (
-            <path d={HOUSE} />
-          ) : (
-            <>
-              {/* the hold from the Gyms icon in Settings, bolted on */}
-              <path d={HOLD} />
-              <circle cx="12" cy="10.5" r="1.6" />
-            </>
-          )}
+        <svg class="origin" viewBox="0 0 24 24" width="22" height="22">
+          {place === 'home' ? <path d={HOUSE} /> : <Shoe />}
         </svg>
       )}
       {me !== undefined && (
@@ -154,7 +146,9 @@ function Rail({ kind, place, line, me }: {
               place === 'home' ? (
                 <path d="M5 11.5 L12 5.5 L19 11.5 M7 10 V18.5 H17 V10" />
               ) : (
-                <path d={HOLD} transform="translate(2.4 2.4) scale(0.8)" />
+                <g transform="translate(1.8 1.8) scale(0.85)">
+                  <Shoe />
+                </g>
               )
             ) : (
               <path d="M6.5 9.5 L12 15 L17.5 9.5" />

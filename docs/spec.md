@@ -619,3 +619,11 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   heading row with the reverse arrows both said it in words but cost a row of height; a pair of icon buttons didn't
   fit beside the When control without shortening its labels; the toggle on the left of the row put it over the logos
   rather than over the runners it steers.
+- 2026-10-10: A gym is drawn as a climbing shoe (supersedes the hold, wherever a gym is drawn: the rail's ends, the
+  direction toggle, the Gyms heading in Settings). Nobody asked could say what the faceted hold was. Chosen from
+  mockups of four treatments (thin outline with all its detail, outline with the sole filled, filled with the detail
+  cut out, filled with only a sole line): the outline with the sole filled, which keeps the loop and straps that say
+  climbing shoe rather than trainer. At the other drawings' line weight it closed up, so it has finer lines of its
+  own. On a dark page the filled sole came out light, which read as the wrong way round, so there the upper is filled
+  and the sole is left dark, as thick as the filled one on a light page (the thinner of two soles tried: the thicker
+  left too little upper on a dark page). The app icon and the page before sign-in keep the climbing volume.
