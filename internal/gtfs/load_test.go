@@ -168,3 +168,17 @@ func TestShapeDistances(t *testing.T) {
 		t.Errorf("shape B: %+v", b)
 	}
 }
+
+func TestTripShapes(t *testing.T) {
+	p := writeFeed(t, map[string]string{
+		"trips.txt": "route_id,service_id,trip_id,shape_id\nR,WK,a,A\nR,SA,b,B\nR,WK,bare,\nR,WK,other,C\n",
+	})
+	got, err := TripShapes(p, map[string]bool{"a": true, "b": true, "bare": true, "gone": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Whatever day it runs; not a trip without a shape, one not asked for, or one the feed doesn't have.
+	if len(got) != 2 || got["a"] != "A" || got["b"] != "B" {
+		t.Errorf("trip shapes %v", got)
+	}
+}

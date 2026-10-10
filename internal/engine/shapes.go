@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -13,8 +14,21 @@ import (
 // shapeTolM is the simplification tolerance for route shapes (metres).
 const shapeTolM = 4
 
-// LoadShapes reads route shapes for today's trips (trains from the trains bundle, the rest from the
-// complete bundle). It's slow (the shapes file is ~1 GB), so Start runs it in the background;
+// trackM is how near a train's track must pass the platforms of a ride to be the line drawn for it. The complete
+// bundle's lines end within 7 m of their platforms; one that doesn't come this near isn't the line of this trip.
+const trackM = 25
+
+// shapeSet is the lines rides are drawn along.
+type shapeSet struct {
+	byID map[string]gtfs.Shape
+	// track is the shape that follows a train's own track to its platforms, by trip. A train's own shape, from the
+	// trains bundle, is one line for its whole route, whichever platform it uses: at Central that line passes up to
+	// 140 m from the platform. The complete bundle has the same trip (most of them) with a shape along its track.
+	track map[string]string
+}
+
+// LoadShapes reads route shapes for today's trips (trains from the trains bundle, with their tracks and the rest
+// from the complete bundle). It's slow (the shapes file is ~1 GB), so Start runs it in the background;
 // until it finishes, geometry falls back to straight lines between stops.
 func (e *Engine) LoadShapes() {
 	s := e.today.Load()
@@ -22,19 +36,33 @@ func (e *Engine) LoadShapes() {
 		return
 	}
 	start := e.now()
-	wantTrains, wantOther := map[string]bool{}, map[string]bool{}
+	wantTrains, wantOther, trains := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	for _, t := range s.Static.Day.Trips {
+		r := s.Static.Day.Routes[t.Route]
+		byTrains := lines.ModeOf(r.Type) == lines.Train && e.paths.Trains != ""
+		if byTrains {
+			trains[t.ID] = true
+		}
 		if t.Shape == "" {
 			continue
 		}
-		r := s.Static.Day.Routes[t.Route]
-		if lines.ModeOf(r.Type) == lines.Train && e.paths.Trains != "" {
+		if byTrains {
 			wantTrains[t.Shape] = true
 		} else {
 			wantOther[t.Shape] = true
 		}
 	}
-	all := map[string]gtfs.Shape{}
+	set := shapeSet{byID: map[string]gtfs.Shape{}}
+	if len(trains) > 0 {
+		track, err := gtfs.TripShapes(e.paths.Complete, trains)
+		if err != nil {
+			e.log.Warn("loading train tracks failed", "err", err)
+		}
+		set.track = track
+		for _, id := range track {
+			wantOther[id] = true
+		}
+	}
 	for path, want := range map[string]map[string]bool{e.paths.Complete: wantOther, e.paths.Trains: wantTrains} {
 		if len(want) == 0 {
 			continue
@@ -45,11 +73,12 @@ func (e *Engine) LoadShapes() {
 			continue
 		}
 		for k, v := range m {
-			all[k] = v
+			set.byID[k] = v
 		}
 	}
-	e.shapes.Store(&all)
-	e.log.Info("shapes loaded", "shapes", len(all), "took", e.now().Sub(start).Round(time.Millisecond).String())
+	e.shapes.Store(&set)
+	e.log.Info("shapes loaded", "shapes", len(set.byID), "train_tracks", len(set.track),
+		"took", e.now().Sub(start).Round(time.Millisecond).String())
 }
 
 // LegGeometry returns the path of a trip between two of its stops (along the route shape when known,
@@ -71,11 +100,17 @@ func (e *Engine) LegGeometry(s *Snapshot, tripID, fromStop, toStop string) (path
 	if fi < 0 {
 		return nil, nil, false
 	}
-	from, to := d.Stops[trip.StopTimes[fi].Stop].Pos, d.Stops[trip.StopTimes[ti].Stop].Pos
-	if shapes := e.shapes.Load(); shapes != nil {
-		if sh, ok := (*shapes)[trip.Shape]; ok && len(sh.Pts) > 1 {
-			calls := trip.StopTimes[fi : ti+1]
-			if sh.Dist != nil && distsKnown(calls) {
+	calls := trip.StopTimes[fi : ti+1]
+	if set := e.shapes.Load(); set != nil {
+		// A train's track, when it is this ride's: the two bundles can disagree about a trip (one cut short for
+		// trackwork, say), and then its track doesn't reach the platforms.
+		if sh, ok := set.byID[set.track[trip.ID]]; ok {
+			if path, stops, ok := besideLine(d, calls, sh.Pts, trackM); ok {
+				return path, stops, true
+			}
+		}
+		if sh, ok := set.byID[trip.Shape]; ok {
+			if sh.Dist != nil && len(sh.Pts) > 1 && distsKnown(calls) {
 				// The feed says how far along the shape each call is: cut there, and put the stops passed there too.
 				// Placing stops by where they sit beside the line goes wrong where a bus runs both ways along a street.
 				a, b := geo.AtDist(sh.Pts, sh.Dist, calls[0].Dist), geo.AtDist(sh.Pts, sh.Dist, calls[len(calls)-1].Dist)
@@ -84,28 +119,42 @@ func (e *Engine) LegGeometry(s *Snapshot, tripID, fromStop, toStop string) (path
 				}
 				return geo.Cut(sh.Pts, a, b), stops, true
 			}
-			// No distances (the trains feed): cut the shape where each stop sits beside it, not at the nearest corner:
-			// shapes are simplified, so the nearest corner can be past the stop and the line would run on and double
-			// back. PlaceLeg also copes with a shape that passes the boarding stop twice (Hornsby, on a train out round
-			// the North Shore and back).
-			if a, b, ok := geo.PlaceLeg(sh.Pts, from, to); ok {
-				path = geo.Cut(sh.Pts, a, b)
-				// Stop positions are at the kerb; put each one on the line, in order, so the map draws it on the line.
-				at := geo.Along{}
-				for _, st := range trip.StopTimes[fi+1 : ti] {
-					at = geo.Project(path, d.Stops[st.Stop].Pos, at)
-					stops = append(stops, at.Pt)
-				}
+			// No distances (the trains feed).
+			if path, stops, ok := besideLine(d, calls, sh.Pts, math.Inf(1)); ok {
 				return path, stops, true
 			}
 		}
 	}
-	for _, st := range trip.StopTimes[fi+1 : ti] {
+	for _, st := range calls[1 : len(calls)-1] {
 		stops = append(stops, d.Stops[st.Stop].Pos)
 	}
-	path = make([]geo.Point, 0, ti-fi+1)
-	for _, st := range trip.StopTimes[fi : ti+1] {
+	path = make([]geo.Point, 0, len(calls))
+	for _, st := range calls {
 		path = append(path, d.Stops[st.Stop].Pos)
+	}
+	return path, stops, true
+}
+
+// besideLine cuts a line where the first and last of a ride's calls sit beside it, and puts the stops passed on it.
+// It cuts beside each stop, not at the nearest corner: shapes are simplified, so the nearest corner can be past the
+// stop and the line would run on and double back. PlaceLeg also copes with a shape that passes the boarding stop
+// twice (Hornsby, on a train out round the North Shore and back). ok is false when the line doesn't make the ride,
+// or passes further than withinM from where it starts or ends.
+func besideLine(d *gtfs.Day, calls []gtfs.StopTime, pts []geo.Point, withinM float64) (path, stops []geo.Point, ok bool) {
+	if len(pts) < 2 {
+		return nil, nil, false
+	}
+	from, to := d.Stops[calls[0].Stop].Pos, d.Stops[calls[len(calls)-1].Stop].Pos
+	a, b, ok := geo.PlaceLeg(pts, from, to)
+	if !ok || geo.DistanceM(from, a.Pt) > withinM || geo.DistanceM(to, b.Pt) > withinM {
+		return nil, nil, false
+	}
+	path = geo.Cut(pts, a, b)
+	// Stop positions are at the kerb; put each one on the line, in order, so the map draws it on the line.
+	at := geo.Along{}
+	for _, st := range calls[1 : len(calls)-1] {
+		at = geo.Project(path, d.Stops[st.Stop].Pos, at)
+		stops = append(stops, at.Pt)
 	}
 	return path, stops, true
 }

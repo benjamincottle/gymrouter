@@ -73,3 +73,25 @@ func LoadShapes(path string, want map[string]bool, tolM float64) (map[string]Sha
 	}
 	return out, nil
 }
+
+// TripShapes returns the shape of each of the wanted trips that a feed has, whatever days they run: trip_id to
+// shape_id. A trip the feed doesn't have, or has without a shape, is left out.
+func TripShapes(path string, want map[string]bool) (map[string]string, error) {
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		return nil, err
+	}
+	defer zr.Close()
+	files := map[string]*zip.File{}
+	for _, f := range zr.File {
+		files[f.Name] = f
+	}
+	out := map[string]string{}
+	err = readCSV(files, "trips.txt", true, func(r row) error {
+		if id, shape := r.get("trip_id"), r.get("shape_id"); want[id] && shape != "" {
+			out[id] = shape
+		}
+		return nil
+	})
+	return out, err
+}

@@ -113,7 +113,8 @@ Non-goals (v1)
 - MapLibre GL JS + **self-hosted OpenStreetMap vector extract** (PMTiles file for the Sydney area, served
   by the app, refreshed occasionally). Nothing sent to third parties; OSM attribution shown.
 - The map source sits behind a small interface so Google Maps could be swapped in later.
-- Overlays: only the option itself: the parts of each line ridden (along GTFS shapes) with the stops passed as small
+- Overlays: only the option itself: the parts of each line ridden (along GTFS shapes; a train along its own track,
+  to the platform it uses) with the stops passed as small
   outlined dots, walking legs as the traced or street route, **the vehicles running your rides** (colour, size, label)
   while they're within about 3 stops of the part you ride, and, during a trip, you.
 - Vehicle positions refresh by client polling (~10–15 s) from the server cache.
@@ -627,3 +628,18 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   own. On a dark page the filled sole came out light, which read as the wrong way round, so there the upper is filled
   and the sole is left dark, as thick as the filled one on a light page (the thinner of two soles tried: the thicker
   left too little upper on a dark page). The app icon and the page before sign-in keep the climbing volume.
+- 2026-10-10: A train is drawn along its own track, to the platform it uses. Trains are loaded from the Sydney
+  Trains bundle (for its realtime trip IDs), whose shapes are one line per route, whichever platform a train uses: a
+  ride was drawn from where that line passes the station, and the walk to it ended at the platform, somewhere else.
+  At small stations nobody would notice (Hornsby: 17 m at worst); at Central the T4 was drawn 45 m from platform 24
+  and the T1 Western began 141 m down the track from platform 18. The complete bundle has the same trips, by trip ID,
+  with a shape each that follows the real track and ends within 7 m of its platforms, so a train is drawn along that
+  one when it passes within 25 m of both ends of the ride, and along the route's line as before when it doesn't:
+  the trip isn't in the complete bundle, or the two bundles disagree about it (the complete bundle's shape stops
+  short of some stops on a few trips). On a weekday's T1, T2, T3, T4, T8, T9 and Central Coast trains that is 95% of
+  rides, and the worse end of a ride is a median 4 m from its platform (13 m before) and 6 m at the 90th percentile
+  (34 m before). Chosen from a mock-up of three treatments at Central and Hornsby: today's line; the route's line
+  bent over to the platform over its last few hundred metres, which joined up but cut across platforms and ignored
+  platform 24's tunnel; and the complete bundle's line. Bending the line for the rides left over, and routing along
+  OpenStreetMap's rails, were both left out: the first until those rides turn out to be noticed, the second because
+  the feed already has the answer.
