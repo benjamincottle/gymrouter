@@ -2,8 +2,9 @@ import { useState } from 'preact/hooks'
 import { api } from '../api.ts'
 import { statusTime } from '../format.ts'
 import { usePolling, useVisible } from '../hooks.ts'
-import { details, summarise } from '../serverstatus.ts'
+import { details, outdated, summarise } from '../serverstatus.ts'
 import type { ServerStatus } from '../types.ts'
+import { TextButton } from './ui.tsx'
 
 /** How often the footer checks the server while the app is open. */
 const CHECK_MS = 5 * 60_000
@@ -23,6 +24,7 @@ export function ServerStatusLine({ token }: { token: string }) {
   const status = usePolling(token, (signal) => api.status(token, signal), CHECK_MS, visible)
   const [open, setOpen] = useState(false)
   const s = summarise(status.data, status.error)
+  const version = status.data?.version
   const toggle = () => {
     if (!open) status.refresh() // what you open is what the server says now
     setOpen(!open)
@@ -45,7 +47,14 @@ export function ServerStatusLine({ token }: { token: string }) {
           {status.data ? <Detail status={status.data} /> : <p>{s.state === 'error' ? 'Nothing to show until the server answers.' : 'Asking the server…'}</p>}
         </div>
       )}
-      {status.data?.version && <p>Version {status.data.version}</p>}
+      {version &&
+        (outdated(version) ? (
+          <p role="status">
+            This app is out of date. <TextButton onClick={() => location.reload()}>Reload</TextButton> to get version {version}.
+          </p>
+        ) : (
+          <p>Version {version}</p>
+        ))}
     </div>
   )
 }

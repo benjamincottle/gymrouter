@@ -95,6 +95,8 @@
 html,
 body {
   margin: 0;
+  /* no pull-to-refresh: the app refreshes itself (DESIGN.md, Refreshing) */
+  overscroll-behavior-y: contain;
   background-color: var(--wall);
   /* bolt holes on a climbing wall */
   background-image: radial-gradient(var(--dot) 1.3px, transparent 1.6px);

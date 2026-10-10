@@ -226,6 +226,10 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   from (`dev` for an unstamped local build, a trailing `+` for one with uncommitted changes), in `--pencil` like the
   rest of the footer. Shown once the server has answered; the app is built into the same binary, so it's the app's
   version too.
+  - **Out of date:** when the server starts reporting a different version from the one it reported when the page
+    loaded (a deploy while the app stayed open), the line becomes "This app is out of date. Reload to get version
+    87692b5.", with Reload a text action that reloads the page. Opening the app afresh always loads the newest, so
+    this only shows in an app left open.
 - **Status text** for a service:
   - on time (or under a minute late): `--safe`;
   - 1 min late: `--tight`;
@@ -290,6 +294,12 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
   through a time doesn't search every step on the way. The last result stays on screen meanwhile.
 - **After an action, confirm it in a neutral callout**, using the action's own verb: "Saved", "Deleted", "Settings
   saved on this device". Settings that save as you type show a brief "Saved" beside the field.
+
+### Refreshing
+
+The app refreshes itself: plans every 30 s, the server status every 5 minutes, and both at once when the app comes
+back to the foreground. So there's no pull-to-refresh (`overscroll-behavior-y: contain` on the page), and no refresh
+button. The one thing that needs a reload is a new version of the app, and the footer offers it (see Version).
 
 ### Keyboard and focus
 
