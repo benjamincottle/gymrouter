@@ -204,7 +204,7 @@ func (e *Engine) addFeeds(set lines.Set) {
 }
 
 // MaxLoadedLines caps how many lines the server will hold timetable data for (the whole network is
-// several hundred; the built-in gyms need about 90, and the rest is room for the lines near people's homes).
+// several hundred; the built-in gyms need about 80, and the rest is room for the lines near people's homes).
 const MaxLoadedLines = 200
 
 // ErrTooManyLines is returned when a request would push the loaded set over MaxLoadedLines.

@@ -1940,6 +1940,7 @@ details > summary {
 }
 
 .skeleton-row {
+  grid-column: 1 / -1; /* a whole row of the board's grid, as its strips are */
   display: grid;
   grid-template-columns: 3.2rem 1fr 3.2rem;
   align-items: center;
