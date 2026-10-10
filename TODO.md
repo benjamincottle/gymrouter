@@ -75,6 +75,48 @@ clean today). Roughly in order of value.
     binary, which govulncheck never sees.
   - [x] Local dev: `.env` holding the real API key is mode 0644 (`config.toml` is 0600); `chmod 600 .env`.
 
+# TODO: field reports (2026-10-10)
+
+Branch `field-review`, committed locally step by step. In working order: quick fixes, then the in-trip estimates, the
+map, the footer, and last the two that need a decision together (the options board and the connection warnings).
+
+## Server
+
+- [x] **"Some trackwork buses can't be matched"** in the server status. Not like the V8 event buses: `6SH` is a real
+      trackwork bus (Campbelltown to Moss Vale, for the Southern Highlands Line) and the code SH wasn't known. It
+      was reported because it calls at Campbelltown, a station on a loaded line. SH now means `train SHL`.
+
+## Quick fixes
+
+- [ ] **"timetabled", not "timetable"**, on a ride with no live data.
+- [ ] **The house and the hold on the rail line up** with the time on their left and "Leave Home" / "Arrive" on their
+      right (both sit a little too high).
+
+## In a trip
+
+- [ ] **Time to spare uses your timed walk.** How long you have to get to the stop is worked out from the street map
+      even when the walk has been timed and traced.
+- [ ] **Learn the walking pace** from timed, traced walks (an average). A pace set in Settings wins.
+- [ ] **Connection warnings.** Look at how they work, find the logic errors, compare with what happened on real trips,
+      then adjust. Worked through together.
+
+## Map
+
+- [ ] **You are a blue dot with a white border** during a trip (the size is right).
+- [ ] **Once you're on board, only you are shown**, not your vehicle as well.
+- [ ] **Smaller vehicle icons with a bus or train in them** rather than the line's name, so they're all one width
+      (the line is clear from the map and the trip).
+
+## Trip screen
+
+- [ ] **The options board: rides too thin to label.** The shared time axis shows how the options spread, but a short
+      metro, train or bus section can be too thin for its name, the most important thing on it. Mock up alternatives to
+      choose from, close to the current design.
+
+## Footer
+
+- [ ] **The server status opens** to show what the status call returned.
+
 # TODO: field-test feedback (2026-10-05)
 
 ## Round 9

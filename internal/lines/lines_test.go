@@ -48,7 +48,7 @@ func TestSetHelpers(t *testing.T) {
 func TestReplacementBuses(t *testing.T) {
 	for name, want := range map[string]string{
 		"23T4": "train T4", "3AT4": "train T4", "10T9": "train T9", "12CN": "train CCN", "33BM": "train BMT",
-		"27SC": "train SCO", "10HU": "train HUN", "7BM": "train BMT", "10M": "metro M1", "12M": "metro M1", "10M1": "metro M1",
+		"27SC": "train SCO", "10HU": "train HUN", "6SH": "train SHL", "7BM": "train BMT", "10M": "metro M1", "12M": "metro M1", "10M1": "metro M1",
 		"1L1": "light-rail L1", "2L4": "light-rail L4",
 	} {
 		got, ok := Key{ReplacementBus, name}.Replaces()

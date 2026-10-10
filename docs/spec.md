@@ -422,7 +422,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   weekend, 12CN for the Central Coast & Newcastle line), and those names are on the buses' signs. A gym's lines name
   `train T4`, so before this the buses were never loaded and a trackwork weekend planned as if the closed section had no
   service ("Nothing leaves", or a worse route with no reason given). Now the line code at the end of a bus's name (T1–T9,
-  CN, BM, SC, HU; M for the metro, as in 10M and 11M, which isn't in the timetable yet) ties it to its line: loading, routing, vehicles and the realtime feeds treat it as part of that line.
+  CN, BM, SC, HU, SH; M for the metro, as in 10M and 11M, which isn't in the timetable yet) ties it to its line: loading, routing, vehicles and the realtime feeds treat it as part of that line.
   Matching by the stations a bus serves was rejected: event shuttles (Olympic Park, Bathurst) are replacement-bus routes
   too and would be offered for everyday trips. A bus named like a trackwork bus that can't be tied to a line (a new code, or
   typed as an ordinary bus, which may be how metro buses turn up) and calls at a loaded line's station is logged and listed in `/api/status` (`unknown_trackwork`), so a new code shows up rather than failing
@@ -483,3 +483,6 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   the streets; it was drawn as one straight line, because the street search from the place doesn't reach the stop you
   get off at. Raising the default longest walk to 1500 m was rejected as the fix: it would have caught this stop by
   70 m and widened every search for everyone (see 2026-10-05).
+- 2026-10-10: SH is the Southern Highlands Line's trackwork code (`6SH`, Campbelltown to Moss Vale, calls at a T8
+  station), so the server stopped reporting it as a bus it can't tie to a line. The report did its job: a new code showed
+  up in the footer rather than being silently left out.
