@@ -49,6 +49,11 @@ tokens too, in both themes. Controls are square, 44px, edge-outlined, and have n
 no casing. Walks are round 4.5px ink dots every 8px along the street route (a dot
 image placed along the line, never a dashed line, which MapLibre stretches between zoom levels). A ride's stops (where you get on and
 off, and those passed on the way) sit on the line's centre (the server places them on the shape): white dots with a 1px ink outline, as wide as the line.
+Vehicles are discs in the line's colour, 20px inside a 2.5px ink outline, with the mode's glyph from the rail (train, bus
+or ferry) in ink or white: all one size whatever the line is called, since the colour and the trip say which line it is.
+You are the `--you` dot, 14px inside a 3px white border with a soft dark edge so the border shows on a pale map (and the
+halo of the location's accuracy). Once you're on board, your own vehicle isn't drawn: you are where it is. Vehicles you
+have yet to catch still are.
 
 ### Type
 
@@ -89,7 +94,8 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   - `--hair` (1px rule) separates rows.
   - `--bar` (4px) is the side bar of a callout and of the selected row.
   - Control outlines are 1.5px `--edge` (fields) or 1.5px ink (buttons and segmented controls).
-- **Shadows:** none. The only exceptions are the "you" marker's pulse and the inset underline and selection bars.
+- **Shadows:** none. The only exceptions are the "you" marker's soft edge and pulse (on the rail and the map) and the
+  inset underline and selection bars.
 - **Control height:** `--control` is 44px for every button, field and segmented control. Every tap target is at least
   44px, including text actions, which get an invisible hit area instead of padding.
 

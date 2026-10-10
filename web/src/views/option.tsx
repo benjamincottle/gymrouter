@@ -3,7 +3,7 @@ import type { ComponentChildren } from 'preact'
 import { findChange, type PlaceRef, type Segment, type TimedWalk } from '../walks.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 import { position, rows, type Row } from '../options.ts'
-import { HOLD } from './icons.tsx'
+import { HOLD, VEHICLE_PATHS, vehicleOf } from './icons.tsx'
 import { TextButton } from './ui.tsx'
 import { lineColour, textOn } from '../colour.ts'
 
@@ -96,16 +96,11 @@ export function Timeline({
 
 const HOUSE = 'M3.5 11 L12 4 L20.5 11 M5.5 9.5 V20 H18.5 V9.5 M10 20 V14 H14 V20'
 
-/** The vehicle drawn where you get on: a train for anything on rails, a ferry, otherwise a bus. */
+/** The vehicle drawn where you get on (see vehicleOf). */
 function ModeGlyph({ mode }: { mode?: string }) {
-  const d =
-    mode === 'ferry' ? 'M3 14.5 H21 L18.5 19.5 H5.5 Z M6.5 14.5 V9.5 H17.5 V14.5 M12 9.5 V5.5'
-    : mode === 'train' || mode === 'metro' || mode === 'light-rail' || mode === 'regional-train'
-      ? 'M8 3.5 H16 A3 3 0 0 1 19 6.5 V14 A3 3 0 0 1 16 17 H8 A3 3 0 0 1 5 14 V6.5 A3 3 0 0 1 8 3.5 Z M5 10.5 H19 M8.5 17 L6.5 21 M15.5 17 L17.5 21'
-      : 'M7 3.5 H17 A2 2 0 0 1 19 5.5 V18 H5 V5.5 A2 2 0 0 1 7 3.5 Z M5 11.5 H19 M8 18 V20.5 M16 18 V20.5'
   return (
     <svg viewBox="0 0 24 24" width="13" height="13">
-      <path d={d} />
+      <path d={VEHICLE_PATHS[vehicleOf(mode)]} />
     </svg>
   )
 }

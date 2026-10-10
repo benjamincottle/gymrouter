@@ -9,9 +9,10 @@ import { layers, namedFlavor } from '@protomaps/basemaps'
 import { ApiError, api } from '../api.ts'
 import { legTrace, type TimedWalk } from '../walks.ts'
 import { isDark } from '../theme.ts'
-import type { Leg, Option } from '../types.ts'
+import type { Leg, Option, Vehicle } from '../types.ts'
 import { INK, lineColour, textOn, token, WHITE } from '../colour.ts'
 import { Callout } from '../views/ui.tsx'
+import { VEHICLE_PATHS, vehicleOf } from '../views/icons.tsx'
 
 maplibregl.setWorkerUrl(workerUrl)
 
@@ -69,7 +70,27 @@ function nearRoute(b: maplibregl.LngLatBounds, [lon, lat]: [number, number]): bo
 }
 
 const RIDE_W = 6 // a ride's line on the map, in pixels; the stops along it are as wide
+const VEHICLE_R = 10 // a vehicle's disc, inside its outline
+const VEHICLE_EDGE = 2.5
+const GLYPH = 14 // the bus or train drawn in it
+const ME_R = 7 // you: a blue dot inside a white border
+const ME_EDGE = 3
 
+/** A vehicle (icons.tsx VEHICLE_PATHS) drawn in one colour, as an image for the map at the screen's pixel ratio. */
+function glyph(d: string, colour: string): ImageData {
+  const c = document.createElement('canvas')
+  c.width = c.height = Math.round(GLYPH * (window.devicePixelRatio || 1))
+  const g = c.getContext('2d')!
+  g.scale(c.width / 24, c.width / 24)
+  g.strokeStyle = colour
+  g.lineWidth = 2.6
+  g.lineCap = g.lineJoin = 'round'
+  g.stroke(new Path2D(d))
+  return g.getImageData(0, 0, c.width, c.height)
+}
+
+/** The image for a vehicle on a line of this colour: its mode's glyph in ink or white, whichever shows on the colour. */
+const vehicleIcon = (line: string, colour: string) => `vehicle-${vehicleOf(line.split(' ')[0])}-${textOn(colour) === WHITE ? 'white' : 'ink'}`
 
 
 type Geometry =
@@ -101,13 +122,14 @@ export interface MapViewProps {
   origin: [number, number] // [lon, lat] of where the trip starts (home or gym)
   destination: [number, number]
   me?: { lat: number; lon: number; accuracy: number } | null // where you are, during a trip
+  aboard?: string // the trip you're riding: with you on the map, its vehicle isn't drawn as well
 }
 
 /**
  * Draws the option's legs (only the parts ridden, with the stops passed), the vehicles running them while
  * they're near your part of the trip, and you.
  */
-export function MapView({ token, walks, places, option, serviceDate, origin, destination, me }: MapViewProps) {
+export function MapView({ token, walks, places, option, serviceDate, origin, destination, me, aboard }: MapViewProps) {
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const [error, setError] = useState('')
@@ -193,20 +215,22 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
           'circle-stroke-width': 1, 'circle-stroke-color': INK, // black in both themes
         },
       })
+      // Vehicles: a disc in the line's colour with a bus or train in it, all one size whatever the line is called
+      // (which line it is shows in its colour, and the trip says).
+      for (const [kind, d] of Object.entries(VEHICLE_PATHS)) {
+        m.addImage(`vehicle-${kind}-white`, glyph(d, WHITE), { pixelRatio: window.devicePixelRatio || 1 })
+        m.addImage(`vehicle-${kind}-ink`, glyph(d, INK), { pixelRatio: window.devicePixelRatio || 1 })
+      }
       m.addLayer({
         id: 'vehicles-mine', type: 'circle', source: 'vehicles',
         paint: {
-          'circle-radius': 14, 'circle-color': ['get', 'color'],
-          'circle-stroke-color': col.ink, 'circle-stroke-width': 3,
+          'circle-radius': VEHICLE_R, 'circle-color': ['get', 'color'],
+          'circle-stroke-color': col.ink, 'circle-stroke-width': VEHICLE_EDGE,
         },
       })
       m.addLayer({
-        id: 'vehicles-mine-label', type: 'symbol', source: 'vehicles',
-        layout: {
-          'text-field': ['get', 'name'], 'text-font': ['Noto Sans Medium'], 'text-size': 10,
-          'text-allow-overlap': true,
-        },
-        paint: { 'text-color': ['get', 'text'] },
+        id: 'vehicles-mine-icon', type: 'symbol', source: 'vehicles',
+        layout: { 'icon-image': ['get', 'icon'], 'icon-allow-overlap': true, 'icon-ignore-placement': true },
       })
       // You: the familiar blue dot, with a halo the size of the location's accuracy.
       m.addLayer({
@@ -216,9 +240,14 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
           'circle-color': col.you, 'circle-opacity': 0.12,
         },
       })
+      // A soft dark edge under it, as on the trip's rail: on a pale map the white border would vanish without one.
+      m.addLayer({
+        id: 'me-edge', type: 'circle', source: 'me',
+        paint: { 'circle-radius': ME_R + ME_EDGE + 2.5, 'circle-color': '#000000', 'circle-opacity': 0.35, 'circle-blur': 0.5, 'circle-translate': [0, 1] },
+      })
       m.addLayer({
         id: 'me', type: 'circle', source: 'me',
-        paint: { 'circle-radius': 7, 'circle-color': col.you, 'circle-stroke-color': col.stop, 'circle-stroke-width': 2.5 },
+        paint: { 'circle-radius': ME_R, 'circle-color': col.you, 'circle-stroke-color': col.stop, 'circle-stroke-width': ME_EDGE },
       })
       map.current = m
     })
@@ -289,6 +318,27 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
     }
   }, [option, serviceDate, token, walks])
 
+  // The vehicles last reported, drawn without the one you're riding: you're on the map yourself.
+  const vehicles = useRef<Vehicle[]>([])
+  const riding = me ? aboard : undefined
+  const ridingRef = useRef(riding)
+  ridingRef.current = riding
+  const drawVehicles = (m: maplibregl.Map) =>
+    (m.getSource('vehicles') as GeoJSONSource | undefined)?.setData(
+      fc(
+        vehicles.current
+          .filter((v) => !ridingRef.current || v.trip_id !== ridingRef.current)
+          .map((v): Feature => ({
+            type: 'Feature',
+            properties: { color: lineColour(v.color), icon: vehicleIcon(v.line, lineColour(v.color)) },
+            geometry: { type: 'Point', coordinates: [v.lon, v.lat] },
+          })),
+      ),
+    )
+  useEffect(() => {
+    if (map.current) drawVehicles(map.current)
+  }, [riding])
+
   // Live vehicles every 10 s; this also keeps the server's realtime polling active.
   useEffect(() => {
     let live = true
@@ -306,15 +356,8 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
             framed.current = true
             frame(m, true)
           }
-          ;(m.getSource('vehicles') as GeoJSONSource | undefined)?.setData(
-            fc(
-              r.vehicles.map((v): Feature => ({
-                type: 'Feature',
-                properties: { color: lineColour(v.color), text: textOn(lineColour(v.color)), name: v.line.split(' ').slice(1).join(' ') },
-                geometry: { type: 'Point', coordinates: [v.lon, v.lat] },
-              })),
-            ),
-          )
+          vehicles.current = r.vehicles
+          drawVehicles(m)
         })
         .catch((e) => {
           if (e instanceof ApiError) setError(e.message)

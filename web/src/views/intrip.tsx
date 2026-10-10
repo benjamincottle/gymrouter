@@ -135,17 +135,19 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   const clockAt = position(steps, now)
   let at: At = clockAt
   let phase: Phase = phaseAt(o, now)
+  let where: Position | null = pos // you, on the map too
   if (pos) {
     // Aboard with no fresh fix of your own (a tunnel): where your vehicle is, is where you are.
     const ride = phaseRef.current.kind === 'riding' ? o.legs[phaseRef.current.ride] : undefined
     const latest = ride?.trip_id && aboard.has(ride.trip_id) ? sightings.current[ride.trip_id]?.at(-1) : undefined
     const stale = Date.now() - (history.current.at(-1)?.t ?? 0) > STALE_MS || pos.accuracy > 100
-    const where = stale && latest ? { lat: latest.lat, lon: latest.lon, accuracy: 30 } : pos
+    where = stale && latest ? { lat: latest.lat, lon: latest.lon, accuracy: 30 } : pos
     at = advance(lastAt.current?.key === stepsKey ? lastAt.current.at : null, stepLines, where, clockAt)
     lastAt.current = { key: stepsKey, at }
     phase = phaseOf(o, steps, at, stepLines, where, onVehicle)
   }
   phaseRef.current = phase
+  const riding = phase.kind === 'riding' ? o.legs[phase.ride].trip_id : undefined
 
   // Walking to a ride: how much of the trip's own walk is left, your timed one if there is one (not the street map's
   // route from wherever your location puts you). The time to spare and the re-checks both go by it.
@@ -412,7 +414,8 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
         <MapPane
           serviceDate={trip.serviceDate}
           token={token}
-          me={pos}
+          me={where}
+          aboard={riding}
           walks={walks}
           places={{ start: trip.ends.start.key, end: trip.ends.end.key }}
           origin={trip.origin}
@@ -426,7 +429,8 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           live
           serviceDate={trip.serviceDate}
           token={token}
-          me={pos}
+          me={where}
+          aboard={riding}
           walks={walks}
           places={{ start: trip.ends.start.key, end: trip.ends.end.key }}
           origin={trip.origin}

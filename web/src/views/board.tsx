@@ -188,6 +188,7 @@ function useMapView(): { View: ComponentType<MapViewProps> | null; failed: boole
 type MapProps = Pick<Props, 'token' | 'walks' | 'places' | 'serviceDate' | 'origin' | 'destination'> & {
   option: Option
   me?: MapViewProps['me']
+  aboard?: MapViewProps['aboard']
 }
 
 function MapBody({ View, failed, ...p }: MapProps & { View: ComponentType<MapViewProps> | null; failed: boolean }) {
@@ -224,6 +225,7 @@ type MapSheetProps = Omit<Props, 'onStart' | 'options' | 'onShift' | 'ends'> & {
   onClose: () => void
   onStart?: () => void // offered on the map so a trip can start without closing it
   me?: MapViewProps['me']
+  aboard?: MapViewProps['aboard']
   steps?: { ends: Ends; track: Tracking } // during a trip: the trip's description under the map
 }
 

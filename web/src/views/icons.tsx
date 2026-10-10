@@ -10,6 +10,19 @@ function Icon({ children }: { children: ComponentChildren }) {
   )
 }
 
+/** The vehicle drawn for a line's mode, on the trip's rail and on the map: a train for anything on rails, a ferry, otherwise a bus. */
+export type Vehicle = 'rail' | 'ferry' | 'bus'
+
+export const vehicleOf = (mode?: string): Vehicle =>
+  mode === 'ferry' ? 'ferry' : mode === 'train' || mode === 'metro' || mode === 'light-rail' || mode === 'regional-train' ? 'rail' : 'bus'
+
+/** Each vehicle as a path of round-ended lines in a 24 × 24 box. */
+export const VEHICLE_PATHS: Record<Vehicle, string> = {
+  ferry: 'M3 14.5 H21 L18.5 19.5 H5.5 Z M6.5 14.5 V9.5 H17.5 V14.5 M12 9.5 V5.5',
+  rail: 'M8 3.5 H16 A3 3 0 0 1 19 6.5 V14 A3 3 0 0 1 16 17 H8 A3 3 0 0 1 5 14 V6.5 A3 3 0 0 1 8 3.5 Z M5 10.5 H19 M8.5 17 L6.5 21 M15.5 17 L17.5 21',
+  bus: 'M7 3.5 H17 A2 2 0 0 1 19 5.5 V18 H5 V5.5 A2 2 0 0 1 7 3.5 Z M5 11.5 H19 M8 18 V20.5 M16 18 V20.5',
+}
+
 /** The faceted hold from the app icon, scaled to fit around (12, 11). */
 export const HOLD = 'M4.5 12.5 L6.5 6.5 L12 3.8 L17.8 5.8 L19.5 11.8 L15.8 16 L8.2 16.4 Z'
 

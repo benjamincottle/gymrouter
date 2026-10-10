@@ -106,10 +106,12 @@ map, the footer, and last the two that need a decision together (the options boa
 
 ## Map
 
-- [ ] **You are a blue dot with a white border** during a trip (the size is right).
-- [ ] **Once you're on board, only you are shown**, not your vehicle as well.
-- [ ] **Smaller vehicle icons with a bus or train in them** rather than the line's name, so they're all one width
-      (the line is clear from the map and the trip).
+- [x] **You are a blue dot with a white border** during a trip (the size is right). The border was there but white on
+      a pale map: it now has a soft dark edge, and is a touch wider (3px).
+- [x] **Once you're on board, only you are shown**, not your vehicle as well. The vehicle you're riding goes; ones you
+      have yet to catch stay. With no fresh fix of your own (a tunnel) your dot follows the vehicle's reports.
+- [x] **Smaller vehicle icons with a bus or train in them** rather than the line's name, so they're all one width
+      (the line is clear from the map and the trip). 25px across, from 34.
 
 ## Trip screen
 
