@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { encode } from 'uqr'
-import { emptySettings, MAX_GYMS, resetGymOrder, sanitize, settingsLink, type Gym, type Home, type Settings } from '../settings.ts'
+import { dismissedWalks, emptySettings, MAX_GYMS, resetGymOrder, sanitize, settingsLink, showDismissedWalks, type Gym, type Home, type Settings } from '../settings.ts'
 import type { ComponentChildren } from 'preact'
 import { PaceTest } from './pacetest.tsx'
 import { DeleteButton, EditButton, IconColour, IconDevices, IconGym, IconHome, IconPhone, IconRisk, IconTimer, IconWalk } from './icons.tsx'
@@ -36,6 +36,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
   const [resetting, setResetting] = useState(false)
   const d = server?.defaults
   const learned = learnedPace(settings.walks) // from timed, traced walks; a speed typed in below wins
+  const dismissed = dismissedWalks(settings).length // "Longer walk" notices
   const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
   // Connection risk: one threshold changed (undefined: back to its default). Safe can't be below tight, so the other
   // follows; when both are the defaults, the setting goes.
@@ -236,6 +237,14 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
           step="50"
           onChange={(v) => setSettings({ ...settings, maxWalkM: v })}
         />
+        {dismissed > 0 && (
+          <p class="meta">
+            You've dismissed {dismissed} "Longer walk" notice{dismissed === 1 ? '' : 's'}.{' '}
+            <TextButton quiet onClick={() => setSettings(showDismissedWalks(settings))}>
+              Show {dismissed === 1 ? 'it' : 'them'} again
+            </TextButton>
+          </p>
+        )}
       </Section>
 
       <Section title="Connection risk" icon={<IconRisk />} intro={'How much spare time a change needs to count as safe or tight. Below "tight" it\'s at risk.'}>
