@@ -12,8 +12,14 @@ export const shapeKey = (l: Leg) => `${l.trip_id}|${l.from?.id}|${l.to?.id}`
 
 const pt = (s: { lat: number; lon: number }): LonLat => [s.lon, s.lat]
 
-/** Each step's line on the ground, in order with the rows. `shapes` holds the routes of the rides fetched so far. */
-export function rowLines(rs: Row[], o: Option, start: LonLat, end: LonLat, shapes: Record<string, LonLat[]>): LonLat[][] {
+/**
+ * Each step's line on the ground, in order with the rows. `shapes` holds the routes of the rides fetched so far;
+ * `traced` gives the route you traced when you timed a walk leg (walks.ts legTrace), which beats the street map's.
+ */
+export function rowLines(
+  rs: Row[], o: Option, start: LonLat, end: LonLat, shapes: Record<string, LonLat[]>,
+  traced: (leg: number) => LonLat[] | undefined = () => undefined,
+): LonLat[][] {
   return rs.map((r): LonLat[] => {
     switch (r.kind) {
       case 'start':
@@ -21,19 +27,51 @@ export function rowLines(rs: Row[], o: Option, start: LonLat, end: LonLat, shape
       case 'arrive':
         return [end]
       case 'change': {
-        const walk = o.legs.slice(r.t.from_leg + 1, r.t.to_leg).find((l) => l.kind === 'walk')
-        if (walk?.path && walk.path.length > 1) return walk.path
+        const i = o.legs.findIndex((l, j) => j > r.t.from_leg && j < r.t.to_leg && l.kind === 'walk')
+        const path = i < 0 ? undefined : (traced(i) ?? o.legs[i].path)
+        if (path && path.length > 1) return path
         return [r.from, r.to].filter((s): s is StopRef => s !== undefined).map(pt)
       }
       case 'leg': {
         const l = r.leg
         const a = l.from ? pt(l.from) : start
         const b = l.to ? pt(l.to) : end
-        if (l.kind === 'walk') return l.path && l.path.length > 1 ? l.path : [a, b]
+        if (l.kind === 'walk') {
+          const path = traced(r.i) ?? l.path
+          return path && path.length > 1 ? path : [a, b]
+        }
         return shapes[shapeKey(l)] ?? [a, b]
       }
     }
   })
+}
+
+/**
+ * The step you walk to reach the ride at legs[ride] (the walk to the first stop, or a change) and how long the trip
+ * allows for it, in seconds: your own time if you've timed it. `bufferS` is the leave buffer, which the first walk's
+ * times include.
+ */
+export function walkTo(rs: Row[], o: Option, ride: number, bufferS = 0): { row: number; secs: number } | null {
+  for (const [row, r] of rs.entries()) {
+    if (r.kind === 'change' && r.t.to_leg === ride) return { row, secs: r.t.walk_s }
+    if (r.kind === 'leg' && r.leg.kind === 'walk' && o.legs.findIndex((l, j) => j > r.i && l.kind === 'ride') === ride) {
+      return { row, secs: Math.max(0, Math.round((r.end - r.start) / 1000) - (r.i === 0 ? bufferS : 0)) }
+    }
+  }
+  return null
+}
+
+/** Off a walk's line by more than your location's accuracy (or this), you still have to get back to it. */
+const ON_WALK_M = 50
+
+/**
+ * Seconds of walking left to the end of a walk from where you are: the part of its line still ahead at the pace the
+ * walk takes as a whole (`secs`), plus getting back to the line, straight and at `walkSpeedMps`, if you're off it.
+ */
+export function walkLeftS(line: LonLat[], secs: number, pos: { lat: number; lon: number; accuracy: number }, walkSpeedMps: number): number {
+  const { d, frac } = onLine(line, pos)
+  const off = Math.max(0, d - Math.min(pos.accuracy, ON_WALK_M))
+  return Math.round(secs * (1 - frac) + (off * 1.3) / walkSpeedMps)
 }
 
 /** Distance (m) from p to a line, and how far along the line (0..1) the nearest point is. */

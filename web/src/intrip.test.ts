@@ -46,6 +46,8 @@ test('spare time to reach the stop uses distance and walking speed', () => {
   assert.ok(spareToBoard(planned.legs[1], far, ms('13:52'), 1.3)! < 0)
   assert.equal(spareToBoard(planned.legs[1], { ...near, accuracy: 500 }, ms('13:52'), 1.3), null)
   assert.equal(spareToBoard(planned.legs[1], null, ms('13:52'), 1.3), null)
+  // With the walking left along the trip's own walk, that's what counts, not the straight line.
+  assert.equal(spareToBoard(planned.legs[1], far, ms('13:52'), 1.3, 45), 75)
 })
 
 test('re-plan origin depends on the phase', () => {
@@ -58,6 +60,11 @@ test('re-plan origin depends on the phase', () => {
   assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 3 }, null, home, now), { lat: C.lat, lon: C.lon, access: [{ stop: 'C', walk_s: 0 }] })
   assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 3 }, here, home, now), { lat: -33.8, lon: 151.1 })
   assert.equal(replanOrigin(planned, { kind: 'arrived' }, null, home, now), null)
+  // Walking to a stop: the walking left by the trip's own (timed) walk goes with your position.
+  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 1 }, here, home, now, { stop: 'central', secs: 200.4 }), {
+    lat: -33.8, lon: 151.1, walks: [{ stop: 'central', walk_s: 200 }],
+  })
+  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 1 }, null, home, now, { stop: 'central', secs: 200 }), home)
 })
 
 test('a trip started well before it leaves is re-planned from its own start and time', () => {

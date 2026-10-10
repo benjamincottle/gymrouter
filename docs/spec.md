@@ -486,3 +486,11 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - 2026-10-10: SH is the Southern Highlands Line's trackwork code (`6SH`, Campbelltown to Moss Vale, calls at a T8
   station), so the server stopped reporting it as a bus it can't tie to a line. The report did its job: a new code showed
   up in the footer rather than being silently left out.
+- 2026-10-10: On the way to a stop, the time to spare and the re-checks go by the trip's own walk. The time to spare was
+  the straight line to the stop × 1.3 at walking speed, and a re-check planned from the GPS position, so the server
+  routed the walk over its street map from wherever the phone said you were. Neither knew about a walk you had timed
+  and traced: a shortcut the map doesn't have read as "you need to hurry", and could read as a missed service. Now you
+  are placed on the walk's own line (your trace if there is one, else the street route) and what's left is that share
+  of the walk's time, plus getting back to the line if you're off it; the re-check sends that figure for the stop you're
+  heading to along with your position (`walks`), so other stops are still routed from where you are.
+

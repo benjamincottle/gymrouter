@@ -35,13 +35,17 @@ export function distanceM(a: { lat: number; lon: number }, b: { lat: number; lon
   return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 
+/** A location vaguer than this (m) says too little about where you are to plan or estimate from. */
+export const USABLE_M = 150
+
 /**
  * Before a ride: can you still reach the stop in time from where you are? Returns the seconds to
- * spare (negative: you'll miss it), or null without a usable position.
+ * spare (negative: you'll miss it), or null without a usable position. `leftS` is the walking still to do along
+ * the trip's own walk to the stop (progress.ts walkLeftS); without it, straight there with the usual detour.
  */
-export function spareToBoard(ride: Leg, pos: Position | null, nowMs: number, walkSpeedMps: number): number | null {
-  if (!pos || !ride.from || pos.accuracy > 150) return null
-  const walkS = (distanceM(pos, ride.from) * 1.3) / walkSpeedMps
+export function spareToBoard(ride: Leg, pos: Position | null, nowMs: number, walkSpeedMps: number, leftS?: number | null): number | null {
+  if (!pos || !ride.from || pos.accuracy > USABLE_M) return null
+  const walkS = leftS ?? (distanceM(pos, ride.from) * 1.3) / walkSpeedMps
   return Math.round((t(ride.dep) - nowMs) / 1000 - walkS)
 }
 
@@ -50,9 +54,13 @@ export const SETTING_OFF_S = 300
 
 /**
  * Where to re-plan from: the vehicle you're on, your position, or the next stop. Before setting off, the trip's
- * own start: a trip planned for later may be started from somewhere else.
+ * own start: a trip planned for later may be started from somewhere else. `left` is the walking still to do to the
+ * stop you're heading for, by the trip's own walk: sent with your position, so the re-check doesn't swap a walk
+ * you've timed for the street map's idea of it.
  */
-export function replanOrigin(o: Option, phase: Phase, pos: Position | null, original: PlaceRequest, nowMs: number): PlaceRequest | null {
+export function replanOrigin(
+  o: Option, phase: Phase, pos: Position | null, original: PlaceRequest, nowMs: number, left?: { stop: string; secs: number } | null,
+): PlaceRequest | null {
   switch (phase.kind) {
     case 'riding': {
       const l = o.legs[phase.ride]
@@ -61,7 +69,10 @@ export function replanOrigin(o: Option, phase: Phase, pos: Position | null, orig
     case 'before': {
       const first = o.legs.findIndex((l) => l.kind === 'ride')
       const setOff = nowMs >= t(o.leave_at) - SETTING_OFF_S * 1000
-      if (pos && pos.accuracy <= 150 && (setOff || phase.ride !== first)) return { lat: pos.lat, lon: pos.lon }
+      if (pos && pos.accuracy <= USABLE_M && (setOff || phase.ride !== first)) {
+        const walks = left ? [{ stop: left.stop, walk_s: Math.min(3600, Math.max(0, Math.round(left.secs))) }] : undefined
+        return { lat: pos.lat, lon: pos.lon, ...(walks ? { walks } : {}) }
+      }
       if (phase.ride === first) return original // still at the start: plan as originally
       const s = o.legs[phase.ride].from
       return s ? { lat: s.lat, lon: s.lon, access: [{ stop: s.id, walk_s: 0 }] } : null

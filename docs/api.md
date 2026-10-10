@@ -49,6 +49,8 @@ measured walks from the gym door.
   has timed between the place and a stop. They beat any other time for that stop (a station ID covers its rail platforms,
 not bus stands that belong to the station)
   and add the stop if it isn't otherwise considered, curated or not. Not allowed with `on_trip`.
+  During a trip the app sends its position with one walk: the walking left to the stop it's heading for, by the trip's
+  own walk.
 - `time` is the earliest time to leave (default: now). Options leaving within `window_min` are returned.
 - `transfers` override walking/changing time between stops. A station ID covers its rail (train, metro, light rail)
   platforms; a bus stand that belongs to the station only matches by its own ID.

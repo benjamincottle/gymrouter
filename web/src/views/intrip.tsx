@@ -4,14 +4,14 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, spare, statusTime } from '../format.ts'
 import { useNow, useVisible, useWide } from '../hooks.ts'
-import { assess, instruction, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, type Assessment, type Phase, type Position } from '../intrip.ts'
+import { assess, instruction, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, USABLE_M, type Assessment, type Phase, type Position } from '../intrip.ts'
 import type { Option, PlanRequest } from '../types.ts'
 import type { Walk } from '../walkmeasure.ts'
-import { existing, segments, type PlaceRef, type Retime, type Segment, type TimedWalk } from '../walks.ts'
+import { existing, legTrace, segments, stopKey, type PlaceRef, type Retime, type Segment, type TimedWalk } from '../walks.ts'
 import { MapPane, MapSheet } from './board.tsx'
 import { Timeline, type Tracking } from './option.tsx'
 import { position, rows } from '../options.ts'
-import { advance, phaseOf, rowLines, shapeKey, type At, type LonLat } from '../progress.ts'
+import { advance, phaseOf, rowLines, shapeKey, walkLeftS, walkTo, type At, type LonLat } from '../progress.ts'
 import { boarding, type Fix, type Sighting } from '../boarding.ts'
 import { WalkTimer } from './walktimer.tsx'
 import { ActionBar, Button, Callout, Confirm, TextButton } from './ui.tsx'
@@ -84,7 +84,11 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
     }
   }, [rides.map(shapeKey).join(',')])
   const steps = useMemo(() => rows(o, true), [o])
-  const stepLines = useMemo(() => rowLines(steps, o, trip.origin, trip.destination, shapes), [steps, shapes])
+  // A walk you've timed and traced is followed along your own route, as on the map.
+  const stepLines = useMemo(
+    () => rowLines(steps, o, trip.origin, trip.destination, shapes, (i) => legTrace(walks, o, i, trip.ends.start.key, trip.ends.end.key)),
+    [steps, shapes, walks],
+  )
   // On your vehicle? Your fixes moving with its live reports say so (boarding.ts); polled while you wait for it or ride it.
   const history = useRef<Fix[]>([])
   const sightings = useRef<Record<string, Sighting[]>>({})
@@ -143,6 +147,14 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   }
   phaseRef.current = phase
 
+  // Walking to a ride: how much of the trip's own walk is left, your timed one if there is one (not the street map's
+  // route from wherever your location puts you). The time to spare and the re-checks both go by it.
+  const nextRide = phase.kind === 'before' ? o.legs[phase.ride] : undefined
+  const toRide = phase.kind === 'before' ? walkTo(steps, o, phase.ride, trip.request.prefs.leave_buffer_s) : null
+  const leftS = toRide && pos && pos.accuracy <= USABLE_M ? walkLeftS(stepLines[toRide.row], toRide.secs, pos, trip.walkSpeedMps) : null
+  const leftRef = useRef<{ stop: string; secs: number } | null>(null)
+  leftRef.current = nextRide?.from && leftS !== null ? { stop: stopKey({ stop: nextRide.from, mode: nextRide.line?.mode }), secs: leftS } : null
+
   const checkedRef = useRef(false)
 
   // Open at the top: the planning screen may have been scrolled down to its Start button.
@@ -183,7 +195,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
     const run = async () => {
       const nowMs = Date.now()
       const ph = phaseRef.current
-      const from = replanOrigin(trip.option, ph, posRef.current, trip.request.from, nowMs)
+      const from = replanOrigin(trip.option, ph, posRef.current, trip.request.from, nowMs, leftRef.current)
       if (!from || (ph.kind !== 'before' && ph.kind !== 'riding')) return
       const time = from.on_trip ? undefined : replanTime(trip.option, ph, nowMs)
       try {
@@ -233,8 +245,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
     },
   }
   const lateBy = check && check.status !== 'missed' ? check.lateBy : 0
-  const nextRide = phase.kind === 'before' ? o.legs[phase.ride] : undefined
-  const spareS = nextRide ? spareToBoard(nextRide, pos, now, trip.walkSpeedMps) : null
+  const spareS = nextRide ? spareToBoard(nextRide, pos, now, trip.walkSpeedMps, leftS) : null
   // The next change: the one after the ride you're on or heading for.
   const upcoming = o.transfers.find((t) => (phase.kind === 'riding' || phase.kind === 'before') && t.from_leg === phase.ride)
   const start = Date.parse(o.leave_at)

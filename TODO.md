@@ -94,8 +94,11 @@ map, the footer, and last the two that need a decision together (the options boa
 
 ## In a trip
 
-- [ ] **Time to spare uses your timed walk.** How long you have to get to the stop is worked out from the street map
-      even when the walk has been timed and traced.
+- [x] **Time to spare uses your timed walk.** How long you have to get to the stop is worked out from the street map
+      even when the walk has been timed and traced. It was the straight line to the stop × 1.3; and the 30-second
+      re-check planned from your GPS position over the street map, which could call a service missed that your own
+      route still catches. Both now go by the trip's own walk: where you are along your trace (or the street route),
+      and that share of its time.
 - [ ] **Learn the walking pace** from timed, traced walks (an average). A pace set in Settings wins.
 - [ ] **Connection warnings.** Look at how they work, find the logic errors, compare with what happened on real trips,
       then adjust. Worked through together.

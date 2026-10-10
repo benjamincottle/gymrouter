@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { rows } from './options.ts'
-import { advance, locate, onLine, phaseOf, rowLines, shapeKey, type LonLat } from './progress.ts'
+import { advance, locate, onLine, phaseOf, rowLines, shapeKey, walkLeftS, walkTo, type LonLat } from './progress.ts'
 import type { Leg, Option } from './types.ts'
 
 // A trip along a straight east–west line: home, walk 300 m to stop A, bus 2 km to stop B, walk 300 m to the gym.
@@ -83,4 +83,20 @@ test('what you are doing, from where you are', () => {
   assert.deepEqual(ph(900, 25), { kind: 'riding', ride: 1 }, 'well along the route: aboard')
   assert.deepEqual(ph(2450), { kind: 'final-walk' })
   assert.deepEqual(ph(2600), { kind: 'arrived' })
+})
+
+test('the walk left to a ride is the rest of the trip\'s own walk', () => {
+  // The walk to the bus is row 1 and takes 4 min; with a 1 min leave buffer in its times, 3.
+  assert.deepEqual(walkTo(rs, o, 1), { row: 1, secs: 240 })
+  assert.deepEqual(walkTo(rs, o, 1, 60), { row: 1, secs: 180 })
+  assert.equal(walkTo(rs, o, 5), null)
+  // Half way along it: half the time, whatever the walking speed.
+  assert.equal(walkLeftS(lines[1], 240, here(150), 1.3), 120)
+  assert.equal(walkLeftS(lines[1], 240, here(300), 1.3), 0)
+  // A traced route is followed instead of the straight line: a dog-leg about 440 m long, the first 100 m walked.
+  const traced = rowLines(rs, o, at(0), at(2600), {}, (i) => (i === 0 ? [at(0), at(0, 100), at(200, 100), at(300)] : undefined))
+  const left = walkLeftS(traced[1], 240, here(0, 100), 1.3)
+  assert.ok(left > 180 && left < 190, `left ${left}`)
+  // Off the walk by more than the location's accuracy: back to it first, at walking speed.
+  assert.equal(walkLeftS(lines[1], 240, here(150, 140, 10), 1.3), 120 + 130)
 })
