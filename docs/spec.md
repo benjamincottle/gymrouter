@@ -609,3 +609,12 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   the row would have put you. The runner is hidden with "Leave at" and "Arrive by": a trip that starts, starts now.
   Chosen from mockups of four treatments (a bare icon, an outlined button, a split row, a labelled "Go" button) and
   three drawings: the bare icon, like the route row's reverse button, with the sprinter and its speed lines.
+- 2026-10-10: Which way a trip goes is chosen on the gym list too: a toggle at the end of the When row (the house, an
+  arrow, the hold; a tap swaps them). Before, a trip could only be reversed on a chosen gym's screen, so the runner
+  was no use for the way home (gym, reverse, back to the list, runner: four taps, against three with Start trip), and
+  going back to the list kept the trip reversed with nothing on the list to say so: the next runner would have started
+  a trip home unasked. Now the list says which way, the runner starts that way in one tap, and the route row's reverse
+  button stays, in step with the toggle. Chosen from mockups: a second segmented row ("To a gym / To Home") and a
+  heading row with the reverse arrows both said it in words but cost a row of height; a pair of icon buttons didn't
+  fit beside the When control without shortening its labels; the toggle on the left of the row put it over the logos
+  rather than over the runners it steers.

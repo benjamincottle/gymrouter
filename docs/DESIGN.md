@@ -115,8 +115,9 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   pinned to the bottom of the pane, with a hairline above it. The commit button is rightmost; a secondary action (the way
   out, or "Show on map") is leftmost. Long forms never hide their Save at the bottom of the page.
 - **Order of a trip screen:**
-  1. when (and which home, when there are several): everything that changes the search comes before the gym, so a
-     search starts only once it's what you meant. It stays on top after a gym is chosen, so it never moves;
+  1. when and which way (and which home, when there are several): everything that changes the search comes before
+     the gym, so a search starts only once it's what you meant. It stays on top after a gym is chosen, so it never
+     moves;
   2. route (the gym leads the results; before one is chosen, the list of gyms);
   3. status line;
   4. hero;
@@ -165,11 +166,20 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Tick lists** (the gym chooser): checkbox rows start unticked, and the commit button counts what's ticked. At a
   limit the unticked rows are disabled (pencil text) and a 14px pencil line under the list says what the limit is and
   how to free a place ("A device holds up to 12 gyms. Untick one to tick another.").
+- **Direction toggle** (trip screen, at the end of the When row, above the runners): an outlined button, 44px tall
+  with `--s2` padding, holding the rail's own drawings at 20px and 2px: the house, an arrow, the hold when the trip
+  goes from home to the gym; the hold, an arrow, the house when it goes home. A tap reverses it. It says which way
+  the gyms' rows and their runners go before a gym is chosen, at no cost in height; with a gym chosen it stays, in
+  step with the route row's reverse button.
+  - The When control gives up the room: its options are padded `--s1` in this row and never wrap. On a screen too
+    narrow for both (under about 340px) the toggle wraps onto a line of its own, still at the right.
+  - Its label says which way and what a tap does: "From Home to a gym: reverse", "From 9 Degrees Chatswood to Home:
+    reverse". The arrow is a drawing between two drawings, not a symbol standing in for a word (see Copy).
 - **Gym rows** (trip screen, before a gym is chosen): a `--rule` tape, the gym's logo, its name (18px/800/semi) and
   its address beneath in 14px pencil. The row is a button that chooses the gym and shows its options.
   - **The runner** (with "Leave now" only): an icon button at the far right of the row, someone running with speed
-    lines behind (drawn 2px like the walker on the rail, the lines 1.5px). It starts the fastest trip without
-    stopping at the options: the option that arrives soonest among those you can still catch. The gym's screen shows
+    lines behind (drawn 2px like the walker on the rail, the lines 1.5px). It starts the fastest trip, the way the direction toggle says,
+    without stopping at the options: the option that arrives soonest among those you can still catch. The gym's screen shows
     while it's planned, its status line reading "Finding the fastest trip…" over the board's skeleton (the options
     aren't shown on the way: they'd only flash past), and the trip starts as soon as there's a plan. If nothing can
     be caught, or the plan fails, the screen stays as if the gym had been chosen: the options, or the reason there

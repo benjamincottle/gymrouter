@@ -7,7 +7,7 @@ import { fastest } from '../options.ts'
 import type { DefaultsResponse, Option, PlanRequest } from '../types.ts'
 import { Board, WindowShift, type Shift } from './board.tsx'
 import { BrandLogo } from './brand.tsx'
-import { IconHurry } from './icons.tsx'
+import { DirectionGlyph, IconHurry } from './icons.tsx'
 import type { ActiveTrip } from './intrip.tsx'
 import { LineChip } from './option.tsx'
 import { Button, Callout, IconButton, Segmented } from './ui.tsx'
@@ -142,6 +142,8 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   }
 
   const places = { start: ends?.start.key, end: ends?.end.key }
+  const reverse = () => setDirection(direction === 'to-gym' ? 'home' : 'to-gym')
+  const way = direction === 'to-gym' ? `From ${home.name} to ${gym?.name ?? 'a gym'}` : `From ${gym?.name ?? 'a gym'} to ${home.name}`
   const brandOf = (g: Gym) => server.gyms.find((k) => k.id === g.ref)?.brand
   // Ends whose nearest stop is beyond the longest walk (on foot), which the server planned from anyway.
   const sw = plan.data?.stretched_walk
@@ -169,12 +171,18 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
             </select>
           </label>
         )}
-        <Segmented
-          label="When"
-          options={[['now', 'Leave now'], ['leave', 'Leave at'], ['arrive', 'Arrive by']] as const}
-          value={when}
-          onChange={(w) => (w === 'now' ? setWhen('now') : chooseTime(w))}
-        />
+        <div class="when-row">
+          <Segmented
+            label="When"
+            options={[['now', 'Leave now'], ['leave', 'Leave at'], ['arrive', 'Arrive by']] as const}
+            value={when}
+            onChange={(w) => (w === 'now' ? setWhen('now') : chooseTime(w))}
+          />
+          {/* Which way, said before a gym is chosen: the gyms' rows and their runners go this way. */}
+          <Button class="direction" aria-label={`${way}: reverse`} title={`${way}: reverse`} onClick={reverse}>
+            <DirectionGlyph toGym={direction === 'to-gym'} />
+          </Button>
+        </div>
         {when !== 'now' && <DayTime value={at} onChange={setAt} label={when === 'arrive' ? 'Arrive by' : 'Leave at'} />}
       </div>
 
@@ -191,7 +199,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
           <span class="from meta">{direction === 'to-gym' ? `from ${home.name}` : `to ${home.name}`}</span>
           <IconButton
             label={direction === 'to-gym' ? `Reverse: from ${gym.name} to ${home.name}` : `Reverse: from ${home.name} to ${gym.name}`}
-            onClick={() => setDirection(direction === 'to-gym' ? 'home' : 'to-gym')}
+            onClick={reverse}
           >
             <svg class="icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
               <path d="M8 4v15m-4-4 4 4 4-4M16 20V5m-4 4 4-4 4 4" />

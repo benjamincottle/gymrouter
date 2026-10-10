@@ -26,6 +26,35 @@ export const VEHICLE_PATHS: Record<Vehicle, string> = {
 /** The faceted hold from the app icon, scaled to fit around (12, 11). */
 export const HOLD = 'M4.5 12.5 L6.5 6.5 L12 3.8 L17.8 5.8 L19.5 11.8 L15.8 16 L8.2 16.4 Z'
 
+/** The house from the trip's rail: where a trip starts, or ends, at home. */
+export const HOUSE = 'M3.5 11 L12 4 L20.5 11 M5.5 9.5 V20 H18.5 V9.5 M10 20 V14 H14 V20'
+
+/** Which way a trip goes, in the rail's own drawings: the house, an arrow, the hold (or the hold, an arrow, the house). */
+export function DirectionGlyph({ toGym }: { toGym: boolean }) {
+  const house = (
+    <svg class="icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <path d={HOUSE} />
+    </svg>
+  )
+  const hold = (
+    // the hold is smaller than the house and sits high in its box (the rail stands it on a rule): drawn a little
+    // larger, in the middle, so the two weigh the same
+    <svg class="icon" viewBox="2 0.1 20 20" width="20" height="20" aria-hidden="true">
+      <path class="acc" d={HOLD} />
+      <circle class="bolt" cx="12" cy="10.5" r="1.6" />
+    </svg>
+  )
+  return (
+    <>
+      {toGym ? house : hold}
+      <svg class="icon" viewBox="0 0 16 24" width="12" height="18" aria-hidden="true">
+        <path d="M2 12 H13 M9 7.5 L13.5 12 L9 16.5" />
+      </svg>
+      {toGym ? hold : house}
+    </>
+  )
+}
+
 export const IconHome = () => (
   <Icon>
     <path d="M3.5 11 L12 4 L20.5 11 M5.5 9.5 V20 H18.5 V9.5" />

@@ -861,6 +861,39 @@ details > summary {
   gap: var(--s3);
 }
 
+/* when, then which way: the direction toggle ends the row, above the runners. On a screen too narrow for both
+   (under about 340px) it wraps onto a line of its own, still at the right. */
+.when-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s2);
+}
+
+.when-row .segmented {
+  flex: 1 0 auto;
+}
+
+.when-row .segmented button {
+  padding: 0 var(--s1);
+  white-space: nowrap;
+}
+
+/* the direction toggle: a button of drawings from the rail (the house, an arrow, the hold), as heavy as they are there */
+.btn.direction {
+  gap: var(--s1);
+  padding: 0 var(--s2);
+}
+
+.btn.direction .icon {
+  stroke-width: 2;
+}
+
+.btn.direction .bolt {
+  fill: var(--wall);
+  stroke: none;
+}
+
 .daytime {
   display: flex;
   align-items: center;

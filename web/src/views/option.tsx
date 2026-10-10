@@ -3,7 +3,7 @@ import type { ComponentChildren } from 'preact'
 import { findChange, type PlaceRef, type Segment, type TimedWalk } from '../walks.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 import { position, rows, type Row } from '../options.ts'
-import { HOLD, VEHICLE_PATHS, vehicleOf } from './icons.tsx'
+import { HOLD, HOUSE, VEHICLE_PATHS, vehicleOf } from './icons.tsx'
 import { TextButton } from './ui.tsx'
 import { lineColour, textOn } from '../colour.ts'
 
@@ -93,8 +93,6 @@ export function Timeline({
     </ol>
   )
 }
-
-const HOUSE = 'M3.5 11 L12 4 L20.5 11 M5.5 9.5 V20 H18.5 V9.5 M10 20 V14 H14 V20'
 
 /** The vehicle drawn where you get on (see vehicleOf). */
 function ModeGlyph({ mode }: { mode?: string }) {
