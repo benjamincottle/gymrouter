@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { changesAndStops, position, reselect, rows, stopCount, tape, tripKey } from './options.ts'
+import { changesAndStops, fastest, position, reselect, rows, stopCount, tape, tripKey } from './options.ts'
 import type { Leg, Option } from './types.ts'
 
 const iso = (hhmm: string) => `2026-10-08T${hhmm}:00+11:00`
@@ -28,6 +28,26 @@ test('when the chosen option has gone, the one leaving closest to it is picked',
 
 test('the same vehicle boarded at a different stop is a different option', () => {
   assert.notEqual(tripKey(option('08:00', ride('t1', 'A', '08:05', '08:30'))), tripKey(option('08:00', ride('t1', 'B', '08:07', '08:30'))))
+})
+
+test('the fastest option arrives soonest among those that can still be caught', () => {
+  const gone = option('08:00', ride('t1', 'A', '08:05', '08:20'))
+  const slow = option('08:04', ride('t2', 'A', '08:09', '08:50'))
+  const quick = option('08:10', ride('t3', 'A', '08:15', '08:35'))
+  const missed: Option = { ...option('08:06', ride('t4', 'A', '08:11', '08:18'), ride('t5', 'B', '08:19', '08:30')), risk: 'missed' }
+  const now = Date.parse(iso('08:03'))
+  assert.equal(fastest([gone, slow, quick, missed], now), quick)
+  assert.equal(fastest([gone, missed], now), undefined)
+  assert.equal(fastest([], now), undefined)
+  // just gone by the clock still reads "Leave now" and can be caught; a minute on, it has left
+  assert.equal(fastest([gone, slow], Date.parse(iso('08:00')) + 59_000), gone)
+  assert.equal(fastest([gone, slow], Date.parse(iso('08:01'))), slow)
+})
+
+test('of two options arriving together, the fastest is the one leaving later', () => {
+  const early = option('08:00', ride('t1', 'A', '08:05', '08:30'))
+  const late = option('08:08', ride('t2', 'B', '08:12', '08:30'))
+  assert.equal(fastest([early, late], Date.parse(iso('07:55'))), late)
 })
 
 test('stops and changes summary', () => {

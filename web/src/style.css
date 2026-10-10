@@ -285,6 +285,15 @@ select {
   stroke: none;
 }
 
+/* the runner on a gym's row: drawn as heavy as the walker on the rail, its speed lines lighter */
+.icon.hurry {
+  stroke-width: 2;
+}
+
+.icon.hurry .streaks {
+  stroke-width: 1.5;
+}
+
 .icon .risk-safe-fill { fill: var(--safe); stroke: none; }
 .icon .risk-tight-fill { fill: var(--tight); stroke: none; }
 .icon .risk-risk-fill { fill: var(--risk); stroke: none; }
@@ -852,6 +861,39 @@ details > summary {
   gap: var(--s3);
 }
 
+/* when, then which way: the direction toggle ends the row, above the runners. On a screen too narrow for both
+   (under about 340px) it wraps onto a line of its own, still at the right. */
+.when-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s2);
+}
+
+.when-row .segmented {
+  flex: 1 0 auto;
+}
+
+.when-row .segmented button {
+  padding: 0 var(--s1);
+  white-space: nowrap;
+}
+
+/* the direction toggle: a button of drawings from the rail (the house, an arrow, the hold), as heavy as they are there */
+.btn.direction {
+  gap: var(--s1);
+  padding: 0 var(--s2);
+}
+
+.btn.direction .icon {
+  stroke-width: 2;
+}
+
+.btn.direction .bolt {
+  fill: var(--wall);
+  stroke: none;
+}
+
 .daytime {
   display: flex;
   align-items: center;
@@ -894,6 +936,20 @@ details > summary {
   cursor: pointer;
 }
 
+/* a gym's row: the gym (the whole row but its end), then the runner that starts the fastest trip there */
+.gym-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  border-bottom: var(--hair);
+}
+
+.gym-row .gym {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+
 .gym::before,
 .route::before {
   content: '';
@@ -928,9 +984,8 @@ details > summary {
   color: var(--pencil);
 }
 
-/* the chosen gym leads: tap its name to change it, the arrows reverse the trip */
+/* the chosen gym leads: tap its name to change it */
 .route {
-  grid-template-columns: 8px 32px 1fr auto;
   cursor: default;
   border-top: var(--hair);
 }
@@ -958,11 +1013,6 @@ details > summary {
 
 .route .from {
   grid-column: 3;
-}
-
-.route .icon-btn {
-  grid-column: 4;
-  grid-row: 1 / span 2;
 }
 
 .status-line {
