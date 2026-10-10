@@ -1,3 +1,24 @@
+# Random thought, leave this please
+
+❯ Could you give a very high level (bullet point steps high level) idea of what needs to change apart from gyms.toml in order to add another gym
+
+  Ran 2 shell commands
+
+For the common case, nothing else needs to change: append a [[gym]] block, rebuild and deploy. Devices are offered the new gym in the gym chooser, and they add it themselves. The rest is only needed in some cases:
+
+- Pick the lines: gymrouter suggest-lines finds the lines worth listing for the gym end, from a few varied starting points.
+- Curated walks (optional): add [[gym.access]] entries only for stops where the street routing is wrong.
+- New brand (only if it isn't 9 Degrees or ClimbFit):
+  - Add the logo to web/public/brands/<brand>.png.
+  - Add the brand to Brands in internal/gyms/gyms.go:58, or validation rejects it.
+- Outside the current area (only if the gym isn't in Sydney):
+  - The walking network only covers BBBike's Sydney extract (walk_source).
+  - The basemap is cut to mapBBox in internal/engine/provision.go:20 (lon 150.55–151.35, lat −34.15 to −33.45).
+  - Both would need widening.
+- Tests (optional): TestBuiltInGymsAreValid in internal/gyms/gyms_test.go checks a list of gym IDs. Adding the new one keeps it from being dropped by accident; validation runs either way.
+- Docs: the spec's places section describes the built-in gyms in general terms, so it only needs a decision-log line if the change is notable.
+
+
 # Security and hardening review (2026-10-05)
 
 For review: the unticked items are still open. The baseline is already good (256-bit token compared as a digest,
@@ -53,6 +74,67 @@ clean today). Roughly in order of value.
   - [ ] An image scan (Trivy/Grype) of the published image in `build.yml`, mainly for the bundled pmtiles
     binary, which govulncheck never sees.
   - [x] Local dev: `.env` holding the real API key is mode 0644 (`config.toml` is 0600); `chmod 600 .env`.
+
+# TODO: field reports (2026-10-10)
+
+Branch `field-review`, committed locally step by step. In working order: quick fixes, then the in-trip estimates, the
+map, the footer, and last the two that need a decision together (the options board and the connection warnings).
+
+## Server
+
+- [x] **"Some trackwork buses can't be matched"** in the server status. Not like the V8 event buses: `6SH` is a real
+      trackwork bus (Campbelltown to Moss Vale, for the Southern Highlands Line) and the code SH wasn't known. It
+      was reported because it calls at Campbelltown, a station on a loaded line. SH now means `train SHL`.
+
+## Quick fixes
+
+- [x] **"timetabled", not "timetable"**, on a ride with no live data.
+- [x] **The house and the hold on the rail line up** with the time on their left and "Leave Home" / "Arrive" on their
+      right (both sit a little too high).
+
+## In a trip
+
+- [x] **Time to spare uses your timed walk.** How long you have to get to the stop is worked out from the street map
+      even when the walk has been timed and traced. It was the straight line to the stop × 1.3; and the 30-second
+      re-check planned from your GPS position over the street map, which could call a service missed that your own
+      route still catches. Both now go by the trip's own walk: where you are along your trace (or the street route),
+      and that share of its time.
+- [x] **Learn the walking pace** from timed, traced walks (an average). A pace set in Settings wins. All the traced
+      distance over all the time, crossings included; the Walking speed field says what an empty field uses.
+- [x] **Connection warnings.** They came up on trips that were fine, and sometimes went away again. Every 30 s the app
+      planned again and looked for an option with the same vehicles; none meant "You won't make the planned
+      connection". But a search only lists the best trips. Reproduced against the server: a later departure with the
+      same arrival hides yours; just off a vehicle you still counted as riding, and the server couldn't start from a
+      stop the vehicle had passed; from the vehicle, a timed change and the change buffer were both forgotten.
+      Now the server checks the trip itself: the app names the rides still ahead and gets that trip back with live
+      times and each change rated. Only that decides whether it still works; the search is just for something better.
+      The warning says what won't be made. Also: you're off a ride once you're at its stop and its time has come; a
+      location quiet for 90 s (a tunnel) isn't used; with no location you're taken to be walking as planned.
+      A warning that's showing stays until there's the "tight" setting to spare again, so it doesn't come and go.
+      "A faster way" is only offered when its changes are no riskier than yours, and says how sure they are.
+
+## Map
+
+- [x] **You are a blue dot with a white border** during a trip (the size is right). The border was there but white on
+      a pale map: it now has a soft dark edge, and is a touch wider (3px).
+- [x] **Once you're on board, only you are shown**, not your vehicle as well. The vehicle you're riding goes; ones you
+      have yet to catch stay. With no fresh fix of your own (a tunnel) your dot follows the vehicle's reports.
+- [x] **Smaller vehicle icons with a bus or train in them** rather than the line's name, so they're all one width
+      (the line is clear from the map and the trip). 25px across, from 34.
+
+## Trip screen
+
+- [x] **The options board: rides too thin to label.** The shared time axis showed how the options spread, but a short
+      metro, train or bus section could be too thin for its name, the most important thing on it. Chosen from mockups
+      (option D, smaller dots): each trip fills the full width on its own scale, no shared axis. Rides and walks are as
+      wide as their share of the trip; a ride is never narrower than its name, the room taken from the walks. Walking is
+      small even dots, and between two rides the dots just fill the space.
+- [x] **The risk mark sits evenly** between the arrive time and the door-to-door time.
+
+## Footer
+
+- [x] **The server status opens** to show what the status call returned: a row for each thing in plain words (problems
+      in their status colour), and under them the reply itself as JSON. Opening it asks the server again.
 
 # TODO: field-test feedback (2026-10-05)
 

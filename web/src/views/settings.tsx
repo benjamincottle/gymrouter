@@ -6,7 +6,7 @@ import { PaceTest } from './pacetest.tsx'
 import { DeleteButton, EditButton, IconColour, IconDevices, IconGym, IconHome, IconPhone, IconRisk, IconTimer, IconWalk } from './icons.tsx'
 import type { DefaultsResponse } from '../types.ts'
 import { mmss } from '../walkmeasure.ts'
-import { walkSecs } from '../walks.ts'
+import { learnedPace, walkSecs } from '../walks.ts'
 import { GymChooser, newGym, newHome, PlaceEditor, type EditorKind } from './places.tsx'
 import { BrandLogo } from './brand.tsx'
 import { Button, Callout, Confirm, ConfirmSheet, Field, Row, Section, Segmented, TextButton, type Tone } from './ui.tsx'
@@ -35,6 +35,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
   const [paceTest, setPaceTest] = useState(false)
   const [resetting, setResetting] = useState(false)
   const d = server?.defaults
+  const learned = learnedPace(settings.walks) // from timed, traced walks; a speed typed in below wins
   const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
   // Connection risk: one threshold changed (undefined: back to its default). Safe can't be below tight, so the other
   // follows; when both are the defaults, the setting goes.
@@ -191,7 +192,8 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
         <NumberField
           label="Walking speed (km/h)"
           value={settings.walkSpeedMps !== undefined ? round1(settings.walkSpeedMps * 3.6) : undefined}
-          fallback={d && round1(d.walk_speed_mps * 3.6)}
+          fallback={learned !== null ? round1(learned * 3.6) : d && round1(d.walk_speed_mps * 3.6)}
+          fallbackIs={learned !== null ? 'your pace on timed walks' : undefined}
           step="0.1"
           about="Used for walks you haven't timed."
           extra={
@@ -353,10 +355,11 @@ function round1(v: number) {
  * A number setting. Empty means "use the default", and the hint says what that is; a changed value offers the default
  * back. Changes save as you go, and say so briefly.
  */
-function NumberField({ label, value, fallback, step, about, extra, onChange }: {
+function NumberField({ label, value, fallback, fallbackIs = 'the default', step, about, extra, onChange }: {
   label: string
   value: number | undefined // undefined: the default
   fallback: number | undefined // the default, once the server has said
+  fallbackIs?: string // what an empty field uses, when it isn't the server's default
   step: string
   about?: string
   extra?: ComponentChildren
@@ -379,13 +382,13 @@ function NumberField({ label, value, fallback, step, about, extra, onChange }: {
         <span aria-live="polite">
           {about && `${about} `}
           {value === undefined ? (
-            def && `Empty uses the default, ${def}. `
+            def && `Empty uses ${fallbackIs}, ${def}. `
           ) : (
             <>
               Your setting.{' '}
               {def && (
                 <TextButton quiet onClick={() => change(undefined)}>
-                  Use the default ({def})
+                  Use {fallbackIs} ({def})
                 </TextButton>
               )}{' '}
             </>

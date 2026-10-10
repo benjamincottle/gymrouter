@@ -76,7 +76,7 @@ var metroName = regexp.MustCompile(`^\d+(M\d?)$`)
 
 // trackworkCodes maps the line codes at the end of trackwork bus names to the lines they stand in for.
 var trackworkCodes = map[string]Key{
-	"CN": {Train, "CCN"}, "BM": {Train, "BMT"}, "SC": {Train, "SCO"}, "HU": {Train, "HUN"},
+	"CN": {Train, "CCN"}, "BM": {Train, "BMT"}, "SC": {Train, "SCO"}, "HU": {Train, "HUN"}, "SH": {Train, "SHL"},
 	"M": {Metro, "M1"}, // the only metro line so far
 }
 

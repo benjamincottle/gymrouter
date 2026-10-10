@@ -13,8 +13,8 @@ build it. If code and this file disagree, the code is wrong. The decisions behin
   - connection risk: safe, tight, at risk, missed;
   - the focus ring and the "you" marker, in blue.
 - **Times read like a departure board.** Times are set in condensed Archivo numerals.
-- **The tape strips are the signature.** Options are tape strips on one shared time axis, and the trip's steps hang off
-  a rail in the line colours. Spend boldness there and keep everything around them quiet.
+- **The tape strips are the signature.** Each option is a strip of tape across its row, its rides named in the line
+  colours, and the trip's steps hang off a rail in the same colours. Spend boldness there and keep everything around them quiet.
 - **Rules, not cards.** Sections start with a heavy ink rule and rows are separated by hairlines. Don't use rounded
   card stacks or drop shadows.
 
@@ -49,6 +49,11 @@ tokens too, in both themes. Controls are square, 44px, edge-outlined, and have n
 no casing. Walks are round 4.5px ink dots every 8px along the street route (a dot
 image placed along the line, never a dashed line, which MapLibre stretches between zoom levels). A ride's stops (where you get on and
 off, and those passed on the way) sit on the line's centre (the server places them on the shape): white dots with a 1px ink outline, as wide as the line.
+Vehicles are discs in the line's colour, 20px inside a 2.5px ink outline, with the mode's glyph from the rail (train, bus
+or ferry) in ink or white: all one size whatever the line is called, since the colour and the trip say which line it is.
+You are the `--you` dot, 14px inside a 3px white border with a soft dark edge so the border shows on a pale map (and the
+halo of the location's accuracy). Once you're on board, your own vehicle isn't drawn: you are where it is. Vehicles you
+have yet to catch still are.
 
 ### Type
 
@@ -89,7 +94,8 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   - `--hair` (1px rule) separates rows.
   - `--bar` (4px) is the side bar of a callout and of the selected row.
   - Control outlines are 1.5px `--edge` (fields) or 1.5px ink (buttons and segmented controls).
-- **Shadows:** none. The only exceptions are the "you" marker's pulse and the inset underline and selection bars.
+- **Shadows:** none. The only exceptions are the "you" marker's soft edge and pulse (on the rail and the map) and the
+  inset underline and selection bars.
 - **Control height:** `--control` is 44px for every button, field and segmented control. Every tap target is at least
   44px, including text actions, which get an invisible hit area instead of padding.
 
@@ -139,7 +145,8 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Field:** a label (600) above, then a 44px input in `--panel` with a 1.5px `--edge` outline that turns ink on focus,
   then an optional hint (14px pencil, 400).
   - Defaults: an empty field means "use the default", and its hint says what the default is ("Empty uses the default,
-    4.7"). A changed field shows its value and offers "Use the default (3)". Settings save as they change and say
+    4.7"). A changed field shows its value and offers "Use the default (3)". When an empty field uses something learned on the
+    device instead, both say what ("Empty uses your pace on timed walks, 5.1", "Use your pace on timed walks (5.1)"). Settings save as they change and say
     "Saved." in the hint for two seconds (`NumberField` in Settings).
 - **Callout:** a `--panel` fill with a 4px left bar. Tones:
   - neutral (ink) for information and confirmations;
@@ -157,7 +164,17 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   the gym, with a chevron), "from Home" beneath it, and a reverse button (⇅) on the right.
 - **Options board:** one row per option: leave, tape strip, arrive, risk mark, compact duration.
   - The selected row gets a `--panel` fill and an inset 4px ink bar. Its content doesn't move.
-  - Tape labels appear only where the whole line name fits.
+  - The rows share their columns: the times and the duration are as wide as their widest entry, the duration is
+    right-aligned, and the risk mark sits evenly between the arrive time and the duration (`--s3` either side).
+  - **The tape** fills its row on the trip's own scale; there is no time axis shared between rows (the times either
+    side say when). Each piece is as wide as its share of the trip's time.
+    - A ride is 18px tall in its line's colour with the line's name centred, and is **never narrower than its name**
+      (plus `--s1` either side). The room it needs comes out of the walks, each in proportion to its size, and from the
+      other rides only when the walks have none left.
+    - Walking is a run of whole round dots (3.2px `--pencil`, about 8px apart, spread evenly from end to end): the walk
+      to the first stop, the walk from the last, and between two rides the walk and the wait as one run. A run is never
+      narrower than 13px, so two rides never touch.
+    - A ride running 2 min or more late has a 2px `--missed` outline.
   - The board is one tab stop; arrow keys move between options (radio group).
 - **Timeline:** time | rail | description, sharing columns through subgrid.
   - Rides: a thick line in the line colour that fills its row, stopping about 2px short of the rules above and below,
@@ -168,11 +185,24 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
     as a ride does. A walk or change step has a walker (heading right) in the middle instead of a dot. From the house,
     the dots run to just above the rule; into the hold, from just below it. Changes get a `--panel` row with a risk
     badge.
-  - The house or hold marks each end. The "you" marker never covers text.
+  - The house or hold marks each end, centred on its row's line of text (the time, "Leave Home", "Arrive"). The "you"
+    marker never covers text.
 - **Line chip, risk badge, risk mark:** 12px/800 on `--r-mark`. Badge text is `--on-tone`.
 - **Trackwork:** a `caution` callout above the board for each line whose trains the options replace with buses: the
   line's chip, "**Trackwork:** buses replace some trains. Their signs say 20T4 or 23T4." The buses keep their own names
   and colour everywhere (chip, tape, map): they're the names on the buses' signs.
+- **In-trip warnings** (above Now, at most one at a time):
+  - `bad`, when the trip can't be made as it stands. It says what won't be made, then the next best with how sure its
+    changes are, and offers the switch: "**You won't make the change at North Ryde Station: the 288 leaves at 12:34.**
+    Next best: 291, arriving 12:38, with no changes." [Switch to this]. The other openings: "You won't make the M1 at
+    11:52." and "One of your services is no longer running."
+  - It shows as soon as there's nothing to spare, and then stays until there's the "tight" setting to spare again (1 min
+    unless changed), so a connection near the line doesn't come and go with each live update. While it's only staying, it
+    says "You may not make…" rather than "You won't make…".
+  - `good`, when another way arrives at least 3 minutes sooner and its changes are no riskier than those still ahead
+    of you: "**A faster way just opened up:** 291, arriving 12:38, 4 min sooner, with no changes." [Switch to this].
+  - How sure the changes are reads `with no changes`, `with a safe change` (or tight, at-risk), `with 3 safe changes`,
+    `with 2 changes, the tightest at risk`.
 - **Longer walk:** a neutral callout above the board for each end whose nearest stop on the gym's lines is beyond the
   longest walk on foot (the server planned from the nearest stops anyway): "**Longer walk:** no stops on these lines
   within a 1 km walk of Home. The nearest is a 1.4 km walk." Distances read `800 m` (to 50 m) or `1.4 km`. It's information, not a
@@ -185,6 +215,13 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   working, needs a look", `--missed` "Server can't plan" or "Can't reach the server". Each issue follows on its own line
   in plain words. Only what's actionable and usually absent turns it orange (not lines that don't run on a weekend).
   Checked on opening and every 5 minutes while the app is open; checking doesn't count as using the app.
+  - The line is a button (a small chevron after it, a 44px hit area): it opens to **everything the status call
+    returned**, as rows of label (pencil) and what the server said (ink), hairlines between: the timetable's day and age,
+    live data and each feed, live services matched, requests to TfNSW, lines not running today, the street map and the map.
+    A row that's a problem is in its status colour (`--tight`, or `--missed` when the server can't plan). Opening it
+    asks the server again.
+  - Under the rows, "The server's reply" opens the same way to the reply as it came: JSON on `--panel`, the one place a
+    monospace face is used (the system's).
 - **Version** (the footer, last): `Version 87692b5`, the first seven characters of the commit the server was built
   from (`dev` for an unstamped local build, a trailing `+` for one with uncommitted changes), in `--pencil` like the
   rest of the footer. Shown once the server has answered; the app is built into the same binary, so it's the app's
@@ -193,7 +230,7 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   - on time (or under a minute late): `--safe`;
   - 1 min late: `--tight`;
   - 2 min or more late: `--missed`;
-  - timetable only: `--pencil`.
+  - no live data, "timetabled": `--pencil`.
   - The word and the colour always agree.
 - **Inline confirm:** see Destructive actions.
 - **Dialog sheet:** a scrim at 45%, then a sheet on the wall colour with a heavy top rule. It rises from the bottom on
@@ -216,6 +253,7 @@ format, everywhere.
 | Compact duration | `42m`, `1h 7m` | only in tabular columns (the options board) |
 | Spare time | `1 min spare`; under a minute `40 s spare` | changes (whole minutes, rounded down) |
 | Measured | `2:23` | walk timer, timed walks, "timed 2:23" on stops, pace results |
+| Age | `14 s ago`, `11 min ago`, `5 h ago`, `3 days ago` | the server status in full |
 
 Estimated walk times carry a tilde (`~3 min`); measured ones don't.
 

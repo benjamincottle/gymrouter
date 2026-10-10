@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { changesAndStops, position, reselect, rows, stopCount, tripKey } from './options.ts'
+import { changesAndStops, position, reselect, rows, stopCount, tape, tripKey } from './options.ts'
 import type { Leg, Option } from './types.ts'
 
 const iso = (hhmm: string) => `2026-10-08T${hhmm}:00+11:00`
@@ -60,4 +60,21 @@ test('during a trip the rail starts where you set off, and that is where you are
   const t = (hhmm: string) => Date.parse(iso(hhmm))
   assert.deepEqual(position(rs, t('07:40')), { row: 0, frac: 0 })
   assert.deepEqual(position(rs, t('08:02')), { row: 1, frac: 0.4 }, 'out the door: on the walk')
+})
+
+test('the tape: rides and the walking around them, each with its share of the trip', () => {
+  // 08:00 leave, walk 5, ride 25, change 5, ride 15, walk 10: 60 min.
+  const a = ride('t1', 'A', '08:05', '08:30')
+  const b = ride('t2', 'B', '08:35', '08:50')
+  const o = { ...option('08:00', a, b), arrive: iso('09:00') }
+  o.legs.push({ kind: 'walk', from: b.to, dep: iso('08:50'), arr: iso('09:00') })
+  const shares = (x: Option) => tape(x).map((p) => `${p.kind} ${Math.round(p.share * 60)}`)
+  assert.deepEqual(shares(o), ['walk 5', 'ride 25', 'walk 5', 'ride 15', 'walk 10'])
+  assert.equal(tape(o).reduce((n, p) => n + p.share, 0), 1)
+  // A wait at the stop is part of the walking before the ride; two rides always have a run between them.
+  const tight = { ...option('08:00', ride('t1', 'A', '08:10', '08:30'), ride('t2', 'B', '08:30', '08:50')) }
+  tight.legs[0].arr = iso('08:04')
+  assert.deepEqual(shares({ ...tight, arrive: iso('09:00') }), ['walk 10', 'ride 20', 'walk 0', 'ride 20', 'walk 10'])
+  // Straight off the last ride at the door: no walk at the end. On board already: none at the start.
+  assert.deepEqual(tape(option('08:05', ride('t1', 'A', '08:05', '08:30'))).map((p) => p.kind), ['ride'])
 })

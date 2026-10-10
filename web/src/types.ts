@@ -88,6 +88,25 @@ export interface PlanResponse {
   trackwork?: Trackwork[] // lines that buses stand in for during the search
   /** Set when an end had no stop within the longest walk, so the nearest ones were used: the walk to the nearest (m). */
   stretched_walk?: { from_m?: number; to_m?: number }
+  kept?: Kept // the answer to a request's `keep`
+}
+
+/** One ride of the trip being followed: a vehicle from one of its stops to a later one. */
+export interface KeepRide {
+  trip_id: string
+  from: string
+  to: string
+}
+
+/**
+ * The trip being followed, checked as it stands now rather than searched for. `option` is that trip with its live
+ * times and each change rated ("missed" when there's no longer time for it); it's absent when the trip can't be made at
+ * all (a ride cancelled, or no longer calling there). `catch_s`, before the first ride, is the time to spare on
+ * reaching it (negative: too late); absent on board.
+ */
+export interface Kept {
+  option?: Option
+  catch_s?: number
 }
 
 /** A line with trackwork: the buses replacing its trains, by the names on their signs ("23T4"). */
@@ -123,6 +142,7 @@ export interface PlanRequest {
   time?: string
   arrive_by?: boolean
   window_min?: number
+  keep?: KeepRide[] // during a trip: the rides still ahead, to be checked as they stand (PlanResponse.kept)
   prefs: {
     walk_speed_mps?: number
     min_change_s?: number
@@ -174,9 +194,19 @@ export interface SuggestResponse {
   results: SuggestResult[]
 }
 
-/** GET /api/status, the part the app shows: the verdict and what needs looking at. */
+/** GET /api/status: the verdict and what needs looking at (the footer's line), then the detail it opens to. */
 export interface ServerStatus {
   state: 'ok' | 'warning' | 'error'
   issues?: string[]
   version: string // the commit the server (and this app, built into it) came from
+  service_date?: string // the day its timetable is loaded for
+  static_age_s?: number // since the timetable was downloaded
+  static_error?: string
+  polling_active?: boolean // live data is being fetched (only while the app is in use)
+  upstream_requests_today?: number
+  feeds?: { name: string; trip_updates_age_s?: number; vehicles_age_s?: number; error?: string }[]
+  missing_lines?: string[] // loaded lines with no services today
+  unknown_trackwork?: string[]
+  realtime?: { updates: number; matched: number; matched_by_run: number; added: number; cancelled: number; empty: number; unmatched: number }
+  data?: { walk_ready: boolean; walk_age_s?: number; walk_error?: string; map_ready: boolean; map_age_s?: number; map_error?: string }
 }

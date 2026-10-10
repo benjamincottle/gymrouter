@@ -25,6 +25,19 @@ export function duration(secs: number): string {
   return r === 0 ? `${h} h` : `${h} h ${r} min`
 }
 
+/** How long ago something happened, from its age in seconds: "14 s ago", "11 min ago", "5 h ago", "3 days ago". */
+export function ago(secs: number): string {
+  if (secs < 90) return `${Math.max(0, Math.round(secs))} s ago`
+  if (secs < 90 * 60) return `${Math.round(secs / 60)} min ago`
+  if (secs < 48 * 3600) return `${Math.round(secs / 3600)} h ago`
+  return `${Math.round(secs / 86_400)} days ago`
+}
+
+/** A calendar day (YYYY-MM-DD) in words: "Saturday 10th". */
+export function dayName(day: string): string {
+  return `${WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()]} ${ordinal(Number(day.slice(8, 10)))}`
+}
+
 /** A walking distance: "800 m" (to 50 m), "1.4 km", "2 km". */
 export function distance(m: number): string {
   if (m < 975) return `${Math.max(50, Math.round(m / 50) * 50)} m`

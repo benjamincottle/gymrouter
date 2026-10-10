@@ -422,7 +422,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   weekend, 12CN for the Central Coast & Newcastle line), and those names are on the buses' signs. A gym's lines name
   `train T4`, so before this the buses were never loaded and a trackwork weekend planned as if the closed section had no
   service ("Nothing leaves", or a worse route with no reason given). Now the line code at the end of a bus's name (T1–T9,
-  CN, BM, SC, HU; M for the metro, as in 10M and 11M, which isn't in the timetable yet) ties it to its line: loading, routing, vehicles and the realtime feeds treat it as part of that line.
+  CN, BM, SC, HU, SH; M for the metro, as in 10M and 11M, which isn't in the timetable yet) ties it to its line: loading, routing, vehicles and the realtime feeds treat it as part of that line.
   Matching by the stations a bus serves was rejected: event shuttles (Olympic Park, Bathurst) are replacement-bus routes
   too and would be offered for everyday trips. A bus named like a trackwork bus that can't be tied to a line (a new code, or
   typed as an ordinary bus, which may be how metro buses turn up) and calls at a loaded line's station is logged and listed in `/api/status` (`unknown_trackwork`), so a new code shows up rather than failing
@@ -483,3 +483,62 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   the streets; it was drawn as one straight line, because the street search from the place doesn't reach the stop you
   get off at. Raising the default longest walk to 1500 m was rejected as the fix: it would have caught this stop by
   70 m and widened every search for everyone (see 2026-10-05).
+- 2026-10-10: SH is the Southern Highlands Line's trackwork code (`6SH`, Campbelltown to Moss Vale, calls at a T8
+  station), so the server stopped reporting it as a bus it can't tie to a line. The report did its job: a new code showed
+  up in the footer rather than being silently left out.
+- 2026-10-10: On the way to a stop, the time to spare and the re-checks go by the trip's own walk. The time to spare was
+  the straight line to the stop × 1.3 at walking speed, and a re-check planned from the GPS position, so the server
+  routed the walk over its street map from wherever the phone said you were. Neither knew about a walk you had timed
+  and traced: a shortcut the map doesn't have read as "you need to hurry", and could read as a missed service. Now you
+  are placed on the walk's own line (your trace if there is one, else the street route) and what's left is that share
+  of the walk's time, plus getting back to the line if you're off it; the re-check sends that figure for the stop you're
+  heading to along with your position (`walks`), so other stops are still routed from where you are.
+- 2026-10-10: The walking pace is learned from timed walks. With no speed set in Settings, walks that haven't been timed
+  are planned at the pace the timed, traced ones show: all their traced distance over all their time, so a long walk
+  counts for more than a short one, and waits at crossings are in it (it's the door-to-stop pace planning needs, where
+  "Measure my pace" counts only the moving stretches). A walk under 100 m or a minute, or one whose trace works out
+  slower than 0.6 m/s or faster than 2.5 m/s (a lift, a lost signal), is left out. A speed typed into Settings, or
+  taken from "Measure my pace", wins; clearing the field goes back to the learned pace, and to the server's default
+  when no walk has been traced. Nothing new is stored: it's worked out from the walks each time.
+- 2026-10-10: Each option's tape fills its row on the trip's own scale; the time axis shared between the options goes.
+  On the shared axis a 50-minute trip took about half of a 185px strip, so a 3-minute bus was a 5px sliver with no
+  room for its name, and which lines a trip takes is the most important thing on the board. The spread the axis showed
+  (when each option leaves and arrives against the others) is already in the times either side of the tape. Now rides
+  and walks are as wide as their share of that trip, a ride is never narrower than its name (the walks give up the
+  room), and walking is a run of dots: between two rides the walk and the wait are one run. Chosen from mockups of four
+  alternatives; kept-axis versions (a minimum ride width, names as tags above the tape, a slim axis bar under a fitted
+  tape) were rejected as more to read for the same answer. The risk mark now sits evenly between the arrive time and the
+  door-to-door time.
+- 2026-10-10: A trip under way is checked as it stands, not searched for. Every 30 s the app planned again and looked
+  for an option with the same vehicles; none meant "You won't make the planned connection". But a search returns the
+  best trips, not every possible one, so a good trip could be missing for reasons that had nothing to do with making
+  it. In the field the warning came up on trips that were fine and went away again. Four causes, each reproduced:
+  - a later departure with the same arrival beats yours, so the search drops yours (start the 12:14, and the first
+    re-check lists the 12:24 instead);
+  - you stay "riding" until you've moved along the change (at a same-stop change, until the next vehicle), and once
+    the vehicle's time at your stop has passed the server couldn't start a search from it;
+  - from the vehicle, the first change used the street map's time whatever you had timed it at;
+  - from the vehicle, the first change skipped the change buffer.
+
+  Now the app names the rides still ahead (`keep`) and the server describes exactly that trip with live times
+  (`kept`): each change rated as when planning, with your own change times and the buffer, `missed` when there's no
+  time left for it; and, before a ride, the time to spare on reaching it. That alone decides whether the trip still
+  works. The search still runs alongside, only to offer something faster or something else, and never offers a trip
+  with a change there's no time for. The warning says what won't be made ("You won't make the change at North Ryde
+  Station: the 288 leaves at 12:34"). Around it:
+  - at the stop you get off at, once the ride's time there has come, you're off it (waiting for, or walking to, the
+    next), rather than riding until you've moved on;
+  - a location that has been quiet for 90 s (a tunnel, an underground platform) isn't used: the clock decides, as
+    with no location at all. Before, the last fix at a station entrance kept you "walking to the stop" while you rode;
+  - with no location, after the time to leave you're taken to be walking to the stop as planned, not still at home;
+  - the trip's live times keep updating when a change in it has gone.
+
+  Two more, decided the same day:
+  - a warning that's showing stays until the thing it's about has the "tight" setting to spare again (1 min by
+    default). It still appears the moment there's nothing to spare; only clearing waits, so a connection near the
+    line doesn't come and go with each live update. Waiting for two checks in a row was rejected: the warning would
+    come up to 30 s late, when time matters most;
+  - "a faster way" is only offered when its changes are no riskier than those still ahead of you, and both it and
+    "next best" say how sure the alternative's changes are. It had gone by arrival time alone, so a trip 4 minutes
+    faster on paper could be offered over a safe one while hanging on a 20-second change.
+

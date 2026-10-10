@@ -49,6 +49,8 @@ measured walks from the gym door.
   has timed between the place and a stop. They beat any other time for that stop (a station ID covers its rail platforms,
 not bus stands that belong to the station)
   and add the stop if it isn't otherwise considered, curated or not. Not allowed with `on_trip`.
+  During a trip the app sends its position with one walk: the walking left to the stop it's heading for, by the trip's
+  own walk.
 - `time` is the earliest time to leave (default: now). Options leaving within `window_min` are returned.
 - `transfers` override walking/changing time between stops. A station ID covers its rail (train, metro, light rail)
   platforms; a bus stand that belongs to the station only matches by its own ID.
@@ -56,6 +58,11 @@ not bus stands that belong to the station)
 - While travelling, the origin can be the vehicle you're on: `"from": {"on_trip": {"trip_id": "…",
   "from_stop": "<stop where you boarded>"}}`. Planning then starts now, on that vehicle: the first leg is that
   ride, and the change off it is rated like any other. `time` and `arrive_by` don't apply.
+- While travelling, `"keep": [{"trip_id": "…", "from": "<stop ID>", "to": "<stop ID>"}, …]` (up to 8, in order) names
+  the rides still ahead on the trip being followed. The answer's `kept` says how that trip stands now, whatever the
+  search returns (a search only lists the best trips, and a good trip can drop out of them). With `on_trip`, the first
+  ride kept must be that trip from `from_stop`, and the stop it's kept to stays reachable for the search once the
+  vehicle's time there has passed. Not allowed with `arrive_by`.
 
 Response:
 ```json
@@ -82,6 +89,14 @@ network), or `estimate` (straight line × a detour factor) while that network is
 walks apply either way. Walk legs carry a `path` (`[[lon, lat], …]`) along the streets when it is known. A walk that
 passes a stop on the way (off at one stop, on foot to another and from there to the place) is drawn through that stop,
 each piece along the streets where known and straight otherwise. `max_walk_m` is measured on foot (see the place rules above).
+
+`kept` (only with `keep`) is `{"option": {…}, "catch_s": 95}`. `option` is the kept trip as an option like any other,
+with live times; each change is rated with the traveller's own change times and the change buffer, and is `missed`
+when there's no longer time for it (the option is still returned). It's left out when the trip can't be made at all: a
+ride is cancelled, isn't in the timetable, or doesn't call at those stops, or the trip doesn't reach the places asked
+for. `catch_s`, when not on a vehicle, is the time to spare on reaching the first ride from `from` at `time` (negative:
+too late); it's left out with `on_trip`. Still on the first ride after its time at the stop kept to, the change off it
+has what's left from now, less the walk.
 
 `stops` on a ride is the number of stops travelled, counting the one you get off at.
 `status` is `scheduled`, `predicted` (live data) or `added` (a realtime-only trip). `risk` is `safe`, `tight`,
@@ -148,7 +163,8 @@ counted against the daily upstream budget; the query is never logged.
 it can't plan (no timetable, or one more than three days old). `issues` (left out when there are none) says what:
 `no-timetable`, `old-timetable`, `timetable-refresh` (the last download failed), `live-data` (a realtime feed is failing
 while the app is in use), `trackwork` (see `unknown_trackwork`), `street-map`, `basemap` (their download failed).
-Lines missing today aren't an issue: weekday-only buses are missing every weekend. The app shows this in its footer.
+Lines missing today aren't an issue: weekday-only buses are missing every weekend. The app shows this in its footer,
+which opens to the rest of the reply.
 `version` is the commit the server was built from, shortened to seven characters (`dev` when the build didn't record
 it, a trailing `+` when built from uncommitted changes); the footer shows it too.
 Asking for the status doesn't count as using the app (it doesn't start realtime polling).

@@ -77,7 +77,20 @@ type planReq struct {
 	ArriveBy  bool       `json:"arrive_by,omitempty"`
 	WindowMin int        `json:"window_min,omitempty"`
 	Prefs     prefsReq   `json:"prefs"`
+	// Keep is the trip the traveller is on: the rides still ahead of them, in order. It's checked as it stands
+	// (planResp.Kept), whatever the search returns.
+	Keep []keepReq `json:"keep,omitempty"`
 }
+
+// keepReq is one ride of a trip being followed: a vehicle from one of its stops to a later one.
+type keepReq struct {
+	TripID string `json:"trip_id"`
+	From   string `json:"from"`
+	To     string `json:"to"`
+}
+
+// maxKeep bounds the rides of a kept trip (more than any option has).
+const maxKeep = 8
 
 type stopResp struct {
 	ID        string  `json:"id"`
@@ -145,6 +158,17 @@ type planResp struct {
 	Trackwork []trackworkResp `json:"trackwork,omitempty"`
 	// StretchedWalk is set when an end had no stop within the longest walk, so the nearest ones were used.
 	StretchedWalk *stretchedResp `json:"stretched_walk,omitempty"`
+	// Kept answers a request's keep: the trip being followed, as it stands now.
+	Kept *keptResp `json:"kept,omitempty"`
+}
+
+// keptResp is the trip a traveller is following, checked as it stands rather than searched for. Option is that trip
+// with its live times, each change rated ("missed" when there's no longer time for it); it's left out when the trip
+// can't be made at all any more (a ride cancelled or no longer calling there). CatchS, before the first ride, is the
+// time to spare on reaching it (negative: too late); it's left out on board.
+type keptResp struct {
+	Option *optionResp `json:"option,omitempty"`
+	CatchS *int32      `json:"catch_s,omitempty"`
 }
 
 // stretchedResp gives, for each end that used stops beyond the longest walk, the walk to its nearest stop (metres).
@@ -202,6 +226,9 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	if req.ArriveBy && req.Time == nil {
 		return nil, badf("arrive_by needs a time")
 	}
+	if err := checkKeep(req); err != nil {
+		return nil, err
+	}
 	set, err := parseLines(req.Lines)
 	if err != nil {
 		return nil, err
@@ -242,6 +269,10 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 		allowed[i] = set.Has(rt.Type, rt.ShortName)
 	}
 	allow := func(r int32) bool { return allowed[r] }
+	var overrides []plan.TransferOverride
+	for _, t := range req.Prefs.Transfers {
+		overrides = append(overrides, plan.TransferOverride{From: t.From, To: t.To, Secs: t.Secs})
+	}
 	var ob *plan.Onboard
 	var access, egress []raptor.Access
 	var fromAp, toAp engine.Approach
@@ -255,7 +286,10 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 			access, fromAp, fromErr = s.access(snap, req.From, maxWalk, opts, allow)
 		default:
 			if ob, fromErr = boarded(snap, req.From.OnTrip, snap.Secs(leave)); fromErr == nil {
-				if access = plan.OnboardAccess(snap.Net, ob, snap.Secs(leave)); len(access) == 0 {
+				if len(req.Keep) > 0 { // where they mean to get off stays reachable once the vehicle's time there has passed
+					ob.AlightCall = max(0, callAfter(snap.Day, ob.Trip, ob.BoardCall, req.Keep[0].To))
+				}
+				if access = plan.OnboardAccess(snap.Net, ob, snap.Secs(leave), overrides); len(access) == 0 {
 					fromErr = badf("that trip has already finished")
 				}
 			}
@@ -277,10 +311,6 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	minChange := cfg.Routing.MinChangeS
 	if req.Prefs.MinChangeS != nil {
 		minChange = *req.Prefs.MinChangeS
-	}
-	var overrides []plan.TransferOverride
-	for _, t := range req.Prefs.Transfers {
-		overrides = append(overrides, plan.TransferOverride{From: t.From, To: t.To, Secs: t.Secs})
 	}
 	preq := plan.Request{
 		Access: access, Egress: egress, Depart: snap.Secs(leave), Window: window,
@@ -316,7 +346,86 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	par.Do(len(options), func(i int) { // each option's walks are drawn along the streets
 		resp.Options[i] = optionJSON(snap, options[i], buffer, fromAp, toAp, s.eng.WalkPath)
 	})
+	if len(req.Keep) > 0 {
+		resp.Kept = &keptResp{}
+		if rides, ok := keptRides(snap.Day, req.Keep, ob); ok {
+			if o, catch, ok := plan.Check(snap.Net, preq, rides); ok {
+				out := optionJSON(snap, o, 0, fromAp, toAp, s.eng.WalkPath)
+				resp.Kept.Option = &out
+				if !onboard {
+					resp.Kept.CatchS = &catch
+				}
+			}
+		}
+	}
 	return resp, nil
+}
+
+// checkKeep validates a request's keep.
+func checkKeep(req planReq) error {
+	if len(req.Keep) == 0 {
+		return nil
+	}
+	if req.ArriveBy {
+		return badf("keep doesn't go with arrive_by")
+	}
+	if len(req.Keep) > maxKeep {
+		return badf("at most %d rides to keep", maxKeep)
+	}
+	for _, k := range req.Keep {
+		if k.TripID == "" || k.From == "" || k.To == "" || len(k.TripID)+len(k.From)+len(k.To) > 300 {
+			return badf("each ride to keep needs trip_id, from and to")
+		}
+	}
+	if ot := req.From.OnTrip; ot != nil && (req.Keep[0].TripID != ot.TripID || req.Keep[0].From != ot.FromStop) {
+		return badf("on a trip, the first ride to keep is that trip from where it was boarded")
+	}
+	return nil
+}
+
+// callAfter finds the first call of a trip after call `after` at the stop with this ID, or -1.
+func callAfter(d *gtfs.Day, trip, after int32, stop string) int32 {
+	st := d.Trips[trip].StopTimes
+	for i := int(after) + 1; i < len(st); i++ {
+		if d.Stops[st[i].Stop].ID == stop {
+			return int32(i)
+		}
+	}
+	return -1
+}
+
+// keptRides finds the rides of a kept trip in the day's timetable; false if one isn't there (the trip isn't in the
+// timetable, or doesn't call at those stops in that order). On board, the first ride is the one being ridden.
+func keptRides(d *gtfs.Day, keep []keepReq, ob *plan.Onboard) ([]plan.Kept, bool) {
+	out := make([]plan.Kept, 0, len(keep))
+	for i, k := range keep {
+		if i == 0 && ob != nil {
+			a := callAfter(d, ob.Trip, ob.BoardCall, k.To)
+			if a < 0 {
+				return nil, false
+			}
+			out = append(out, plan.Kept{Trip: ob.Trip, Board: ob.BoardCall, Alight: a})
+			continue
+		}
+		found := false
+	trips:
+		for _, ti := range d.TripIndex[k.TripID] {
+			for b, st := range d.Trips[ti].StopTimes {
+				if d.Stops[st.Stop].ID != k.From {
+					continue
+				}
+				if a := callAfter(d, ti, int32(b), k.To); a >= 0 {
+					out = append(out, plan.Kept{Trip: ti, Board: int32(b), Alight: a})
+					found = true
+					break trips
+				}
+			}
+		}
+		if !found {
+			return nil, false
+		}
+	}
+	return out, true
 }
 
 // arriveByLookback is how far before the deadline arrive-by searches for departures.
