@@ -558,3 +558,16 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   walk were edited and the nearest stop is a different one): it's then saying something new. Settings offers "Show
   them again" while there are any. Keeping it only while the trip screen stayed open was the first cut and too
   short: the notice was back after every trip.
+- 2026-10-10: Nine more built-in gyms from seven new brands: Nomad Annandale and Gladesville, BlocHaus Marrickville and
+  Leichhardt, Beta One Granville, 1UP Chullora, Sandbox Silverwater, SICG St Peters, Skywood Brookvale (lines found as for
+  Waterloo/Alexandria; names kept short so the gym rows don't wrap). Each brand has its logo, reduced to its mark where a
+  wordmark won't read at 32 px, on a light tile where the mark is dark line work that would vanish in the dark theme.
+  The built-in gyms' lines always stay loaded and grew from 42 to 83, so the cap on loaded lines goes from 150 to 200
+  to keep about the same room for the lines near people's homes.
+- 2026-10-10: The gym chooser starts with nothing ticked (supersedes "adds the gyms (all ticked)" of 2026-10-03). With
+  three gyms, all ticked was the quickest way through setup; with sixteen nobody climbs at them all, and a device holds
+  12 (as many as one line search takes). At 12 the remaining boxes are disabled and a line says why.
+- 2026-10-10: A seventeenth built-in gym, Climber Collective in Jamisontown (Penrith), the first at the western edge of
+  the area the map and street network cover. Its lines include the Blue Mountains line, whose trains are the quick way
+  out, and the T5 and bus 611: with trackwork on the T1 there was otherwise no way there from the city. The built-in
+  gyms now keep 93 lines loaded.

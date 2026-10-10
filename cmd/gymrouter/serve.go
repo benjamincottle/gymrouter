@@ -131,7 +131,7 @@ func checkConfig(args []string) error {
 	}
 	fmt.Println("known gyms:")
 	for _, g := range gyms.Known() {
-		fmt.Printf("  %-12s %-28s %s\n", g.ID, g.Name, strings.Join(g.LineSet.Strings(), ", "))
+		fmt.Printf("  %-22s %-28s %s\n", g.ID, g.Name, strings.Join(g.LineSet.Strings(), ", "))
 	}
 	fmt.Printf("preloaded realtime feeds: ")
 	for _, f := range tfnsw.FeedsFor(gyms.AllLines()) {

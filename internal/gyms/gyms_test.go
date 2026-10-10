@@ -13,7 +13,11 @@ func TestBuiltInGymsAreValid(t *testing.T) {
 	for _, x := range g {
 		have[x.ID] = true
 	}
-	for _, id := range []string{"lanecove", "chatswood", "rydalmere", "waterloo", "alexandria", "climbfit-macquarie", "climbfit-stleonards"} {
+	for _, id := range []string{
+		"lanecove", "chatswood", "rydalmere", "waterloo", "alexandria", "climbfit-macquarie", "climbfit-stleonards",
+		"nomad-annandale", "nomad-gladesville", "blochaus-marrickville", "blochaus-leichhardt", "betaone-granville",
+		"1up-chullora", "sandbox-silverwater", "sicg-stpeters", "skywood-brookvale", "climbercollective",
+	} {
 		if !have[id] {
 			t.Errorf("missing gym %q", id)
 		}

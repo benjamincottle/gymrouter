@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, ApiError, AuthError, problem } from '../api.ts'
-import { gymFromKnown, isLine, LINE_MODES, MAX_LINES, newId, placeRequest, withSuggested, type Gym, type Home } from '../settings.ts'
+import { gymFromKnown, isLine, LINE_MODES, MAX_GYMS, MAX_LINES, newId, placeRequest, withSuggested, type Gym, type Home } from '../settings.ts'
 import { groupStops, relevantGroups, type StopGroup } from '../stops.ts'
 import type { GeocodeResult, KnownGym, NearStop, SuggestResult } from '../types.ts'
 import { LineChip } from './option.tsx'
@@ -410,8 +410,8 @@ interface ChooserProps {
 /** Picks gyms from the ones the app already knows, and finds the lines near home for them in one go. */
 export function GymChooser({ known, have, home, token, maxWalkM, onAuthError, onAdd, onCustom, onCancel }: ChooserProps) {
   const available = (known ?? []).filter((k) => !have.some((g) => g.ref === k.id))
-  const [picked, setPicked] = useState<Set<string> | null>(null)
-  const sel = picked ?? new Set(available.map((k) => k.id)) // everything ticked until the person says otherwise
+  const [sel, setSel] = useState<Set<string>>(new Set()) // nothing ticked: the app knows more gyms than anyone climbs at
+  const full = have.length + sel.size >= MAX_GYMS // the device has no room for another
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState('')
@@ -420,8 +420,11 @@ export function GymChooser({ known, have, home, token, maxWalkM, onAuthError, on
 
   const toggle = (id: string) => {
     const next = new Set(sel)
-    if (!next.delete(id)) next.add(id)
-    setPicked(next)
+    if (!next.delete(id)) {
+      if (full) return
+      next.add(id)
+    }
+    setSel(next)
   }
 
   const add = async () => {
@@ -460,14 +463,14 @@ export function GymChooser({ known, have, home, token, maxWalkM, onAuthError, on
       ) : (
         <>
           <p class="meta intro">
-            The app knows these gyms and the lines that serve them.{' '}
+            The app knows these gyms and the lines that serve them. Tick the ones you climb at.{' '}
             {home ? `It will look up the lines near ${home.name} too, which can take up to a minute.` : ''}
           </p>
           <ul class="rows">
             {available.map((k) => (
               <li>
                 <label class="check">
-                  <input type="checkbox" checked={sel.has(k.id)} disabled={busy} onChange={() => toggle(k.id)} />
+                  <input type="checkbox" checked={sel.has(k.id)} disabled={busy || (full && !sel.has(k.id))} onChange={() => toggle(k.id)} />
                   <BrandLogo brand={k.brand} />
                   <span class="main">
                     {k.name}
@@ -477,6 +480,7 @@ export function GymChooser({ known, have, home, token, maxWalkM, onAuthError, on
               </li>
             ))}
           </ul>
+          {full && <p class="meta">A device holds up to {MAX_GYMS} gyms. Untick one to tick another.</p>}
         </>
       )}
       {busy && home && <p class="meta">Finding the lines near {home.name}: {Math.round(progress * 100)}%. This can take up to a minute.</p>}
@@ -496,7 +500,7 @@ export function GymChooser({ known, have, home, token, maxWalkM, onAuthError, on
         </Button>
         {available.length > 0 && (
           <Button disabled={busy || sel.size === 0} onClick={add}>
-            {busy ? 'Finding lines…' : sel.size === 1 ? 'Add gym' : `Add ${sel.size} gyms`}
+            {busy ? 'Finding lines…' : sel.size <= 1 ? 'Add gym' : `Add ${sel.size} gyms`}
           </Button>
         )}
       </ActionBar>

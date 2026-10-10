@@ -1,7 +1,7 @@
 # The gyms the app knows about. Public data only: where each gym is, and the lines that serve the gym end.
 # The app adds the lines near each person's home (suggested from the timetable) on their own device.
 #
-# Addresses: 9degrees.com.au/locations and climbfit.com.au. To add a gym, append a [[gym]] block (rebuild to ship it).
+# Addresses: each gym's own site. To add a gym, append a [[gym]] block (rebuild to ship it).
 # `brand` picks the small logo shown next to the gym (web/public/brands/<brand>.png); leave it out for none.
 #
 # Optional measured walks from the gym door to a stop. Planners guess these badly (through the factory,
@@ -84,3 +84,103 @@ address = "4/12 Frederick St, St Leonards"
 lat = -33.818797
 lon = 151.189610
 lines = ["train T1", "train T8", "train T9", "metro M1", "bus 114", "bus 120", "bus 144", "bus 252", "bus 291", "bus 612X"]
+
+# Nine more gyms from seven brands. Addresses from each gym's own site; coordinates from OpenStreetMap where it has the
+# gym (Nomad, BlocHaus, SICG), otherwise the Transport for NSW address lookup. Lines found the same way as Waterloo and
+# Alexandria (six starting points, a weekday afternoon and a Sunday morning, the app's line search), keeping the lines
+# near the gym and the trunk lines that kept showing up. The T7 is listed for the three gyms out west because trackwork
+# sends the city's trains to Olympic Park instead of Auburn and Lidcombe. A starting point: refine with timed walks.
+
+[[gym]]
+id = "nomad-annandale"
+name = "Nomad Annandale"
+brand = "nomad"
+address = "7/12 Chester St, Annandale"
+lat = -33.885089
+lon = 151.174879
+lines = ["bus 438X", "bus 440", "bus 470", "bus 413", "bus 461X", "bus 422", "bus 483", "bus 412", "bus 480", "train T2", "metro M1"]
+
+[[gym]]
+id = "nomad-gladesville"
+name = "Nomad Gladesville"
+brand = "nomad"
+address = "4/436-484 Victoria Rd, Gladesville"
+lat = -33.823816
+lon = 151.122547
+lines = ["bus 501", "bus 52", "bus 507", "bus 506", "bus 504", "train T9", "train T1", "metro M1"]
+
+[[gym]]
+id = "blochaus-marrickville"
+name = "BlocHaus Marrickville"
+brand = "blochaus"
+address = "49 Fitzroy St, Marrickville"
+lat = -33.908224
+lon = 151.167644
+lines = ["metro M1", "train T4", "train T8", "train T2", "train T9", "bus 423", "bus 426", "bus 430", "bus 428", "bus 355"]
+
+[[gym]]
+id = "blochaus-leichhardt"
+name = "BlocHaus Leichhardt"
+brand = "blochaus"
+address = "12 Upward St, Leichhardt"
+lat = -33.888750
+lon = 151.147399
+lines = ["train T2", "train T3", "train T9", "train T1", "metro M1", "light-rail L1", "bus 461X", "bus 483", "bus 437", "bus 440"]
+
+[[gym]]
+id = "betaone-granville"
+name = "Beta One Granville"
+brand = "betaone"
+address = "1E/62 Ferndell St, South Granville"
+lat = -33.869715
+lon = 151.005909
+lines = ["bus 910", "bus 909", "bus 911", "bus 908", "train T1", "train T2", "train T3", "train T7", "train T9", "metro M1"]
+
+[[gym]]
+id = "1up-chullora"
+name = "1UP Chullora"
+brand = "1up"
+address = "1/4 Brunker Rd, Chullora"
+lat = -33.899532
+lon = 151.043450
+lines = ["bus M90", "bus 920", "bus 925", "bus 913", "bus 946", "train T1", "train T2", "train T3", "train T7", "train T9", "metro M1"]
+
+[[gym]]
+id = "sandbox-silverwater"
+name = "Sandbox Silverwater"
+brand = "sandbox"
+address = "A2/27-29 Fariola St, Silverwater"
+lat = -33.835815
+lon = 151.053593
+lines = ["bus 526", "bus 525", "bus 544", "bus 533", "train T9", "train T1", "train T2", "train T7", "metro M1"]
+
+[[gym]]
+id = "sicg-stpeters"
+name = "SICG St Peters"
+brand = "sicg"
+address = "4C/1-7 Unwins Bridge Rd, St Peters"
+lat = -33.910320
+lon = 151.174170
+lines = ["metro M1", "train T8", "train T4", "train T2", "train T9", "bus 352", "bus 422", "bus 355", "bus 370"]
+
+[[gym]]
+id = "skywood-brookvale"
+name = "Skywood Brookvale"
+brand = "skywood"
+address = "144 Old Pittwater Rd, Brookvale"
+lat = -33.767600
+lon = 151.262268
+lines = ["bus B1", "bus 173X", "bus 142", "bus 154X", "bus 180X", "bus 174X", "bus 280", "bus 160X", "metro M1", "train T1", "train T8"]
+
+# Climber Collective: address from climbercollective.com.au, coordinates from the Transport for NSW address lookup,
+# lines found the same way. The Blue Mountains line is listed because its trains are the quick way out to Penrith; the
+# T5 and the 611 because trackwork on the T1 leaves them (with the metro) as the way round to Seven Hills.
+
+[[gym]]
+id = "climbercollective"
+name = "Climber Collective"
+brand = "climbercollective"
+address = "4/55-61 York Rd, Jamisontown"
+lat = -33.767272
+lon = 150.687465
+lines = ["train T1", "train BMT", "train T5", "bus 797", "bus 799", "bus 770", "bus 791", "bus 776", "bus 793", "bus 689", "bus 611", "metro M1"]
