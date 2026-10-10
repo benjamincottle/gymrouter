@@ -1002,9 +1002,14 @@ details > summary {
   font-size: var(--fs-small);
 }
 
-/* ---- the options board: every option as tape on one time axis ---- */
+/* ---- the options board: every option as tape across its row ---- */
 
+/* the rows share their columns (subgrid): the times and the door-to-door column are as wide as their widest entry,
+   so the risk mark sits evenly between the arrive time and the door-to-door time */
 .strips {
+  display: grid;
+  grid-template-columns: max-content 1fr max-content 12px max-content;
+  column-gap: var(--s3);
   list-style: none;
   margin: 0;
   padding: 0;
@@ -1012,15 +1017,17 @@ details > summary {
 }
 
 .strips > li {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
   border-bottom: var(--hair);
 }
 
 .strip-row {
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 3.2rem 1fr 3.2rem 12px 2.8rem;
+  grid-template-columns: subgrid;
   align-items: center;
-  column-gap: var(--s3);
-  width: 100%;
   min-height: 48px;
   padding: 0 var(--s2);
   border: 0;
@@ -1052,35 +1059,26 @@ details > summary {
   color: var(--pencil);
 }
 
+/* the tape fills its row on the trip's own scale. Each piece starts at its share of the trip's time (flex-basis,
+   set inline). A ride is never narrower than its name; the room it needs comes out of the walks, which shrink (each
+   in proportion to its size, down to one dot's worth), and from the other rides only when the walks have none left. */
 .strip {
-  position: relative;
-  display: block;
+  display: flex;
+  align-items: center;
+  min-width: 0;
   height: 22px;
 }
 
-.strip::before {
-  content: '';
-  position: absolute;
-  inset: 50% 0 auto;
-  border-top: var(--hair);
-}
-
-.seg {
-  position: absolute;
-  top: 2px;
-  height: 18px;
-}
-
-.seg.walk {
-  top: 10px;
-  height: 0;
-  border-top: 2px dashed var(--pencil);
-}
-
 .seg.ride {
-  padding: 0 3px;
+  flex-grow: 0;
+  flex-shrink: 0.001;
+  box-sizing: content-box;
+  min-width: max-content;
+  height: 18px;
+  padding: 0 var(--s1);
   overflow: hidden;
   border-radius: var(--r-mark);
+  text-align: center;
   font-size: var(--fs-micro);
   font-weight: 800;
   font-stretch: var(--narrow);
@@ -1093,7 +1091,19 @@ details > summary {
   outline-offset: 1px;
 }
 
+/* walking, and waiting between rides: whole round dots (3.2px, about 8px apart), evenly spaced from end to end */
+.seg.walk {
+  flex-grow: 1;
+  flex-shrink: 1000;
+  min-width: 13px;
+  height: 5px;
+  background: radial-gradient(circle at 50% 50%, var(--pencil) 1.6px, transparent 2.1px) 0 0 / 8px 5px;
+  background-repeat: round no-repeat;
+}
+
 .alt-note {
+  grid-column: 1 / -1;
+  margin: 0;
   padding: 0 var(--s2) var(--s2) calc(var(--s2) + var(--bar));
   font-size: var(--fs-small);
   color: var(--pencil);

@@ -500,4 +500,13 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   slower than 0.6 m/s or faster than 2.5 m/s (a lift, a lost signal), is left out. A speed typed into Settings, or
   taken from "Measure my pace", wins; clearing the field goes back to the learned pace, and to the server's default
   when no walk has been traced. Nothing new is stored: it's worked out from the walks each time.
+- 2026-10-10: Each option's tape fills its row on the trip's own scale; the time axis shared between the options goes.
+  On the shared axis a 50-minute trip took about half of a 185px strip, so a 3-minute bus was a 5px sliver with no
+  room for its name, and which lines a trip takes is the most important thing on the board. The spread the axis showed
+  (when each option leaves and arrives against the others) is already in the times either side of the tape. Now rides
+  and walks are as wide as their share of that trip, a ride is never narrower than its name (the walks give up the
+  room), and walking is a run of dots: between two rides the walk and the wait are one run. Chosen from mockups of four
+  alternatives; kept-axis versions (a minimum ride width, names as tags above the tape, a slim axis bar under a fitted
+  tape) were rejected as more to read for the same answer. The risk mark now sits evenly between the arrive time and the
+  door-to-door time.
 

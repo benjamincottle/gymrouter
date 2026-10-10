@@ -131,12 +131,12 @@ map, the footer, and last the two that need a decision together (the options boa
 
 ## Trip screen
 
-- [ ] **The options board: rides too thin to label.** The shared time axis shows how the options spread, but a short
-      metro, train or bus section can be too thin for its name, the most important thing on it. Mock up alternatives to
-      choose from, close to the current design.
-      Mocked up with real trips, to choose from: A elastic tape (a ride is never narrower than its name; walks and
-      waits give way), B tags on the tape (the tape stays to scale, names hang above it), C fitted tape (each trip
-      fills the width; a slim bar underneath keeps the shared axis).
+- [x] **The options board: rides too thin to label.** The shared time axis showed how the options spread, but a short
+      metro, train or bus section could be too thin for its name, the most important thing on it. Chosen from mockups
+      (option D, smaller dots): each trip fills the full width on its own scale, no shared axis. Rides and walks are as
+      wide as their share of the trip; a ride is never narrower than its name, the room taken from the walks. Walking is
+      small even dots, and between two rides the dots just fill the space.
+- [x] **The risk mark sits evenly** between the arrive time and the door-to-door time.
 
 ## Footer
 

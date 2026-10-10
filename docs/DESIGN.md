@@ -13,8 +13,8 @@ build it. If code and this file disagree, the code is wrong. The decisions behin
   - connection risk: safe, tight, at risk, missed;
   - the focus ring and the "you" marker, in blue.
 - **Times read like a departure board.** Times are set in condensed Archivo numerals.
-- **The tape strips are the signature.** Options are tape strips on one shared time axis, and the trip's steps hang off
-  a rail in the line colours. Spend boldness there and keep everything around them quiet.
+- **The tape strips are the signature.** Each option is a strip of tape across its row, its rides named in the line
+  colours, and the trip's steps hang off a rail in the same colours. Spend boldness there and keep everything around them quiet.
 - **Rules, not cards.** Sections start with a heavy ink rule and rows are separated by hairlines. Don't use rounded
   card stacks or drop shadows.
 
@@ -164,7 +164,17 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   the gym, with a chevron), "from Home" beneath it, and a reverse button (⇅) on the right.
 - **Options board:** one row per option: leave, tape strip, arrive, risk mark, compact duration.
   - The selected row gets a `--panel` fill and an inset 4px ink bar. Its content doesn't move.
-  - Tape labels appear only where the whole line name fits.
+  - The rows share their columns: the times and the duration are as wide as their widest entry, the duration is
+    right-aligned, and the risk mark sits evenly between the arrive time and the duration (`--s3` either side).
+  - **The tape** fills its row on the trip's own scale; there is no time axis shared between rows (the times either
+    side say when). Each piece is as wide as its share of the trip's time.
+    - A ride is 18px tall in its line's colour with the line's name centred, and is **never narrower than its name**
+      (plus `--s1` either side). The room it needs comes out of the walks, each in proportion to its size, and from the
+      other rides only when the walks have none left.
+    - Walking is a run of whole round dots (3.2px `--pencil`, about 8px apart, spread evenly from end to end): the walk
+      to the first stop, the walk from the last, and between two rides the walk and the wait as one run. A run is never
+      narrower than 13px, so two rides never touch.
+    - A ride running 2 min or more late has a 2px `--missed` outline.
   - The board is one tab stop; arrow keys move between options (radio group).
 - **Timeline:** time | rail | description, sharing columns through subgrid.
   - Rides: a thick line in the line colour that fills its row, stopping about 2px short of the rules above and below,

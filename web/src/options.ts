@@ -70,3 +70,25 @@ export function position(rs: { start: number; end: number }[], now: number): { r
   const frac = r.end > r.start ? Math.min(1, Math.max(0, (now - r.start) / (r.end - r.start))) : 0
   return { row, frac: now < r.start ? 0 : frac }
 }
+
+/** One piece of an option's tape: a ride, or the walking and waiting before, between or after rides. */
+export type TapePiece = { kind: 'ride'; leg: Leg; share: number } | { kind: 'walk'; share: number }
+
+/**
+ * An option as the pieces of its tape, each with its share (0..1) of the time from leaving to arriving. Everything
+ * that isn't a ride is one run of walking: to the first stop, between two rides (the walk and the wait, however
+ * short: two rides never touch), and from the last stop.
+ */
+export function tape(o: Option): TapePiece[] {
+  const total = Math.max(1, ms(o.arrive) - ms(o.leave_at))
+  const out: TapePiece[] = []
+  let t = ms(o.leave_at)
+  for (const l of o.legs) {
+    if (l.kind !== 'ride') continue
+    if (ms(l.dep) > t || out.length > 0) out.push({ kind: 'walk', share: Math.max(0, ms(l.dep) - t) / total })
+    out.push({ kind: 'ride', leg: l, share: Math.max(0, ms(l.arr) - ms(l.dep)) / total })
+    t = ms(l.arr)
+  }
+  if (ms(o.arrive) > t || out.length === 0) out.push({ kind: 'walk', share: Math.max(0, ms(o.arrive) - t) / total })
+  return out
+}

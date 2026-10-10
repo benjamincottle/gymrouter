@@ -1,5 +1,5 @@
-// Trip results: the chosen option's countdown, then every option as a strip of "tape" on one
-// shared time axis, so when each leaves and arrives can be compared at a glance.
+// Trip results: the chosen option's countdown, then every option as a strip of "tape" filling its row: each ride
+// named and as wide as its share of the trip, the walking between as dots.
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { ComponentType } from 'preact'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, shortDuration } from '../format.ts'
@@ -7,7 +7,7 @@ import { useNow, useWide } from '../hooks.ts'
 import type { TimedWalk } from '../walks.ts'
 import type { Leg, Option } from '../types.ts'
 import { Timeline, type Ends, type Tracking } from './option.tsx'
-import { changesAndStops, reselect, tripKey } from '../options.ts'
+import { changesAndStops, reselect, tape, tripKey } from '../options.ts'
 import type { MapViewProps } from '../map/mapview.tsx'
 import { ActionBar, Button, Callout, onRadioKeys, TextButton, useDialog } from './ui.tsx'
 import { lineColour, textOn } from '../colour.ts'
@@ -63,8 +63,6 @@ export function Board(p: Props) {
 
   if (opts.length === 0) return null
   const sel = opts[Math.min(selected, opts.length - 1)]
-  const start = Math.min(...opts.map((o) => ms(o.leave_at)))
-  const end = Math.max(...opts.map((o) => ms(o.arrive)))
   const choose = (i: number) => {
     setSelected(i)
     setSelKey({ trips: tripKey(opts[i]), leave: ms(opts[i].leave_at) })
@@ -79,7 +77,7 @@ export function Board(p: Props) {
           <li class={i === selected ? 'selected' : undefined}>
             <button class="strip-row" role="radio" aria-checked={i === selected} tabIndex={i === selected ? 0 : -1} onClick={() => choose(i)}>
               <span class="strip-leave">{clock(o.leave_at)}</span>
-              <Strip option={o} start={start} end={end} />
+              <Strip option={o} />
               <span class="strip-arrive">{clock(o.arrive)}</span>
               <span class={`risk-mark risk-${o.risk}`} title={`${riskLabel(o.risk)} connections`}>
                 <span class="sr-only">{riskLabel(o.risk)}</span>
@@ -148,26 +146,25 @@ function Hero({ option: o, live, now }: { option: Option; live: boolean; now: nu
   )
 }
 
-/** One option as tape segments on the shared axis: dashed for walking, line colours for rides. */
-export function Strip({ option: o, start, end }: { option: Option; start: number; end: number }) {
-  const span = Math.max(1, end - start)
-  const pct = (t: number) => `${((t - start) / span) * 100}%`
+/**
+ * One option as tape across the whole width, on its own scale: each ride in its line's colour and as wide as its share
+ * of the trip, but never narrower than its name; the walking (to the first stop, between rides, from the last) as
+ * dots that give up the room. The widths are the stylesheet's doing (.strip): the shares here are only where it starts.
+ */
+export function Strip({ option: o }: { option: Option }) {
   return (
     <span class="strip" aria-label={o.lines.join(', ')}>
-      {o.legs.map((l) => {
-        const left = pct(ms(l.dep))
-        const width = `${Math.max(0.8, ((ms(l.arr) - ms(l.dep)) / span) * 100)}%`
-        if (l.kind === 'walk') return <span class="seg walk" style={{ left, width }} />
+      {tape(o).map((p) => {
+        const share = `${p.share * 100}%`
+        if (p.kind === 'walk') return <span class="seg walk" style={{ flexBasis: share }} />
+        const l = p.leg
         const bg = lineColour(l.line?.color)
-        // Only label segments wide enough to show the whole name; a cut-off "2" for 292 misleads.
-        const fits = ((ms(l.arr) - ms(l.dep)) / span) * 100 >= 3 + 2.2 * (l.line?.name.length ?? 0)
         return (
           <span
             class={`seg ride${l.status === 'predicted' && (l.delay_s ?? 0) >= 120 ? ' late' : ''}`}
-            style={{ left, width, background: bg, color: textOn(bg) }}
-            title={l.line?.name}
+            style={{ flexBasis: share, background: bg, color: textOn(bg) }}
           >
-            {fits ? l.line?.name : ''}
+            {l.line?.name}
           </span>
         )
       })}
@@ -237,8 +234,6 @@ export function MapSheet({ option, now, onClose, onStart, title, live, steps, ..
   const map = useMapView()
   const sheetRef = useRef<HTMLDivElement>(null)
   useDialog(sheetRef, onClose) // focus starts on Back; Escape closes; the page behind is inert
-  const start = ms(option.leave_at)
-  const end = ms(option.arrive)
   return (
     <div ref={sheetRef} class="sheet" role="dialog" aria-modal="true" aria-label={`Map: ${title}`}>
       <header class="sheet-bar">
@@ -271,7 +266,7 @@ export function MapSheet({ option, now, onClose, onStart, title, live, steps, ..
               <span class="meta">Arrive {clock(option.arrive)}</span>
             </p>
           )}
-          {!steps && <Strip option={option} start={start} end={end} />}
+          {!steps && <Strip option={option} />}
         </div>
         {onStart && (
           <Button onClick={onStart}>
