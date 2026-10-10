@@ -13,6 +13,19 @@ const ISSUES: Record<string, string> = {
   basemap: "The map couldn't be downloaded.",
 }
 
+/** The version this page is: the first one the server reported since it loaded (the app is built into the server). */
+let loaded = ''
+
+/**
+ * The version this page is when the server has moved on to another since the page loaded (a deploy while the app
+ * stayed open), so there's a newer app to reload for; otherwise nothing.
+ */
+export function outdated(version: string | undefined): string {
+  if (!version) return ''
+  loaded ||= version
+  return version === loaded ? '' : loaded
+}
+
 export interface Summary {
   state: 'ok' | 'warning' | 'error' | 'checking'
   title: string

@@ -542,3 +542,10 @@ no predictions (other timetable versions) and are ignored; run-number matching c
     "next best" say how sure the alternative's changes are. It had gone by arrival time alone, so a trip 4 minutes
     faster on paper could be offered over a safe one while hanging on a 20-second change.
 
+- 2026-10-10: No pull-to-refresh. In the installed app on Android, reloading by pulling down left the page laid out
+  one navigation bar taller than the window (the footer off the bottom edge, the page scrolling by that much) until
+  the phone was rotated: Chrome's sizing of a reloaded standalone window, not the app's content. The gesture was
+  also redundant, since plans and the status refresh themselves. It's turned off; and because that was the only way
+  to reload an app left open, the footer now says when the server has moved to a newer version than the page came
+  with, and offers Reload. Sizing the frame from a measured height instead was rejected: a guess at which of
+  Chrome's numbers is right, for a gesture nothing needs.

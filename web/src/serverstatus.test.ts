@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ApiError, AuthError } from './api.ts'
-import { details, summarise } from './serverstatus.ts'
+import { details, outdated, summarise } from './serverstatus.ts'
 import { ago, dayName } from './format.ts'
 
 test('summarise puts the server state into words', () => {
@@ -54,4 +54,12 @@ test('the status in full: a row for everything the server reported', () => {
 test('ages and day names', () => {
   assert.deepEqual([0, 89, 90, 5399, 5400, 172_799, 172_800].map(ago), ['0 s ago', '89 s ago', '2 min ago', '90 min ago', '2 h ago', '48 h ago', '2 days ago'])
   assert.equal(dayName('2026-10-10'), 'Saturday 10th')
+})
+
+test('outdated notices the server moving to another version after the page loaded', () => {
+  assert.equal(outdated(undefined), '') // nothing heard yet
+  assert.equal(outdated('1b7180f'), '') // the version this page came with
+  assert.equal(outdated('1b7180f'), '')
+  assert.equal(outdated('df80f6c'), '1b7180f') // deployed since: this page is the older one
+  assert.equal(outdated('1b7180f'), '') // rolled back to what's open
 })
