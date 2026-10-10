@@ -55,7 +55,10 @@ func Known() []Gym {
 }
 
 // Brands are the gym brands the app has a logo for.
-var Brands = map[string]bool{"9degrees": true, "climbfit": true}
+var Brands = map[string]bool{
+	"9degrees": true, "climbfit": true, "nomad": true, "blochaus": true, "betaone": true, "1up": true, "sandbox": true,
+	"sicg": true, "skywood": true,
+}
 
 var idPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 
