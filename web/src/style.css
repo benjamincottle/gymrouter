@@ -421,6 +421,11 @@ label.check {
   cursor: pointer;
 }
 
+label.check:has(input:disabled) {
+  color: var(--pencil);
+  cursor: default;
+}
+
 label.check .main {
   flex: 1;
   min-width: 0;

@@ -162,6 +162,9 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Pick rows:** a search result is a whole-row button with a `›` at the end, not a link.
 - **Rows:** a hairline-separated list, min 56px tall. The main text sits on line 1 and details on a second 14px pencil
   line. **Never join details with middle dots.** Actions (icon buttons) go on the right.
+- **Tick lists** (the gym chooser): checkbox rows start unticked, and the commit button counts what's ticked. At a
+  limit the unticked rows are disabled (pencil text) and a 14px pencil line under the list says what the limit is and
+  how to free a place ("A device holds up to 12 gyms. Untick one to tick another.").
 - **Route row** (trip screen): an ink tape, the gym's logo, the gym's name (18px/800/semi, a button that changes
   the gym, with a chevron), "from Home" beneath it, and a reverse button (⇅) on the right.
 - **Options board:** one row per option: leave, tape strip, arrive, risk mark, compact duration.

@@ -564,3 +564,6 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   wordmark won't read at 32 px, on a light tile where the mark is dark line work that would vanish in the dark theme.
   The built-in gyms' lines always stay loaded and grew from 42 to 83, so the cap on loaded lines goes from 150 to 200
   to keep about the same room for the lines near people's homes.
+- 2026-10-10: The gym chooser starts with nothing ticked (supersedes "adds the gyms (all ticked)" of 2026-10-03). With
+  three gyms, all ticked was the quickest way through setup; with sixteen nobody climbs at them all, and a device holds
+  12 (as many as one line search takes). At 12 the remaining boxes are disabled and a line says why.
