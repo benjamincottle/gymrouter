@@ -20,6 +20,10 @@
   --on-tone: #ffffff; /* text on a risk colour */
   --white: #ffffff;
   --line-fallback: #5e6670; /* a line without a colour */
+  /* a gym's shoe: its sole is the dark part in either theme (filled here; on a dark page the upper is, instead) */
+  --shoe-sole: currentColor;
+  --shoe-upper: none;
+  --shoe-strap: currentColor;
 
   /* type: one family, three widths, three weights */
   --narrow: 68%;
@@ -74,6 +78,9 @@
   --missed: #f2766b;
   --on-tone: #1b1e21;
   --icon-edge: #3a4046;
+  --shoe-sole: none;
+  --shoe-upper: currentColor;
+  --shoe-strap: var(--wall);
   color-scheme: dark;
 }
 
@@ -283,6 +290,29 @@ select {
 .icon .ink {
   fill: currentColor;
   stroke: none;
+}
+
+/* a gym's shoe, wherever it's drawn: finer lines than the other drawings (at theirs its loop and straps close up) */
+.shoe {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.shoe .upper {
+  fill: var(--shoe-upper);
+  stroke: none;
+}
+
+.shoe .sole {
+  fill: var(--shoe-sole);
+  stroke: var(--shoe-sole);
+}
+
+.shoe .straps {
+  stroke: var(--shoe-strap);
 }
 
 /* the runner on a gym's row: drawn as heavy as the walker on the rail, its speed lines lighter */
@@ -879,7 +909,7 @@ details > summary {
   white-space: nowrap;
 }
 
-/* the direction toggle: a button of drawings from the rail (the house, an arrow, the hold), as heavy as they are there */
+/* the direction toggle: a button of drawings from the rail (the house, an arrow, the shoe), as heavy as they are there */
 .btn.direction {
   gap: var(--s1);
   padding: 0 var(--s2);
@@ -887,11 +917,6 @@ details > summary {
 
 .btn.direction .icon {
   stroke-width: 2;
-}
-
-.btn.direction .bolt {
-  fill: var(--wall);
-  stroke: none;
 }
 
 .daytime {
@@ -1355,6 +1380,7 @@ details > summary {
   position: absolute;
   top: 14px;
   left: calc(50% - 11px);
+  color: var(--ink);
   fill: var(--wall);
   stroke: var(--ink);
   stroke-width: 2;
@@ -1362,18 +1388,9 @@ details > summary {
   stroke-linejoin: round;
 }
 
-.rail .origin.hold path {
-  fill: var(--ink);
-}
-
-.rail .origin.hold circle {
-  fill: var(--wall);
-  stroke: none;
-}
-
 .rail.start .you,
 .rail.arrive .you {
-  margin-top: 11px; /* over the house (or the hold), drawn in the marker: you're there */
+  margin-top: 11px; /* over the house (or the shoe), drawn in the marker: you're there */
 }
 
 /* you: the same blue dot as on the map */
@@ -1395,11 +1412,20 @@ details > summary {
 }
 
 .rail .you svg {
+  color: var(--white);
   fill: none;
   stroke: var(--white);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* the shoe in the marker: white on the marker's blue is the dark page's drawing in either theme, a little heavier at this size */
+.rail .you .shoe {
+  --shoe-sole: none;
+  --shoe-upper: currentColor;
+  --shoe-strap: var(--you);
+  stroke-width: 1.5;
 }
 
 @keyframes you-here {

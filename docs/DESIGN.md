@@ -40,6 +40,7 @@ raw colour, size or spacing value in a component. Use a token, or add one here f
 | `--risk` | `#b13a0a` | `#f08a4b` | at-risk connections |
 | `--missed` | `#b42318` | `#f2766b` | missed or late, errors, danger actions |
 | `--on-tone` | `#ffffff` | `#1b1e21` | text on a risk colour (badges) |
+| `--shoe-sole`, `--shoe-upper`, `--shoe-strap` | the drawing's colour, none, the drawing's colour | none, the drawing's colour, `--wall` | which part of a gym's shoe is filled, and its straps (see The shoe) |
 
 Line colours come from the feed. Text on a line colour is ink or white, whichever contrasts better; it is computed, never
 taken from the feed's `text_color`. A line without a colour uses one fallback grey, `#5e6670`, everywhere.
@@ -167,8 +168,9 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   limit the unticked rows are disabled (pencil text) and a 14px pencil line under the list says what the limit is and
   how to free a place ("A device holds up to 12 gyms. Untick one to tick another.").
 - **Direction toggle** (trip screen, at the end of the When row, above the runners): an outlined button, 44px tall
-  with `--s2` padding, holding the rail's own drawings at 20px and 2px: the house, an arrow, the hold when the trip
-  goes from home to the gym; the hold, an arrow, the house when it goes home. A tap reverses it. It says which way
+  with `--s2` padding, holding the rail's own drawings at 20px (the house and the arrow in 2px lines, the shoe in its
+  own): the house, an arrow, the shoe when the trip goes from home to the gym; the shoe, an arrow, the house when it
+  goes home. A tap reverses it. It says which way
   the gyms' rows and their runners go before a gym is chosen, at no cost in height; with a gym chosen it stays where
   it is and reverses that trip. It's the only control that does: the route row has no reverse button.
   - The When control gives up the room: its options are padded `--s1` in this row and never wrap. On a screen too
@@ -211,10 +213,21 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
     time; then, on a line of its own, `3 stops (7 min)` (or just `7 min` when the stop count isn't known).
   - Walks: whole round dots (4.5px, about 10px apart, spaced out to fit; never cut off), stopping as short of the rules
     as a ride does. A walk or change step has a walker (heading right) in the middle instead of a dot. From the house,
-    the dots run to just above the rule; into the hold, from just below it. Changes get a `--panel` row with a risk
+    the dots run to just above the rule; into the shoe, from just below it. Changes get a `--panel` row with a risk
     badge.
-  - The house or hold marks each end, centred on its row's line of text (the time, "Leave Home", "Arrive"). The "you"
-    marker never covers text.
+  - The house or the shoe marks each end, centred on its row's line of text (the time, "Leave Home", "Arrive"). The
+    "you" marker never covers text; at either end it holds the drawing of the place you're at.
+- **The shoe:** a gym is a climbing shoe, as home is a house: toe down and to the right, a loop on its heel, two
+  straps and a rubber sole (`Shoe` in `web/src/views/icons.tsx`, drawn once and used everywhere). It marks the gym's
+  end of the rail and of the direction toggle, and heads Gyms in Settings.
+  - Its lines are 1.25 in its 24 box at every size, finer than the other drawings (2, or 1.7 on a section's icon): at
+    their weight the loop and the straps close up.
+  - **The sole is the dark part in either theme**, since rubber is. On a light page that's an outline with the sole
+    filled. On a dark page the upper is filled instead and the sole is the wall left inside the outline, as thick as
+    the filled sole is on a light page, with the straps cut across the upper in `--wall`. The `--shoe` tokens switch it.
+  - In the "you" marker the shoe is white on `--you`, so it's the dark page's drawing in either theme, its straps
+    `--you`, its lines 1.5.
+  - The app icon and the page before sign-in keep their climbing volume: that's the app's mark, not a gym.
 - **Line chip, risk badge, risk mark:** 12px/800 on `--r-mark`. Badge text is `--on-tone`.
 - **Trackwork:** a `caution` callout above the board for each line whose trains the options replace with buses: the
   line's chip, "**Trackwork:** buses replace some trains. Their signs say 20T4 or 23T4." The buses keep their own names
