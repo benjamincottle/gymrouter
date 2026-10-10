@@ -116,10 +116,11 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   const brandOf = (g: Gym) => server.gyms.find((k) => k.id === g.ref)?.brand
   // Ends whose nearest stop is beyond the longest walk (on foot), which the server planned from anyway.
   const sw = plan.data?.stretched_walk
-  // Each is the walk between a place and this gym's lines, so one that's dismissed stays away either way round.
-  const stretched = gym && ends && sw
-    ? ([[ends.start, sw.from_m], [ends.end, sw.to_m]] as const)
-        .flatMap(([p, m]) => (m && !walkDismissed(settings, gym.id, p.key, m) ? [{ place: p.key, name: p.name, m }] : []))
+  // Each is the walk between a place and its nearest stop, as a timed walk is, so one that's dismissed stays away on
+  // every trip with that walk, either way round.
+  const stretched = ends && sw
+    ? ([[ends.start, sw.from_m, sw.from_stop], [ends.end, sw.to_m, sw.to_stop]] as const)
+        .flatMap(([p, m, stop]) => (m && stop && !walkDismissed(settings, p.key, stop) ? [{ place: p.key, name: p.name, m, stop }] : []))
     : []
 
   return (
@@ -196,7 +197,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
             </Callout>
           ))}
           {stretched.map((s) => (
-            <Callout key={s.place} onDismiss={() => setSettings(dismissWalk(settings, gym.id, s.place, s.m))}>
+            <Callout key={s.place} onDismiss={() => setSettings(dismissWalk(settings, s.place, s.stop))}>
               <strong>Longer walk:</strong> no stops on these lines within a{' '}
               {distance(settings.maxWalkM ?? server.defaults.max_walk_m)} walk of {s.name}. The nearest is a {distance(s.m)} walk.
             </Callout>

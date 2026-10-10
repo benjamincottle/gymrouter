@@ -223,25 +223,28 @@ test('gyms are listed most used first, otherwise as added', () => {
   assert.ok(resetGymOrder(s).gyms.every((x) => !('uses' in x)))
 })
 
-test('a dismissed longer walk notice stays away until it would say a different distance', () => {
-  assert.equal(walkDismissed(sample, 'g1', 'home:h1', 1400), false)
-  let s = dismissWalk(sample, 'g1', 'home:h1', 1400)
-  assert.equal(walkDismissed(s, 'g1', 'home:h1', 1400), true)
-  assert.equal(walkDismissed(s, 'g1', 'home:h1', 1420), true, 'reads the same: 1.4 km')
-  assert.equal(walkDismissed(s, 'g1', 'home:h1', 1700), false, 'the nearest stop changed')
-  assert.equal(walkDismissed(s, 'g1', 'gym:g1', 1400), false, 'the other end')
-  assert.equal(walkDismissed(s, 'g2', 'home:h1', 1400), false, "another gym's lines")
-  s = dismissWalk(dismissWalk(s, 'g1', 'home:h1', 1700), 'g1', 'gym:g1', 1100)
-  assert.deepEqual(s.dismissedWalks, [{ gym: 'g1', place: 'home:h1', m: 1700 }, { gym: 'g1', place: 'gym:g1', m: 1100 }], 'one per walk')
+test('a dismissed longer walk notice stays away for that walk, whichever gym the trip is to', () => {
+  // The walk is kept as a timed walk is: the place, and the stop (a station for a rail platform). No gym in it.
+  assert.equal(walkDismissed(sample, 'home:h1', '212110'), false)
+  let s = dismissWalk(sample, 'home:h1', '212110')
+  assert.equal(walkDismissed(s, 'home:h1', '212110'), true)
+  assert.equal(walkDismissed(s, 'home:h1', '211920'), false, 'the nearest stop is another one')
+  assert.equal(walkDismissed(s, 'gym:g1', '212110'), false, 'the other end')
+  s = dismissWalk(dismissWalk(dismissWalk(s, 'home:h1', '212110'), 'home:h1', '211920'), 'gym:g1', '206610')
+  assert.deepEqual(
+    s.dismissedWalks,
+    [{ place: 'home:h1', stop: '212110' }, { place: 'home:h1', stop: '211920' }, { place: 'gym:g1', stop: '206610' }],
+    'one per walk',
+  )
   assert.deepEqual(sanitize(JSON.parse(JSON.stringify(s))).dismissedWalks, s.dismissedWalks, 'kept on the device')
   assert.equal('dismissedWalks' in showDismissedWalks(s), false)
-  assert.equal(walkDismissed(showDismissedWalks(s), 'g1', 'home:h1', 1700), false)
+  assert.equal(walkDismissed(showDismissedWalks(s), 'home:h1', '212110'), false)
 
   // Those for a home or gym that has gone don't count, and aren't kept.
-  assert.deepEqual(dismissedWalks({ ...s, homes: [] }), [{ gym: 'g1', place: 'gym:g1', m: 1100 }])
-  assert.equal(sanitize({ ...s, gyms: [] }).dismissedWalks, undefined)
-  const bad = { ...sample, dismissedWalks: [{ gym: 'g1', place: 'home:h1' }, { gym: 1, place: 'home:h1', m: 5 }, 'x', null, { gym: 'g1', place: 'home:h1', m: 1200.4 }] }
-  assert.deepEqual(sanitize(bad).dismissedWalks, [{ gym: 'g1', place: 'home:h1', m: 1200 }])
+  assert.deepEqual(dismissedWalks({ ...s, homes: [] }), [{ place: 'gym:g1', stop: '206610' }])
+  assert.deepEqual(sanitize({ ...s, gyms: [] }).dismissedWalks, [{ place: 'home:h1', stop: '212110' }, { place: 'home:h1', stop: '211920' }])
+  const bad = { ...sample, dismissedWalks: [{ place: 'home:h1' }, { place: 'home:h1', stop: 5 }, { place: 'home:h1', stop: '' }, 'x', null, { gym: 'g1', place: 'home:h1', m: 1200 }, { place: 'home:h1', stop: '212110' }] }
+  assert.deepEqual(sanitize(bad).dismissedWalks, [{ place: 'home:h1', stop: '212110' }])
 })
 
 test('a link asks first when it would change the token or replace saved data', () => {

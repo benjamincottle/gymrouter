@@ -215,8 +215,9 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   longest walk on foot (the server planned from the nearest stops anyway): "**Longer walk:** no stops on these lines
   within a 1 km walk of Home. The nearest is a 1.4 km walk." Distances read `800 m` (to 50 m) or `1.4 km`. It's information, not a
   fault, so it isn't `caution`, and it goes once a walk from that place has been timed.
-  - It can be dismissed, and then stays away for that place and gym (either way round) on this device, until it would
-    say a different distance: the nearest stop has changed.
+  - It can be dismissed, and then stays away on this device for that walk, kept as a timed walk is: the place and its
+    nearest stop (the station, for a train, metro or light-rail platform). So it's gone on every trip with that walk,
+    whichever gym and either way round, until the place's nearest stop is a different one.
   - Settings, under "Longest walk to a stop" and only while there are any: "You've dismissed 2 "Longer walk" notices.
     Show them again" (a quiet text action; "Show it again" for one).
 - **Footer:** a hairline, then the server status; it sits at the bottom edge of the screen when the content is shorter

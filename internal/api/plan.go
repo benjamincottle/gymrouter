@@ -171,10 +171,13 @@ type keptResp struct {
 	CatchS *int32      `json:"catch_s,omitempty"`
 }
 
-// stretchedResp gives, for each end that used stops beyond the longest walk, the walk to its nearest stop (metres).
+// stretchedResp gives, for each end that used stops beyond the longest walk, the walk to its nearest stop (metres)
+// and that stop as timed walks know it (see walkStop).
 type stretchedResp struct {
-	FromM int `json:"from_m,omitempty"`
-	ToM   int `json:"to_m,omitempty"`
+	FromM    int    `json:"from_m,omitempty"`
+	FromStop string `json:"from_stop,omitempty"`
+	ToM      int    `json:"to_m,omitempty"`
+	ToStop   string `json:"to_stop,omitempty"`
 }
 
 // trackworkResp is a line with trackwork: the buses replacing its trains, by the names on their signs.
@@ -332,7 +335,15 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 		resp.Walking = "streets"
 	}
 	if fromAp.StretchedM > 0 || toAp.StretchedM > 0 {
-		resp.StretchedWalk = &stretchedResp{FromM: int(math.Round(fromAp.StretchedM)), ToM: int(math.Round(toAp.StretchedM))}
+		rail := plan.RailStops(snap.Net)
+		sw := &stretchedResp{}
+		if fromAp.StretchedM > 0 {
+			sw.FromM, sw.FromStop = int(math.Round(fromAp.StretchedM)), walkStop(day, rail, fromAp.StretchedStop)
+		}
+		if toAp.StretchedM > 0 {
+			sw.ToM, sw.ToStop = int(math.Round(toAp.StretchedM)), walkStop(day, rail, toAp.StretchedStop)
+		}
+		resp.StretchedWalk = sw
 	}
 	if snap.Realtime {
 		at := snap.RealtimeAt
@@ -618,6 +629,15 @@ func (s *Server) access(snap *engine.Snapshot, p placeReq, maxWalk float64, o ra
 		ap = s.eng.PathsFrom(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, math.Min(maxWalk*3, 6000))
 	}
 	return timed, ap, nil
+}
+
+// walkStop is a stop as timed walks know it: a rail platform is its station, anything else is itself.
+func walkStop(d *gtfs.Day, rail []bool, s int32) string {
+	st := d.Stops[s]
+	if st.Parent != "" && rail[s] {
+		return st.Parent
+	}
+	return st.ID
 }
 
 // withWalks applies timed walks to access stops, adding stops not yet there. A walk is to a stop, or to a station

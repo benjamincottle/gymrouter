@@ -82,8 +82,10 @@ Response:
 ```
 `trackwork` (left out when empty) lists the lines whose trains the options replace with buses, and those buses' names
 (the names on their signs).
-`stretched_walk` (left out when neither end needed it) is `{"from_m"?: 1430, "to_m"?: …}`: for each end that had no stop
-within `max_walk_m` (even its nearest is further), the walk to that nearest stop in metres. An end with timed `walks` never reports it.
+`stretched_walk` (left out when neither end needed it) is `{"from_m"?: 1430, "from_stop"?: "212110", "to_m"?: …, "to_stop"?: …}`:
+for each end that had no stop within `max_walk_m` (even its nearest is further), the walk to that nearest stop in metres,
+and the stop as timed `walks` name it (a train, metro or light-rail platform by its station's ID; any other stop by its
+own). An end with timed `walks` never reports it.
 `walking` is `streets` when walks to and from stops, and changes between stops, follow real streets and paths (the server's OpenStreetMap-based
 network), or `estimate` (straight line × a detour factor) while that network is still being prepared. Curated `access`
 walks apply either way. Walk legs carry a `path` (`[[lon, lat], …]`) along the streets when it is known. A walk that

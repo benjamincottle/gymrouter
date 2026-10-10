@@ -63,6 +63,7 @@ type nearby struct {
 	streets   bool
 	reach     *walk.Reach
 	stretched float64 // the walk to the nearest when even that is beyond the longest walk, else 0
+	nearest   int     // which candidate that nearest is
 }
 
 // secs is the walking time to the kth kept candidate.
@@ -100,9 +101,11 @@ func (e *Engine) nearby(p geo.Point, cand []geo.Point, maxWalkM float64) nearby 
 			}
 		}
 	}
-	best := math.Inf(1)
-	for _, m := range metres {
-		best = min(best, m)
+	best, nearest := math.Inf(1), 0
+	for i, m := range metres {
+		if m < best {
+			best, nearest = m, i
+		}
 	}
 	if math.IsInf(best, 1) {
 		return out
@@ -114,7 +117,7 @@ func (e *Engine) nearby(p geo.Point, cand []geo.Point, maxWalkM float64) nearby 
 		}
 	}
 	if best > maxWalkM {
-		out.stretched = best
+		out.stretched, out.nearest = best, nearest
 	}
 	return out
 }
@@ -126,9 +129,11 @@ type Approach struct {
 	Streets bool // times come from the street network, not a straight-line guess
 	// StretchedM is the walk to the nearest stop when even that is beyond the longest walk, else 0.
 	StretchedM float64
-	Place      geo.Point // where the walks start
-	reach      *walk.Reach
-	net        *raptor.Network
+	// StretchedStop is that nearest stop (only when StretchedM is set).
+	StretchedStop int32
+	Place         geo.Point // where the walks start
+	reach         *walk.Reach
+	net           *raptor.Network
 }
 
 // Approach finds the stops a place walks to (see nearby) and how long each walk takes. Only stops that a route allow
@@ -147,7 +152,11 @@ func (e *Engine) Approach(net *raptor.Network, p geo.Point, maxWalkM float64, o 
 	for k, i := range nb.idx {
 		out[k] = raptor.Access{Stop: cand[i].Stop, Secs: nb.secs(k, o)}
 	}
-	return Approach{Access: out, Streets: nb.streets, StretchedM: nb.stretched, Place: p, reach: nb.reach, net: net}
+	ap := Approach{Access: out, Streets: nb.streets, StretchedM: nb.stretched, Place: p, reach: nb.reach, net: net}
+	if nb.stretched > 0 {
+		ap.StretchedStop = cand[nb.nearest].Stop
+	}
+	return ap
 }
 
 // Path returns the walk between the place and a stop along the streets, if known.
