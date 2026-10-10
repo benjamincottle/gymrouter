@@ -70,7 +70,8 @@ Non-goals (v1)
   place has no stops on those lines and the plan says so. The router chooses among the stops on time, so a station a
   little further beats the closest stop on a poor bus. When even the nearest stop is beyond the longest walk, the plan
   response says so (`stretched_walk`: which end, and the walk to its nearest stop) and the trip screen says the walk is
-  longer than the setting (not once a walk from that place has been timed: the traveller knows by then). Ticked stops
+  longer than the setting (not once a walk from that place has been timed: the traveller knows by then; and not once
+  it has been dismissed, see 2026-10-10). Ticked stops
   and timed walks are unaffected (they already work at any distance). Line suggestions find a place's stops by the same
   rule and radius as the planner, so every suggested line is one the planner can reach; setup's nearby-stops list uses
   the rule too.
@@ -549,3 +550,11 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   to reload an app left open, the footer now says when the server has moved to a newer version than the page came
   with, and offers Reload. Sizing the frame from a measured height instead was rejected: a guess at which of
   Chrome's numbers is right, for a gesture nothing needs.
+
+- 2026-10-10: The "Longer walk" notice can be dismissed, for good. It's true every time the trip is planned, so after
+  the first reading it only pushed the board down. A dismissal is kept in the device's settings (so it's in backups
+  and setup links, and a reset clears it), for the walk it was about: a place and a gym's lines, either way round. It
+  holds the distance the notice said, and the notice shows again when that changes (the gym's lines or the longest
+  walk were edited and the nearest stop is a different one): it's then saying something new. Settings offers "Show
+  them again" while there are any. Keeping it only while the trip screen stayed open was the first cut and too
+  short: the notice was back after every trip.

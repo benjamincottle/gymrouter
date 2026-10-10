@@ -1,5 +1,6 @@
 // Device-side settings: everything personal lives here, never on the server.
 
+import { distance } from './format.ts'
 import type { KnownGym, PlaceRequest, PlanRequest, SuggestResult } from './types.ts'
 import { changeTimes, learnedPace, placeKey, placeWalks, sanitizeWalks, type PlaceRef, type Retime, type TimedWalk } from './walks.ts'
 
@@ -29,6 +30,13 @@ export interface Gym extends Place {
   uses?: number // how many times it has been chosen to plan a trip: the most used are listed first
 }
 
+/** A "Longer walk" notice that was dismissed: the walk between a place and a gym's lines, at the distance it said. */
+export interface DismissedWalk {
+  gym: string // the gym's id: the walk is to its lines
+  place: string // the end the walk is from (see placeKey)
+  m: number
+}
+
 export interface Settings {
   version: 1
   token?: string
@@ -42,6 +50,7 @@ export interface Settings {
   risk?: { safe_s: number; tight_s: number }
   walks: TimedWalk[] // walks and changes timed during trips
   retime?: Retime // timing a walk again: average with the earlier ones (default) or replace them
+  dismissedWalks?: DismissedWalk[] // "Longer walk" notices not to show again
   theme?: 'light' | 'dark' // unset: follow the system
 }
 
@@ -58,6 +67,7 @@ const isStr = (v: unknown, max = 200): v is string => typeof v === 'string' && v
 
 export const MAX_GYMS = 12
 export const MAX_LINES = 60
+const MAX_DISMISSED = 200
 
 // Replacement buses aren't chosen: they come with the train line they stand in for.
 export const LINE_MODES = ['train', 'metro', 'light-rail', 'bus', 'ferry', 'regional-train', 'coach'] as const
@@ -127,6 +137,15 @@ export function sanitize(input: unknown): Settings {
     }
   }
   if (s.retime === 'average' || s.retime === 'replace') out.retime = s.retime
+  if (Array.isArray(s.dismissedWalks)) {
+    const ds: DismissedWalk[] = []
+    for (const d of s.dismissedWalks.slice(0, MAX_DISMISSED)) {
+      const r = d as Record<string, unknown>
+      if (r && isStr(r.gym, 40) && isStr(r.place, 60) && isNum(r.m, 1, 100_000)) ds.push({ gym: r.gym, place: r.place, m: Math.round(r.m) })
+    }
+    const live = dismissedWalks({ ...out, dismissedWalks: ds })
+    if (live.length > 0) out.dismissedWalks = live
+  }
   if (s.theme === 'light' || s.theme === 'dark') out.theme = s.theme
   return out
 }
@@ -311,6 +330,32 @@ export function resetGymOrder(s: Settings): Settings {
 /** Counts a gym as used. */
 export function usedGym(s: Settings, id: string): Settings {
   return { ...s, gyms: s.gyms.map((g) => (g.id === id ? { ...g, uses: (g.uses ?? 0) + 1 } : g)) }
+}
+
+// --- "Longer walk" notices that have been dismissed ---
+
+/** The dismissed notices that could still come up: their gym and place are still on this device. */
+export function dismissedWalks(s: Pick<Settings, 'homes' | 'gyms' | 'dismissedWalks'>): DismissedWalk[] {
+  return (s.dismissedWalks ?? []).filter((d) => {
+    const g = s.gyms.find((x) => x.id === d.gym)
+    return g !== undefined && (d.place === placeKey('gym', g) || s.homes.some((h) => d.place === placeKey('home', h)))
+  })
+}
+
+/** Whether this notice was dismissed. It shows again once it would say a different distance (the nearest stop changed). */
+export function walkDismissed(s: Pick<Settings, 'dismissedWalks'>, gym: string, place: string, m: number): boolean {
+  return (s.dismissedWalks ?? []).some((d) => d.gym === gym && d.place === place && distance(d.m) === distance(m))
+}
+
+export function dismissWalk(s: Settings, gym: string, place: string, m: number): Settings {
+  const others = dismissedWalks(s).filter((d) => !(d.gym === gym && d.place === place))
+  return { ...s, dismissedWalks: [...others, { gym, place, m }].slice(-MAX_DISMISSED) }
+}
+
+/** Shows every dismissed notice again. */
+export function showDismissedWalks(s: Settings): Settings {
+  const { dismissedWalks: _, ...rest } = s
+  return rest
 }
 
 export function newId(): string {

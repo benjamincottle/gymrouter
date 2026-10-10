@@ -206,8 +206,11 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Longer walk:** a neutral callout above the board for each end whose nearest stop on the gym's lines is beyond the
   longest walk on foot (the server planned from the nearest stops anyway): "**Longer walk:** no stops on these lines
   within a 1 km walk of Home. The nearest is a 1.4 km walk." Distances read `800 m` (to 50 m) or `1.4 km`. It's information, not a
-  fault, so it isn't `caution`, and it goes once a walk from that place has been timed. It can be dismissed, for that
-  place and gym, until the trip screen is next opened.
+  fault, so it isn't `caution`, and it goes once a walk from that place has been timed.
+  - It can be dismissed, and then stays away for that place and gym (either way round) on this device, until it would
+    say a different distance: the nearest stop has changed.
+  - Settings, under "Longest walk to a stop" and only while there are any: "You've dismissed 2 "Longer walk" notices.
+    Show them again" (a quiet text action; "Show it again" for one).
 - **Footer:** a hairline, then the server status; it sits at the bottom edge of the screen when the content is shorter
   than the screen. The data credits ("Contains Transport for NSW data…") are only on Settings, at the end, above the
   footer.

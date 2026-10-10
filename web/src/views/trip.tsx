@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
 import { addDays, dayLabel, distance, fromLocalInput, orList, roundUp, statusTime, toLocalInput } from '../format.ts'
 import { usePolling, useSettled, useVisible, useWide } from '../hooks.ts'
-import { byUse, placeRef, planPlace, prefs, usedGym, walkSpeed, type Gym, type Settings } from '../settings.ts'
+import { byUse, dismissWalk, placeRef, planPlace, prefs, usedGym, walkDismissed, walkSpeed, type Gym, type Settings } from '../settings.ts'
 import type { DefaultsResponse, PlanRequest } from '../types.ts'
 import { Board, WindowShift, type Shift } from './board.tsx'
 import { BrandLogo } from './brand.tsx'
@@ -54,7 +54,6 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   // Before a gym is chosen nothing searches, so the time counts at once: choosing a gym straight after it plans for it.
   const [plannedWhen, plannedAt] = useSettled(`${when} ${at}`, gymId ? SETTLE_MS : 0).split(' ') as [When, string]
   const leaveAt = plannedWhen === 'now' ? null : plannedAt
-  const [dismissed, setDismissed] = useState<string[]>([]) // "Longer walk" notices dismissed while this screen is open
   const visible = useVisible()
   const wide = useWide()
   const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
@@ -117,11 +116,10 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   const brandOf = (g: Gym) => server.gyms.find((k) => k.id === g.ref)?.brand
   // Ends whose nearest stop is beyond the longest walk (on foot), which the server planned from anyway.
   const sw = plan.data?.stretched_walk
-  // Each is the walk between a place and this gym's lines, so dismissing one keeps it away either way round.
+  // Each is the walk between a place and this gym's lines, so one that's dismissed stays away either way round.
   const stretched = gym && ends && sw
     ? ([[ends.start, sw.from_m], [ends.end, sw.to_m]] as const)
-        .flatMap(([p, m]) => (m ? [{ id: `${gym.id} ${p.key}`, name: p.name, m }] : []))
-        .filter((s) => !dismissed.includes(s.id))
+        .flatMap(([p, m]) => (m && !walkDismissed(settings, gym.id, p.key, m) ? [{ place: p.key, name: p.name, m }] : []))
     : []
 
   return (
@@ -198,7 +196,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
             </Callout>
           ))}
           {stretched.map((s) => (
-            <Callout key={s.id} onDismiss={() => setDismissed([...dismissed, s.id])}>
+            <Callout key={s.place} onDismiss={() => setSettings(dismissWalk(settings, gym.id, s.place, s.m))}>
               <strong>Longer walk:</strong> no stops on these lines within a{' '}
               {distance(settings.maxWalkM ?? server.defaults.max_walk_m)} walk of {s.name}. The nearest is a {distance(s.m)} walk.
             </Callout>
