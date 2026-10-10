@@ -277,14 +277,33 @@ func TestPlanStretchesTheWalkWhenNoStopIsInReach(t *testing.T) {
 	var p struct {
 		Options       []json.RawMessage
 		StretchedWalk *struct {
-			FromM int `json:"from_m"`
-			ToM   int `json:"to_m"`
+			FromM    int    `json:"from_m"`
+			FromStop string `json:"from_stop"`
+			ToM      int    `json:"to_m"`
+			ToStop   string `json:"to_stop"`
 		} `json:"stretched_walk"`
 	}
 	rec := h.do(t, "POST", "/api/plan", token, req)
 	_ = json.Unmarshal(rec.Body.Bytes(), &p)
-	if rec.Code != 200 || len(p.Options) == 0 || p.StretchedWalk == nil || p.StretchedWalk.FromM <= 400 || p.StretchedWalk.ToM != 0 {
+	if rec.Code != 200 || len(p.Options) == 0 || p.StretchedWalk == nil || p.StretchedWalk.FromM <= 400 || p.StretchedWalk.ToM != 0 || p.StretchedWalk.ToStop != "" {
 		t.Fatalf("far home: %d %s", rec.Code, rec.Body)
+	}
+	// The nearest stop is named as a timed walk to it would be: a platform by its station.
+	var around struct {
+		Stops []struct {
+			Station   string
+			StationID string `json:"station_id"`
+		}
+	}
+	_ = json.Unmarshal(h.do(t, "POST", "/api/stops/near", token, map[string]any{"lat": home["lat"], "lon": home["lon"], "radius_m": 1500}).Body.Bytes(), &around)
+	station := ""
+	for _, s := range around.Stops {
+		if s.StationID == p.StretchedWalk.FromStop {
+			station = s.Station
+		}
+	}
+	if station == "" {
+		t.Errorf("the nearest stop is %q, want a station near the home", p.StretchedWalk.FromStop)
 	}
 
 	// Once the walk has been timed, its length is no news.

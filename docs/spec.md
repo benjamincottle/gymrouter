@@ -69,7 +69,7 @@ Non-goals (v1)
   gully) doesn't crowd out one that's nearer to walk to. Nothing past 3 km in a straight line counts; beyond that the
   place has no stops on those lines and the plan says so. The router chooses among the stops on time, so a station a
   little further beats the closest stop on a poor bus. When even the nearest stop is beyond the longest walk, the plan
-  response says so (`stretched_walk`: which end, and the walk to its nearest stop) and the trip screen says the walk is
+  response says so (`stretched_walk`: which end, its nearest stop and the walk to it) and the trip screen says the walk is
   longer than the setting (not once a walk from that place has been timed: the traveller knows by then; and not once
   it has been dismissed, see 2026-10-10). Ticked stops
   and timed walks are unaffected (they already work at any distance). Line suggestions find a place's stops by the same
@@ -575,3 +575,11 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   last ride into the arrive time: once the walks were at their narrowest the rides gave up almost nothing, however wide.
   Now the rides wider than their names are trimmed, and when even the names and 13px walks don't fit, the walks narrow
   evenly to as little as one dot; only past that (a 320px screen) is the tape cut at the end of its column.
+- 2026-10-10: A dismissed "Longer walk" notice is remembered as a timed walk is: by the place and the stop, not the gym
+  (supersedes "a place and a gym's lines", and the distance it held, from earlier today). Dismissing the walk from home
+  to a station on a trip to one gym left the notice up for every other gym boarded from that station, though it said
+  the same thing each time; a timed walk from home already counts for every gym. `stretched_walk` now names each end's
+  nearest stop the way timed walks do (a train, metro or light-rail platform by its station; a bus stop, a stand at a
+  station included, by itself), and the dismissal is the place and that stop. The notice shows again when the place's
+  nearest stop is another one. Dropping the gym but still matching on the distance was rejected: two gyms' lines can
+  call at different platforms of one station, a few metres apart on foot, and "1.4 km" turns into "1.5 km".

@@ -56,8 +56,8 @@ func TestNearbyMeasuresTheLongestWalkOnFoot(t *testing.T) {
 	if _, ok := got[0]; ok || len(got) != 2 || !n.streets {
 		t.Fatalf("kept %v (streets %v); want the two on this side, not the one across the gully", got, n.streets)
 	}
-	if math.Abs(n.stretched-got[1]) > 1 || n.stretched <= 800 {
-		t.Errorf("stretched %.0f m; the nearest on foot is %.0f m, beyond the 800 m longest walk", n.stretched, got[1])
+	if math.Abs(n.stretched-got[1]) > 1 || n.stretched <= 800 || n.nearest != 1 {
+		t.Errorf("stretched %.0f m to candidate %d; the nearest on foot is candidate 1 at %.0f m, beyond the 800 m longest walk", n.stretched, n.nearest, got[1])
 	}
 
 	// Within the longest walk on foot: not stretched, and the band reaches 500 m past the nearest.

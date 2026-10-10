@@ -1,6 +1,5 @@
 // Device-side settings: everything personal lives here, never on the server.
 
-import { distance } from './format.ts'
 import type { KnownGym, PlaceRequest, PlanRequest, SuggestResult } from './types.ts'
 import { changeTimes, learnedPace, placeKey, placeWalks, sanitizeWalks, type PlaceRef, type Retime, type TimedWalk } from './walks.ts'
 
@@ -30,11 +29,10 @@ export interface Gym extends Place {
   uses?: number // how many times it has been chosen to plan a trip: the most used are listed first
 }
 
-/** A "Longer walk" notice that was dismissed: the walk between a place and a gym's lines, at the distance it said. */
+/** A "Longer walk" notice that was dismissed: the walk between a place and its nearest stop, as a timed walk is kept. */
 export interface DismissedWalk {
-  gym: string // the gym's id: the walk is to its lines
   place: string // the end the walk is from (see placeKey)
-  m: number
+  stop: string // the stop or station it's to (see stopKey)
 }
 
 export interface Settings {
@@ -141,7 +139,7 @@ export function sanitize(input: unknown): Settings {
     const ds: DismissedWalk[] = []
     for (const d of s.dismissedWalks.slice(0, MAX_DISMISSED)) {
       const r = d as Record<string, unknown>
-      if (r && isStr(r.gym, 40) && isStr(r.place, 60) && isNum(r.m, 1, 100_000)) ds.push({ gym: r.gym, place: r.place, m: Math.round(r.m) })
+      if (r && isStr(r.place, 60) && isStr(r.stop, 64) && r.stop !== '') ds.push({ place: r.place, stop: r.stop })
     }
     const live = dismissedWalks({ ...out, dismissedWalks: ds })
     if (live.length > 0) out.dismissedWalks = live
@@ -334,22 +332,21 @@ export function usedGym(s: Settings, id: string): Settings {
 
 // --- "Longer walk" notices that have been dismissed ---
 
-/** The dismissed notices that could still come up: their gym and place are still on this device. */
+/** The dismissed notices that could still come up: their place is still on this device. */
 export function dismissedWalks(s: Pick<Settings, 'homes' | 'gyms' | 'dismissedWalks'>): DismissedWalk[] {
-  return (s.dismissedWalks ?? []).filter((d) => {
-    const g = s.gyms.find((x) => x.id === d.gym)
-    return g !== undefined && (d.place === placeKey('gym', g) || s.homes.some((h) => d.place === placeKey('home', h)))
-  })
+  return (s.dismissedWalks ?? []).filter(
+    (d) => s.homes.some((h) => d.place === placeKey('home', h)) || s.gyms.some((g) => d.place === placeKey('gym', g)),
+  )
 }
 
-/** Whether this notice was dismissed. It shows again once it would say a different distance (the nearest stop changed). */
-export function walkDismissed(s: Pick<Settings, 'dismissedWalks'>, gym: string, place: string, m: number): boolean {
-  return (s.dismissedWalks ?? []).some((d) => d.gym === gym && d.place === place && distance(d.m) === distance(m))
+/** Whether this notice was dismissed: on any trip with that walk. It shows again once the place's nearest stop is another one. */
+export function walkDismissed(s: Pick<Settings, 'dismissedWalks'>, place: string, stop: string): boolean {
+  return (s.dismissedWalks ?? []).some((d) => d.place === place && d.stop === stop)
 }
 
-export function dismissWalk(s: Settings, gym: string, place: string, m: number): Settings {
-  const others = dismissedWalks(s).filter((d) => !(d.gym === gym && d.place === place))
-  return { ...s, dismissedWalks: [...others, { gym, place, m }].slice(-MAX_DISMISSED) }
+export function dismissWalk(s: Settings, place: string, stop: string): Settings {
+  const others = dismissedWalks(s).filter((d) => !(d.place === place && d.stop === stop))
+  return { ...s, dismissedWalks: [...others, { place, stop }].slice(-MAX_DISMISSED) }
 }
 
 /** Shows every dismissed notice again. */

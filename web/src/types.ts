@@ -86,8 +86,11 @@ export interface PlanResponse {
   walking: 'streets' | 'estimate' // how walks to and from stops were timed
   options: Option[]
   trackwork?: Trackwork[] // lines that buses stand in for during the search
-  /** Set when an end had no stop within the longest walk, so the nearest ones were used: the walk to the nearest (m). */
-  stretched_walk?: { from_m?: number; to_m?: number }
+  /**
+   * Set when an end had no stop within the longest walk, so the nearest ones were used: the walk to the nearest (m),
+   * and that stop as timed walks know it (a rail platform by its station).
+   */
+  stretched_walk?: { from_m?: number; from_stop?: string; to_m?: number; to_stop?: string }
   kept?: Kept // the answer to a request's `keep`
 }
 
