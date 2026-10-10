@@ -571,3 +571,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   the area the map and street network cover. Its lines include the Blue Mountains line, whose trains are the quick way
   out, and the T5 and bus 611: with trackwork on the T1 there was otherwise no way there from the city. The built-in
   gyms now keep 93 lines loaded.
+- 2026-10-10: The tape stays in its column. A trip of four rides (home to Climber Collective around trackwork) ran its
+  last ride into the arrive time: once the walks were at their narrowest the rides gave up almost nothing, however wide.
+  Now the rides wider than their names are trimmed, and when even the names and 13px walks don't fit, the walks narrow
+  evenly to as little as one dot; only past that (a 320px screen) is the tape cut at the end of its column.

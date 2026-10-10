@@ -152,9 +152,17 @@ function Hero({ option: o, live, now }: { option: Option; live: boolean; now: nu
  * dots that give up the room. The widths are the stylesheet's doing (.strip): the shares here are only where it starts.
  */
 export function Strip({ option: o }: { option: Option }) {
+  const pieces = tape(o)
+  const names = pieces.map((p) => (p.kind === 'ride' ? (p.leg.line?.name ?? '') : null)).filter((n) => n !== null)
+  // What the stylesheet needs to know how narrow the walks may get: the names to fit (in digit widths: a letter is
+  // about a quarter wider), in how many rides, between how many walks.
+  const text = names.join('')
+  const digits = text.replace(/\D/g, '').length
+  const width = digits + (text.length - digits) * 1.25
+  const fit = { '--names': `${width}`, '--rides': `${names.length}`, '--walks': `${pieces.length - names.length}` }
   return (
-    <span class="strip" aria-label={o.lines.join(', ')}>
-      {tape(o).map((p) => {
+    <span class="strip" style={fit} aria-label={o.lines.join(', ')}>
+      {pieces.map((p) => {
         const share = `${p.share * 100}%`
         if (p.kind === 'walk') return <span class="seg walk" style={{ flexBasis: share }} />
         const l = p.leg
