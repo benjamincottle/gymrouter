@@ -227,8 +227,11 @@ export function changesNote(o: Option): string {
   return o.risk === 'safe' ? `with ${n} safe changes` : `with ${n} changes, the tightest ${o.risk === 'at-risk' ? 'at risk' : o.risk}`
 }
 
-/** Short instruction for the current phase. `destination` names where the trip ends. */
-export function instruction(o: Option, phase: Phase, destination = 'your destination'): { now: string; detail?: Leg } {
+/**
+ * Short instruction for the current phase. `destination` names where the trip ends; `stopsLeft`, on a ride, is how
+ * many stops there are to go when that's known: with one, the next stop is yours.
+ */
+export function instruction(o: Option, phase: Phase, destination = 'your destination', stopsLeft?: number): { now: string; detail?: Leg } {
   switch (phase.kind) {
     case 'before': {
       const l = o.legs[phase.ride]
@@ -237,7 +240,8 @@ export function instruction(o: Option, phase: Phase, destination = 'your destina
     }
     case 'riding': {
       const l = o.legs[phase.ride]
-      return { now: `On the ${l.line?.name ?? ''}: get off at ${l.to?.station || l.to?.name || 'your stop'}`, detail: l }
+      const stop = l.to?.station || l.to?.name || 'your stop'
+      return { now: stopsLeft === 1 ? `Get off at the next stop: ${stop}` : `On the ${l.line?.name ?? ''}: get off at ${stop}`, detail: l }
     }
     case 'final-walk':
       return { now: `Walk to ${destination}` }

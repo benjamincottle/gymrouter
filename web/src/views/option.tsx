@@ -1,9 +1,11 @@
 import { clock, delay, placeName, platform, riskLabel, spare } from '../format.ts'
 import type { ComponentChildren } from 'preact'
+import { useState } from 'preact/hooks'
+import { LAST_STOPS, stopsToGo, type RideProgress } from '../countdown.ts'
 import { findChange, type PlaceRef, type Segment, type TimedWalk } from '../walks.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 import { position, rows, type Row } from '../options.ts'
-import { HOUSE, Shoe, Stopwatch, VEHICLE_PATHS, vehicleOf, Walker } from './icons.tsx'
+import { Chevron, HOUSE, Shoe, Stopwatch, VEHICLE_PATHS, vehicleOf, Walker } from './icons.tsx'
 import { TextButton } from './ui.tsx'
 import { lineColour, textOn } from '../colour.ts'
 
@@ -22,9 +24,15 @@ export interface Tracking {
   now: number
   at?: { row: number; frac: number } | null // where your location puts you on the steps (else the clock decides)
   riding?: boolean // on a vehicle: you're drawn as it on its step (else on foot: walking, or waiting at the stop)
+  ride?: RideProgress | null // the ride you're on, counted in stops (when its stops are known)
+  opened?: Record<string, boolean> // rides whose stops you've opened or closed yourself (rideKey): your tap wins
+  onOpen?: (ride: string, open: boolean) => void
   segs: Segment[]
   onTime: (s: Segment) => void
 }
+
+/** A ride, for remembering whether its stops are open: the vehicle and where you get on it. */
+export const rideKey = (l: Leg) => `${l.trip_id ?? ''}|${l.from?.id ?? ''}`
 
 /** The home or gym at each end of a trip. */
 export interface Ends {
@@ -48,14 +56,17 @@ export function Timeline({
 }) {
   const rs = rows(o, true)
   const me = track && (track.at ?? position(rs, track.now))
+  // A ride's stops: opened or closed by a tap on its stops line (while planning, kept here), or by themselves for
+  // the last few stops of the ride you're on.
+  const [own, setOwn] = useState<Record<string, boolean>>({})
+  const opened = track?.opened ?? own
+  const setOpen = track?.onOpen ?? ((ride: string, open: boolean) => setOwn((cur) => ({ ...cur, [ride]: open })))
   const seg = (leg: number) => track?.segs.find((s) => s.leg === leg)
   const rail = (r: Row, k: number) => (
     <Rail
-      kind={r.kind === 'start' || r.kind === 'arrive' ? r.kind : r.kind === 'change' || r.leg.kind === 'walk' ? 'walk' : 'ride'}
+      kind={r.kind === 'start' || r.kind === 'arrive' ? r.kind : 'walk'}
       place={placeKind(r.kind === 'arrive' ? ends.end : ends.start)}
-      line={r.kind === 'leg' ? r.leg.line : undefined}
       me={me && me.row === k ? me.frac : undefined}
-      riding={track?.riding}
     />
   )
   return (
@@ -86,6 +97,16 @@ export function Timeline({
               onTime={s && track ? () => track.onTime(s) : undefined} />
           )
         }
+        if (r.leg.kind === 'ride') {
+          const ride = track?.ride?.leg === r.i ? track.ride : undefined
+          const key = rideKey(r.leg)
+          const known = !!r.leg.calls?.length
+          return (
+            <RideRow leg={r.leg} me={me && me.row === k ? me.frac : undefined} riding={!!track?.riding && me?.row === k} ride={ride}
+              open={known && (opened[key] ?? (!!ride && ride.total - ride.passed <= LAST_STOPS))}
+              onOpen={known ? (open) => setOpen(key, open) : undefined} />
+          )
+        }
         const s = r.leg.kind === 'walk' ? seg(r.i) : undefined
         return (
           <LegRow leg={r.leg} last={r.i === o.legs.length - 1} destination={ends.end.name} rail={rail(r, k)}
@@ -106,29 +127,16 @@ function ModeGlyph({ mode }: { mode?: string }) {
 }
 
 /**
- * One step's piece of the line down the middle: a thick line in the ride's colour (the vehicle where you get on, a
- * white dot where you get off), dotted with a walker for walking, the home or gym at either end, and you if you're here.
+ * One step's piece of the line down the middle, for the steps that aren't rides (a ride draws its own, see RideRow):
+ * dotted with a walker for walking, the home or gym at either end, and you if you're here.
  */
-function Rail({ kind, place, line, me, riding }: {
-  kind: 'ride' | 'walk' | 'start' | 'arrive'
+function Rail({ kind, place, me }: {
+  kind: 'walk' | 'start' | 'arrive'
   place: 'home' | 'gym' // at the start (or the end) of the trip
-  line?: Line
   me?: number
-  riding?: boolean
 }) {
-  const bg = line && lineColour(line.color)
-  const style = bg && { '--c': bg, '--t': textOn(bg) }
   return (
-    <span class={`rail ${kind}`} style={style} aria-hidden="true">
-      {kind === 'ride' && (
-        <>
-          <i class="line" />
-          <i class="board">
-            <ModeGlyph mode={line?.mode} />
-          </i>
-          <i class="alight" />
-        </>
-      )}
+    <span class={`rail ${kind}`} aria-hidden="true">
       {kind === 'walk' && (
         <svg class="walker" viewBox="0 0 24 24" width="18" height="18">
           <Walker />
@@ -141,20 +149,16 @@ function Rail({ kind, place, line, me, riding }: {
       )}
       {me !== undefined && (
         <i class="you" style={{ top: `${me * 100}%` }}>
-          {/* what you're doing: on the vehicle, or on foot; at either end, the place you're at */}
+          {/* on foot; at either end, the place you're at */}
           <svg viewBox="0 0 24 24" width="18" height="18">
-            {kind === 'start' || kind === 'arrive' ? (
-              place === 'home' ? (
-                <path d="M5 11.5 L12 5.5 L19 11.5 M7 10 V18.5 H17 V10" />
-              ) : (
-                <g transform="translate(1.8 1.8) scale(0.85)">
-                  <Shoe />
-                </g>
-              )
-            ) : kind === 'ride' && riding ? (
-              <path d={VEHICLE_PATHS[vehicleOf(line?.mode)]} />
-            ) : (
+            {kind === 'walk' ? (
               <Walker />
+            ) : place === 'home' ? (
+              <path d="M5 11.5 L12 5.5 L19 11.5 M7 10 V18.5 H17 V10" />
+            ) : (
+              <g transform="translate(1.8 1.8) scale(0.85)">
+                <Shoe />
+              </g>
             )}
           </svg>
         </i>
@@ -173,6 +177,7 @@ function TimeMyWalk({ onClick }: { onClick: () => void }) {
   )
 }
 
+/** A walk to the first stop or from the last (a walk between two rides is part of the change). */
 function LegRow({ leg, last, destination, rail, onTime }: {
   leg: Leg
   last: boolean
@@ -181,50 +186,215 @@ function LegRow({ leg, last, destination, rail, onTime }: {
   onTime?: () => void
 }) {
   const mins = Math.max(1, Math.round((Date.parse(leg.arr) - Date.parse(leg.dep)) / 60000))
-  if (leg.kind === 'walk') {
-    const target = leg.to ? `to ${placeName(leg.to)}` : last ? `to ${destination}` : ''
-    return (
-      <li class="step walk">
-        <span class="time">{clock(leg.dep)}</span>
-        {rail}
-        <span>
-          Walk {mins} min {target}
-          {onTime && (
-            <>
-              {' '}
-              <TimeMyWalk onClick={onTime} />
-            </>
-          )}
-        </span>
-      </li>
-    )
-  }
+  const target = leg.to ? `to ${placeName(leg.to)}` : last ? `to ${destination}` : ''
+  return (
+    <li class="step walk">
+      <span class="time">{clock(leg.dep)}</span>
+      {rail}
+      <span>
+        Walk {mins} min {target}
+        {onTime && (
+          <>
+            {' '}
+            <TimeMyWalk onClick={onTime} />
+          </>
+        )}
+      </span>
+    </li>
+  )
+}
+
+/**
+ * A ride. Closed, it's one step: where it's from and to, and how many stops. Open (a tap on the stops line, or by
+ * itself for the last few stops of the ride you're on), it runs on into a row for each stop still ahead, the last
+ * yours. On the ride you're on (`ride`), the stops behind you fold into a count and the line behind you is dimmed.
+ */
+function RideRow({ leg, me, riding, ride, open, onOpen }: {
+  leg: Leg
+  me?: number // you're on this step, this far down it
+  riding?: boolean // and on the vehicle (else waiting where you get on, or just off it)
+  ride?: RideProgress // how far through it you are, in stops, when they're known
+  open: boolean
+  onOpen?: (open: boolean) => void // its stops are known, so they can be shown
+}) {
+  const mins = Math.max(1, Math.round((Date.parse(leg.arr) - Date.parse(leg.dep)) / 60000))
+  const bg = lineColour(leg.line?.color)
+  const style = { '--c': bg, '--t': textOn(bg) }
+  const calls = leg.calls ?? []
   const pf = platform(leg.from)
   const late = leg.delay_s ?? 0
   const status =
     leg.status === 'predicted' ? delay(leg.delay_s) : leg.status === 'added' ? 'extra service' : 'timetabled'
   const statusClass =
     leg.status === 'predicted' ? (late < 60 ? 'status ok' : late < 120 ? 'status slight' : 'status late') : leg.status === 'added' ? 'status' : 'status sched'
-  return (
-    <li class="step ride">
-      <span class="time">{clock(leg.dep)}</span>
-      {rail}
-      <div>
-        <div class="ride-head">
-          {leg.line && <LineChip line={leg.line} />}
-          <span>{leg.headsign ? `towards ${leg.headsign}` : ''}</span>
-          <span class={statusClass}>{status}</span>
-        </div>
-        <span class="meta">
-          from {placeName(leg.from)}
-          {pf && `, ${pf[0].toLowerCase()}${pf.slice(1)}`}
-        </span>
-        <span class="meta">
-          to {placeName(leg.to)} at {clock(leg.arr)}
-        </span>
-        <span class="meta">{leg.stops ? `${leg.stops} stop${leg.stops === 1 ? '' : 's'} (${mins} min)` : `${mins} min`}</span>
+  const head = (
+    <>
+      <div class="ride-head">
+        {leg.line && <LineChip line={leg.line} />}
+        <span>{leg.headsign ? `towards ${leg.headsign}` : ''}</span>
+        <span class={statusClass}>{status}</span>
       </div>
-    </li>
+      <span class="meta">
+        from {placeName(leg.from)}
+        {pf && `, ${pf[0].toLowerCase()}${pf.slice(1)}`}
+      </span>
+    </>
+  )
+  // How many stops: all of them, or on the ride you're on, how many are left. With the stops known, it opens them.
+  const count = ride
+    ? `${ride.total - ride.passed} of ${ride.total} stops to go`
+    : leg.stops ? `${leg.stops} stop${leg.stops === 1 ? '' : 's'} (${mins} min)` : `${mins} min`
+  const stopsLine = (
+    <span class="meta">
+      {onOpen ? (
+        <TextButton quiet aria-expanded={open} onClick={() => onOpen(!open)}>
+          {count}
+          <Chevron up={open} />
+        </TextButton>
+      ) : count}
+    </span>
+  )
+  const you = (top: string) => (
+    <i class="you" style={{ top }}>
+      <svg viewBox="0 0 24 24" width="18" height="18">
+        {riding ? <path d={VEHICLE_PATHS[vehicleOf(leg.line?.mode)]} /> : <Walker />}
+      </svg>
+    </i>
+  )
+  const board = (
+    <i class="board">
+      <ModeGlyph mode={leg.line?.mode} />
+    </i>
+  )
+  if (!open) {
+    return (
+      <li class="step ride">
+        <span class="time">{clock(leg.dep)}</span>
+        <span class="rail ride" style={style} aria-hidden="true">
+          <i class="line" />
+          {riding && me !== undefined && <i class="travelled" style={{ height: `max(0px, calc(${me * 100}% - 12px))` }} />}
+          {board}
+          <i class="alight" />
+          {me !== undefined && you(`${me * 100}%`)}
+        </span>
+        <div>
+          {head}
+          <span class="meta">
+            to {placeName(leg.to)} at {clock(leg.arr)}
+          </span>
+          {stopsLine}
+        </div>
+      </li>
+    )
+  }
+  const passed = ride?.passed ?? 0
+  // On this step but not riding: waiting where you get on, or just off where it ends.
+  const atEnd = !ride && me !== undefined && me >= 0.5
+  const rail = (children: ComponentChildren) => (
+    <span class="rail ride" style={style} aria-hidden="true">
+      {children}
+    </span>
+  )
+  return (
+    <>
+      <li class="step ride opened">
+        <span class="time">{clock(leg.dep)}</span>
+        {rail(
+          <>
+            <i class={ride ? 'line past' : 'line'} />
+            {board}
+            {!ride && me !== undefined && !atEnd && you('0%')}
+          </>,
+        )}
+        <div>
+          {head}
+          {stopsLine}
+        </div>
+      </li>
+      {ride && passed > 0 && (
+        <li class="step ride call">
+          <span class="time" />
+          {rail(
+            <>
+              <i class="line past" />
+              <i class="call-dot past" />
+            </>,
+          )}
+          <span class="passed">
+            {passed} stop{passed === 1 ? '' : 's'} passed
+          </span>
+        </li>
+      )}
+      {ride && (
+        <li class="step ride call here">
+          <span class="time" />
+          {rail(
+            <>
+              <i class="line past" />
+              <i class="line ahead" />
+              {you('50%')}
+            </>,
+          )}
+          <span />
+        </li>
+      )}
+      {calls.map((c, i) => {
+        if (ride && i < passed) return null
+        const last = i === calls.length - 1
+        return (
+          <li class={last ? 'step ride call last' : 'step ride call'}>
+            <span class="time">{c.arr ? clock(c.arr) : ''}</span>
+            {rail(
+              <>
+                <i class="line" />
+                <i class={last ? 'your-stop' : 'call-dot'} />
+                {last && atEnd && you('50%')}
+              </>,
+            )}
+            <span class="call-name">
+              {placeName(c)}
+              {ride && i === passed && !last && <span class="stop-tag">Next</span>}
+              {last && <span class="stop-tag">Get off</span>}
+            </span>
+          </li>
+        )
+      })}
+    </>
+  )
+}
+
+/**
+ * The ride you're on as the line diagram above a train's doors: where you got on, each stop, yours at the end, and you
+ * along it, with what's behind you dimmed. Under it, the next stop and how many are left.
+ */
+export function RideCountdown({ leg, ride }: { leg: Leg; ride: RideProgress }) {
+  const bg = lineColour(leg.line?.color)
+  const calls = leg.calls ?? []
+  const left = ride.total - ride.passed
+  const at = ((ride.passed + ride.along) / ride.total) * 100
+  return (
+    <div class="countdown">
+      <div class="stop-strip" style={{ '--c': bg, '--t': textOn(bg) }} role="img" aria-label={`${left} of ${ride.total} stops to go`}>
+        <i class="line" />
+        <i class="travelled" style={{ width: `calc(${at}% + 7px)` }} />
+        <i class="board">
+          <ModeGlyph mode={leg.line?.mode} />
+        </i>
+        {calls.slice(0, -1).map((_, i) => (
+          <i class={i < ride.passed ? 'call-dot past' : 'call-dot'} style={{ left: `${((i + 1) / ride.total) * 100}%` }} />
+        ))}
+        <i class="your-stop" />
+        <i class="you" style={{ left: `${at}%` }}>
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path d={VEHICLE_PATHS[vehicleOf(leg.line?.mode)]} />
+          </svg>
+        </i>
+      </div>
+      <div class="strip-ends">
+        <span>{left > 1 && calls[ride.passed] ? `Next: ${placeName(calls[ride.passed])}` : ''}</span>
+        <span>{left > 1 ? stopsToGo(left) : 'Next stop is yours'}</span>
+      </div>
+    </div>
   )
 }
 

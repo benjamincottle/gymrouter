@@ -672,3 +672,26 @@ no predictions (other timetable versions) and are ignored; run-number matching c
     arrive line alone was the other choice.
   - **Stops along a route are 10px** with a 1.5px outline (from 6px and 1px: as wide as the line, they were hard to
     pick out). 8.5px, and bigger stops only where you get on and off, were the other choices.
+- 2026-10-11: A countdown of the stops left on a ride, in three places. Chosen from mockups drawn into the running
+  app (four ways of showing it: a strip map, a departure-board flap holding the number, the ride's step unfolding
+  into its stops, and a tear-off tape with a piece per stop), then from mockups of a 19-stop train and a 17-stop bus:
+  - **In the trip's steps, a ride opens into its stops**: every stop still ahead, named and timed, yours last. A tap
+    on its stops line opens or closes it, while planning too. On the ride you're on the stops line counts down
+    ("10 of 19 stops to go"), and it opens by itself only for the last three stops (so a short ride is open from
+    boarding). Your tap wins either way. This keeps the steps as short as they were unless you're looking ahead,
+    and brings up the stops that matter by themselves. Considered: opening for the whole of the ride you're on,
+    which on a long ride pushes everything after it off the screen; folding the stops in the middle of a long
+    ride ("12 more stops"), and showing only the next stop and yours, both unnecessary once a long ride stays closed.
+  - **In Now, the strip map**: the ride as the line diagram above a train's doors, you along it, with the next stop
+    and the count under it. Chosen over words alone, the flap and the tape. Every stop gets a dot, evenly spaced,
+    whatever the ride's length (19 fit a phone comfortably).
+  - **On the map**: the stops ahead stay plain dots (numbers on them, and name tags, were the other choices), where
+    you get off is the larger white dot from the rail, and the view closes in on what's left of the ride for its
+    last three stops, unless you've moved the map yourself (this adjusts the "whole step" zoom above).
+  - **What's behind you on a ride is dimmed**, on the rail, the strip and the map.
+  - The server now sends each ride's stops with their names and times (`calls`, live when the trip has live data):
+    the app was only told how many there were, and where they are for the map. The count goes by where you are on
+    the ride's line, and by those times when there's nothing to place you by (a tunnel, no location).
+  - **A buzz when it's time to get off is set aside**, undecided (see TODO.md): a page can only vibrate a phone while
+    it's open on screen, and not at all on an iPhone; the route that reaches a locked phone is a push notification
+    from the server, which is a feature of its own.

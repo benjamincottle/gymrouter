@@ -187,7 +187,14 @@ type planResp struct {
 			Line *struct {
 				Mode, Name, Color string
 			} `json:"line"`
-			From *struct{ Name, Station string } `json:"from"`
+			From  *struct{ Name, Station string } `json:"from"`
+			To    *struct{ Name, Station string } `json:"to"`
+			Arr   string                          `json:"arr"`
+			Stops int                             `json:"stops"`
+			Calls []struct {
+				Name, Station string
+				Arr           string
+			} `json:"calls"`
 		} `json:"legs"`
 	} `json:"options"`
 }
@@ -214,6 +221,34 @@ func TestPlan(t *testing.T) {
 	}
 	if o.Lines[0] != "metro M1" {
 		t.Errorf("expected the metro first, got %v", o.Lines)
+	}
+	// A ride names the stops it calls at after the one you get on at, in order, ending where you get off.
+	rides := 0
+	for _, o := range p.Options {
+		for _, l := range o.Legs {
+			if l.Kind != "ride" {
+				if l.Calls != nil {
+					t.Errorf("a walk has calls: %+v", l)
+				}
+				continue
+			}
+			rides++
+			if len(l.Calls) != l.Stops || l.Stops == 0 {
+				t.Fatalf("%s: %d calls for %d stops", l.Line.Name, len(l.Calls), l.Stops)
+			}
+			last := l.Calls[len(l.Calls)-1]
+			if last.Name != l.To.Name || last.Station != l.To.Station || last.Arr != l.Arr {
+				t.Errorf("%s: last call %+v, getting off at %+v at %s", l.Line.Name, last, *l.To, l.Arr)
+			}
+			for i := 1; i < len(l.Calls); i++ {
+				if l.Calls[i].Arr < l.Calls[i-1].Arr {
+					t.Errorf("%s: calls out of order: %+v", l.Line.Name, l.Calls)
+				}
+			}
+		}
+	}
+	if rides == 0 {
+		t.Error("no rides to check")
 	}
 }
 

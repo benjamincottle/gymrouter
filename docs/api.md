@@ -74,7 +74,8 @@ Response:
      {"kind": "walk", "to": {"id": "…", "name": "…", "station": "…", "station_id": "…", "lat": 0, "lon": 0}, "dep": "…", "arr": "…"},
      {"kind": "ride", "from": {…}, "to": {…}, "dep": "…", "arr": "…",
       "line": {"mode": "metro", "name": "M1", "color": "168388", "text_color": "FFFFFF"},
-      "trip_id": "…", "headsign": "…", "status": "predicted", "delay_s": 60, "sched_dep": "…", "stops": 6}
+      "trip_id": "…", "headsign": "…", "status": "predicted", "delay_s": 60, "sched_dep": "…", "stops": 6,
+      "calls": [{"name": "…", "station": "…", "arr": "…"}]}
    ],
    "transfers": [{"from_leg": 1, "to_leg": 3, "walk_s": 120, "slack_s": 95, "risk": "tight", "fallback_dep": "…"}]
  }],
@@ -101,6 +102,9 @@ too late); it's left out with `on_trip`. Still on the first ride after its time 
 has what's left from now, less the walk.
 
 `stops` on a ride is the number of stops travelled, counting the one you get off at.
+`calls` are those stops in order, ending with the one you get off at: each one's `name` (and its `station`, for a
+platform) and when the ride gets there (`arr`, by live data when the trip has it; left out for a stop the trip skips).
+They're in the same order as the stops `/api/shape` places on the ride's line.
 `status` is `scheduled`, `predicted` (live data) or `added` (a realtime-only trip). `risk` is `safe`, `tight`,
 `at-risk` or `missed`. `fallback_dep` is the next service of the onward line from the same stop.
 

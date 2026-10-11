@@ -9,7 +9,8 @@ import type { Option, PlanRequest } from '../types.ts'
 import type { Walk } from '../walkmeasure.ts'
 import { existing, legTrace, segments, stopKey, type PlaceRef, type Retime, type Segment, type TimedWalk } from '../walks.ts'
 import { MapPane, MapSheet, TripRow } from './board.tsx'
-import { Timeline, type Tracking } from './option.tsx'
+import { RideCountdown, Timeline, type Tracking } from './option.tsx'
+import { callPlaces, stopsPassed, type RideProgress } from '../countdown.ts'
 import { position, rows } from '../options.ts'
 import { advance, phaseOf, rowLines, shapeKey, walkLeftS, walkTo, type At, type LonLat } from '../progress.ts'
 import { boarding, type Fix, type Sighting } from '../boarding.ts'
@@ -73,6 +74,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
 
   // Where you are on the steps: from your location along each step's line, the clock only as a fallback.
   const [shapes, setShapes] = useState<Record<string, LonLat[]>>({})
+  const [shapeStops, setShapeStops] = useState<Record<string, LonLat[]>>({}) // the stops along each, before the last
   const rides = o.legs.filter((l) => l.kind === 'ride' && l.trip_id && l.from && l.to)
   useEffect(() => {
     let live = true
@@ -81,7 +83,11 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
       if (shapes[k]) continue
       api
         .shape(token, trip.serviceDate, l.trip_id!, l.from!.id, l.to!.id)
-        .then((s) => live && setShapes((cur) => ({ ...cur, [k]: s.coordinates })))
+        .then((s) => {
+          if (!live) return
+          setShapes((cur) => ({ ...cur, [k]: s.coordinates }))
+          setShapeStops((cur) => ({ ...cur, [k]: s.stops ?? [] }))
+        })
         .catch(() => undefined) // straight between the stops will do
     }
     return () => {
@@ -256,6 +262,27 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
     setCheck(null)
   }
 
+  // The ride you're on, in stops: counted from where you are on its line (your location, or your vehicle's), or with
+  // nothing to place you by, from the times it calls at them. Never back a stop: a location wobbles.
+  const counted = useRef<{ ride: string; passed: number } | null>(null)
+  let ride: RideProgress | null = null
+  const onLeg = phase.kind === 'riding' ? o.legs[phase.ride] : undefined
+  if (onLeg?.calls?.length && phase.kind === 'riding') {
+    const row = steps.findIndex((r) => r.kind === 'leg' && r.i === phase.ride)
+    const placed = here && at.row === row
+    const k = shapeKey(onLeg)
+    const places = shapes[k] && shapeStops[k] ? callPlaces(shapes[k], shapeStops[k], onLeg.calls) : null
+    const p = stopsPassed(onLeg.calls, places, placed ? at.frac : null, Date.parse(onLeg.dep), now)
+    const before = counted.current?.ride === k ? counted.current.passed : 0
+    counted.current = { ride: k, passed: Math.max(before, p.passed) }
+    ride = {
+      leg: phase.ride, total: onLeg.calls.length, passed: counted.current.passed,
+      along: p.passed < counted.current.passed ? 0 : p.along, frac: at.row === row ? at.frac : 0,
+    }
+  }
+  // Rides whose stops you've opened or closed yourself, in the steps here and under the map alike.
+  const [opened, setOpened] = useState<Record<string, boolean>>({})
+
   // A faster way that's been dismissed stays away: the same vehicles aren't offered again on this trip.
   const faster = check?.status === 'better' && !trip.dismissed?.includes(suggestionKey(o, check.suggestion)) ? check : null
   // The map frames the step you're on once you've set off; until then, the whole trip.
@@ -264,7 +291,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   // You, on the map: on foot, or the vehicle you're on.
   const doing: Doing = phase.kind === 'riding' ? vehicleOf(o.legs[phase.ride].line?.mode) : 'walk'
 
-  const ins = instruction(o, phase, trip.ends.end.name)
+  const ins = instruction(o, phase, trip.ends.end.name, ride ? ride.total - ride.passed : undefined)
   // The line under it: when the ride you're heading for leaves, or when you get off the one you're on.
   const d = ins.detail
   const nowDetail = !d ? null
@@ -272,13 +299,18 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
       ? (Date.parse(d.dep) < now - 30_000
           ? `${d.line?.name} was due ${clock(d.dep)} (${countdown(d.dep, now).replace(/^left /, '')})`
           : `${d.line?.name} leaves ${clock(d.dep)} (${countdown(d.dep, now)})`) + (d.status === 'predicted' ? `, ${delay(d.delay_s)}` : '')
-      : phase.kind === 'riding' ? `Get off at ${clock(d.arr)} (${countdown(d.arr, now)}), ${placeName(d.to)}` : null
+      // The strip under the instruction names the stops, so the line only says when.
+      : phase.kind === 'riding' ? `Get off at ${clock(d.arr)} (${countdown(d.arr, now)})${ride ? '' : `, ${placeName(d.to)}`}` : null
+  const countdownStrip = ride && onLeg ? <RideCountdown leg={onLeg} ride={ride} /> : null
   // The trip's description: you on its rail, and its walks to time (from the map, timing goes back to this screen).
 
   const track: Tracking = {
     now,
     at,
     riding: phase.kind === 'riding',
+    ride,
+    opened,
+    onOpen: (key, open) => setOpened((cur) => ({ ...cur, [key]: open })),
     segs: segments(o, trip.ends.start, trip.ends.end),
     onTime: (s) => {
       setMapOpen(false)
@@ -379,6 +411,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
             )}
           </p>
         )}
+        {countdownStrip}
         {nowDetail && phase.kind === 'riding' && <p>{nowDetail}</p>}
       </section>
 
@@ -451,6 +484,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           destination={trip.destination}
           option={o}
           focus={focus}
+          progress={ride}
         />
       )}
 
@@ -469,10 +503,11 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           title={trip.title}
           option={o}
           focus={focus}
+          progress={ride}
           now={now}
           onClose={() => setMapOpen(false)}
           steps={{
-            ends: trip.ends, track, now: { main: ins.now, detail: nowDetail },
+            ends: trip.ends, track, now: { main: ins.now, detail: nowDetail, strip: countdownStrip },
             tall: !!trip.mapTall, onTall: (tall) => onUpdate({ ...trip, mapTall: tall }),
           }}
         />

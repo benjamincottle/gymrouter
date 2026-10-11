@@ -1,7 +1,7 @@
 // Trip results: the chosen option's countdown, then every option as a strip of "tape" filling its row: each ride
 // named and as wide as its share of the trip, the walking between as dots.
 import { useEffect, useRef, useState } from 'preact/hooks'
-import type { ComponentType } from 'preact'
+import type { ComponentChildren, ComponentType } from 'preact'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, shortDuration } from '../format.ts'
 import { useNow, useWide } from '../hooks.ts'
 import type { TimedWalk } from '../walks.ts'
@@ -208,6 +208,7 @@ type MapProps = Pick<Props, 'token' | 'walks' | 'places' | 'serviceDate' | 'orig
   doing?: MapViewProps['doing']
   aboard?: MapViewProps['aboard']
   focus?: MapViewProps['focus']
+  progress?: MapViewProps['progress']
 }
 
 function MapBody({ View, failed, ...p }: MapProps & { View: ComponentType<MapViewProps> | null; failed: boolean }) {
@@ -247,6 +248,7 @@ type MapSheetProps = Omit<Props, 'onStart' | 'options' | 'onShift' | 'ends'> & {
   doing?: MapViewProps['doing']
   aboard?: MapViewProps['aboard']
   focus?: MapViewProps['focus']
+  progress?: MapViewProps['progress']
   steps?: InTripSteps // during a trip: the trip's description under the map
 }
 
@@ -254,7 +256,7 @@ type MapSheetProps = Omit<Props, 'onStart' | 'options' | 'onShift' | 'ends'> & {
 export interface InTripSteps {
   ends: Ends
   track: Tracking
-  now: { main: string; detail?: string | null }
+  now: { main: string; detail?: string | null; strip?: ComponentChildren } // strip: the ride you're on, counted down (RideCountdown)
   tall: boolean // the map is pulled down
   onTall: (tall: boolean) => void
 }
@@ -347,7 +349,7 @@ export function MapSheet({ option, now, onClose, onStart, title, live, steps, ..
         {steps && steps.tall && pull === null && (
           <div class="sheet-now">
             <p>{steps.now.main}</p>
-            {steps.now.detail && <p class="meta">{steps.now.detail}</p>}
+            {steps.now.strip ?? (steps.now.detail && <p class="meta">{steps.now.detail}</p>)}
           </div>
         )}
         {steps && (!steps.tall || pull !== null) && (

@@ -133,6 +133,13 @@ export const IconTimer = () => (
   </Icon>
 )
 
+/** Opens (pointing down) or closes (up) what the text before it is about: a ride's stops. */
+export const Chevron = ({ up }: { up?: boolean }) => (
+  <svg class="icon chevron" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+    <path d={up ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'} />
+  </svg>
+)
+
 /** The same stopwatch at the size of a line of text: it starts a "Time my walk" link. */
 export const Stopwatch = () => (
   <svg class="icon stopwatch" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">

@@ -208,3 +208,10 @@ test('the map frames the step you are on, once you have set off', () => {
   assert.deepEqual(focusLegs(sameStop, { kind: 'before', ride: 1 }, true), [1])
   assert.deepEqual(focusLegs(sameStop, { kind: 'final-walk' }, true), [1], 'no last walk: the last ride')
 })
+
+test('with one stop to go on a ride, the next stop is yours', () => {
+  const riding = { kind: 'riding' as const, ride: 1 }
+  assert.equal(instruction(planned, riding).now, 'On the T9: get off at Epping Station')
+  assert.equal(instruction(planned, riding, 'the gym', 3).now, 'On the T9: get off at Epping Station')
+  assert.equal(instruction(planned, riding, 'the gym', 1).now, 'Get off at the next stop: Epping Station')
+})

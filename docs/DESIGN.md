@@ -40,6 +40,7 @@ raw colour, size or spacing value in a component. Use a token, or add one here f
 | `--risk` | `#b13a0a` | `#f08a4b` | at-risk connections |
 | `--missed` | `#b42318` | `#f2766b` | missed or late, errors, danger actions |
 | `--on-tone` | `#ffffff` | `#1b1e21` | text on a risk colour (badges) |
+| `--stop-ink` | `#1e2226` | `#1e2226` | the outline and centre of your stop's white dot, on the rail, the strip and the map: ink in either theme, as a stop's outline is on the map |
 | `--shoe-sole`, `--shoe-upper`, `--shoe-strap` | the drawing's colour, none, the drawing's colour | none, the drawing's colour, `--wall` | which part of a gym's shoe is filled, and its straps (see The shoe) |
 
 Line colours come from the feed. Text on a line colour is ink or white, whichever contrasts better; it is computed, never
@@ -58,12 +59,18 @@ the border shows on a pale map (and the halo of the location's accuracy). In it,
 doing: the rail's walker while you walk or wait at a stop, the vehicle's glyph (train, bus or ferry) while you ride.
 Once you're on board, your own vehicle isn't drawn: you are where it is. Vehicles you have yet to catch still are.
 
+**The ride you're on.** The part of its line behind you is dimmed (a 60% wash of the map's ground over it: white on
+the light map, black on the dark), and the stops behind you go quiet (smaller, half as strong). The stops ahead stay
+plain dots. Where you get off is a larger white dot with the stop's dot in it (12px inside a 2px `--stop-ink` outline,
+a 5px `--stop-ink` centre), as on the rail.
+
 **What the map fits.** The whole trip, with the vehicle you'll catch first once it's near. During a trip, once you've
 set off (the "you" marker has left the trip's first step: by your location, or by the leave time without one), it
 fits the step you're on instead, whole, with you in it: the walk, the ride from where you get on to where you get off,
 the change. At the stop waiting, that's the ride you're waiting for, with its vehicle once it's near. The view moves
-on to each new step by itself. Once you've zoomed or moved the map yourself it's left alone, by this and by live
-updates alike, until the map is next opened.
+on to each new step by itself. With three stops to go on a ride (or fewer) it closes in on what's left of it: from the
+last stop behind you to yours. Once you've zoomed or moved the map yourself it's left alone, by all of this and by
+live updates alike, until the map is next opened.
 
 ### Type
 
@@ -150,6 +157,8 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   - There's no "ghost" variant. A row of buttons puts the commit action last.
 - **Text action:** underlined, weight 600, inline in a sentence. `quiet` uses `--pencil`. It has a 44px hit area
   through `::after`. Use it for things like "Earlier trips", "Time my walk" and "Measure my pace".
+  - One that opens or closes something ends with a 16px chevron, `--s1` after the words: down to open, up to close
+    (`Chevron`), and says which with `aria-expanded`. A ride's stops line is the one that does.
   - "Time my walk" starts with a stopwatch: the Settings stopwatch drawn 16px in the link's own ink (`Stopwatch` in
     `icons.tsx`), `--s1` before the words and not underlined. Drawn, not the ⏱ emoji, which every phone draws its own
     way and some in colour.
@@ -225,6 +234,20 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
     with the mode disc at its top (where you get on) and a dot inside its bottom end (where you get off).
   - A ride's description: line chip, headsign and status; "from" the stop (and platform); "to" the stop at its
     time; then, on a line of its own, `3 stops (7 min)` (or just `7 min` when the stop count isn't known).
+  - **A ride opens into its stops.** The stops line is a quiet text action with a chevron (when the server has sent
+    the ride's stops). A tap opens the ride: its step runs on into a row for each stop still ahead, the line passing
+    through them all, each with its time (14px/600 pencil, narrow), a dot on the line and its name. The last is yours:
+    its time and name in the step's own weights (18px/700, 800), "Get off" after the name, and on the line a larger
+    white dot with the stop's dot in it (18px, `--stop-ink`). The line ends a little past it (5px). Open, the "to"
+    line goes: the last row says it. A tap on the stops line closes it again. It works while planning too.
+    - **On the ride you're on** the stops line counts down, `10 of 19 stops to go`, and the part of the line behind
+      you is dimmed (the line's colour under 62% of the wall), closed or open. Open, the stops behind you fold into
+      one pencil line, `3 stops passed`, you sit in a row of your own under it, and the next stop has "Next" after its
+      name.
+    - **It opens by itself** with three stops to go, or fewer: so a ride of three stops or fewer is open from the
+      moment you're on it. Before that it stays the short step it always was.
+    - **Your tap wins.** A ride you've opened stays open; one you've closed stays closed, even for its last stops.
+    - "Next" and "Get off" are stop tags: 12px/800 on `--r-mark`, wall on ink.
   - Walks: whole round dots (4.5px, about 10px apart, spaced out to fit; never cut off), stopping as short of the rules
     as a ride does. A walk or change step has a walker (heading right) in the middle instead of a dot. From the house,
     the dots run to just above the rule; into the shoe, from just below it. Changes get a `--panel` row with a risk
@@ -263,6 +286,18 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
       way is the fastest.
   - The row is the suggested trip from where you are now: it leaves when you'd have to set off from here (now, on a
     vehicle).
+  - **The ride you're on, as a strip** (in Now while you ride, when the server has sent the ride's stops; `RideCountdown`):
+    the line diagram above a train's doors. A 14px line in the line's colour across the section: where you got on at
+    its left end (the mode's disc, dimmed), a dot for every stop, evenly spaced however far apart they are, and yours
+    at the right end as the larger white dot with the stop's dot in it. You ride along it as the "you" marker, and
+    the line behind you is dimmed, as on the rail. Under it, in 14px: "Next: Wahroonga Station" in pencil on the left,
+    "18 stops to go" in ink (600) on the right; with one to go, just "Next stop is yours" on the right.
+    - The instruction above it turns from "On the T9: get off at Central Station" to "Get off at the next stop:
+      Central Station" with one stop to go, and the line under it only says when ("Get off at 17:17 (in 4 min)"):
+      the strip and the instruction name the stops.
+    - How many stops are behind you comes from where you are along the ride's line (your location, or your
+      vehicle's when yours has gone quiet); with nothing to place you by, from the times it calls at them. It never
+      goes back a stop.
   - How sure the changes are reads `with no changes`, `with a safe change` (or tight, at-risk), `with 3 safe changes`,
     `with 2 changes, the tightest at risk`.
 - **Longer walk:** a neutral callout above the board for each end whose nearest stop on the gym's lines is beyond the
@@ -321,7 +356,7 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
     either. Two positions, nothing in between. It's a button ("Show more of the map" / "Show the trip's steps").
   - With the map pulled down, the arrive line stays under it with what to do now: the Now instruction (16px/600) and
     its line beneath in 14px pencil ("T1 leaves 13:48 (in 27 min), on time", "Get off at 14:28 (in 6 min), Wynyard
-    Station").
+    Station"). On a ride whose stops are known, the strip and its two labels take that line's place.
   - It stays as you left it for the rest of the trip, however often the map is opened.
 
 ## UX conventions

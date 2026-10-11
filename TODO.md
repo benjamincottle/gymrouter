@@ -91,9 +91,17 @@ Investigate are recorded only, not started.
       won't make…" warning shows its next best the same way ("Next best, with no changes:").
 - [x] **A stopwatch starts each "Time my walk" link.** Drawn (the Settings one, 16px, in the link's ink), not the ⏱
       emoji, which every phone draws its own way.
-- [ ] **A countdown of stops left on a ride.** Being designed from mockups (four ways to show it, on the trip screen,
-      in the trip's steps and on the map). Whichever is chosen needs the server to send each ride's stops with their
-      names and live times: the app is only told how many there are, and where they are for the map.
+- [x] **A countdown of the stops left on a ride**, in three places (chosen from mockups; the spec's decision log,
+      2026-10-11, has the alternatives):
+  - **In the steps**, a ride opens into its stops: every stop ahead, named and timed, yours last. A tap on its stops
+    line opens or closes it (while planning too). On the ride you're on that line counts down ("10 of 19 stops to
+    go"), and the ride opens by itself for the last three stops. Your tap wins either way.
+  - **In Now**, the ride as a strip map with you along it, the next stop and the count under it. With one stop to
+    go the instruction becomes "Get off at the next stop".
+  - **On the map**, where you get off is a larger white dot, and the view closes in on what's left of the ride for
+    its last three stops, unless you've moved the map.
+  - What's behind you on a ride is dimmed, on the rail, the strip and the map.
+  - The server sends each ride's stops with their names and live times (`calls`).
 - [ ] **A buzz when it's time to get off?** Set aside to think about (2026-10-11). What's known: the page can only
       vibrate the phone while the app is open on screen, and not at all on an iPhone, so it can't be relied on with
       the phone in a pocket. The route that reaches a locked phone is a push notification from the server ("Next stop
