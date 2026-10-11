@@ -722,3 +722,8 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   - Measured on the server as deployed (`GOMEMLIMIT=500MiB`): the build's high-water mark is about 330 MB (265 MB
     before) and memory settles about 35 MB higher than it did. The refresh stays every 35 days, or "Update now".
   - Climber Collective comes back as a built-in gym in a change of its own, once the wider street map is in use.
+- 2026-10-11: Climber Collective in Jamisontown is a built-in gym again: seventeen (supersedes its removal on
+  2026-10-10). It was taken out only because the street network stopped short of Penrith; the network now covers the
+  same area as the map (the entry above), and a walk from Penrith Station to its door follows the streets. Its lines
+  are as before, the Blue Mountains line, the T5 and bus 611 among them. A test now holds every built-in gym inside
+  the area.
