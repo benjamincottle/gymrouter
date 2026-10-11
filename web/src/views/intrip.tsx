@@ -75,6 +75,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   // Where you are on the steps: from your location along each step's line, the clock only as a fallback.
   const [shapes, setShapes] = useState<Record<string, LonLat[]>>({})
   const [shapeStops, setShapeStops] = useState<Record<string, LonLat[]>>({}) // the stops along each, before the last
+  const [platforms, setPlatforms] = useState<Record<string, LonLat[]>>({}) // the platform each is boarded from, for trains
   const rides = o.legs.filter((l) => l.kind === 'ride' && l.trip_id && l.from && l.to)
   useEffect(() => {
     let live = true
@@ -87,6 +88,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           if (!live) return
           setShapes((cur) => ({ ...cur, [k]: s.coordinates }))
           setShapeStops((cur) => ({ ...cur, [k]: s.stops ?? [] }))
+          if (s.platform) setPlatforms((cur) => ({ ...cur, [k]: s.platform! }))
         })
         .catch(() => undefined) // straight between the stops will do
     }
@@ -164,7 +166,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
     where = (stale && vehicleAt(ride)) || here
     at = advance(lastAt.current?.key === stepsKey ? lastAt.current.at : null, stepLines, where, clockAt)
     lastAt.current = { key: stepsKey, at }
-    phase = phaseOf(o, steps, at, stepLines, where, onVehicle, now)
+    phase = phaseOf(o, steps, at, stepLines, where, onVehicle, now, (ride) => platforms[shapeKey(o.legs[ride])])
   } else if (phase.kind === 'riding') {
     where = vehicleAt(phase.ride) || pos // riding by the clock: your vehicle's last report, if it has made one
   }

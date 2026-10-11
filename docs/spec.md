@@ -727,3 +727,25 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   same area as the map (the entry above), and a walk from Penrith Station to its door follows the streets. Its lines
   are as before, the Blue Mountains line, the T5 and bus 611 among them. A test now holds every built-in gym inside
   the area.
+- 2026-10-11: Anywhere on the platform is waiting for the train. Waiting was "within 40 m of the stop", but a
+  platform is 167 m long (the median) and the timetable's point for it is seldom its middle: walking up the platform
+  turned Now back to "Get to Hornsby Station", and 120 m forward along the track counted as on board from a platform
+  long enough to still be standing on. The street network's build now also keeps the outline of every railway
+  platform in the area (557, from the same extract, walkable or not), and `/api/shape` sends a train, metro or
+  light-rail ride's boarding platform: the outline within 15 m of the stop, or within 30 m when it carries the
+  platform's number (Circular Quay's points are that far off theirs). In the app, on the outline or within the
+  location's accuracy of its edge (10 to 40 m) is waiting, and being on board by distance needs you off it; a
+  vehicle you're seen moving with still says so sooner. With no outline nothing changes. 505 of the timetable's 548
+  rail platforms in the area have one. Of the other 43, Central's 16 to 21 are drawn as multi-part relations, which
+  the reader doesn't read, and Chatswood, North Sydney, Auburn and the north-west metro stations have no platform
+  drawn as a single shape, so probably are too; reading relations was left out, since many of these are underground,
+  where there's no location. The outline rides with the ride's shape, which the app already fetches once a ride, so no plan
+  grows. The cached graph's format changed again (version 3): one more rebuild on the first start.
+- 2026-10-11: Investigated, not built: placing where you wait along the platform so you step off beside your stairs
+  at the destination. The data is there for most train platforms: their outlines (above), where the stairs, lifts and
+  escalators are (the timetable feed places them, a median 4 m from the platform's outline, for 89% of platforms) and
+  the train's length (the car count is in the trip ID; the metro feed lists its carriages). An 8-car train fills a
+  typical platform, so a place on the train carries from one platform to the other, to about a carriage or two.
+  What it can't know is where a 4-car train stops on a long platform, and which stairs you'd take is a guess. The
+  cost would be in the special cases, and wrong advice is worse than none, so the next step, when wanted, is a
+  prototype that only prints its advice for trips we know (TODO.md).

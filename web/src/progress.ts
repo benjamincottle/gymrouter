@@ -190,21 +190,56 @@ export const BOARDED_M = 120
 /** This close to the stop you're going to board at, you're waiting there. */
 const AT_STOP_M = 40
 
-/** What you're doing, from where you are on the steps: walking to a ride or waiting for it, on it, or the last walk. */
+/**
+ * Whether a position is on a shape (a platform's outline, closed when its last point is its first): inside it, or
+ * within `marginM` of its edge.
+ */
+export function inShape(outline: LonLat[], p: { lat: number; lon: number }, marginM: number): boolean {
+  if (outline.length < 2) return false
+  if (onLine(outline, p).d <= marginM) return true
+  const first = outline[0]
+  const last = outline[outline.length - 1]
+  if (outline.length < 4 || first[0] !== last[0] || first[1] !== last[1]) return false
+  // A ray east from p: crossing the outline an odd number of times means p is inside.
+  let inside = false
+  for (let i = 0; i + 1 < outline.length; i++) {
+    const [ax, ay] = outline[i]
+    const [bx, by] = outline[i + 1]
+    if (ay > p.lat !== by > p.lat && ax + ((p.lat - ay) / (by - ay)) * (bx - ax) > p.lon) inside = !inside
+  }
+  return inside
+}
+
+/** How near a platform's edge still counts as on it: the location's accuracy, within these (m). */
+const PLATFORM_EDGE_M: [number, number] = [10, 40]
+
+/**
+ * What you're doing, from where you are on the steps: walking to a ride or waiting for it, on it, or the last walk.
+ * `platform` gives the outline of the platform legs[ride] is boarded from, when it's known (a train's): a platform is
+ * far longer than the point the timetable gives for it, and anywhere on it you're waiting.
+ */
 export function phaseOf(
   o: Option, rs: Row[], at: At, lines: LonLat[][], pos: { lat: number; lon: number; accuracy: number } | null,
   aboard: (ride: number) => boolean = () => false, // seen moving with the vehicle of legs[ride] (boarding.ts)
   nowMs = 0, // to tell when a ride has reached your stop
+  platform: (ride: number) => LonLat[] | undefined = () => undefined,
 ): Phase {
-  const ph = phaseFromSteps(o, rs, at, lines, pos, nowMs)
+  const ph = phaseFromSteps(o, rs, at, lines, pos, nowMs, platform)
   return ph.kind === 'before' && aboard(ph.ride) ? { kind: 'riding', ride: ph.ride } : ph
 }
 
-function phaseFromSteps(o: Option, rs: Row[], at: At, lines: LonLat[][], pos: { lat: number; lon: number; accuracy: number } | null, nowMs: number): Phase {
+function phaseFromSteps(
+  o: Option, rs: Row[], at: At, lines: LonLat[][], pos: { lat: number; lon: number; accuracy: number } | null, nowMs: number,
+  platform: (ride: number) => LonLat[] | undefined,
+): Phase {
   const r = rs[at.row]
   const nextRide = (from: number) => o.legs.findIndex((l, j) => j >= from && l.kind === 'ride')
   const near = (s?: { lat: number; lon: number }) => !!(pos && s && onLine([[s.lon, s.lat]], pos).d <= Math.max(AT_STOP_M, pos.accuracy))
-  const waiting = (ride: number) => near(o.legs[ride].from)
+  const onPlatform = (ride: number) => {
+    const outline = platform(ride)
+    return !!(pos && outline && inShape(outline, pos, Math.min(PLATFORM_EDGE_M[1], Math.max(PLATFORM_EDGE_M[0], pos.accuracy))))
+  }
+  const waiting = (ride: number) => near(o.legs[ride].from) || onPlatform(ride)
   const before = (ride: number): Phase => (ride < 0 ? { kind: 'final-walk' } : { kind: 'before', ride, waiting: waiting(ride) })
   switch (r.kind) {
     case 'start':
@@ -218,7 +253,10 @@ function phaseFromSteps(o: Option, rs: Row[], at: At, lines: LonLat[][], pos: { 
       // At the stop you get off at, once the ride's time there has come: you're off it, on to the next thing (you
       // stay on this step until you've moved along the next, but you're no longer riding).
       if (nowMs >= Date.parse(r.leg.arr) && near(r.leg.to)) return before(nextRide(r.i + 1))
-      // On the ride's line: aboard once you've moved along it; until then, at the stop waiting.
+      // On the ride's line: aboard once you've moved along it; until then, at the stop waiting. A long platform runs
+      // further along the track than that: still on it, you're still waiting (your vehicle, once you're seen moving
+      // with it, says you're aboard sooner: see phaseOf).
+      if (onPlatform(r.i)) return { kind: 'before', ride: r.i, waiting: true }
       return at.frac * lengthM(lines[at.row]) >= BOARDED_M ? { kind: 'riding', ride: r.i } : { kind: 'before', ride: r.i, waiting: true }
   }
 }

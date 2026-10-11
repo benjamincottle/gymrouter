@@ -102,10 +102,19 @@ Investigate are recorded only, not started.
     its last three stops, unless you've moved the map.
   - What's behind you on a ride is dimmed, on the rail, the strip and the map.
   - The server sends each ride's stops with their names and live times (`calls`).
-- [ ] **Anywhere on the platform is waiting for the train.** Wandering up the platform turns Now back to "Get to
-      Hornsby Station": you only count as waiting within 40 m of the platform's point in the timetable, which is
-      often near one end (85% of the way along Hornsby's platform 1, 140 m from the other end). The other way,
-      more than 120 m forward along the track counts as on board while you're still standing on a long platform.
+- [x] **Anywhere on the platform is waiting for the train.** Wandering up the platform turned Now back to "Get to
+      Hornsby Station": you only counted as waiting within 40 m of the platform's point in the timetable, which is
+      often near one end (74 m from the middle of Hornsby's platform 1, 152 m from its far end). The other way, more
+      than 120 m forward along the track counted as on board while you were still standing on a long platform.
+      Now the server keeps each platform's outline from the street map (557 in the area) and sends a train's
+      boarding platform with its shape; on it, or within the location's accuracy of its edge, you're waiting, and
+      you're not on board by distance until you're off it. 505 of the timetable's 548 rail platforms have an outline.
+  - [ ] **The other 43 platforms** have no outline, so there it's the 40 m rule as before. Central's 16 to 21 are
+        drawn in the street map as shapes made of several pieces (relations), which the reader doesn't read.
+        Chatswood, North Sydney, Auburn, Milsons Point and the north-west metro stations have no platform drawn as a
+        single shape, so are probably the same (not checked one by one). A few (Petersham, Sutherland 3) have the
+        timetable's point too far from any outline. The underground ones matter least: there's no location down
+        there anyway.
 - [ ] **A buzz when it's time to get off?** Set aside to think about (2026-10-11). What's known: the page can only
       vibrate the phone while the app is open on screen, and not at all on an iPhone, so it can't be relied on with
       the phone in a pocket. The route that reaches a locked phone is a push notification from the server ("Next stop

@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { rows } from './options.ts'
-import { advance, locate, onLine, phaseOf, rowLines, shapeKey, walkLeftS, walkTo, type LonLat } from './progress.ts'
+import { advance, inShape, locate, onLine, phaseOf, rowLines, shapeKey, walkLeftS, walkTo, type LonLat } from './progress.ts'
 import type { Leg, Option } from './types.ts'
 
 // A trip along a straight east–west line: home, walk 300 m to stop A, bus 2 km to stop B, walk 300 m to the gym.
@@ -106,4 +106,47 @@ test('the walk left to a ride is the rest of the trip\'s own walk', () => {
   assert.ok(left > 180 && left < 190, `left ${left}`)
   // Off the walk by more than the location's accuracy: back to it first, at walking speed.
   assert.equal(walkLeftS(lines[1], 240, here(150, 140, 10), 1.3), 120 + 130)
+})
+
+// Stop A as a station platform: 300 m long beside the track, from 120 m behind the timetable's point for it to 180 m
+// ahead (the point is rarely the middle), 10 m wide.
+const platform: LonLat[] = [at(180, 5), at(480, 5), at(480, 15), at(180, 15), at(180, 5)]
+
+test('on a shape: inside it, or near its edge', () => {
+  assert.equal(inShape(platform, here(300, 10), 10), true, 'in the middle')
+  assert.equal(inShape(platform, here(185, 14), 0), true, 'inside, by a corner, with no margin')
+  assert.equal(inShape(platform, here(300, 0), 10), true, '5 m off its edge')
+  assert.equal(inShape(platform, here(300, 30), 10), false, '15 m off its edge')
+  assert.equal(inShape(platform, here(300, 30), 20), true, 'within a wider margin')
+  assert.equal(inShape(platform, here(520, 10), 10), false, 'past its end')
+  // A platform drawn as a line (not closed) has no inside, only an edge.
+  const line: LonLat[] = [at(180, 10), at(480, 10)]
+  assert.equal(inShape(line, here(300, 14), 10), true)
+  assert.equal(inShape(line, here(300, 30), 10), false)
+  assert.equal(inShape([], here(300), 10), false)
+})
+
+test('anywhere on the platform is waiting for the train', () => {
+  const ph = (x: number, y: number, outline?: LonLat[], accuracy = 10) => {
+    const p = here(x, y, accuracy)
+    return phaseOf(o, rs, locate(lines, p, 1)!, lines, p, undefined, 0, () => outline)
+  }
+  const waiting = { kind: 'before', ride: 1, waiting: true }
+  // The far end behind the timetable's point: 110 m from it. Without the platform that's "get to the stop".
+  assert.deepEqual(ph(190, 10), { kind: 'before', ride: 1, waiting: false }, 'no platform known: as before')
+  assert.deepEqual(ph(190, 10, platform), waiting, 'the rear end')
+  assert.deepEqual(ph(300, 10, platform), waiting, 'by the point')
+  // The far end ahead: 170 m along the track. Without the platform that's "on board".
+  assert.deepEqual(ph(470, 10), { kind: 'riding', ride: 1 }, 'no platform known: as before')
+  assert.deepEqual(ph(470, 10, platform), waiting, 'the front end: still on the platform, not on the train')
+  // Off the end and on along the track: on board, as before.
+  assert.deepEqual(ph(520, 10, platform), { kind: 'riding', ride: 1 }, 'past the platform')
+  // Near the station but not on the platform: not waiting.
+  assert.deepEqual(ph(190, 60, platform), { kind: 'before', ride: 1, waiting: false }, '45 m off the platform')
+  // A vague location reaches a little further, but only so far.
+  assert.deepEqual(ph(190, 45, platform, 35), waiting, '30 m off its edge, accurate to 35 m')
+  assert.deepEqual(ph(190, 70, platform, 90), { kind: 'before', ride: 1, waiting: false }, '55 m off, however vague')
+  // Seen moving with the vehicle, you're aboard wherever you are.
+  const p = here(470, 10)
+  assert.deepEqual(phaseOf(o, rs, locate(lines, p, 1)!, lines, p, () => true, 0, () => platform), { kind: 'riding', ride: 1 })
 })
