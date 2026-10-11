@@ -23,19 +23,31 @@ import (
 
 // streetsPBF is an OSM extract with an 11 x 11 grid of residential streets around Epping.
 func streetsPBF() []byte {
-	var nodes []osmpbftest.Node
-	var ways []osmpbftest.Way
-	id := func(i, j int) int64 { return int64(1 + i*100 + j) }
+	nodes, ways := streetGrid(-33.775, 151.080, 0)
+	return osmpbftest.Encode(nodes, ways)
+}
+
+// streetGrid is an 11 x 11 grid of residential streets with its south-west corner at a position, its IDs from base.
+func streetGrid(lat, lon float64, base int64) (nodes []osmpbftest.Node, ways []osmpbftest.Way) {
+	id := func(i, j int) int64 { return base + int64(1+i*100+j) }
 	for i := 0; i < 11; i++ {
 		var row, col []int64
 		for j := 0; j < 11; j++ {
-			nodes = append(nodes, osmpbftest.Node{ID: id(i, j), Lat: -33.775 + float64(i)*0.0005, Lon: 151.080 + float64(j)*0.0005})
+			nodes = append(nodes, osmpbftest.Node{ID: id(i, j), Lat: lat + float64(i)*0.0005, Lon: lon + float64(j)*0.0005})
 			row, col = append(row, id(i, j)), append(col, id(j, i))
 		}
-		ways = append(ways, osmpbftest.Way{ID: int64(i + 1), Refs: row, Tags: map[string]string{"highway": "residential"}},
-			osmpbftest.Way{ID: int64(100 + i), Refs: col, Tags: map[string]string{"highway": "residential"}})
+		ways = append(ways, osmpbftest.Way{ID: base + int64(i+1), Refs: row, Tags: map[string]string{"highway": "residential"}},
+			osmpbftest.Way{ID: base + int64(100+i), Refs: col, Tags: map[string]string{"highway": "residential"}})
 	}
-	return osmpbftest.Encode(nodes, ways)
+	return nodes, ways
+}
+
+// statePBF is an extract of far more than the app's area, laid out as Geofabrik's are: Epping's streets, and
+// Newcastle's, 120 km north of the area.
+func statePBF() []byte {
+	nodes, ways := streetGrid(-33.775, 151.080, 0)
+	n2, w2 := streetGrid(-32.93, 151.78, 100000)
+	return osmpbftest.EncodeWith(append(nodes, n2...), append(ways, w2...), osmpbftest.Options{Sorted: true, PerBlock: 50, Relation: true})
 }
 
 func TestStreetNetworkIsDownloadedBuiltAndCached(t *testing.T) {
@@ -76,6 +88,86 @@ func TestStreetNetworkIsDownloadedBuiltAndCached(t *testing.T) {
 	}
 	if _, ok := r.Metres(geo.Point{Lat: -33.7735, Lon: 151.0835}); !ok {
 		t.Error("route on the downloaded streets failed")
+	}
+}
+
+func TestStreetNetworkIsClippedToTheAppsArea(t *testing.T) {
+	env := enginetest.NewWith(t, noPresets, nil)
+	e := env.Engine
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(statePBF()) }))
+	defer srv.Close()
+	e.SetTransport(srv.Client().Transport)
+	env.Config.Data.WalkSource = srv.URL + "/new-south-wales-latest.osm.pbf"
+	if err := e.RefreshWalk(ctx); err != nil {
+		t.Fatal(err)
+	}
+	g := e.Walker()
+	if g.Nodes() != 121 || g.Area != engine.Area || g.MaxLat > engine.Area.MaxLat {
+		t.Fatalf("%d nodes (want Epping's 121, not Newcastle's too), area %+v, reaching %v", g.Nodes(), g.Area, g.MaxLat)
+	}
+	if _, ok := g.From(geo.Point{Lat: -32.9275, Lon: 151.7825}, 500); ok {
+		t.Error("Newcastle is on the network")
+	}
+	if _, ok := g.From(geo.Point{Lat: -33.7725, Lon: 151.0825}, 500); !ok {
+		t.Error("Epping isn't on the network")
+	}
+	// The area is kept with the cache, so a restart knows what it holds.
+	if cached, err := walk.Load(filepath.Join(env.Config.Server.DataDir, "walk.graph")); err != nil || cached.Area != engine.Area {
+		t.Errorf("cache file: %v", err)
+	}
+}
+
+func TestStreetNetworkOfAnotherAreaIsRebuilt(t *testing.T) {
+	env := enginetest.NewWith(t, noPresets, nil)
+	e := env.Engine
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(statePBF()) }))
+	defer srv.Close()
+	e.SetTransport(srv.Client().Transport)
+	env.Config.Data.WalkSource = srv.URL + "/new-south-wales-latest.osm.pbf"
+
+	// A network built when the app covered somewhere else (here, just Newcastle): in use, but due to be replaced.
+	path := filepath.Join(t.TempDir(), "state.osm.pbf")
+	if err := os.WriteFile(path, statePBF(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old, err := walk.FromPBF(path, &geo.Box{MinLon: 151.7, MinLat: -33, MaxLon: 151.9, MaxLat: -32.9})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.SetWalker(old)
+	if !e.WalkDue() {
+		t.Fatal("a network of another area should be due for rebuilding")
+	}
+	if err := e.RefreshWalk(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if e.WalkDue() || e.Walker().Area != engine.Area {
+		t.Errorf("after rebuilding: due %v, area %+v", e.WalkDue(), e.Walker().Area)
+	}
+}
+
+func TestTheStreetMapDownloadHoldsNothingUp(t *testing.T) {
+	env := enginetest.NewWith(t, noPresets, nil)
+	e := env.Engine
+	started, release := make(chan struct{}), make(chan struct{})
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-release // a long download
+		w.Write(streetsPBF())
+	}))
+	defer srv.Close()
+	e.SetTransport(srv.Client().Transport)
+	env.Config.Data.WalkSource = srv.URL + "/new-south-wales-latest.osm.pbf"
+	done := make(chan error, 1)
+	go func() { done <- e.RefreshWalk(ctx) }()
+	<-started
+	// While it downloads, a line search or the stop catalogue can run: only the build is one-at-a-time with them.
+	if !e.HeavyFree() {
+		t.Error("the download is holding up the whole-network jobs")
+	}
+	close(release)
+	if err := <-done; err != nil || e.Walker() == nil {
+		t.Errorf("after the download: %v", err)
 	}
 }
 

@@ -56,7 +56,7 @@ clean today). Roughly in order of value.
       reach `:8080` directly (skipping Traefik's rate limit and setting its own `X-Forwarded-For`, which
       `trust_proxy` then logs as the client), and this container can reach the others. A dedicated network
       shared only with Traefik closes both. Outbound could also be limited to the TfNSW API,
-      `download.bbbike.org` and `build.protomaps.com` at the host firewall.
+      `download.geofabrik.de` and `build.protomaps.com` at the host firewall.
 - [ ] **One shared token, no per-device revocation.** Every device and every settings/backup link (QR,
       share sheet) carries the same long-lived token, so a link that leaks into a chat history works
       forever, and revoking it signs out everything. Worth deciding in `docs/spec.md` whether to keep this
@@ -74,6 +74,70 @@ clean today). Roughly in order of value.
   - [ ] An image scan (Trivy/Grype) of the published image in `build.yml`, mainly for the bundled pmtiles
     binary, which govulncheck never sees.
   - [x] Local dev: `.env` holding the real API key is mode 0644 (`config.toml` is 0600); `chmod 600 .env`.
+
+# TODO: field review (2026-10-11)
+
+Branch `field-review-2`, committed locally. In a trip and Map are done but for the stops countdown; each was chosen
+from mockups taken from the running app (the alternatives are in the spec's decision log, 2026-10-11). Server and
+Investigate are recorded only, not started.
+
+## In a trip
+
+- [x] **A "faster way" notice can be dismissed.** That way then isn't offered again on the trip, through re-checks and
+      a reload: it's known by the vehicles it takes that yours doesn't. Only the fastest way is ever offered, so with
+      it dismissed nothing shows until a different way is the fastest.
+- [x] **The notice shows the trip it suggests as a row from the list of trips**: leave, tape, arrive, risk, door to
+      door, from where you are now. Its sentence drops what the row says ("6 min sooner, with no changes."). The "You
+      won't make…" warning shows its next best the same way ("Next best, with no changes:").
+- [x] **A stopwatch starts each "Time my walk" link.** Drawn (the Settings one, 16px, in the link's ink), not the ⏱
+      emoji, which every phone draws its own way.
+- [x] **A countdown of the stops left on a ride**, in three places (chosen from mockups; the spec's decision log,
+      2026-10-11, has the alternatives):
+  - **In the steps**, a ride opens into its stops: every stop ahead, named and timed, yours last. A tap on its stops
+    line opens or closes it (while planning too). On the ride you're on that line counts down ("10 of 19 stops to
+    go"), and the ride opens by itself for the last three stops. Your tap wins either way.
+  - **In Now**, the ride as a strip map with you along it, the next stop and the count under it. With one stop to
+    go the instruction becomes "Get off at the next stop".
+  - **On the map**, where you get off is a larger white dot, and the view closes in on what's left of the ride for
+    its last three stops, unless you've moved the map.
+  - What's behind you on a ride is dimmed, on the rail, the strip and the map.
+  - The server sends each ride's stops with their names and live times (`calls`).
+- [ ] **A buzz when it's time to get off?** Set aside to think about (2026-10-11). What's known: the page can only
+      vibrate the phone while the app is open on screen, and not at all on an iPhone, so it can't be relied on with
+      the phone in a pocket. The route that reaches a locked phone is a push notification from the server ("Next stop
+      is yours", sent when your vehicle leaves the stop before): that needs Web Push on the server, a permission
+      prompt, the server being told which trip you're on, and on an iPhone the app added to the home screen. None of
+      it has been tested on a phone.
+
+## Map
+
+- [x] **Once you've set off, the map fits the step you're on**: the walk, the ride from where you get on to where you
+      get off, the change, with you in it. Waiting at a stop, it's the ride you're waiting for. Before that it's the
+      whole trip, as it was. "Set off" is the "you" marker's own rule: your location has you past the trip's first
+      step, or with no location the leave time has come. The view moves on with each new step, unless you've moved
+      the map yourself.
+- [x] **You are drawn as what you're doing**, on the map and on the trip's rail: a walker on foot (walking, or waiting
+      at a stop), a train, bus or ferry on a ride, white on the blue inside the white border. 28px on both (the map's
+      was a 20px dot). At either end of the rail you're still the house or the shoe.
+- [x] **The map can be pulled down over the steps** by a handle on the rule under it: drag it, or tap it. The arrive
+      line and what to do now stay under it. Drag it back up for the steps. It stays as you left it for the rest of
+      the trip.
+- [x] **Stops along a route are 10px across** with a heavier outline (they were 6px, as wide as the line).
+
+## Server
+
+- [x] **The walking paths come from Geofabrik** instead of BBBike: its New South Wales extract, rebuilt daily (BBBike's
+      Sydney one was weekly, and stopped at 150.83°E, short of Penrith). The server downloads the whole state
+      (269 MB) every 35 days or when asked, keeps the streets inside the app's area and throws the rest away. The
+      area is the basemap's box, so wherever the map draws, walks are routed: west 12 km past Penrith, north to
+      Berowra and Palm Beach, south to Waterfall and Campbelltown. 1.92 M nodes (1.32 M before), a 57 MB cache.
+- [x] **Climber Collective is back as a built-in gym** (Jamisontown): it was taken out only because the street map
+      didn't reach it. Seventeen gyms again, and a test holds every built-in gym inside the app's area.
+
+## Investigate
+
+- [ ] **Platform start points placed along the platform** to line up with the fastest exit at the destination
+      (i.e. dynamic). Can it be done?
 
 # TODO: field reports (2026-10-10)
 

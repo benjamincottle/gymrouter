@@ -121,8 +121,18 @@ type legResp struct {
 	DelayS   *int32     `json:"delay_s,omitempty"`
 	SchedDep *time.Time `json:"sched_dep,omitempty"`
 	Stops    int32      `json:"stops,omitempty"` // ride legs: stops travelled, counting the one you get off at
+	// Calls are a ride's stops after the one you get on at, in order, ending with the one you get off at.
+	Calls []callResp `json:"calls,omitempty"`
 	// Path is the walk along the streets, [lon, lat] pairs, for the first and last legs when known.
 	Path [][2]float64 `json:"path,omitempty"`
+}
+
+// callResp is one stop a ride calls at: its name (and its station's, for a platform) and when the ride gets there, by
+// live data when the trip has it. Arr is left out for a call the trip skips.
+type callResp struct {
+	Name    string     `json:"name"`
+	Station string     `json:"station,omitempty"`
+	Arr     *time.Time `json:"arr,omitempty"`
 }
 
 type transferResp struct {
@@ -712,6 +722,30 @@ func stopJSON(d *gtfs.Day, s int32) *stopResp {
 	return out
 }
 
+// callsJSON lists a trip's calls after `board` up to and including `alight` (indexes into its stop times).
+func callsJSON(snap *engine.Snapshot, t *gtfs.Trip, board, alight int32) []callResp {
+	if board < 0 || alight <= board || int(alight) >= len(t.StopTimes) {
+		return nil
+	}
+	d := snap.Day
+	out := make([]callResp, 0, alight-board)
+	for _, st := range t.StopTimes[board+1 : alight+1] {
+		stop := d.Stops[st.Stop]
+		c := callResp{Name: stop.Name}
+		if stop.Parent != "" {
+			if pi, ok := d.StopIndex[stop.Parent]; ok {
+				c.Station = d.Stops[pi].Name
+			}
+		}
+		if st.Arr != gtfs.NoTime {
+			at := snap.Clock(st.Arr)
+			c.Arr = &at
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
 func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32, fromAp, toAp engine.Approach, walkPath func(a, b geo.Point) ([]geo.Point, bool)) optionResp {
 	d := snap.Day
 	leave := o.LeaveAt - buffer
@@ -742,6 +776,7 @@ func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32, fromAp, toAp
 			t := &d.Trips[l.Trip]
 			lr.TripID, lr.Headsign = t.ID, t.Headsign
 			lr.Stops = l.AlightIdx - l.BoardIdx
+			lr.Calls = callsJSON(snap, t, l.BoardIdx, l.AlightIdx)
 			switch t.Status {
 			case gtfs.Predicted:
 				lr.Status = "predicted"

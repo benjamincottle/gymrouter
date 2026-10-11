@@ -14,18 +14,20 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/benjamincottle/gymrouter/internal/geo"
 	"github.com/benjamincottle/gymrouter/internal/walk"
 )
 
-// The area the app covers: Greater Sydney. min_lon, min_lat, max_lon, max_lat.
-const mapBBox = "150.55,-34.15,151.35,-33.45"
+// area is what the app covers: Greater Sydney, west past Penrith, north to the Hawkesbury, south to Waterfall. The
+// basemap is cut to it and the street network is clipped to it, so a place the map draws is a place walks are routed.
+var area = geo.Box{MinLon: 150.55, MinLat: -34.15, MaxLon: 151.35, MaxLat: -33.45}
 
 const (
-	walkRefreshAfter = 35 * 24 * time.Hour // BBBike rebuilds weekly; street layouts change slowly
+	walkRefreshAfter = 35 * 24 * time.Hour // Geofabrik rebuilds daily, but street layouts change slowly
 	mapRefreshAfter  = 60 * 24 * time.Hour
 	provisionRetry   = 6 * time.Hour
 	provisionTick    = time.Hour
-	maxWalkSource    = 250 << 20
+	maxWalkSource    = 512 << 20 // the extract is a whole state (about 270 MB in 2026); most of it is clipped away
 	mapFile          = "map.pmtiles"
 )
 
@@ -132,11 +134,18 @@ func (e *Engine) fileOlderThan(name string, d time.Duration) bool {
 	return err != nil || e.now().Sub(fi.ModTime()) > d
 }
 
+// walkDue: there's no street network, or it's old, or it was built for another area than the app now covers (it
+// stays in use until the new one is ready).
 func (e *Engine) walkDue() bool {
-	return e.cfg.Data.WalkSource != "" && (e.Walker() == nil || e.fileOlderThan(walkFile, walkRefreshAfter))
+	if e.cfg.Data.WalkSource == "" {
+		return false
+	}
+	g := e.Walker()
+	return g == nil || g.Area != area || e.fileOlderThan(walkFile, walkRefreshAfter)
 }
 
-// RefreshWalk downloads the OSM extract, builds the street network, saves it and starts using it.
+// RefreshWalk downloads the OSM extract, builds the street network of the app's area from it, saves it and starts
+// using it.
 func (e *Engine) RefreshWalk(ctx context.Context) error {
 	g, err := e.buildWalk(ctx)
 	if err != nil {
@@ -147,6 +156,21 @@ func (e *Engine) RefreshWalk(ctx context.Context) error {
 }
 
 func (e *Engine) buildWalk(ctx context.Context) (*walk.Graph, error) {
+	start := e.now()
+	dir := e.cfg.Server.DataDir
+	src := filepath.Join(dir, "walk-source.osm.pbf")
+	defer os.Remove(src) // all of it: what the area doesn't need is thrown away with the rest
+	// The download comes first and holds nothing up: it's long (a whole state) and light, and line searches and the
+	// stop catalogue shouldn't wait for it.
+	e.log.Info("downloading the street map", "from", e.cfg.Data.WalkSource)
+	if err := download(ctx, e.transport, e.cfg.Data.WalkSource, src, maxWalkSource); err != nil {
+		return nil, fmt.Errorf("downloading street map: %w", err)
+	}
+	var size int64
+	if fi, err := os.Stat(src); err == nil {
+		size = fi.Size()
+	}
+	e.log.Info("street map downloaded", "bytes", size, "took", e.now().Sub(start).Round(time.Second).String())
 	select { // one big job at a time keeps the memory peak bounded
 	case e.heavy <- struct{}{}:
 	case <-ctx.Done():
@@ -158,23 +182,16 @@ func (e *Engine) buildWalk(ctx context.Context) (*walk.Graph, error) {
 		<-e.heavy
 		debug.FreeOSMemory() // hand back the build's scratch memory
 	}()
-	start := e.now()
-	dir := e.cfg.Server.DataDir
-	src := filepath.Join(dir, "walk-source.osm.pbf")
-	defer os.Remove(src)
-	e.log.Info("downloading the street map", "from", e.cfg.Data.WalkSource)
-	if err := download(ctx, e.transport, e.cfg.Data.WalkSource, src, maxWalkSource); err != nil {
-		return nil, fmt.Errorf("downloading street map: %w", err)
-	}
-	g, err := walk.FromPBF(src)
+	built := e.now()
+	g, err := walk.FromPBF(src, &area)
 	if err != nil {
 		return nil, fmt.Errorf("building street network: %w", err)
 	}
 	if err := g.Save(filepath.Join(dir, walkFile)); err != nil {
 		return nil, fmt.Errorf("saving street network: %w", err)
 	}
-	e.log.Info("street network ready", "nodes", g.Nodes(), "edges", g.Edges(),
-		"took", e.now().Sub(start).Round(time.Second).String())
+	e.log.Info("street network ready", "nodes", g.Nodes(), "edges", g.Edges(), "area", area.String(),
+		"built_in", e.now().Sub(built).Round(time.Second).String(), "took", e.now().Sub(start).Round(time.Second).String())
 	return g, nil
 }
 
@@ -182,8 +199,8 @@ func (e *Engine) mapDue() bool {
 	return e.cfg.Data.PMTilesBin != "" && e.fileOlderThan(mapFile, mapRefreshAfter)
 }
 
-// RefreshMap cuts the Sydney basemap out of the Protomaps daily build with the pmtiles tool, which reads only
-// the parts it needs (the build is over 100 GB).
+// RefreshMap cuts the basemap of the app's area out of the Protomaps daily build with the pmtiles tool, which reads
+// only the parts it needs (the build is over 100 GB).
 func (e *Engine) RefreshMap(ctx context.Context) error {
 	bin, err := exec.LookPath(e.cfg.Data.PMTilesBin)
 	if err != nil {
@@ -198,7 +215,7 @@ func (e *Engine) RefreshMap(ctx context.Context) error {
 		_ = os.Remove(tmp)
 		runCtx, cancel := context.WithTimeout(ctx, 45*time.Minute)
 		e.log.Info("cutting the basemap", "build", day)
-		cmd := exec.CommandContext(runCtx, bin, "extract", "https://build.protomaps.com/"+day+".pmtiles", tmp, "--bbox="+mapBBox, "--quiet")
+		cmd := exec.CommandContext(runCtx, bin, "extract", "https://build.protomaps.com/"+day+".pmtiles", tmp, "--bbox="+area.String(), "--quiet")
 		cmd.Env = []string{} // nothing from our environment (the API key) goes to the tool
 		out, err := cmd.CombinedOutput()
 		cancel()

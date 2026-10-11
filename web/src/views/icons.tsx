@@ -23,6 +23,22 @@ export const VEHICLE_PATHS: Record<Vehicle, string> = {
   bus: 'M7 3.5 H17 A2 2 0 0 1 19 5.5 V18 H5 V5.5 A2 2 0 0 1 7 3.5 Z M5 11.5 H19 M8 18 V20.5 M16 18 V20.5',
 }
 
+/** Someone walking, heading right (on down the trip): a walk's step on the rail, and you on foot. For a 24 × 24 box. */
+export const WALKER = {
+  head: { cx: 13.6, cy: 4, r: 2 },
+  body: 'M12.8 7.6 L11.2 13.2 L14.2 16.2 L15.2 20.6 M11.2 13.2 L9.8 17 L7.2 20.2 M12.4 8.6 L14.6 11.6 L16.8 12.4 M12.4 8.6 L9.8 10.4 L8.6 13',
+}
+
+export const Walker = () => (
+  <>
+    <circle class="head" {...WALKER.head} />
+    <path d={WALKER.body} />
+  </>
+)
+
+/** What you're doing during a trip, for drawing you: on foot (walking, or waiting at a stop) or on a vehicle. */
+export type Doing = 'walk' | Vehicle
+
 /** The house from the trip's rail: where a trip starts, or ends, at home. */
 export const HOUSE = 'M3.5 11 L12 4 L20.5 11 M5.5 9.5 V20 H18.5 V9.5 M10 20 V14 H14 V20'
 
@@ -115,6 +131,21 @@ export const IconTimer = () => (
     <path d="M10 3.5 H14 M12 3.5 V6.5 M18 7.5 L19.5 6" />
     <path class="acc-line" d="M12 13.5 L15 10" />
   </Icon>
+)
+
+/** Opens (pointing down) or closes (up) what the text before it is about: a ride's stops. */
+export const Chevron = ({ up }: { up?: boolean }) => (
+  <svg class="icon chevron" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+    <path d={up ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'} />
+  </svg>
+)
+
+/** The same stopwatch at the size of a line of text: it starts a "Time my walk" link. */
+export const Stopwatch = () => (
+  <svg class="icon stopwatch" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+    <circle cx="12" cy="13.5" r="7" />
+    <path d="M10 3.5 H14 M12 3.5 V6.5 M18 7.5 L19.5 6 M12 13.5 L15 10" />
+  </svg>
 )
 
 export const IconDevices = () => (
