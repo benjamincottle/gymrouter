@@ -478,6 +478,79 @@ func TestPlatformsAreKeptWithTheNetwork(t *testing.T) {
 	}
 }
 
+// A platform with a stairwell cut out of it is drawn as a relation: its outer edge in two pieces that carry no tags of
+// their own (one of them drawn the other way round), and the hole.
+func TestPlatformsDrawnInPieces(t *testing.T) {
+	nodes, ways, box := streets()
+	at := func(id int64, lat, lon float64) int64 {
+		nodes = append(nodes, osmpbftest.Node{ID: id, Lat: lat, Lon: lon})
+		return id
+	}
+	// The edge: south-west, south-east, north-east, north-west corners, 185 m by 9 m.
+	sw, se, ne, nw := at(2001, -33.91, 151.001), at(2002, -33.91, 151.003), at(2003, -33.90992, 151.003), at(2004, -33.90992, 151.001)
+	h1, h2, h3 := at(2005, -33.90997, 151.0019), at(2006, -33.90997, 151.0021), at(2007, -33.90995, 151.002)
+	far1, far2 := at(2008, -33.92, 151.02), at(2009, -33.92, 151.021) // a platform outside the box
+	ways = append(ways,
+		osmpbftest.Way{ID: 501, Refs: []int64{sw, se, ne}},
+		osmpbftest.Way{ID: 502, Refs: []int64{sw, nw, ne}}, // the other half, drawn from the same corner
+		osmpbftest.Way{ID: 503, Refs: []int64{h1, h2, h3, h1}},
+		osmpbftest.Way{ID: 504, Refs: []int64{far1, far2}},
+	)
+	way := func(id int64, role string) osmpbftest.Member { return osmpbftest.Member{Type: 1, Ref: id, Role: role} }
+	rels := []osmpbftest.Relation{
+		{ID: 900, Tags: map[string]string{"type": "multipolygon", "railway": "platform", "ref": "16;17"},
+			Members: []osmpbftest.Member{way(501, "outer"), way(503, "inner"), way(502, "outer")}},
+		{ID: 901, Tags: map[string]string{"type": "multipolygon", "railway": "platform", "ref": "9"}, Members: []osmpbftest.Member{way(504, "outer")}},
+		{ID: 902, Tags: map[string]string{"type": "multipolygon", "railway": "platform", "ref": "8"}, Members: []osmpbftest.Member{way(777, "outer")}}, // a way the extract doesn't have
+		{ID: 903, Tags: map[string]string{"type": "multipolygon", "landuse": "grass"}, Members: []osmpbftest.Member{way(1, "outer")}},
+	}
+	for name, o := range map[string]osmpbftest.Options{
+		"sorted":     {Sorted: true, PerBlock: 9, Relations: rels, Relation: true},
+		"not sorted": {Relations: rels},
+	} {
+		g, err := fromPBF(writeFile(t, osmpbftest.EncodeWith(nodes, ways, o)), &box, &Builder{MinComponent: 1}, true)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if len(g.Platforms) != 1 || g.Platforms[0].Ref != "16;17" {
+			t.Fatalf("%s: platforms %+v", name, g.Platforms)
+		}
+		// One closed outline of the four corners, however the pieces were drawn.
+		out := g.Platforms[0].Outline
+		if len(out) != 5 || out[0] != out[4] {
+			t.Errorf("%s: outline %v", name, out)
+		}
+		for where, p := range map[string]geo.Point{"its middle": {Lat: -33.90996, Lon: 151.0015}, "the stairwell": {Lat: -33.90996, Lon: 151.002}} {
+			if found, ok := g.PlatformAt(p, "17"); !ok || len(found) != 5 {
+				t.Errorf("%s: %s isn't on the platform", name, where)
+			}
+		}
+		if g.Nodes() != 18 {
+			t.Errorf("%s: %d nodes: a platform's pieces aren't streets", name, g.Nodes())
+		}
+	}
+}
+
+func TestJoinEnds(t *testing.T) {
+	for name, tc := range map[string]struct {
+		parts [][]int64
+		want  [][]int64
+	}{
+		"one closed way":                 {[][]int64{{1, 2, 3, 1}}, [][]int64{{1, 2, 3, 1}}},
+		"two halves, head to tail":       {[][]int64{{1, 2, 3}, {3, 4, 1}}, [][]int64{{1, 2, 3, 4, 1}}},
+		"the second drawn backwards":     {[][]int64{{1, 2, 3}, {1, 4, 3}}, [][]int64{{1, 2, 3, 4, 1}}},
+		"three pieces, out of order":     {[][]int64{{1, 2}, {3, 1}, {2, 3}}, [][]int64{{3, 1, 2, 3}}}, // the same ring, from another corner
+		"joined at the front":            {[][]int64{{2, 3}, {1, 2}, {3, 1}}, [][]int64{{1, 2, 3, 1}}},
+		"two rings":                      {[][]int64{{1, 2, 1}, {5, 6}, {6, 7, 5}}, [][]int64{{1, 2, 1}, {5, 6, 7, 5}}},
+		"a piece missing: what there is": {[][]int64{{1, 2, 3}, nil, {3, 4}}, [][]int64{{1, 2, 3, 4}}},
+		"nothing":                        {nil, nil},
+	} {
+		if got := joinEnds(tc.parts); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: %v, want %v", name, got, tc.want)
+		}
+	}
+}
+
 // Real data, if an extract is at $WALK_TEST_PBF (Geofabrik's New South Wales, or any that covers Sydney): clipped to
 // the app's area, with a walk at each end of it. WALK_TEST_COMPARE=1 also builds it without the short cuts a sorted
 // file allows, to see that the network is the same and what they save.
@@ -494,6 +567,23 @@ func TestRealExtract(t *testing.T) {
 	}
 	took := time.Since(start)
 	t.Logf("%d nodes, %d half-edges, reaching %.3f to %.3f E and %.3f to %.3f; built in %v", g.Nodes(), g.Edges(), g.MinLon, g.MaxLon, g.MinLat, g.MaxLat, took.Round(100*time.Millisecond))
+	// Platforms, as the timetable places them: one drawn as a single shape, and three drawn in pieces.
+	t.Logf("%d platforms", len(g.Platforms))
+	for name, p := range map[string]struct {
+		at   geo.Point
+		code string
+	}{
+		"Hornsby 1":   {geo.Point{Lat: -33.70323338, Lon: 151.09857464}, "1"},
+		"Central 18":  {geo.Point{Lat: -33.88405165, Lon: 151.20698224}, "18"},
+		"Chatswood 1": {geo.Point{Lat: -33.79746616, Lon: 151.18107432}, "1"},
+		"Auburn 1":    {geo.Point{Lat: -33.84922459, Lon: 151.03296397}, "1"},
+	} {
+		if out, ok := g.PlatformAt(p.at, p.code); !ok {
+			t.Errorf("%s has no platform outline", name)
+		} else {
+			t.Logf("%s: an outline of %d points", name, len(out))
+		}
+	}
 	if g.MinLon < area.MinLon || g.MaxLon > area.MaxLon || g.MinLat < area.MinLat || g.MaxLat > area.MaxLat {
 		t.Error("the network reaches outside the area")
 	}

@@ -244,10 +244,11 @@ var errUnsorted = errors.New("walk: the extract's nodes aren't in order of ID, w
 // part of it inside that box, however much larger the extract is. A way that leaves the box is cut at its last node
 // inside.
 //
-// Unclipped, the file is read twice: the ways first (to learn which nodes matter), then the nodes. Clipped, there is
+// Unclipped, the file is read for its ways first (to learn which nodes matter), then its nodes. Clipped, there is
 // a pass before those, over the nodes, to learn which are inside the box, so that only the ways that touch it are
-// kept: the memory the build needs then goes with the size of the box, not of the extract. In a sorted file (all the
-// nodes, then all the ways, then relations) each pass reads only its part.
+// kept: the memory the build needs then goes with the size of the box, not of the extract. Before the ways there is
+// also a pass for the relations, which say which ways make up a platform drawn in pieces. In a sorted file (all the
+// nodes, then all the ways, then relations) each pass skips the part before its own.
 func FromPBF(path string, clip *geo.Box) (*Graph, error) {
 	return fromPBF(path, clip, &Builder{}, true)
 }
@@ -278,7 +279,16 @@ func fromPBF(path string, clip *geo.Box, b *Builder, shortCuts bool) (*Graph, er
 	if shortCuts && lay.Sorted && lay.WaysAt > 0 {
 		waysAt = lay.WaysAt
 	}
+	// The platforms drawn in several pieces, before the ways: a relation says which ways are its edge, and those
+	// ways don't say so themselves.
+	if err := readPBF(path, waysAt, osmpbf.Handler{WantRelations: true, Sorted: lay.Sorted, Relation: func(r osmpbf.Relation) error {
+		plats.relation(r.Tags, r.Members)
+		return nil
+	}}); err != nil {
+		return nil, err
+	}
 	if err := readPBF(path, waysAt, osmpbf.Handler{WantWays: true, Until: until(osmpbf.UntilRelations), Sorted: lay.Sorted, Way: func(w osmpbf.Way) error {
+		plats.member(w.ID, w.Refs)
 		if clip == nil {
 			b.AddWay(w.Tags, w.Refs)
 			plats.add(w.Tags, w.Refs)

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/benjamincottle/gymrouter/internal/geo"
+	"github.com/benjamincottle/gymrouter/internal/osmpbf"
 )
 
 // Platform is a railway platform's outline, as OpenStreetMap draws it: where you stand to wait for a train.
@@ -88,18 +89,57 @@ func outlineDistM(out []geo.Point, p geo.Point) float64 {
 	return best
 }
 
-// platformWays gathers the platforms among an extract's ways, then the positions of their nodes: they aren't all
-// walkable ways (an area isn't), so the graph's builder doesn't see them all.
+// platformWays gathers an extract's platforms, then the positions of their nodes. Most are a way each, though not
+// all of those are walkable ways (an area isn't), so the graph's builder doesn't see them all. A platform with holes
+// in it (stairwells) is a relation instead: it names the ways that make its outer edge, which carry no tags of their
+// own, so the relations have to be read before the ways.
 type platformWays struct {
-	ways []platformWay
-	ids  []int64 // their nodes, sorted (after prepare)
-	pos  []geo.Point
-	have []bool
+	ways    []platformWay
+	rels    []platformRel
+	members map[int64][]int64 // the ways the relations name, by ID: nil until the way has been read
+	ids     []int64           // every platform's nodes, sorted (after prepare)
+	pos     []geo.Point
+	have    []bool
 }
 
 type platformWay struct {
 	ref  string
 	refs []int64
+}
+
+type platformRel struct {
+	ref   string
+	outer []int64 // the ways that make its outer edge
+}
+
+// relation notes a relation if it's a platform. Its holes are left out: in a stairwell you're still on the platform.
+func (pw *platformWays) relation(tags map[string]string, members []osmpbf.Member) {
+	if tags["railway"] != "platform" {
+		return
+	}
+	var outer []int64
+	for _, m := range members {
+		if m.Type == osmpbf.MemberWay && m.Role != "inner" {
+			outer = append(outer, m.Ref)
+		}
+	}
+	if len(outer) == 0 {
+		return
+	}
+	if pw.members == nil {
+		pw.members = map[int64][]int64{}
+	}
+	for _, id := range outer {
+		pw.members[id] = nil
+	}
+	pw.rels = append(pw.rels, platformRel{ref: tags["ref"], outer: outer})
+}
+
+// member keeps a way if a platform relation names it. Its refs are copied: they're only lent.
+func (pw *platformWays) member(id int64, refs []int64) {
+	if _, wanted := pw.members[id]; wanted {
+		pw.members[id] = append([]int64(nil), refs...)
+	}
 }
 
 // add notes a way if it's a platform. Its refs are copied: they're only lent.
@@ -113,6 +153,9 @@ func (pw *platformWays) add(tags map[string]string, refs []int64) {
 func (pw *platformWays) prepare() {
 	for _, w := range pw.ways {
 		pw.ids = append(pw.ids, w.refs...)
+	}
+	for _, refs := range pw.members {
+		pw.ids = append(pw.ids, refs...)
 	}
 	sort.Slice(pw.ids, func(i, j int) bool { return pw.ids[i] < pw.ids[j] })
 	out := pw.ids[:0]
@@ -140,16 +183,73 @@ func (pw *platformWays) node(id int64, lat, lon float64) {
 // weren't): a platform that crosses the area's edge is cut there.
 func (pw *platformWays) platforms() []Platform {
 	var out []Platform
-	for _, w := range pw.ways {
+	add := func(ref string, refs []int64) {
 		var pts []geo.Point
-		for _, id := range w.refs {
+		for _, id := range refs {
 			if i := sort.Search(len(pw.ids), func(i int) bool { return pw.ids[i] >= id }); i < len(pw.ids) && pw.ids[i] == id && pw.have[i] {
 				pts = append(pts, pw.pos[i])
 			}
 		}
 		if len(pts) >= 2 {
-			out = append(out, Platform{Ref: w.ref, Outline: pts})
+			out = append(out, Platform{Ref: ref, Outline: pts})
 		}
+	}
+	for _, w := range pw.ways {
+		add(w.ref, w.refs)
+	}
+	for _, r := range pw.rels {
+		var parts [][]int64
+		for _, id := range r.outer {
+			parts = append(parts, pw.members[id])
+		}
+		for _, ring := range joinEnds(parts) {
+			add(r.ref, ring)
+		}
+	}
+	return out
+}
+
+// joinEnds joins lines of node IDs end to end where they share an end, as the pieces of a shape's edge do, in
+// whichever order and direction they come: each result is a closed ring, or what could be joined of one.
+func joinEnds(parts [][]int64) [][]int64 {
+	var out [][]int64
+	used := make([]bool, len(parts))
+	for i := range parts {
+		if used[i] || len(parts[i]) < 2 {
+			continue
+		}
+		used[i] = true
+		ring := append([]int64(nil), parts[i]...)
+		for grew := true; grew && ring[0] != ring[len(ring)-1]; {
+			grew = false
+			for j, p := range parts {
+				if used[j] || len(p) < 2 {
+					continue
+				}
+				first, last := ring[0], ring[len(ring)-1]
+				switch {
+				case p[0] == last:
+					ring = append(ring, p[1:]...)
+				case p[len(p)-1] == last:
+					for k := len(p) - 2; k >= 0; k-- {
+						ring = append(ring, p[k])
+					}
+				case p[len(p)-1] == first:
+					ring = append(append([]int64(nil), p[:len(p)-1]...), ring...)
+				case p[0] == first:
+					head := make([]int64, 0, len(p)-1+len(ring))
+					for k := len(p) - 1; k >= 1; k-- {
+						head = append(head, p[k])
+					}
+					ring = append(head, ring...)
+				default:
+					continue
+				}
+				used[j], grew = true, true
+				break
+			}
+		}
+		out = append(out, ring)
 	}
 	return out
 }

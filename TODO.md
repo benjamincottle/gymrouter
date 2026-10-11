@@ -106,15 +106,12 @@ Investigate are recorded only, not started.
       Hornsby Station": you only counted as waiting within 40 m of the platform's point in the timetable, which is
       often near one end (74 m from the middle of Hornsby's platform 1, 152 m from its far end). The other way, more
       than 120 m forward along the track counted as on board while you were still standing on a long platform.
-      Now the server keeps each platform's outline from the street map (557 in the area) and sends a train's
+      Now the server keeps each platform's outline from the street map (629 in the area) and sends a train's
       boarding platform with its shape; on it, or within the location's accuracy of its edge, you're waiting, and
-      you're not on board by distance until you're off it. 505 of the timetable's 548 rail platforms have an outline.
-  - [ ] **The other 43 platforms** have no outline, so there it's the 40 m rule as before. Central's 16 to 21 are
-        drawn in the street map as shapes made of several pieces (relations), which the reader doesn't read.
-        Chatswood, North Sydney, Auburn, Milsons Point and the north-west metro stations have no platform drawn as a
-        single shape, so are probably the same (not checked one by one). A few (Petersham, Sutherland 3) have the
-        timetable's point too far from any outline. The underground ones matter least: there's no location down
-        there anyway.
+      you're not on board by distance until you're off it. All 548 of the timetable's rail platforms in the area have
+      an outline: 505 are drawn in the street map as one shape, and the rest (Central's 16 to 21, Chatswood, North
+      Sydney, Auburn, the north-west metro) as a shape in several pieces with the stairwells cut out, which the
+      reader now reads too.
 - [ ] **A buzz when it's time to get off?** Set aside to think about (2026-10-11). What's known: the page can only
       vibrate the phone while the app is open on screen, and not at all on an iPhone, so it can't be relied on with
       the phone in a pocket. The route that reaches a locked phone is a push notification from the server ("Next stop
@@ -152,7 +149,7 @@ Investigate are recorded only, not started.
 - [ ] **Platform start points placed along the platform** to line up with the fastest exit at the destination
       (i.e. dynamic). Investigated 2026-10-11: feasible for most train platforms, to about a carriage or two, not to
       the metre. What it needs exists:
-  - each platform's shape and length: OpenStreetMap has one within 15 m for 91% of the timetable's 548 rail
+  - each platform's shape and length: the server now keeps an outline for every one of the timetable's 548 rail
     platforms in the area (median length 167 m);
   - where the stairs, escalators and lifts are: the timetable feed places them (`stops.txt` nodes such as "STR To
     P1", joined to platforms in `pathways.txt`) for 89% of platforms, a median 4 m from the platform's shape;

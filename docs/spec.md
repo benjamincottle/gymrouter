@@ -731,16 +731,20 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   platform is 167 m long (the median) and the timetable's point for it is seldom its middle: walking up the platform
   turned Now back to "Get to Hornsby Station", and 120 m forward along the track counted as on board from a platform
   long enough to still be standing on. The street network's build now also keeps the outline of every railway
-  platform in the area (557, from the same extract, walkable or not), and `/api/shape` sends a train, metro or
+  platform in the area (629, from the same extract, walkable or not), and `/api/shape` sends a train, metro or
   light-rail ride's boarding platform: the outline within 15 m of the stop, or within 30 m when it carries the
   platform's number (Circular Quay's points are that far off theirs). In the app, on the outline or within the
   location's accuracy of its edge (10 to 40 m) is waiting, and being on board by distance needs you off it; a
-  vehicle you're seen moving with still says so sooner. With no outline nothing changes. 505 of the timetable's 548
-  rail platforms in the area have one. Of the other 43, Central's 16 to 21 are drawn as multi-part relations, which
-  the reader doesn't read, and Chatswood, North Sydney, Auburn and the north-west metro stations have no platform
-  drawn as a single shape, so probably are too; reading relations was left out, since many of these are underground,
-  where there's no location. The outline rides with the ride's shape, which the app already fetches once a ride, so no plan
-  grows. The cached graph's format changed again (version 3): one more rebuild on the first start.
+  vehicle you're seen moving with still says so sooner. With no outline nothing changes. The outline rides with the
+  ride's shape, which the app already fetches once a ride, so no plan grows. The cached graph's format changed again
+  (version 3): one more rebuild on the first start.
+  - Most platforms are one shape in the street map (557). The rest are relations: a shape in several pieces, the
+    outer edge and the stairwells cut out of it, where the pieces carry no tags of their own. Left out at first,
+    that missed 43 of the timetable's 548 rail platforms, Central's 16 to 21 and all of Chatswood among them, so
+    the reader now reads relations and the build keeps the ways a platform relation names, joined end to end into
+    its edge (the holes are ignored: in a stairwell you're still on the platform). All 548 now have an outline. It
+    costs a pass over the ways' part of the file to find the relations before the ways are read, about 2 s on a
+    build of 15 s.
 - 2026-10-11: Investigated, not built: placing where you wait along the platform so you step off beside your stairs
   at the destination. The data is there for most train platforms: their outlines (above), where the stairs, lifts and
   escalators are (the timetable feed places them, a median 4 m from the platform's outline, for 89% of platforms) and
