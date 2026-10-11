@@ -8,11 +8,13 @@ import { FetchSource, PMTiles, Protocol } from 'pmtiles'
 import { layers, namedFlavor } from '@protomaps/basemaps'
 import { ApiError, api } from '../api.ts'
 import { legTrace, type TimedWalk } from '../walks.ts'
+import { LAST_STOPS, type RideProgress } from '../countdown.ts'
+import { splitAt } from '../progress.ts'
 import { isDark } from '../theme.ts'
 import type { Leg, Option, Vehicle } from '../types.ts'
 import { INK, lineColour, textOn, token, WHITE } from '../colour.ts'
 import { Callout } from '../views/ui.tsx'
-import { VEHICLE_PATHS, vehicleOf } from '../views/icons.tsx'
+import { VEHICLE_PATHS, vehicleOf, WALKER, type Doing } from '../views/icons.tsx'
 
 maplibregl.setWorkerUrl(workerUrl)
 
@@ -54,7 +56,7 @@ const rgb = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16))
  */
 const mapColours = () => {
   const ink = token('--ink') || INK
-  return { walk: rgb(ink), ink, stop: WHITE, you: token('--you') || '#2457d6' }
+  return { walk: rgb(ink), ink, stop: WHITE, you: token('--you') || '#2457d6', stopInk: token('--stop-ink') || INK }
 }
 
 /**
@@ -69,22 +71,36 @@ function nearRoute(b: maplibregl.LngLatBounds, [lon, lat]: [number, number]): bo
   return lon > sw.lng - dx && lon < ne.lng + dx && lat > sw.lat - dy && lat < ne.lat + dy
 }
 
-const RIDE_W = 6 // a ride's line on the map, in pixels; the stops along it are as wide
+const RIDE_W = 6 // a ride's line on the map, in pixels
+const STOP_R = 3.5 // a stop along it, inside its outline: wider than the line
+const STOP_EDGE = 1.5
+const YOURS_R = 6 // where you get off the ride you're on: a larger white dot with the stop's dot in it, as on the rail
+const YOURS_EDGE = 2
+const YOURS_DOT = 2.5
 const VEHICLE_R = 10 // a vehicle's disc, inside its outline
 const VEHICLE_EDGE = 2.5
 const GLYPH = 14 // the bus or train drawn in it
-const ME_R = 7 // you: a blue dot inside a white border
+const ME_R = 11 // you: a blue disc inside a white border, as big as you are on the trip's rail
 const ME_EDGE = 3
+const ME_GLYPH = 16 // what you're doing, drawn in it
 
-/** A vehicle (icons.tsx VEHICLE_PATHS) drawn in one colour, as an image for the map at the screen's pixel ratio. */
-function glyph(d: string, colour: string): ImageData {
+/**
+ * A drawing in a 24 × 24 box (a vehicle from icons.tsx VEHICLE_PATHS, or the walker) in one colour, as an image for
+ * the map at the screen's pixel ratio: `px` across, its lines `width` thick in the box's units.
+ */
+function glyph(d: string, colour: string, px = GLYPH, width = 2.6, head?: { cx: number; cy: number; r: number }): ImageData {
   const c = document.createElement('canvas')
-  c.width = c.height = Math.round(GLYPH * (window.devicePixelRatio || 1))
+  c.width = c.height = Math.round(px * (window.devicePixelRatio || 1))
   const g = c.getContext('2d')!
   g.scale(c.width / 24, c.width / 24)
-  g.strokeStyle = colour
-  g.lineWidth = 2.6
+  g.strokeStyle = g.fillStyle = colour
+  g.lineWidth = width
   g.lineCap = g.lineJoin = 'round'
+  if (head) {
+    g.beginPath()
+    g.arc(head.cx, head.cy, head.r, 0, 2 * Math.PI)
+    g.fill()
+  }
   g.stroke(new Path2D(d))
   return g.getImageData(0, 0, c.width, c.height)
 }
@@ -113,6 +129,9 @@ function dot(diameter: number, [r, g, b]: [number, number, number]) {
 
 const fc = (features: Feature[]) => ({ type: 'FeatureCollection' as const, features })
 
+/** A filter no stop passes: the layers for your stop draw nothing until you're on a ride. */
+const NO_STOP: maplibregl.FilterSpecification = ['==', ['get', 'leg'], -1]
+
 export interface MapViewProps {
   token: string
   walks: TimedWalk[] // timed walks: their traced routes are drawn instead of the street-map ones
@@ -122,14 +141,17 @@ export interface MapViewProps {
   origin: [number, number] // [lon, lat] of where the trip starts (home or gym)
   destination: [number, number]
   me?: { lat: number; lon: number; accuracy: number } | null // where you are, during a trip
+  doing?: Doing // and what you're doing: you're drawn as a walker, or as the vehicle you're on
   aboard?: string // the trip you're riding: with you on the map, its vehicle isn't drawn as well
+  focus?: number[] | null // during a trip, once you've set off: the legs of the step you're on (intrip.ts focusLegs)
+  progress?: RideProgress | null // the ride you're on, in stops: what's behind you is dimmed, and your stop is marked
 }
 
 /**
  * Draws the option's legs (only the parts ridden, with the stops passed), the vehicles running them while
- * they're near your part of the trip, and you.
+ * they're near your part of the trip, and you. The view fits the whole trip, or during one the step you're on (`focus`).
  */
-export function MapView({ token, walks, places, option, serviceDate, origin, destination, me, aboard }: MapViewProps) {
+export function MapView({ token, walks, places, option, serviceDate, origin, destination, me, doing = 'walk', aboard, focus, progress }: MapViewProps) {
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const [error, setError] = useState('')
@@ -142,17 +164,59 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
     return () => clearTimeout(id)
   }, [vehicleCount === 0])
   const routeBounds = useRef<maplibregl.LngLatBounds | null>(null)
-  const firstVehicle = useRef<[number, number] | null>(null) // where the vehicle for your first ride is
-  const framed = useRef(false)
+  const legBounds = useRef<(maplibregl.LngLatBounds | undefined)[]>([]) // each leg's own, by its place in the option
+  const legLines = useRef<([number, number][] | undefined)[]>([]) // each ride's line, and the stops along it before the last
+  const legStops = useRef<([number, number][] | undefined)[]>([])
+  const vehicles = useRef<Vehicle[]>([]) // as last reported
+  const vehicleFramed = useRef<string | null>(null) // the view (viewKey) last fitted with its vehicle in it
   // Once you've zoomed or moved the map yourself, live updates leave the view alone.
   const userMoved = useRef(false)
-  const firstTrip = option.legs.find((l) => l.kind === 'ride')?.trip_id
+  // What the view fits, read when it's fitted (the map's own events fit it too, long after this render).
+  const view = useRef({ option, focus, me, aboard, progress })
+  view.current = { option, focus, me, aboard, progress }
+  // The last few stops of a ride: the view closes in on what's left of it.
+  const near = !!progress && progress.total - progress.passed <= LAST_STOPS
+  const viewKey = (focus?.join(',') ?? '') + (near ? '|near' : '')
 
-  // Frame the route plus the vehicle you'll catch first (it may still be on its way to your stop).
+  // The vehicle that belongs in the view: the one you'll catch first, or the one you're waiting for (it may still be
+  // on its way to your stop). Not the one you're on: you're on the map yourself.
+  const vehicleInView = (b: maplibregl.LngLatBounds): [number, number] | null => {
+    const { option: o, focus: legs, aboard: on } = view.current
+    const ride = legs ? (legs.length === 1 ? o.legs[legs[0]] : undefined) : o.legs.find((l) => l.kind === 'ride')
+    if (ride?.kind !== 'ride' || !ride.trip_id || ride.trip_id === on) return null
+    const v = vehicles.current.find((x) => x.trip_id === ride.trip_id)
+    return v && nearRoute(b, [v.lon, v.lat]) ? [v.lon, v.lat] : null
+  }
+  // What to fit: the whole trip, or the step you're on with you in it (unless your location puts you well away).
+  const viewBounds = (): maplibregl.LngLatBounds | null => {
+    if (!routeBounds.current) return null
+    const copy = (x: maplibregl.LngLatBounds) => new maplibregl.LngLatBounds(x.getSouthWest(), x.getNorthEast())
+    const { focus: legs, me: you, progress: ride } = view.current
+    const parts = (legs ?? []).map((i) => legBounds.current[i]).filter((x) => x !== undefined)
+    if (parts.length === 0) return copy(routeBounds.current)
+    let b = copy(parts[0])
+    for (const p of parts.slice(1)) b.extend(p)
+    // With a few stops to go, only what's left of the ride: from the last stop behind you to yours.
+    const line = ride && ride.total - ride.passed <= LAST_STOPS ? legLines.current[ride.leg] : undefined
+    if (ride && line && line.length > 1) {
+      const ahead = splitAt(line, ride.frac)[1]
+      b = ahead.reduce((x, c) => x.extend(c), new maplibregl.LngLatBounds(ahead[0], ahead[0]))
+      const behind = legStops.current[ride.leg]?.[ride.passed - 1]
+      if (behind) b.extend(behind)
+    }
+    if (you && nearRoute(b, [you.lon, you.lat])) b.extend([you.lon, you.lat])
+    return b
+  }
+  const viewKeyRef = useRef(viewKey)
+  viewKeyRef.current = viewKey
   const frame = (m: maplibregl.Map, animate: boolean) => {
-    if (!routeBounds.current || userMoved.current) return
-    const b = new maplibregl.LngLatBounds(routeBounds.current.getSouthWest(), routeBounds.current.getNorthEast())
-    if (firstVehicle.current && nearRoute(b, firstVehicle.current)) b.extend(firstVehicle.current)
+    const b = viewBounds()
+    if (!b || userMoved.current) return
+    const v = vehicleInView(b)
+    if (v) {
+      b.extend(v)
+      vehicleFramed.current = viewKeyRef.current
+    }
     // The trip fills the map: just enough room for the zoom and locate buttons on the right.
     m.fitBounds(b, { padding: { top: 36, bottom: 36, left: 28, right: 64 }, maxZoom: 16, duration: animate ? 600 : 0 })
   }
@@ -189,12 +253,19 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
     })
     m.on('load', () => {
       m.addSource('route', { type: 'geojson', data: fc([]) })
+      m.addSource('behind', { type: 'geojson', data: fc([]) })
       m.addSource('vehicles', { type: 'geojson', data: fc([]) })
       m.addSource('me', { type: 'geojson', data: fc([]) })
       m.addLayer({
         id: 'route-ride', type: 'line', source: 'route', filter: ['==', ['get', 'kind'], 'ride'],
         paint: { 'line-color': ['get', 'color'], 'line-width': RIDE_W },
         layout: { 'line-cap': 'round', 'line-join': 'round' },
+      })
+      // The part of the ride you're on that's behind you, dimmed: a wash of the map's own ground over the line.
+      m.addLayer({
+        id: 'route-behind', type: 'line', source: 'behind',
+        paint: { 'line-color': dark ? '#000000' : WHITE, 'line-opacity': 0.6, 'line-width': RIDE_W + 0.5 },
+        layout: { 'line-cap': 'butt', 'line-join': 'round' },
       })
       // Walking: round dots every few pixels along the street route, like the trip's steps. A dot image placed along
       // the line rather than a dashed line: MapLibre blends dash patterns between zoom levels, stretching dots into dashes.
@@ -206,14 +277,23 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
           'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-rotation-alignment': 'map',
         },
       })
-      // A ride's stops, where you get on and off and those passed on the way: white dots on the line with a 1px ink
-      // outline, as wide as the line.
+      // A ride's stops, where you get on and off and those passed on the way: white dots on the line with an ink
+      // outline, wider than the line.
       m.addLayer({
         id: 'route-stops', type: 'circle', source: 'route', filter: ['in', ['get', 'kind'], ['literal', ['via', 'stop']]],
         paint: {
-          'circle-radius': RIDE_W / 2 - 1, 'circle-color': col.stop,
-          'circle-stroke-width': 1, 'circle-stroke-color': INK, // black in both themes
+          'circle-radius': STOP_R, 'circle-color': col.stop,
+          'circle-stroke-width': STOP_EDGE, 'circle-stroke-color': INK, // black in both themes
         },
+      })
+      // Where you get off the ride you're on: a larger white dot with the stop's dot in it (none until you're riding).
+      m.addLayer({
+        id: 'route-yours', type: 'circle', source: 'route', filter: NO_STOP,
+        paint: { 'circle-radius': YOURS_R, 'circle-color': col.stop, 'circle-stroke-width': YOURS_EDGE, 'circle-stroke-color': col.stopInk },
+      })
+      m.addLayer({
+        id: 'route-yours-dot', type: 'circle', source: 'route', filter: NO_STOP,
+        paint: { 'circle-radius': YOURS_DOT, 'circle-color': col.stopInk },
       })
       // Vehicles: a disc in the line's colour with a bus or train in it, all one size whatever the line is called
       // (which line it is shows in its colour, and the trip says).
@@ -232,7 +312,12 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         id: 'vehicles-mine-icon', type: 'symbol', source: 'vehicles',
         layout: { 'icon-image': ['get', 'icon'], 'icon-allow-overlap': true, 'icon-ignore-placement': true },
       })
-      // You: the familiar blue dot, with a halo the size of the location's accuracy.
+      // You: a blue disc with what you're doing in it (walking, or the vehicle you're on), as on the trip's rail, and
+      // a halo the size of the location's accuracy.
+      m.addImage('you-walk', glyph(WALKER.body, WHITE, ME_GLYPH, 2.4, WALKER.head), { pixelRatio: window.devicePixelRatio || 1 })
+      for (const [kind, d] of Object.entries(VEHICLE_PATHS)) {
+        m.addImage(`you-${kind}`, glyph(d, WHITE, ME_GLYPH, 2.4), { pixelRatio: window.devicePixelRatio || 1 })
+      }
       m.addLayer({
         id: 'me-accuracy', type: 'circle', source: 'me',
         paint: {
@@ -248,6 +333,10 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
       m.addLayer({
         id: 'me', type: 'circle', source: 'me',
         paint: { 'circle-radius': ME_R, 'circle-color': col.you, 'circle-stroke-color': col.stop, 'circle-stroke-width': ME_EDGE },
+      })
+      m.addLayer({
+        id: 'me-doing', type: 'symbol', source: 'me',
+        layout: { 'icon-image': ['get', 'icon'], 'icon-allow-overlap': true, 'icon-ignore-placement': true },
       })
       map.current = m
     })
@@ -272,6 +361,13 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
       const features: Feature[] = []
       const bounds = new maplibregl.LngLatBounds(origin, origin)
       bounds.extend(destination)
+      const perLeg: (maplibregl.LngLatBounds | undefined)[] = []
+      const lines: ([number, number][] | undefined)[] = []
+      const stopsOf: ([number, number][] | undefined)[] = []
+      const legAlong = (i: number, coords: [number, number][]) => {
+        perLeg[i] = coords.reduce((x, c) => x.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]))
+        bounds.extend(perLeg[i]!) // the line can bow out past its ends
+      }
       const point = (l: Leg, end: 'from' | 'to'): [number, number] | null => {
         const s = l[end]
         return s ? [s.lon, s.lat] : null
@@ -285,7 +381,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
           // A walk you timed and traced beats the street-map route, which beats a straight line.
           const traced = legTrace(walks, option, i, places.start, places.end)
           const coords = traced ?? (l.path && l.path.length > 1 ? l.path : [a, b])
-          for (const c of coords) bounds.extend(c)
+          legAlong(i, coords)
           features.push({ type: 'Feature', properties: { kind: 'walk' }, geometry: { type: 'LineString', coordinates: coords } })
           continue
         }
@@ -299,17 +395,24 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         } catch {
           /* keep the straight line */
         }
-        for (const c of coords) bounds.extend(c) // the line can bow out past its ends
+        legAlong(i, coords)
+        lines[i] = coords
+        stopsOf[i] = via
+        // Each stop knows its ride and its place on it (`seq`: 0 where you get on, then in order, the last where you
+        // get off), so the ones behind you can go quiet.
         features.push({ type: 'Feature', properties: { kind: 'ride', color }, geometry: { type: 'LineString', coordinates: coords } })
-        for (const p of via) features.push({ type: 'Feature', properties: { kind: 'via', color }, geometry: { type: 'Point', coordinates: p } })
+        for (const [k, p] of via.entries()) features.push({ type: 'Feature', properties: { kind: 'via', color, leg: i, seq: k + 1 }, geometry: { type: 'Point', coordinates: p } })
         // On the line's ends (the server cuts the shape where each stop sits beside it), not at the kerb.
-        features.push({ type: 'Feature', properties: { kind: 'stop', color }, geometry: { type: 'Point', coordinates: coords[0] } })
-        features.push({ type: 'Feature', properties: { kind: 'stop', color }, geometry: { type: 'Point', coordinates: coords[coords.length - 1] } })
+        features.push({ type: 'Feature', properties: { kind: 'stop', color, leg: i, seq: 0 }, geometry: { type: 'Point', coordinates: coords[0] } })
+        features.push({ type: 'Feature', properties: { kind: 'stop', color, leg: i, seq: via.length + 1 }, geometry: { type: 'Point', coordinates: coords[coords.length - 1] } })
       }
       if (!live) return
       ;(m.getSource('route') as GeoJSONSource | undefined)?.setData(fc(features))
       routeBounds.current = bounds
-      framed.current = firstVehicle.current !== null
+      legBounds.current = perLeg
+      legLines.current = lines
+      legStops.current = stopsOf
+      drawProgress(m)
       frame(m, false)
     }
     whenReady(map, el, draw)
@@ -318,8 +421,34 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
     }
   }, [option, serviceDate, token, walks])
 
+  // The ride you're on: the line behind you dimmed, the stops behind you quiet, and your stop marked.
+  const drawProgress = (m: maplibregl.Map) => {
+    if (!m.getLayer('route-stops')) return
+    const ride = view.current.progress
+    const line = ride ? legLines.current[ride.leg] : undefined
+    ;(m.getSource('behind') as GeoJSONSource | undefined)?.setData(
+      fc(ride && line && line.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: splitAt(line, ride.frac)[0] } }] : []),
+    )
+    const behind: maplibregl.ExpressionSpecification = ride
+      ? ['all', ['==', ['get', 'leg'], ride.leg], ['<=', ['get', 'seq'], ride.passed]]
+      : ['literal', false]
+    m.setPaintProperty('route-stops', 'circle-radius', ['case', behind, STOP_R - 1, STOP_R])
+    m.setPaintProperty('route-stops', 'circle-opacity', ['case', behind, 0.5, 1])
+    m.setPaintProperty('route-stops', 'circle-stroke-opacity', ['case', behind, 0.3, 1])
+    const yours: maplibregl.FilterSpecification = ride ? ['all', ['==', ['get', 'leg'], ride.leg], ['==', ['get', 'seq'], ride.total]] : NO_STOP
+    m.setFilter('route-yours', yours)
+    m.setFilter('route-yours-dot', yours)
+  }
+  useEffect(() => {
+    if (map.current) drawProgress(map.current)
+  }, [progress?.leg, progress?.passed, progress?.total, progress?.frac])
+
+  // On to another step of the trip: the view follows.
+  useEffect(() => {
+    if (map.current) frame(map.current, true)
+  }, [viewKey])
+
   // The vehicles last reported, drawn without the one you're riding: you're on the map yourself.
-  const vehicles = useRef<Vehicle[]>([])
   const riding = me ? aboard : undefined
   const ridingRef = useRef(riding)
   ridingRef.current = riding
@@ -350,14 +479,11 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         .then((r) => {
           if (!live) return
           setVehicleCount(r.vehicles.length)
-          const first = r.vehicles.find((v) => v.trip_id === firstTrip)
-          firstVehicle.current = first ? [first.lon, first.lat] : null
-          if (first && !framed.current && routeBounds.current) {
-            framed.current = true
-            frame(m, true)
-          }
           vehicles.current = r.vehicles
           drawVehicles(m)
+          // The first time the view's vehicle shows up, make room for it.
+          const b = viewBounds()
+          if (b && vehicleInView(b) && vehicleFramed.current !== viewKeyRef.current) frame(m, true)
         })
         .catch((e) => {
           if (e instanceof ApiError) setError(e.message)
@@ -378,9 +504,9 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
       if (!me) return src?.setData(fc([]))
       // Accuracy (m) as pixels at zoom 10; the layer scales it with the zoom.
       const px10 = me.accuracy / (156543.03 * Math.cos((me.lat * Math.PI) / 180) / 2 ** 10)
-      src?.setData(fc([{ type: 'Feature', properties: { px10 }, geometry: { type: 'Point', coordinates: [me.lon, me.lat] } }]))
+      src?.setData(fc([{ type: 'Feature', properties: { px10, icon: `you-${doing}` }, geometry: { type: 'Point', coordinates: [me.lon, me.lat] } }]))
     })
-  }, [me?.lat, me?.lon, me?.accuracy])
+  }, [me?.lat, me?.lon, me?.accuracy, doing])
 
   return (
     <div class="map-wrap">

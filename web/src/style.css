@@ -19,6 +19,7 @@
   --missed: #b42318;
   --on-tone: #ffffff; /* text on a risk colour */
   --white: #ffffff;
+  --stop-ink: #1e2226; /* the outline and centre of your stop's white dot, in either theme, as on the map */
   --line-fallback: #5e6670; /* a line without a colour */
   /* a gym's shoe: its sole is the dark part in either theme (filled here; on a dark page the upper is, instead) */
   --shoe-sole: currentColor;
@@ -220,6 +221,20 @@ select {
 
 .text-btn.quiet {
   color: var(--pencil);
+}
+
+/* the chevron after a line of text that opens or closes something (a ride's stops) */
+.text-btn .chevron {
+  margin-left: var(--s1);
+  vertical-align: -3px;
+  stroke-width: 2;
+}
+
+/* the stopwatch that starts a "Time my walk" link, sitting on the text's line */
+.text-btn .stopwatch {
+  margin-right: var(--s1);
+  vertical-align: -2.5px;
+  stroke-width: 2.2;
 }
 
 .icon-btn {
@@ -500,8 +515,17 @@ details > summary {
   grid-column: 1;
 }
 
-.callout > .actions {
+.callout > .actions,
+.callout > .detail {
   grid-column: 1 / -1;
+}
+
+/* the trip a notice suggests, as the list of options shows one (TripRow) */
+.trip-row {
+  display: grid;
+  grid-template-columns: max-content 1fr max-content 12px max-content;
+  column-gap: var(--s3);
+  align-items: center;
 }
 
 .callout .dismiss {
@@ -1310,7 +1334,7 @@ details > summary {
   stroke-linejoin: round;
 }
 
-.rail .walker circle {
+.rail .walker .head {
   fill: var(--pencil);
   stroke: none;
 }
@@ -1346,12 +1370,153 @@ details > summary {
   background: var(--c, var(--line-fallback));
 }
 
-.rail .board svg {
+.rail .board svg,
+.stop-strip .board svg {
   fill: none;
   stroke: var(--t, var(--white));
   stroke-width: 2.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* the part of a ride behind you is dimmed: on the step's line down to where you are, and (open) the rows above you */
+.rail .travelled {
+  position: absolute;
+  top: 12px;
+  left: calc(50% - 7px);
+  width: 14px;
+  border-radius: 7px 7px 0 0;
+  background: color-mix(in srgb, var(--wall) 62%, transparent);
+}
+
+.rail .line.past,
+.stop-strip .travelled {
+  background: color-mix(in srgb, var(--wall) 62%, var(--c, var(--line-fallback)));
+}
+
+/* a ride opened into its stops: its step runs on into a row for each, the line passing through them all */
+.step.opened {
+  padding-bottom: 3px;
+}
+
+.step.call {
+  padding: 3px 0;
+  border-top: 0;
+}
+
+.step.call.last {
+  margin-bottom: calc(var(--s3) - 3px);
+}
+
+.step.opened > .rail {
+  margin-bottom: -3px;
+}
+
+.step.call > .rail {
+  margin: -3px 0;
+}
+
+.step.opened .rail .line {
+  bottom: 0;
+  border-radius: 7px 7px 0 0;
+}
+
+.step.call .rail .line {
+  top: 0;
+  bottom: 0;
+  border-radius: 0;
+}
+
+/* the line ends a little past your stop */
+.step.call.last .rail .line {
+  bottom: calc(50% - 14px);
+  border-radius: 0 0 7px 7px;
+}
+
+/* the row you're in, between the stops behind and the stops ahead */
+.step.call.here > .rail {
+  min-height: 26px;
+}
+
+.step.call.here .rail .line.past {
+  bottom: 50%;
+}
+
+.step.call.here .rail .line.ahead {
+  top: 50%;
+}
+
+.step.call .time {
+  align-self: center;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--pencil);
+}
+
+.step.call.last .time {
+  font-size: var(--fs-strong);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.step.call .call-name,
+.step.call .passed {
+  align-self: center;
+}
+
+.step.call.last .call-name {
+  font-weight: 800;
+}
+
+.step.call .passed {
+  font-size: var(--fs-small);
+  color: var(--pencil);
+}
+
+/* a stop on the line: a dot, as where you get off; yours a larger white dot with the stop's dot in it */
+.call-dot {
+  position: absolute;
+  top: calc(50% - 3px);
+  left: calc(50% - 3px);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--t, var(--white));
+}
+
+.call-dot.past {
+  opacity: 0.3;
+}
+
+.your-stop {
+  position: absolute;
+  top: calc(50% - 9px);
+  left: calc(50% - 9px);
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border: 2px solid var(--stop-ink);
+  border-radius: 50%;
+  background: var(--white);
+}
+
+.your-stop::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: var(--stop-ink);
+}
+
+/* "Next" and "Get off", after a stop's name */
+.stop-tag {
+  margin-left: var(--s2);
+  padding: 1px 5px;
+  border-radius: var(--r-mark);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  color: var(--wall);
+  background: var(--ink);
 }
 
 .rail .alight {
@@ -1393,8 +1558,9 @@ details > summary {
   margin-top: 11px; /* over the house (or the shoe), drawn in the marker: you're there */
 }
 
-/* you: the same blue dot as on the map */
-.rail .you {
+/* you: the same blue disc as on the map */
+.rail .you,
+.stop-strip .you {
   position: absolute;
   left: calc(50% - 14px);
   z-index: 1;
@@ -1411,13 +1577,19 @@ details > summary {
   animation: you-here 2.4s ease-out infinite;
 }
 
-.rail .you svg {
+.rail .you svg,
+.stop-strip .you svg {
   color: var(--white);
   fill: none;
   stroke: var(--white);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.rail .you .head {
+  fill: var(--white);
+  stroke: none;
 }
 
 /* the shoe in the marker: white on the marker's blue is the dark page's drawing in either theme, a little heavier at this size */
@@ -1432,6 +1604,80 @@ details > summary {
   0% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 0 color-mix(in srgb, var(--you) 45%, transparent); }
   70% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 10px transparent; }
   100% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 0 transparent; }
+}
+
+/* ---- the ride you're on, as a strip: where you got on, each stop, yours, and you along it ---- */
+
+.stop-strip {
+  position: relative;
+  height: 28px;
+  margin: var(--s3) 11px var(--s2);
+}
+
+.stop-strip .line,
+.stop-strip .travelled {
+  position: absolute;
+  top: 7px;
+  left: -7px;
+  height: 14px;
+  border-radius: 7px;
+}
+
+.stop-strip .line {
+  right: -7px;
+  background: var(--c, var(--line-fallback));
+}
+
+.stop-strip .travelled {
+  border-radius: 7px 0 0 7px;
+}
+
+.stop-strip .board {
+  position: absolute;
+  top: 3px;
+  left: -11px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  border: 2px solid var(--wall);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--wall) 62%, var(--c, var(--line-fallback)));
+}
+
+.stop-strip .board svg {
+  opacity: 0.45;
+}
+
+.stop-strip .call-dot {
+  top: 11px;
+  margin-left: -3px;
+}
+
+.stop-strip .your-stop {
+  top: 5px;
+  left: auto;
+  right: -9px;
+}
+
+.stop-strip .you {
+  top: 14px;
+  margin-left: -14px;
+}
+
+.strip-ends {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  font-size: var(--fs-small);
+  color: var(--pencil);
+}
+
+.strip-ends span:last-child {
+  flex: none;
+  font-weight: 600;
+  color: var(--ink);
 }
 
 /* ---- the map: a sheet on phones, a pane beside the trip on desktop ---- */
@@ -1516,6 +1762,57 @@ details > summary {
 
 .sheet-leave {
   font-size: var(--fs-lead);
+}
+
+/* during a trip: a handle on the rule under the map. Dragged down (or tapped), the map takes the steps' room; dragged
+   back up, they return */
+.sheet-summary.pull {
+  padding-top: 0;
+}
+
+.sheet-handle {
+  grid-column: 1 / -1;
+  position: relative;
+  width: 100%;
+  z-index: 3; /* its hit area reaches up over the map's bottom edge */
+  height: var(--s4);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sheet-handle::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: calc(50% - 20px);
+  width: 40px;
+  height: 4px;
+  border-radius: var(--r-mark);
+  background: var(--ink);
+}
+
+/* 44px to take hold of, clear of the map's attribution in the corner */
+.sheet-handle::after {
+  content: '';
+  position: absolute;
+  inset: -14px var(--s7);
+}
+
+/* with the map pulled down, what to do now stays under it */
+.sheet-now {
+  grid-column: 1 / -1;
+}
+
+.sheet-summary .sheet-now p {
+  display: block;
+  margin: 0;
+}
+
+.sheet-now p:first-child {
+  font-weight: 600;
 }
 
 /* during a trip the description sits under the map, scrolling on its own */
@@ -1814,6 +2111,7 @@ details > summary {
   }
 
   .rail .you,
+  .stop-strip .you,
   .landing-run,
   .landing-volume,
   .landing-name {

@@ -94,10 +94,11 @@ export type Tone = 'neutral' | 'caution' | 'good' | 'bad'
  * A message that stands out from the page: neutral for information, good for a better option, caution when something
  * works but is degraded, bad when something failed. At most one action; a dismiss only if it can safely be ignored.
  */
-export function Callout({ tone = 'neutral', role, action, onDismiss, class: cls, children }: {
+export function Callout({ tone = 'neutral', role, action, detail, onDismiss, class: cls, children }: {
   tone?: Tone
   role?: 'status' | 'alert'
   action?: ComponentChildren
+  detail?: ComponentChildren // under the text, across the callout: the trip it suggests (TripRow)
   onDismiss?: () => void
   class?: string
   children: ComponentChildren
@@ -112,6 +113,7 @@ export function Callout({ tone = 'neutral', role, action, onDismiss, class: cls,
           </svg>
         </IconButton>
       )}
+      {detail && <div class="detail">{detail}</div>}
       {action && <div class="actions">{action}</div>}
     </div>
   )

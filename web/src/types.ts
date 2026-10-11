@@ -40,6 +40,13 @@ export interface Line {
   text_color?: string
 }
 
+/** A stop a ride calls at after the one you get on at: its name (its station's, for a platform) and when it gets there. */
+export interface Call {
+  name: string
+  station?: string
+  arr?: string // by live data when the trip has it; absent for a stop the trip skips
+}
+
 export interface Leg {
   kind: 'walk' | 'ride'
   from?: StopRef
@@ -53,6 +60,7 @@ export interface Leg {
   delay_s?: number
   sched_dep?: string
   stops?: number // ride legs: stops travelled, counting the one you get off at
+  calls?: Call[] // ride legs: those stops in order, ending with the one you get off at
   path?: [number, number][] // a walk along the streets, [lon, lat]
 }
 
