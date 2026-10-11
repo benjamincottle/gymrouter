@@ -91,7 +91,15 @@ Investigate are recorded only, not started.
       won't make…" warning shows its next best the same way ("Next best, with no changes:").
 - [x] **A stopwatch starts each "Time my walk" link.** Drawn (the Settings one, 16px, in the link's ink), not the ⏱
       emoji, which every phone draws its own way.
-- [ ] **A countdown of stops left on a ride?** And haptic feedback when it's time to get off?
+- [ ] **A countdown of stops left on a ride.** Being designed from mockups (four ways to show it, on the trip screen,
+      in the trip's steps and on the map). Whichever is chosen needs the server to send each ride's stops with their
+      names and live times: the app is only told how many there are, and where they are for the map.
+- [ ] **A buzz when it's time to get off?** Set aside to think about (2026-10-11). What's known: the page can only
+      vibrate the phone while the app is open on screen, and not at all on an iPhone, so it can't be relied on with
+      the phone in a pocket. The route that reaches a locked phone is a push notification from the server ("Next stop
+      is yours", sent when your vehicle leaves the stop before): that needs Web Push on the server, a permission
+      prompt, the server being told which trip you're on, and on an iPhone the app added to the home screen. None of
+      it has been tested on a phone.
 
 ## Map
 
