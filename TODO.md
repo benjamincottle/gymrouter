@@ -131,8 +131,8 @@ Investigate are recorded only, not started.
       (269 MB) every 35 days or when asked, keeps the streets inside the app's area and throws the rest away. The
       area is the basemap's box, so wherever the map draws, walks are routed: west 12 km past Penrith, north to
       Berowra and Palm Beach, south to Waterfall and Campbelltown. 1.92 M nodes (1.32 M before), a 57 MB cache.
-- [ ] **Climber Collective back as a built-in gym** (Jamisontown): it was taken out only because the street map didn't
-      reach it. A PR of its own, once the server in use has built the wider street map.
+- [x] **Climber Collective is back as a built-in gym** (Jamisontown): it was taken out only because the street map
+      didn't reach it. Seventeen gyms again, and a test holds every built-in gym inside the app's area.
 
 ## Investigate
 
