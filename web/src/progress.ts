@@ -96,6 +96,26 @@ export function onLine(line: LonLat[], p: { lat: number; lon: number }): { d: nu
   return { d: best.d, frac: total > 0 ? best.at / total : 0 }
 }
 
+/** A line cut in two at `frac` (0..1) of its length: the part behind that point and the part ahead, each ending or starting there. */
+export function splitAt(line: LonLat[], frac: number): [LonLat[], LonLat[]] {
+  if (line.length < 2) return [line, line]
+  const k = Math.cos((line[0][1] * Math.PI) / 180) * 111_320
+  const len = (a: LonLat, b: LonLat) => Math.hypot((b[0] - a[0]) * k, (b[1] - a[1]) * 110_540)
+  let total = 0
+  for (let i = 1; i < line.length; i++) total += len(line[i - 1], line[i])
+  let left = Math.min(1, Math.max(0, frac)) * total
+  for (let i = 1; i < line.length; i++) {
+    const d = len(line[i - 1], line[i])
+    if (left <= d) {
+      const t = d > 0 ? left / d : 0
+      const cut: LonLat = [line[i - 1][0] + (line[i][0] - line[i - 1][0]) * t, line[i - 1][1] + (line[i][1] - line[i - 1][1]) * t]
+      return [[...line.slice(0, i), cut], [cut, ...line.slice(i)]]
+    }
+    left -= d
+  }
+  return [line, [line[line.length - 1]]]
+}
+
 /** Steps away from where the clock expects you count as this much further (m), so a nearby part of the route can't steal you. */
 const STEP_PENALTY_M = 40
 /** Within this of a step's start, you're still at the end of the one before (waiting at the stop, not yet on the bus). */

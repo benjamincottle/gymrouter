@@ -26,5 +26,7 @@ daily_budget = 40000      # hard cap on upstream requests (free plan quota is 60
 # (walks fall back to estimates, the map to a blank background) while they download or if a download fails.
 [data]
 auto_download = true
-walk_source = "https://download.bbbike.org/osm/bbbike/Sydney/Sydney.osm.pbf"   # OpenStreetMap extract, ~60 MB, weekly
+# An OpenStreetMap extract that covers Greater Sydney. Geofabrik's New South Wales is rebuilt daily and is about
+# 270 MB: the server keeps the streets of the app's area from it and throws the rest away.
+walk_source = "https://download.geofabrik.de/australia-oceania/australia/new-south-wales-latest.osm.pbf"
 pmtiles_bin = "pmtiles"   # tool that cuts the basemap from the Protomaps build ("" = don't download a basemap)

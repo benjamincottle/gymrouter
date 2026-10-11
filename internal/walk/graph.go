@@ -6,8 +6,10 @@
 package walk
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"sort"
@@ -37,6 +39,8 @@ type Graph struct {
 	idx index
 	// Bounds of the data, for deciding whether a place is covered.
 	MinLat, MaxLat, MinLon, MaxLon float64
+	// Area is the box the network was clipped to when it was built from a larger extract; zero if it wasn't.
+	Area geo.Box
 }
 
 // Nodes returns the number of nodes.
@@ -69,8 +73,14 @@ type wayRec struct {
 
 // AddWay records a way if pedestrians can use it.
 func (b *Builder) AddWay(tags map[string]string, refs []int64) {
-	cost, ok := classify(tags)
-	if !ok || len(refs) < 2 {
+	if cost, ok := classify(tags); ok {
+		b.addWay(cost, refs)
+	}
+}
+
+// addWay records a way pedestrians can use, at its cost.
+func (b *Builder) addWay(cost float32, refs []int64) {
+	if len(refs) < 2 {
 		return
 	}
 	b.ways = append(b.ways, wayRec{off: int32(len(b.refs)), n: int32(len(refs)), cost: cost})
@@ -225,33 +235,90 @@ func (g *Graph) finish() {
 	g.idx = newIndex(g.lat, g.lon)
 }
 
-// FromPBF reads an OpenStreetMap extract and builds the walking graph. It reads the file twice: ways
-// first (to learn which nodes matter), then nodes.
-func FromPBF(path string) (*Graph, error) {
-	var b Builder
-	if err := readPBF(path, osmpbf.Handler{WantWays: true, Way: func(w osmpbf.Way) error {
-		b.AddWay(w.Tags, w.Refs)
-		return nil
-	}}); err != nil {
-		return nil, err
-	}
-	b.Prepare()
-	if err := readPBF(path, osmpbf.Handler{WantNodes: true, Node: func(n osmpbf.Node) error {
-		b.AddNode(n.ID, n.Lat, n.Lon)
-		return nil
-	}}); err != nil {
-		return nil, err
-	}
-	return b.Build()
+// errUnsorted: clipping needs the nodes in order of ID, which extracts made by osmium (Geofabrik's, BBBike's) are.
+var errUnsorted = errors.New("walk: the extract's nodes aren't in order of ID, which clipping it to an area needs")
+
+// FromPBF reads an OpenStreetMap extract and builds the walking graph: of the whole extract, or with clip, of the
+// part of it inside that box, however much larger the extract is. A way that leaves the box is cut at its last node
+// inside.
+//
+// Unclipped, the file is read twice: the ways first (to learn which nodes matter), then the nodes. Clipped, there is
+// a pass before those, over the nodes, to learn which are inside the box, so that only the ways that touch it are
+// kept: the memory the build needs then goes with the size of the box, not of the extract. In a sorted file (all the
+// nodes, then all the ways, then relations) each pass reads only its part.
+func FromPBF(path string, clip *geo.Box) (*Graph, error) {
+	return fromPBF(path, clip, &Builder{}, true)
 }
 
-func readPBF(path string, h osmpbf.Handler) error {
+// fromPBF is FromPBF building with b, and with or without the short cuts a sorted file allows (the graph is the same
+// either way; tests compare them).
+func fromPBF(path string, clip *geo.Box, b *Builder, shortCuts bool) (*Graph, error) {
+	until := func(u osmpbf.Until) osmpbf.Until {
+		if shortCuts {
+			return u
+		}
+		return osmpbf.UntilEnd
+	}
+	var lay osmpbf.Layout
+	var inside idSet
+	if clip != nil {
+		if err := readPBF(path, 0, osmpbf.Handler{WantNodes: true, Until: until(osmpbf.UntilWays), Layout: &lay, Node: func(n osmpbf.Node) error {
+			if clip.Contains(n.Lat, n.Lon) && !inside.add(n.ID) {
+				return errUnsorted
+			}
+			return nil
+		}}); err != nil {
+			return nil, err
+		}
+	}
+	var waysAt int64 // where the ways begin, when the pass before found out
+	if shortCuts && lay.Sorted && lay.WaysAt > 0 {
+		waysAt = lay.WaysAt
+	}
+	if err := readPBF(path, waysAt, osmpbf.Handler{WantWays: true, Until: until(osmpbf.UntilRelations), Sorted: lay.Sorted, Way: func(w osmpbf.Way) error {
+		if clip == nil {
+			b.AddWay(w.Tags, w.Refs)
+		} else if cost, ok := classify(w.Tags); ok && inside.hasAny(w.Refs) {
+			b.addWay(cost, w.Refs)
+		}
+		return nil
+	}}); err != nil {
+		return nil, err
+	}
+	inside = idSet{} // done with: the build needs the room
+	b.Prepare()
+	if err := readPBF(path, 0, osmpbf.Handler{WantNodes: true, Until: until(osmpbf.UntilWays), Node: func(n osmpbf.Node) error {
+		// A kept way's nodes outside the box get no position, which is where Build cuts it.
+		if clip == nil || clip.Contains(n.Lat, n.Lon) {
+			b.AddNode(n.ID, n.Lat, n.Lon)
+		}
+		return nil
+	}}); err != nil {
+		return nil, err
+	}
+	g, err := b.Build()
+	if err != nil {
+		return nil, err
+	}
+	if clip != nil {
+		g.Area = *clip
+	}
+	return g, nil
+}
+
+// readPBF passes the file to h, from a block that begins `from` bytes in.
+func readPBF(path string, from int64, h osmpbf.Handler) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	if err := osmpbf.Read(f, h); err != nil {
+	if from > 0 {
+		if _, err := f.Seek(from, io.SeekStart); err != nil {
+			return err
+		}
+	}
+	if err := osmpbf.Read(bufio.NewReaderSize(f, 1<<20), h); err != nil {
 		return fmt.Errorf("%s: %w", path, err)
 	}
 	return nil
