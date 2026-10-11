@@ -41,6 +41,8 @@ type Graph struct {
 	MinLat, MaxLat, MinLon, MaxLon float64
 	// Area is the box the network was clipped to when it was built from a larger extract; zero if it wasn't.
 	Area geo.Box
+	// Platforms are the railway platforms in the extract (see PlatformAt).
+	Platforms []Platform
 }
 
 // Nodes returns the number of nodes.
@@ -261,6 +263,7 @@ func fromPBF(path string, clip *geo.Box, b *Builder, shortCuts bool) (*Graph, er
 	}
 	var lay osmpbf.Layout
 	var inside idSet
+	var plats platformWays
 	if clip != nil {
 		if err := readPBF(path, 0, osmpbf.Handler{WantNodes: true, Until: until(osmpbf.UntilWays), Layout: &lay, Node: func(n osmpbf.Node) error {
 			if clip.Contains(n.Lat, n.Lon) && !inside.add(n.ID) {
@@ -278,8 +281,12 @@ func fromPBF(path string, clip *geo.Box, b *Builder, shortCuts bool) (*Graph, er
 	if err := readPBF(path, waysAt, osmpbf.Handler{WantWays: true, Until: until(osmpbf.UntilRelations), Sorted: lay.Sorted, Way: func(w osmpbf.Way) error {
 		if clip == nil {
 			b.AddWay(w.Tags, w.Refs)
+			plats.add(w.Tags, w.Refs)
 		} else if cost, ok := classify(w.Tags); ok && inside.hasAny(w.Refs) {
 			b.addWay(cost, w.Refs)
+			plats.add(w.Tags, w.Refs)
+		} else if !ok && w.Tags["railway"] == "platform" && inside.hasAny(w.Refs) {
+			plats.add(w.Tags, w.Refs) // a platform drawn as an area isn't a way to walk along, but it's still a platform
 		}
 		return nil
 	}}); err != nil {
@@ -287,10 +294,12 @@ func fromPBF(path string, clip *geo.Box, b *Builder, shortCuts bool) (*Graph, er
 	}
 	inside = idSet{} // done with: the build needs the room
 	b.Prepare()
+	plats.prepare()
 	if err := readPBF(path, 0, osmpbf.Handler{WantNodes: true, Until: until(osmpbf.UntilWays), Node: func(n osmpbf.Node) error {
 		// A kept way's nodes outside the box get no position, which is where Build cuts it.
 		if clip == nil || clip.Contains(n.Lat, n.Lon) {
 			b.AddNode(n.ID, n.Lat, n.Lon)
+			plats.node(n.ID, n.Lat, n.Lon)
 		}
 		return nil
 	}}); err != nil {
@@ -303,6 +312,7 @@ func fromPBF(path string, clip *geo.Box, b *Builder, shortCuts bool) (*Graph, er
 	if clip != nil {
 		g.Area = *clip
 	}
+	g.Platforms = plats.platforms()
 	return g, nil
 }
 

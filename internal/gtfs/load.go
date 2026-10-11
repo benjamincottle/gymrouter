@@ -22,6 +22,7 @@ const secsPerDay = 24 * 3600
 // Stop is a GTFS stop, platform or station.
 type Stop struct {
 	ID, Name, Parent, LocationType string
+	Platform                       string // a platform's number ("3"), when the feed gives one
 	Pos                            geo.Point
 }
 
@@ -148,7 +149,7 @@ func (d *Day) load(src Source) error {
 		d.StopIndex[id] = int32(len(d.Stops))
 		d.Stops = append(d.Stops, Stop{
 			ID: id, Name: r.get("stop_name"), Parent: r.get("parent_station"),
-			LocationType: r.get("location_type"), Pos: geo.Point{Lat: lat, Lon: lon},
+			LocationType: r.get("location_type"), Platform: r.get("platform_code"), Pos: geo.Point{Lat: lat, Lon: lon},
 		})
 		return nil
 	})

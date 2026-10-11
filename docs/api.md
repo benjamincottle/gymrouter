@@ -152,7 +152,9 @@ get on, carrying you, or just past where you get off.
 
 ## `GET /api/shape?date=YYYY-MM-DD&trip=<trip_id>&from=<stop_id>&to=<stop_id>`
 Path of one ride leg (use a plan's `service_date` and the leg's `trip_id` and stop IDs) and the stops it calls at
-in between: `{"coordinates": [[lon, lat], …], "stops": [[lon, lat], …]}`. Follows the route shape once shapes have loaded (a few seconds after
+in between: `{"coordinates": [[lon, lat], …], "stops": [[lon, lat], …]}`. For a train, metro or light-rail ride it
+also carries `"platform": [[lon, lat], …]`, the outline of the platform it's boarded from (closed: the last point is
+the first), when the street map has one at the stop (within 15 m, or 30 m when it carries the platform's number): anywhere on it is where you wait. Follows the route shape once shapes have loaded (a few seconds after
 startup), with each stop placed on the line; until then, straight lines between the trip's stops. A train follows
 its own track to the platform it uses, where the complete bundle has the trip; otherwise its route's line.
 

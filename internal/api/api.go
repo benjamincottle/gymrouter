@@ -38,6 +38,7 @@ type Engine interface {
 	Config() *config.Config
 	Geocode(ctx context.Context, q string) ([]tfnsw.Place, error)
 	LegGeometry(s *engine.Snapshot, tripID, fromStop, toStop string) (path, stops []geo.Point, ok bool)
+	BoardingPlatform(s *engine.Snapshot, tripID, fromStop string) ([]geo.Point, bool)
 	VehiclesNear(set lines.Set, rides []engine.Ride) []engine.Vehicle
 	MapFile() (string, bool)
 	Ensure(set lines.Set) error

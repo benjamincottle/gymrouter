@@ -381,6 +381,103 @@ func TestClippingNeedsNodesInOrder(t *testing.T) {
 	}
 }
 
+// A station beside the streets: a platform drawn as an area (so not a way to walk along) with a face each side, one
+// drawn as a line along its edge, one that runs out of the box, and one wholly outside it.
+func TestPlatformsAreKeptWithTheNetwork(t *testing.T) {
+	nodes, ways, box := streets()
+	next := int64(1000)
+	shape := func(tags map[string]string, pts ...geo.Point) {
+		var refs []int64
+		for i, p := range pts {
+			if i == len(pts)-1 && len(pts) > 2 && p == pts[0] {
+				refs = append(refs, refs[0]) // closed: back to the first node
+				break
+			}
+			nodes = append(nodes, osmpbftest.Node{ID: next, Lat: p.Lat, Lon: p.Lon})
+			refs = append(refs, next)
+			next++
+		}
+		ways = append(ways, osmpbftest.Way{ID: next, Refs: refs, Tags: tags})
+	}
+	rect := func(lat, lon0, lon1 float64) []geo.Point {
+		return []geo.Point{{Lat: lat, Lon: lon0}, {Lat: lat, Lon: lon1}, {Lat: lat + 0.00008, Lon: lon1}, {Lat: lat + 0.00008, Lon: lon0}, {Lat: lat, Lon: lon0}}
+	}
+	shape(map[string]string{"railway": "platform", "ref": "1;2", "area": "yes"}, rect(-33.91, 151.001, 151.003)...)
+	shape(map[string]string{"railway": "platform", "ref": "3"}, geo.Point{Lat: -33.9105, Lon: 151.001}, geo.Point{Lat: -33.9105, Lon: 151.003})
+	shape(map[string]string{"railway": "platform", "ref": "4", "area": "yes"}, rect(-33.911, 151.004, 151.008)...) // across the edge at 151.0055
+	shape(map[string]string{"railway": "platform", "ref": "5", "area": "yes"}, rect(-33.912, 151.007, 151.009)...) // outside
+	path := writeFile(t, osmpbftest.EncodeWith(nodes, ways, osmpbftest.Options{Sorted: true, PerBlock: 7, Relation: true}))
+
+	g, err := fromPBF(path, &box, &Builder{MinComponent: 1}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refs := map[string]int{}
+	for _, p := range g.Platforms {
+		refs[p.Ref] = len(p.Outline)
+	}
+	// Whole ones keep every point (an area's last is its first); the one across the edge keeps only what's inside:
+	// its two western corners, the first of them again to close it.
+	if len(g.Platforms) != 3 || refs["1;2"] != 5 || refs["3"] != 2 || refs["4"] != 3 {
+		t.Fatalf("platforms kept: %v", refs)
+	}
+	// The area isn't walked along, the line is: 18 street nodes and the line's 2 (an island, kept at this size).
+	if g.Nodes() != 20 {
+		t.Errorf("%d nodes: an area platform's corners shouldn't be street nodes", g.Nodes())
+	}
+	whole, err := fromPBF(path, nil, &Builder{MinComponent: 1}, true)
+	if err != nil || len(whole.Platforms) != 4 {
+		t.Errorf("unclipped: %d platforms, %v", len(whole.Platforms), err)
+	}
+
+	// The timetable's point for a platform finds its outline: by its number when several are close, else the nearest.
+	on12 := geo.Point{Lat: -33.90996, Lon: 151.002} // on the island
+	for name, tc := range map[string]struct {
+		at   geo.Point
+		code string
+		want string // the ref of the platform found; "" for none
+	}{
+		"25 m off the island, as platform 2":         {geo.Point{Lat: -33.90969, Lon: 151.002}, "2", "1;2"}, // its number reaches further
+		"25 m off the island, no number":             {geo.Point{Lat: -33.90969, Lon: 151.002}, "", ""},
+		"25 m off the island, as platform 3":         {geo.Point{Lat: -33.90969, Lon: 151.002}, "3", ""},
+		"on the island, as platform 2":               {on12, "2", "1;2"},
+		"on the island, no number":                   {on12, "", "1;2"},
+		"on the island, as platform 3":               {on12, "3", "1;2"}, // 3 is 55 m away: too far to be it
+		"between the two, as platform 3":             {geo.Point{Lat: -33.91041, Lon: 151.002}, "3", "3"},
+		"between the two, as platform 1":             {geo.Point{Lat: -33.91041, Lon: 151.002}, "1", "3"}, // the island is 46 m off
+		"beside the line, within 15 m":               {geo.Point{Lat: -33.91060, Lon: 151.002}, "", "3"},
+		"22 m from the line, no number":              {geo.Point{Lat: -33.91070, Lon: 151.002}, "", ""},
+		"22 m from the line, as platform 3":          {geo.Point{Lat: -33.91070, Lon: 151.002}, "3", "3"},
+		"45 m from the line, as platform 3":          {geo.Point{Lat: -33.91091, Lon: 151.002}, "3", ""},
+		"past the end of the island by 10 m":         {geo.Point{Lat: -33.90996, Lon: 151.00311}, "1", "1;2"},
+		"past the end of the island by 30 m":         {geo.Point{Lat: -33.90996, Lon: 151.00333}, "1", ""},
+		"by what is left of the one cut at the edge": {geo.Point{Lat: -33.91096, Lon: 151.00405}, "4", "4"},
+		"where the rest of it was":                   {geo.Point{Lat: -33.91096, Lon: 151.0045}, "4", ""},
+		"at the one outside it (not kept)":           {geo.Point{Lat: -33.912, Lon: 151.008}, "5", ""},
+	} {
+		out, ok := g.PlatformAt(tc.at, tc.code)
+		got := ""
+		for _, p := range g.Platforms {
+			if ok && len(p.Outline) == len(out) && p.Outline[0] == out[0] {
+				got = p.Ref
+			}
+		}
+		if got != tc.want {
+			t.Errorf("%s: found %q, want %q", name, got, tc.want)
+		}
+	}
+
+	// They're kept with the cache.
+	saved := filepath.Join(t.TempDir(), "walk.graph")
+	if err := g.Save(saved); err != nil {
+		t.Fatal(err)
+	}
+	h, err := Load(saved)
+	if err != nil || !reflect.DeepEqual(h.Platforms, g.Platforms) {
+		t.Errorf("after save and load: %v, %d platforms", err, len(h.Platforms))
+	}
+}
+
 // Real data, if an extract is at $WALK_TEST_PBF (Geofabrik's New South Wales, or any that covers Sydney): clipped to
 // the app's area, with a walk at each end of it. WALK_TEST_COMPARE=1 also builds it without the short cuts a sorted
 // file allows, to see that the network is the same and what they save.

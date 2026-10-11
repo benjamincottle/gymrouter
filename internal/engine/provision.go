@@ -190,7 +190,7 @@ func (e *Engine) buildWalk(ctx context.Context) (*walk.Graph, error) {
 	if err := g.Save(filepath.Join(dir, walkFile)); err != nil {
 		return nil, fmt.Errorf("saving street network: %w", err)
 	}
-	e.log.Info("street network ready", "nodes", g.Nodes(), "edges", g.Edges(), "area", area.String(),
+	e.log.Info("street network ready", "nodes", g.Nodes(), "edges", g.Edges(), "platforms", len(g.Platforms), "area", area.String(),
 		"built_in", e.now().Sub(built).Round(time.Second).String(), "took", e.now().Sub(start).Round(time.Second).String())
 	return g, nil
 }

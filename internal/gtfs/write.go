@@ -77,7 +77,7 @@ func WriteZip(path string, shapes map[string]Shape, days ...*Day) error {
 
 	var stopRows [][]string
 	for _, s := range stops {
-		stopRows = append(stopRows, []string{s.ID, s.Name, ftoa(s.Pos.Lat), ftoa(s.Pos.Lon), s.LocationType, s.Parent})
+		stopRows = append(stopRows, []string{s.ID, s.Name, ftoa(s.Pos.Lat), ftoa(s.Pos.Lon), s.LocationType, s.Parent, s.Platform})
 	}
 	sortRows(stopRows)
 	routes := map[string]Route{}
@@ -115,7 +115,7 @@ func WriteZip(path string, shapes map[string]Shape, days ...*Day) error {
 		header []string
 		rows   [][]string
 	}{
-		{"stops.txt", []string{"stop_id", "stop_name", "stop_lat", "stop_lon", "location_type", "parent_station"}, stopRows},
+		{"stops.txt", []string{"stop_id", "stop_name", "stop_lat", "stop_lon", "location_type", "parent_station", "platform_code"}, stopRows},
 		{"routes.txt", []string{"route_id", "agency_id", "route_short_name", "route_long_name", "route_desc", "route_type", "route_color", "route_text_color"}, routeRows},
 		{"trips.txt", []string{"route_id", "service_id", "trip_id", "trip_headsign", "shape_id"}, tripRows},
 		{"stop_times.txt", []string{"trip_id", "arrival_time", "departure_time", "stop_id", "stop_sequence", "shape_dist_traveled"}, timeRows},
