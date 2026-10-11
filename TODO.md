@@ -77,26 +77,36 @@ clean today). Roughly in order of value.
 
 # TODO: field review (2026-10-11)
 
-In a trip and Map (but for the stops countdown) are done on branch `field-review-2`: what was chosen, and from what, is
-in the spec's decision log (2026-10-11). The rest is recorded only, not started.
+Branch `field-review-2`, committed locally. In a trip and Map are done but for the stops countdown; each was chosen
+from mockups taken from the running app (the alternatives are in the spec's decision log, 2026-10-11). Server and
+Investigate are recorded only, not started.
 
 ## In a trip
 
-- [x] **The "faster way opened up" notice can be dismissed** during an active trip.
-- [x] **The "faster way opened up" notice shows the suggested trip's strip**, like the ones in the list of trips.
-- [x] **A tiny stopwatch (⏱) at the start of the "Time my walk" links.**
+- [x] **A "faster way" notice can be dismissed.** That way then isn't offered again on the trip, through re-checks and
+      a reload: it's known by the vehicles it takes that yours doesn't. Only the fastest way is ever offered, so with
+      it dismissed nothing shows until a different way is the fastest.
+- [x] **The notice shows the trip it suggests as a row from the list of trips**: leave, tape, arrive, risk, door to
+      door, from where you are now. Its sentence drops what the row says ("6 min sooner, with no changes."). The "You
+      won't make…" warning shows its next best the same way ("Next best, with no changes:").
+- [x] **A stopwatch starts each "Time my walk" link.** Drawn (the Settings one, 16px, in the link's ink), not the ⏱
+      emoji, which every phone draws its own way.
 - [ ] **A countdown of stops left on a ride?** And haptic feedback when it's time to get off?
 
 ## Map
 
-- [x] **Once a trip has started, the map opens zoomed to the current leg.** Before that it's the whole trip, as now.
-      "Started" needs a definition: maybe once you were supposed to leave.
-- [x] **You as a mini walking figure, train, bus, etc.** during an active trip, instead of a plain blue dot. Keep the
-      white outline, so probably a white icon (it may need to be bigger to be legible). The same on the trip's
-      vertical tape, where "you" is an arrow now. Mock these first.
-- [x] **Pull down on the map's bottom edge** during an active trip to make it take up most of the screen, and drag it
-      back again.
-- [x] **The stops along a route are slightly more prominent** on the map.
+- [x] **Once you've set off, the map fits the step you're on**: the walk, the ride from where you get on to where you
+      get off, the change, with you in it. Waiting at a stop, it's the ride you're waiting for. Before that it's the
+      whole trip, as it was. "Set off" is the "you" marker's own rule: your location has you past the trip's first
+      step, or with no location the leave time has come. The view moves on with each new step, unless you've moved
+      the map yourself.
+- [x] **You are drawn as what you're doing**, on the map and on the trip's rail: a walker on foot (walking, or waiting
+      at a stop), a train, bus or ferry on a ride, white on the blue inside the white border. 28px on both (the map's
+      was a 20px dot). At either end of the rail you're still the house or the shoe.
+- [x] **The map can be pulled down over the steps** by a handle on the rule under it: drag it, or tap it. The arrive
+      line and what to do now stay under it. Drag it back up for the steps. It stays as you left it for the rest of
+      the trip.
+- [x] **Stops along a route are 10px across** with a heavier outline (they were 6px, as wide as the line).
 
 ## Server
 
