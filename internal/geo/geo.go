@@ -4,6 +4,7 @@ package geo
 import (
 	"math"
 	"sort"
+	"strconv"
 )
 
 const earthRadiusM = 6371000.0
@@ -11,6 +12,22 @@ const earthRadiusM = 6371000.0
 // Point is a WGS84 coordinate.
 type Point struct {
 	Lat, Lon float64
+}
+
+// Box is an area between two meridians and two parallels.
+type Box struct {
+	MinLon, MinLat, MaxLon, MaxLat float64
+}
+
+// Contains reports whether a position is in the box, its edges included.
+func (b Box) Contains(lat, lon float64) bool {
+	return lon >= b.MinLon && lon <= b.MaxLon && lat >= b.MinLat && lat <= b.MaxLat
+}
+
+// String writes the box as "min_lon,min_lat,max_lon,max_lat", the form map tools take.
+func (b Box) String() string {
+	f := func(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
+	return f(b.MinLon) + "," + f(b.MinLat) + "," + f(b.MaxLon) + "," + f(b.MaxLat)
 }
 
 // DistanceM returns the great-circle distance between a and b in metres.

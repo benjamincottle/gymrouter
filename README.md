@@ -31,7 +31,8 @@ gymrouter make-fixture   build the trimmed real-data test fixture
    ```
    On first start it downloads the timetables (~300 MB) into `server.data_dir`.
 4. That's all: the server downloads the rest itself in the background. After the timetables (the first start waits for
-   these) it fetches an OpenStreetMap extract for walking (~60 MB, built into a street network) and cuts the Sydney basemap
+   these) it fetches an OpenStreetMap extract for walking (Geofabrik's New South Wales, ~270 MB, of which it keeps the
+   streets of Greater Sydney as a street network) and cuts the Sydney basemap
    from the Protomaps build with the `pmtiles` tool (~63 MB; in the Docker image, or install it and put it on `PATH`). Both
    refresh themselves every month or two. Until they arrive, walks are straight-line estimates and the map is blank.
 5. Run `gymrouter setup-link` and open the link on your phone. In Settings, add your home and tick

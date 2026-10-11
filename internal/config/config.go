@@ -40,7 +40,8 @@ type Server struct {
 type Data struct {
 	// AutoDownload fetches and refreshes the street network and the basemap in the background.
 	AutoDownload bool `toml:"auto_download"`
-	// WalkSource is an OpenStreetMap extract (.osm.pbf) covering the area, e.g. BBBike's Sydney extract.
+	// WalkSource is an OpenStreetMap extract (.osm.pbf) that covers the app's area: Geofabrik's New South Wales by
+	// default. It can be much larger than the area: the street network is clipped to it.
 	WalkSource string `toml:"walk_source"`
 	// PMTilesBin is the pmtiles tool used to cut the basemap from the Protomaps build ("" disables the basemap download).
 	PMTilesBin string `toml:"pmtiles_bin"`
@@ -89,7 +90,7 @@ func Defaults() Config {
 		Routing: Routing{MaxTransferM: 400, WalkSpeedMps: 1.3, DetourFactor: 1.3, MinChangeS: 60, MaxRides: 4,
 			MaxWalkM: 1000, AlternativesS: 600, MaxWindowS: 3 * 3600},
 		Risk: Risk{SafeS: 180, TightS: 60},
-		Data: Data{AutoDownload: true, WalkSource: "https://download.bbbike.org/osm/bbbike/Sydney/Sydney.osm.pbf", PMTilesBin: "pmtiles"},
+		Data: Data{AutoDownload: true, WalkSource: "https://download.geofabrik.de/australia-oceania/australia/new-south-wales-latest.osm.pbf", PMTilesBin: "pmtiles"},
 		Realtime: Realtime{TripUpdatesEvery: Duration{30 * time.Second}, VehiclesEvery: Duration{15 * time.Second},
 			ActiveFor: Duration{10 * time.Minute}, DailyBudget: 40000},
 	}

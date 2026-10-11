@@ -39,11 +39,50 @@ type Handler struct {
 	Way  func(Way) error
 	// WantNodes and WantWays let a pass skip decoding what it doesn't need.
 	WantNodes, WantWays bool
+	// Until ends the read early, at the first block holding ways or relations. It only does so in a sorted file
+	// (see Layout): anywhere else a node may follow a way, and the whole file is read.
+	Until Until
+	// Sorted says the file is sorted, for a read that doesn't begin at the file's header and so can't see for
+	// itself (a pass that seeks to where an earlier one found the ways).
+	Sorted bool
+	// Layout, if not nil, is filled in with what the read learns about how the file is laid out.
+	Layout *Layout
 }
+
+// Until names where a read may end early.
+type Until uint8
+
+const (
+	UntilEnd       Until = iota // read everything
+	UntilWays                   // end at the first block holding a way (or a relation): every node comes before it
+	UntilRelations              // end at the first block holding a relation: every node and way comes before it
+)
+
+// Layout is how a file is laid out, as far as a read got.
+type Layout struct {
+	// Sorted: the header declares Sort.Type_then_ID, which extracts made by osmium (Geofabrik's, BBBike's) do:
+	// every node, then every way, then every relation, each in order of ID.
+	Sorted bool
+	// WaysAt is where the first block holding a way begins, in bytes from where the read began; -1 if the read
+	// never came to one.
+	WaysAt int64
+}
+
+// sortedFeature is the optional feature a header lists when the file is sorted by type, then ID.
+const sortedFeature = "Sort.Type_then_ID"
+
+// errDone ends a read early, as Handler.Until asks.
+var errDone = errors.New("osmpbf: read as far as asked")
 
 // Read streams a PBF file through h.
 func Read(r io.Reader, h Handler) error {
+	sorted := h.Sorted
+	if h.Layout != nil {
+		*h.Layout = Layout{Sorted: sorted, WaysAt: -1}
+	}
+	var off int64 // where the next block begins
 	for {
+		at := off
 		var lenBuf [4]byte
 		if _, err := io.ReadFull(r, lenBuf[:]); err != nil {
 			if err == io.EOF {
@@ -70,17 +109,67 @@ func Read(r io.Reader, h Handler) error {
 		if _, err := io.ReadFull(r, blob); err != nil {
 			return fmt.Errorf("osmpbf: reading blob: %w", err)
 		}
-		if kind != "OSMData" {
-			continue // OSMHeader and anything unknown
+		off += 4 + int64(hdrLen) + int64(dataSize)
+		if kind != "OSMData" && kind != "OSMHeader" {
+			continue // anything unknown
 		}
 		raw, err := inflate(blob)
 		if err != nil {
 			return err
 		}
-		if err := decodeBlock(raw, h); err != nil {
+		if kind == "OSMHeader" {
+			if sorted, err = headerSaysSorted(raw); err != nil {
+				return err
+			}
+			sorted = sorted || h.Sorted
+			if h.Layout != nil {
+				h.Layout.Sorted = sorted
+			}
+			continue
+		}
+		bl := block{granularity: 100}
+		if sorted {
+			bl.until = h.Until
+		}
+		err = bl.decode(raw, h)
+		if bl.ways && h.Layout != nil && h.Layout.WaysAt < 0 {
+			h.Layout.WaysAt = at
+		}
+		if err == errDone {
+			return nil
+		}
+		if err != nil {
 			return err
 		}
 	}
+}
+
+// headerSaysSorted reads a header block for the optional feature that says the file is sorted.
+func headerSaysSorted(b []byte) (bool, error) {
+	for len(b) > 0 {
+		num, typ, n := protowire.ConsumeTag(b)
+		if n < 0 {
+			return false, errors.New("osmpbf: bad header block")
+		}
+		b = b[n:]
+		if num == 5 && typ == protowire.BytesType { // optional_features
+			v, n := protowire.ConsumeBytes(b)
+			if n < 0 {
+				return false, errors.New("osmpbf: bad header feature")
+			}
+			if string(v) == sortedFeature {
+				return true, nil
+			}
+			b = b[n:]
+			continue
+		}
+		n = protowire.ConsumeFieldValue(num, typ, b)
+		if n < 0 {
+			return false, errors.New("osmpbf: bad header block field")
+		}
+		b = b[n:]
+	}
+	return false, nil
 }
 
 func parseBlobHeader(b []byte) (kind string, size int, err error) {
@@ -168,10 +257,12 @@ func inflate(blob []byte) ([]byte, error) {
 type block struct {
 	strings                     [][]byte
 	granularity, latOff, lonOff int64
+	until                       Until // where to end the read, when the file is sorted
+	ways                        bool  // the block holds a way
 }
 
-func decodeBlock(b []byte, h Handler) error {
-	bl := block{granularity: 100}
+// decode passes a block's nodes and ways to h. It returns errDone on coming to what h.Until names.
+func (bl *block) decode(b []byte, h Handler) error {
 	var groups [][]byte
 	for len(b) > 0 {
 		num, typ, n := protowire.ConsumeTag(b)
@@ -284,8 +375,16 @@ func (bl *block) decodeGroup(b []byte, h Handler) error {
 				err = bl.decodeDense(v, h)
 			}
 		case 3:
+			bl.ways = true
+			if bl.until == UntilWays {
+				return errDone
+			}
 			if h.WantWays && h.Way != nil {
 				err = bl.decodeWay(v, h)
+			}
+		case 4: // a relation
+			if bl.until != UntilEnd {
+				return errDone
 			}
 		}
 		if err != nil {
