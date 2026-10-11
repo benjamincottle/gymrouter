@@ -189,7 +189,7 @@ No body. Asks the server to download the street map and rebuild the street netwo
 one is ready, and the status says how it's going (`data.walk_updating`, then a new `walk_age_s`, or `walk_error`).
 Asking while one is under way changes nothing. A failed update is tried again after 6 hours, like any other.
 `409` when the server doesn't download a street map (`data.auto_download` off, or no `walk_source`).
-BBBike rebuilds its extract weekly, so an edit to OpenStreetMap can take up to a week to be there to fetch.
+Geofabrik rebuilds its extract daily, so an edit to OpenStreetMap is usually there to fetch the next day.
 
 Any authenticated API request counts as activity: realtime polling runs while the app was used in the last
 `realtime.active_for` (default 10 min).

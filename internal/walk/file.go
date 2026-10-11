@@ -6,16 +6,22 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
+
+	"github.com/benjamincottle/gymrouter/internal/geo"
 )
 
-// The cache file lets a restart skip parsing the OSM extract. Format: magic, version, counts, then the arrays
-// (little endian). Bump version when anything about the graph's meaning changes (e.g. the way classification).
+// The cache file lets a restart skip parsing the OSM extract. Format: magic, version, counts, the area the graph was
+// clipped to (min lon, min lat, max lon, max lat, in 1e-7 degrees; zeros if it wasn't), then the arrays (little
+// endian). Bump version when anything about the graph's meaning changes (e.g. the way classification).
 const (
 	fileMagic   = "GRWALK"
-	fileVersion = 1
+	fileVersion = 2
 )
+
+func toFixed(deg float64) int32 { return int32(math.Round(deg * degScale)) }
 
 // Save writes the graph atomically.
 func (g *Graph) Save(path string) error {
@@ -28,6 +34,10 @@ func (g *Graph) Save(path string) error {
 	w.WriteString(fileMagic)
 	hdr := []uint32{fileVersion, uint32(len(g.lat)), uint32(len(g.to))}
 	if err := binary.Write(w, binary.LittleEndian, hdr); err != nil {
+		return err
+	}
+	area := []int32{toFixed(g.Area.MinLon), toFixed(g.Area.MinLat), toFixed(g.Area.MaxLon), toFixed(g.Area.MaxLat)}
+	if err := binary.Write(w, binary.LittleEndian, area); err != nil {
 		return err
 	}
 	for _, a := range []any{g.lat, g.lon, g.start, g.to, g.cost} {
@@ -70,7 +80,12 @@ func Load(path string) (*Graph, error) {
 	if n == 0 || n > maxNodes || e > 4*maxNodes {
 		return nil, errors.New("walk: implausible graph size")
 	}
+	var area [4]int32
+	if err := binary.Read(r, binary.LittleEndian, &area); err != nil {
+		return nil, fmt.Errorf("walk: truncated graph file: %w", err)
+	}
 	g := &Graph{lat: make([]int32, n), lon: make([]int32, n), start: make([]int32, n+1), to: make([]int32, e), cost: make([]float32, e)}
+	g.Area = geo.Box{MinLon: float64(area[0]) / degScale, MinLat: float64(area[1]) / degScale, MaxLon: float64(area[2]) / degScale, MaxLat: float64(area[3]) / degScale}
 	for _, a := range []any{g.lat, g.lon, g.start, g.to, g.cost} {
 		if err := binary.Read(r, binary.LittleEndian, a); err != nil {
 			return nil, fmt.Errorf("walk: truncated graph file: %w", err)

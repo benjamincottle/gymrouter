@@ -60,11 +60,49 @@ func blob(kind string, payload []byte, compress bool) []byte {
 	return append(out, body...)
 }
 
+// Options vary how a file is written.
+type Options struct {
+	// Sorted declares Sort.Type_then_ID in the header, as extracts made by osmium do (the nodes and ways given have
+	// to be in order of ID for that to be true).
+	Sorted bool
+	// PerBlock is how many nodes or ways go in a block (0: all the nodes in one, all the ways in another).
+	PerBlock int
+	// Relation ends the file with a block holding a relation, as real extracts end.
+	Relation bool
+}
+
 // Encode returns a PBF file: a header block, then one block of dense nodes and one of ways (the order real
 // extracts use). Coordinates have 1e-7 degree precision.
-func Encode(nodes []Node, ways []Way) []byte {
-	out := blob("OSMHeader", bytesField(nil, 4, []byte("OsmSchema-V0.6")), true)
+func Encode(nodes []Node, ways []Way) []byte { return EncodeWith(nodes, ways, Options{}) }
 
+// EncodeWith is Encode with options.
+func EncodeWith(nodes []Node, ways []Way, o Options) []byte {
+	hdr := bytesField(nil, 4, []byte("OsmSchema-V0.6"))
+	if o.Sorted {
+		hdr = bytesField(hdr, 5, []byte("Sort.Type_then_ID"))
+	}
+	out := blob("OSMHeader", hdr, true)
+	per := func(n int) int {
+		if o.PerBlock > 0 {
+			return o.PerBlock
+		}
+		return max(n, 1)
+	}
+	for i := 0; i == 0 || i < len(nodes); i += per(len(nodes)) {
+		out = append(out, nodeBlock(nodes[i:min(i+per(len(nodes)), len(nodes))])...)
+	}
+	for i := 0; i == 0 || i < len(ways); i += per(len(ways)) {
+		out = append(out, wayBlock(ways[i:min(i+per(len(ways)), len(ways))])...)
+	}
+	if o.Relation {
+		rel := protowire.AppendVarint(protowire.AppendTag(nil, 1, protowire.VarintType), 1) // its ID; nothing reads more
+		out = append(out, blob("OSMData", bytesField(bytesField(nil, 1, nil), 2, bytesField(nil, 4, rel)), true)...)
+	}
+	return out
+}
+
+// nodeBlock is a block of dense nodes.
+func nodeBlock(nodes []Node) []byte {
 	var ids, lats, lons []uint64
 	var pid, plat, plon int64
 	for _, n := range nodes {
@@ -80,8 +118,11 @@ func Encode(nodes []Node, ways []Way) []byte {
 	dense = bytesField(dense, 9, packed(lons))
 	var group []byte
 	group = bytesField(group, 2, dense)
-	out = append(out, blob("OSMData", bytesField(bytesField(nil, 1, nil), 2, group), true)...)
+	return blob("OSMData", bytesField(bytesField(nil, 1, nil), 2, group), true)
+}
 
+// wayBlock is a block of ways.
+func wayBlock(ways []Way) []byte {
 	// Ways share one string table; index 0 is the required empty string.
 	table := [][]byte{{}}
 	index := map[string]uint64{}
@@ -118,5 +159,5 @@ func Encode(nodes []Node, ways []Way) []byte {
 	}
 	block := bytesField(nil, 1, st)
 	block = bytesField(block, 2, wgroup)
-	return append(out, blob("OSMData", block, false)...)
+	return blob("OSMData", block, false)
 }

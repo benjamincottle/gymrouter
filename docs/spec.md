@@ -695,3 +695,30 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   - **A buzz when it's time to get off is set aside**, undecided (see TODO.md): a page can only vibrate a phone while
     it's open on screen, and not at all on an iPhone; the route that reaches a locked phone is a push notification
     from the server, which is a feature of its own.
+- 2026-10-11: The street network comes from Geofabrik's New South Wales extract, clipped to the app's area
+  (supersedes BBBike's Sydney extract, and from 2026-10-10 both "widening the street map wasn't worth it" and "a
+  built-in gym has to be inside the street map, not just the basemap": they are now one area). BBBike's extract is a
+  fixed box that stops at 150.83°E, short of Penrith, and is rebuilt weekly; its custom extracts can't be fetched on
+  a schedule. Geofabrik's is rebuilt daily but is the whole state: 269 MB, 36 million nodes.
+  - **The area is the basemap's box**, 150.55 to 151.35°E, 34.15 to 33.45°S: wherever the map draws, walks are
+    routed. Chosen over BBBike's box with only its western edge moved (Penrith and no more), and over a drawn
+    polygon hugging Greater Sydney: ocean and bushland hold so few paths that the box, three times BBBike's in area,
+    is 1.92 million nodes against 1.32 million, where a polygon would need code and a shape to keep up for little
+    saved.
+  - **The server clips it itself, as it reads.** A first pass over the nodes notes which are inside the box (7.6
+    million IDs, kept as the differences between neighbours: 8 MB). The ways pass then keeps only walkable ways that
+    touch the box, and the last pass gives positions only to nodes inside it, so a way that leaves is cut at its last
+    node inside, as it was at the edge of BBBike's extract. Memory goes with the size of the box, not of the state:
+    building all of New South Wales the old way would have held about 225 MB before making the graph. Turned down: an
+    outside tool such as osmium (the image is distroless and static), Overpass (not for extracts this size), and
+    writing a clipped file first (nothing needs it).
+  - **Each pass reads only its part of the file.** Geofabrik's files say they are sorted (all the nodes, then the
+    ways, then relations), so the node passes stop at the first way and the ways pass starts there: 13 s to build
+    against 18 s reading every pass in full, for the same network. A file that doesn't say so is read in full.
+  - The download (about 40 s where it was tried) no longer holds the one-big-job-at-a-time lock, only the build does (about 17 s): a
+    line search or the stop catalogue isn't kept waiting on a 269 MB download.
+  - The cached graph records the area it was clipped to, and one built for another area is rebuilt (staying in use
+    meanwhile). The cache's format changed with it, so the first start after this rebuilds it once.
+  - Measured on the server as deployed (`GOMEMLIMIT=500MiB`): the build's high-water mark is about 330 MB (265 MB
+    before) and memory settles about 35 MB higher than it did. The refresh stays every 35 days, or "Update now".
+  - Climber Collective comes back as a built-in gym in a change of its own, once the wider street map is in use.

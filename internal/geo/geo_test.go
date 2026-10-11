@@ -102,3 +102,26 @@ func TestAtDist(t *testing.T) {
 		}
 	}
 }
+
+func TestBox(t *testing.T) {
+	b := Box{MinLon: 150.55, MinLat: -34.15, MaxLon: 151.35, MaxLat: -33.45}
+	for name, tc := range map[string]struct {
+		lat, lon float64
+		in       bool
+	}{
+		"the middle":            {-33.8, 151, true},
+		"on the western edge":   {-33.8, 150.55, true},
+		"on the northern edge":  {-33.45, 151, true},
+		"just west of it":       {-33.8, 150.5499999, false},
+		"just north of it":      {-33.4499999, 151, false},
+		"east, out to sea":      {-33.8, 151.36, false},
+		"south, past Waterfall": {-34.2, 151, false},
+	} {
+		if got := b.Contains(tc.lat, tc.lon); got != tc.in {
+			t.Errorf("%s: Contains(%v, %v) = %v", name, tc.lat, tc.lon, got)
+		}
+	}
+	if got := b.String(); got != "150.55,-34.15,151.35,-33.45" {
+		t.Errorf("String() = %q", got)
+	}
+}

@@ -1,12 +1,16 @@
 package walk
 
 import (
+	"errors"
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/benjamincottle/gymrouter/internal/geo"
+	"github.com/benjamincottle/gymrouter/internal/osmpbf/osmpbftest"
 )
 
 func TestClassify(t *testing.T) {
@@ -242,17 +246,160 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	}
 }
 
-// Real data, if a Sydney extract is at $WALK_TEST_PBF: the Lane Cove gym to a nearby bus stop.
-func TestRealExtract(t *testing.T) {
-	path := os.Getenv("WALK_TEST_PBF")
-	if path == "" {
-		t.Skip("set WALK_TEST_PBF to an OSM extract of Sydney")
+// streets is an extract of three streets running east, twelve nodes each about 90 m apart, joined by a street running
+// north at every node. The box takes in the six western nodes of each: the streets running east cross its edge.
+func streets() (nodes []osmpbftest.Node, ways []osmpbftest.Way, box geo.Box) {
+	id := func(x, y int) int64 { return int64(1 + y*100 + x) }
+	road := map[string]string{"highway": "residential"}
+	for y := 0; y < 3; y++ {
+		var east []int64
+		for x := 0; x < 12; x++ {
+			nodes = append(nodes, osmpbftest.Node{ID: id(x, y), Lat: -33.9 + float64(y)*0.001, Lon: 151 + float64(x)*0.001})
+			east = append(east, id(x, y))
+		}
+		ways = append(ways, osmpbftest.Way{ID: int64(1 + y), Refs: east, Tags: road})
 	}
-	g, err := FromPBF(path)
+	for x := 0; x < 12; x++ {
+		ways = append(ways, osmpbftest.Way{ID: int64(10 + x), Refs: []int64{id(x, 0), id(x, 1), id(x, 2)}, Tags: road})
+	}
+	// A path that leaves the box and comes back: both of its halves cross the edge, so neither is kept.
+	ways = append(ways, osmpbftest.Way{ID: 30, Refs: []int64{id(5, 0), id(6, 1), id(5, 2)}, Tags: map[string]string{"highway": "path"}})
+	// A building: not for walking, wherever it is.
+	ways = append(ways, osmpbftest.Way{ID: 31, Refs: []int64{id(0, 0), id(1, 0), id(1, 1)}, Tags: map[string]string{"building": "yes"}})
+	return nodes, ways, geo.Box{MinLon: 150.9995, MinLat: -33.95, MaxLon: 151.0055, MaxLat: -33.85}
+}
+
+func writeFile(t *testing.T, data []byte) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "extract.osm.pbf")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// same reports whether two graphs are the same network.
+func same(a, b *Graph) bool {
+	return reflect.DeepEqual(a.lat, b.lat) && reflect.DeepEqual(a.lon, b.lon) && reflect.DeepEqual(a.start, b.start) &&
+		reflect.DeepEqual(a.to, b.to) && reflect.DeepEqual(a.cost, b.cost) && a.Area == b.Area
+}
+
+func TestAnExtractIsClippedToTheArea(t *testing.T) {
+	nodes, ways, box := streets()
+	path := writeFile(t, osmpbftest.Encode(nodes, ways))
+	small := func() *Builder { return &Builder{MinComponent: 1} }
+
+	whole, err := fromPBF(path, nil, small(), true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("%d nodes, %d half-edges", g.Nodes(), g.Edges())
+	// 36 nodes; 3 streets of 11 segments, 12 of 2, and the path's 2; two half-edges a segment.
+	if whole.Nodes() != 36 || whole.Edges() != 2*(33+24+2) || whole.Area != (geo.Box{}) {
+		t.Fatalf("the whole extract: %d nodes, %d half-edges, area %+v", whole.Nodes(), whole.Edges(), whole.Area)
+	}
+
+	g, err := fromPBF(path, &box, small(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The 18 nodes inside; each street running east is cut at its sixth node (5 segments), the 6 running north
+	// inside are whole, the 6 outside are gone, and the path that leaves and comes back adds nothing.
+	if g.Nodes() != 18 || g.Edges() != 2*(15+12) {
+		t.Errorf("clipped: %d nodes, %d half-edges; want 18 and 54", g.Nodes(), g.Edges())
+	}
+	if g.Area != box || g.MaxLon > box.MaxLon || g.MinLon < box.MinLon {
+		t.Errorf("clipped to %+v, reaching %v to %v", g.Area, g.MinLon, g.MaxLon)
+	}
+	// Along a street to its last node inside is the street's own length: nothing was lost short of the edge.
+	r, ok := g.From(geo.Point{Lat: -33.9, Lon: 151}, 2000)
+	if !ok {
+		t.Fatal("the western end isn't on the network")
+	}
+	end := geo.Point{Lat: -33.9, Lon: 151.005}
+	if m, ok := r.Metres(end); !ok || math.Abs(m-geo.DistanceM(geo.Point{Lat: -33.9, Lon: 151}, end)) > 1 {
+		t.Errorf("to the edge: %v m, %v", m, ok)
+	}
+
+	// The area is kept with the graph.
+	saved := filepath.Join(t.TempDir(), "walk.graph")
+	if err := g.Save(saved); err != nil {
+		t.Fatal(err)
+	}
+	if h, err := Load(saved); err != nil || !same(g, h) {
+		t.Errorf("after save and load: %v, area %+v", err, h.Area)
+	}
+
+	// An area with no streets in it is an error, not an empty network.
+	if _, err := fromPBF(path, &geo.Box{MinLon: 10, MinLat: 10, MaxLon: 11, MaxLat: 11}, small(), true); err == nil {
+		t.Error("an area with nothing in it built a network")
+	}
+}
+
+func TestTheSameNetworkHoweverTheFileIsLaidOut(t *testing.T) {
+	nodes, ways, box := streets()
+	small := func() *Builder { return &Builder{MinComponent: 1} }
+	var first *Graph
+	for name, data := range map[string][]byte{
+		"sorted, in several blocks": osmpbftest.EncodeWith(nodes, ways, osmpbftest.Options{Sorted: true, PerBlock: 5, Relation: true}),
+		"sorted, one block each":    osmpbftest.EncodeWith(nodes, ways, osmpbftest.Options{Sorted: true}),
+		"not said to be sorted":     osmpbftest.EncodeWith(nodes, ways, osmpbftest.Options{PerBlock: 5, Relation: true}),
+	} {
+		path := writeFile(t, data)
+		for _, shortCuts := range []bool{true, false} {
+			for _, clip := range []*geo.Box{&box, nil} {
+				g, err := fromPBF(path, clip, small(), shortCuts)
+				if err != nil {
+					t.Fatalf("%s (short cuts %v): %v", name, shortCuts, err)
+				}
+				if clip == nil {
+					if g.Nodes() != 36 {
+						t.Errorf("%s (short cuts %v), unclipped: %d nodes", name, shortCuts, g.Nodes())
+					}
+					continue
+				}
+				if first == nil {
+					first = g
+				}
+				if g.Nodes() != 18 || !same(first, g) {
+					t.Errorf("%s (short cuts %v): a different network, %d nodes", name, shortCuts, g.Nodes())
+				}
+			}
+		}
+	}
+}
+
+func TestClippingNeedsNodesInOrder(t *testing.T) {
+	nodes, ways, box := streets()
+	nodes[3], nodes[4] = nodes[4], nodes[3] // two nodes inside the box, the wrong way round
+	path := writeFile(t, osmpbftest.Encode(nodes, ways))
+	if _, err := fromPBF(path, &box, &Builder{MinComponent: 1}, true); !errors.Is(err, errUnsorted) {
+		t.Errorf("clipping a file out of order: %v", err)
+	}
+	// The whole extract needs no order.
+	if g, err := fromPBF(path, nil, &Builder{MinComponent: 1}, true); err != nil || g.Nodes() != 36 {
+		t.Errorf("unclipped: %v", err)
+	}
+}
+
+// Real data, if an extract is at $WALK_TEST_PBF (Geofabrik's New South Wales, or any that covers Sydney): clipped to
+// the app's area, with a walk at each end of it. WALK_TEST_COMPARE=1 also builds it without the short cuts a sorted
+// file allows, to see that the network is the same and what they save.
+func TestRealExtract(t *testing.T) {
+	path := os.Getenv("WALK_TEST_PBF")
+	if path == "" {
+		t.Skip("set WALK_TEST_PBF to an OSM extract that covers Sydney")
+	}
+	area := geo.Box{MinLon: 150.55, MinLat: -34.15, MaxLon: 151.35, MaxLat: -33.45} // the engine's
+	start := time.Now()
+	g, err := FromPBF(path, &area)
+	if err != nil {
+		t.Fatal(err)
+	}
+	took := time.Since(start)
+	t.Logf("%d nodes, %d half-edges, reaching %.3f to %.3f E and %.3f to %.3f; built in %v", g.Nodes(), g.Edges(), g.MinLon, g.MaxLon, g.MinLat, g.MaxLat, took.Round(100*time.Millisecond))
+	if g.MinLon < area.MinLon || g.MaxLon > area.MaxLon || g.MinLat < area.MinLat || g.MaxLat > area.MaxLat {
+		t.Error("the network reaches outside the area")
+	}
 	gym := geo.Point{Lat: -33.807948, Lon: 151.150629}
 	stop := geo.Point{Lat: -33.80435, Lon: 151.1561} // roughly Epping Rd, north-east of the gym
 	r, ok := g.From(gym, 3000)
@@ -264,5 +411,26 @@ func TestRealExtract(t *testing.T) {
 	t.Logf("crow %.0f m, street %.0f m", crow, m)
 	if !ok || m < crow*0.95 || m > crow*3 {
 		t.Errorf("street distance %.0f vs crow %.0f", m, crow)
+	}
+	// The western edge: Jamisontown to Penrith Station, which BBBike's Sydney extract stopped short of.
+	west, station := geo.Point{Lat: -33.767272, Lon: 150.687465}, geo.Point{Lat: -33.7503, Lon: 150.6963}
+	if r, ok := g.From(west, 5000); !ok {
+		t.Error("Jamisontown isn't on the network")
+	} else if m, ok := r.Metres(station); !ok || m < geo.DistanceM(west, station)*0.95 {
+		t.Errorf("Jamisontown to Penrith Station: %.0f m, %v", m, ok)
+	} else {
+		t.Logf("Jamisontown to Penrith Station: crow %.0f m, street %.0f m", geo.DistanceM(west, station), m)
+	}
+	if os.Getenv("WALK_TEST_COMPARE") == "" {
+		return
+	}
+	start = time.Now()
+	h, err := fromPBF(path, &area, &Builder{}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("reading every pass in full: built in %v (against %v)", time.Since(start).Round(100*time.Millisecond), took.Round(100*time.Millisecond))
+	if !same(g, h) {
+		t.Errorf("a different network without the short cuts: %d nodes, %d half-edges", h.Nodes(), h.Edges())
 	}
 }

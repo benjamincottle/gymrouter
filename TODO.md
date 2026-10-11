@@ -56,7 +56,7 @@ clean today). Roughly in order of value.
       reach `:8080` directly (skipping Traefik's rate limit and setting its own `X-Forwarded-For`, which
       `trust_proxy` then logs as the client), and this container can reach the others. A dedicated network
       shared only with Traefik closes both. Outbound could also be limited to the TfNSW API,
-      `download.bbbike.org` and `build.protomaps.com` at the host firewall.
+      `download.geofabrik.de` and `build.protomaps.com` at the host firewall.
 - [ ] **One shared token, no per-device revocation.** Every device and every settings/backup link (QR,
       share sheet) carries the same long-lived token, so a link that leaks into a chat history works
       forever, and revoking it signs out everything. Worth deciding in `docs/spec.md` whether to keep this
@@ -126,12 +126,13 @@ Investigate are recorded only, not started.
 
 ## Server
 
-- [ ] **Take the walking paths from Geofabrik** instead of BBBike: more current data, updated daily. But the extract
-      is the whole of NSW, so work out how to trim the download to our area before building the walking graph. The
-      goal is to be able to support routing walks to and from gyms outside the BBBike area (Penrith and Climber
-      Collective, for example).
-      (Checked 2026-10-11: `new-south-wales-latest.osm.pbf` is 269 MB, against BBBike Sydney's 57 MB, and over
-      `maxWalkSource`, 250 MiB, in `internal/engine/provision.go`.)
+- [x] **The walking paths come from Geofabrik** instead of BBBike: its New South Wales extract, rebuilt daily (BBBike's
+      Sydney one was weekly, and stopped at 150.83°E, short of Penrith). The server downloads the whole state
+      (269 MB) every 35 days or when asked, keeps the streets inside the app's area and throws the rest away. The
+      area is the basemap's box, so wherever the map draws, walks are routed: west 12 km past Penrith, north to
+      Berowra and Palm Beach, south to Waterfall and Campbelltown. 1.92 M nodes (1.32 M before), a 57 MB cache.
+- [ ] **Climber Collective back as a built-in gym** (Jamisontown): it was taken out only because the street map didn't
+      reach it. A PR of its own, once the server in use has built the wider street map.
 
 ## Investigate
 
