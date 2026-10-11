@@ -18,7 +18,8 @@ func coords(pts []geo.Point) [][2]float64 {
 	return out
 }
 
-// legShape returns the path of one ride leg and the stops it calls at on the way: GET /api/shape?date=YYYY-MM-DD&trip=&from=&to=
+// legShape returns the path of one ride leg, the stops it calls at on the way and, for a train, the platform it's
+// boarded from: GET /api/shape?date=YYYY-MM-DD&trip=&from=&to=
 func (s *Server) legShape(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	date, err := time.ParseInLocation("2006-01-02", q.Get("date"), s.eng.Now().Location())
@@ -46,7 +47,11 @@ func (s *Server) legShape(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "trip or stops not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"coordinates": coords(pts), "stops": coords(stops)})
+	out := map[string]any{"coordinates": coords(pts), "stops": coords(stops)}
+	if outline, ok := s.eng.BoardingPlatform(snap, trip, from); ok {
+		out["platform"] = coords(outline)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // mapTiles serves the self-hosted basemap with range requests (PMTiles is read in pieces).

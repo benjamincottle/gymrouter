@@ -102,6 +102,16 @@ Investigate are recorded only, not started.
     its last three stops, unless you've moved the map.
   - What's behind you on a ride is dimmed, on the rail, the strip and the map.
   - The server sends each ride's stops with their names and live times (`calls`).
+- [x] **Anywhere on the platform is waiting for the train.** Wandering up the platform turned Now back to "Get to
+      Hornsby Station": you only counted as waiting within 40 m of the platform's point in the timetable, which is
+      often near one end (74 m from the middle of Hornsby's platform 1, 152 m from its far end). The other way, more
+      than 120 m forward along the track counted as on board while you were still standing on a long platform.
+      Now the server keeps each platform's outline from the street map (629 in the area) and sends a train's
+      boarding platform with its shape; on it, or within the location's accuracy of its edge, you're waiting, and
+      you're not on board by distance until you're off it. All 548 of the timetable's rail platforms in the area have
+      an outline: 505 are drawn in the street map as one shape, and the rest (Central's 16 to 21, Chatswood, North
+      Sydney, Auburn, the north-west metro) as a shape in several pieces with the stairwells cut out, which the
+      reader now reads too.
 - [ ] **A buzz when it's time to get off?** Set aside to think about (2026-10-11). What's known: the page can only
       vibrate the phone while the app is open on screen, and not at all on an iPhone, so it can't be relied on with
       the phone in a pocket. The route that reaches a locked phone is a push notification from the server ("Next stop
@@ -137,7 +147,21 @@ Investigate are recorded only, not started.
 ## Investigate
 
 - [ ] **Platform start points placed along the platform** to line up with the fastest exit at the destination
-      (i.e. dynamic). Can it be done?
+      (i.e. dynamic). Investigated 2026-10-11: feasible for most train platforms, to about a carriage or two, not to
+      the metre. What it needs exists:
+  - each platform's shape and length: the server now keeps an outline for every one of the timetable's 548 rail
+    platforms in the area (median length 167 m);
+  - where the stairs, escalators and lifts are: the timetable feed places them (`stops.txt` nodes such as "STR To
+    P1", joined to platforms in `pathways.txt`) for 89% of platforms, a median 4 m from the platform's shape;
+  - how long the train is: the trip ID carries the car count, and the metro feed lists its carriages;
+  - an 8-car train (163 m) fills a typical platform, so the part of the train beside your stairs at the destination
+    carries over to the platform you board from.
+  What limits it: where a 4-car train stops on a long platform isn't published; which stairs you'd take is a guess
+  (the shortest walk on); location on a platform is too poor for live correction, so it's "where to stand", said
+  once. A guess at the cost: 400 to 600 lines on the server with many special cases, a few milliseconds a plan, and
+  wrong advice is worse than none.
+  **Next, when asked:** a time-boxed prototype that only prints its advice for trips we know, with no interface;
+  build it for real only if that advice turns out right.
 
 # TODO: field reports (2026-10-10)
 

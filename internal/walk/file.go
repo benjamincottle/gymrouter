@@ -14,11 +14,20 @@ import (
 )
 
 // The cache file lets a restart skip parsing the OSM extract. Format: magic, version, counts, the area the graph was
-// clipped to (min lon, min lat, max lon, max lat, in 1e-7 degrees; zeros if it wasn't), then the arrays (little
-// endian). Bump version when anything about the graph's meaning changes (e.g. the way classification).
+// clipped to (min lon, min lat, max lon, max lat, in 1e-7 degrees; zeros if it wasn't), then the arrays, then the
+// platforms (how many; for each its ref's length and bytes, how many points, and each point's lat and lon in 1e-7
+// degrees). All little endian. Bump version when anything about the graph's meaning changes (e.g. the way
+// classification).
 const (
 	fileMagic   = "GRWALK"
-	fileVersion = 2
+	fileVersion = 3
+)
+
+// Bounds on what Load will allocate for a corrupt file's platforms.
+const (
+	maxPlatforms      = 1 << 16
+	maxPlatformPoints = 1 << 14
+	maxPlatformRef    = 1 << 8
 )
 
 func toFixed(deg float64) int32 { return int32(math.Round(deg * degScale)) }
@@ -43,6 +52,21 @@ func (g *Graph) Save(path string) error {
 	for _, a := range []any{g.lat, g.lon, g.start, g.to, g.cost} {
 		if err := binary.Write(w, binary.LittleEndian, a); err != nil {
 			return err
+		}
+	}
+	if err := binary.Write(w, binary.LittleEndian, uint32(len(g.Platforms))); err != nil {
+		return err
+	}
+	for _, p := range g.Platforms {
+		ref := p.Ref[:min(len(p.Ref), maxPlatformRef)]
+		pts := make([]int32, 0, 2*len(p.Outline))
+		for _, q := range p.Outline {
+			pts = append(pts, toFixed(q.Lat), toFixed(q.Lon))
+		}
+		for _, v := range []any{uint32(len(ref)), []byte(ref), uint32(len(p.Outline)), pts} {
+			if err := binary.Write(w, binary.LittleEndian, v); err != nil {
+				return err
+			}
 		}
 	}
 	if err := w.Flush(); err != nil {
@@ -103,6 +127,33 @@ func Load(path string) (*Graph, error) {
 		if t < 0 || int(t) >= n {
 			return nil, errors.New("walk: inconsistent graph file")
 		}
+	}
+	var count uint32
+	if err := binary.Read(r, binary.LittleEndian, &count); err != nil || count > maxPlatforms {
+		return nil, errors.New("walk: graph file's platforms are missing or implausible")
+	}
+	g.Platforms = make([]Platform, count)
+	for i := range g.Platforms {
+		var refLen, points uint32
+		if err := binary.Read(r, binary.LittleEndian, &refLen); err != nil || refLen > maxPlatformRef {
+			return nil, errors.New("walk: implausible platform in graph file")
+		}
+		ref := make([]byte, refLen)
+		if _, err := io.ReadFull(r, ref); err != nil {
+			return nil, fmt.Errorf("walk: truncated graph file: %w", err)
+		}
+		if err := binary.Read(r, binary.LittleEndian, &points); err != nil || points > maxPlatformPoints {
+			return nil, errors.New("walk: implausible platform in graph file")
+		}
+		pts := make([]int32, 2*points)
+		if err := binary.Read(r, binary.LittleEndian, pts); err != nil {
+			return nil, fmt.Errorf("walk: truncated graph file: %w", err)
+		}
+		out := make([]geo.Point, points)
+		for k := range out {
+			out[k] = geo.Point{Lat: float64(pts[2*k]) / degScale, Lon: float64(pts[2*k+1]) / degScale}
+		}
+		g.Platforms[i] = Platform{Ref: string(ref), Outline: out}
 	}
 	g.finish()
 	return g, nil

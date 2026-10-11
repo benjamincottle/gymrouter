@@ -24,6 +24,7 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/engine"
 	"github.com/benjamincottle/gymrouter/internal/engine/enginetest"
 	"github.com/benjamincottle/gymrouter/internal/geo"
+	"github.com/benjamincottle/gymrouter/internal/walk"
 	"github.com/benjamincottle/gymrouter/internal/walk/walktest"
 )
 
@@ -627,6 +628,64 @@ func TestLegShapeAndMap(t *testing.T) {
 	}
 	if rec := h.do(t, "GET", "/api/shape?date=2026-10-08&trip=nope&from=a&to=b", token, nil); rec.Code != 404 {
 		t.Errorf("unknown trip: %d", rec.Code)
+	}
+}
+
+// A train's shape carries the platform it's boarded from, when the street map has one at the stop; a bus's has none.
+func TestLegShapeCarriesTheBoardingPlatform(t *testing.T) {
+	h := newHarness(t)
+	rec := h.do(t, "POST", "/api/plan", token, eppingToLaneCove)
+	var p struct {
+		ServiceDate string `json:"service_date"`
+		Options     []struct {
+			Legs []struct {
+				Kind   string
+				TripID string `json:"trip_id"`
+				Line   struct{ Mode string }
+				From   struct {
+					ID       string
+					Lat, Lon float64
+				}
+				To struct{ ID string }
+			}
+		}
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &p)
+	// A street map with a platform drawn around every stop a ride is boarded from, train or bus.
+	g := walktest.Grid(t, geo.Point{Lat: -33.7727, Lon: 151.0821})
+	queries := map[string]string{} // by mode
+	for _, o := range p.Options {
+		for _, l := range o.Legs {
+			if l.Kind != "ride" {
+				continue
+			}
+			at := geo.Point{Lat: l.From.Lat, Lon: l.From.Lon}
+			g.Platforms = append(g.Platforms, walk.Platform{Outline: []geo.Point{
+				{Lat: at.Lat - 0.0007, Lon: at.Lon - 0.00003}, {Lat: at.Lat + 0.0007, Lon: at.Lon - 0.00003},
+				{Lat: at.Lat + 0.0007, Lon: at.Lon + 0.00003}, {Lat: at.Lat - 0.0007, Lon: at.Lon + 0.00003},
+				{Lat: at.Lat - 0.0007, Lon: at.Lon - 0.00003},
+			}})
+			queries[l.Line.Mode] = "/api/shape?date=" + p.ServiceDate + "&trip=" + l.TripID + "&from=" + l.From.ID + "&to=" + l.To.ID
+		}
+	}
+	h.env.Engine.SetWalker(g)
+	platform := func(mode string) [][2]float64 {
+		q, ok := queries[mode]
+		if !ok {
+			t.Fatalf("no %s ride among the options: %v", mode, queries)
+		}
+		rec := h.do(t, "GET", q, token, nil)
+		var s struct{ Platform [][2]float64 }
+		if err := json.Unmarshal(rec.Body.Bytes(), &s); err != nil || rec.Code != 200 {
+			t.Fatalf("shape %s: %d %s", q, rec.Code, rec.Body)
+		}
+		return s.Platform
+	}
+	if out := platform("metro"); len(out) != 5 || out[0] != out[4] || out[0][0] < 150 {
+		t.Errorf("the metro's platform: %v", out)
+	}
+	if out := platform("bus"); out != nil {
+		t.Errorf("a bus stop has no platform: %v", out)
 	}
 	if rec := h.do(t, "GET", "/api/shape?date=bad&trip=a&from=a&to=b", token, nil); rec.Code != 400 {
 		t.Errorf("bad date: %d", rec.Code)

@@ -42,7 +42,7 @@ func (e *Engine) loadWalkCache() {
 	switch {
 	case err == nil:
 		e.walker.Store(g) // before the first timetable load, which then uses it for transfers
-		e.log.Info("street network loaded", "nodes", g.Nodes(), "edges", g.Edges())
+		e.log.Info("street network loaded", "nodes", g.Nodes(), "edges", g.Edges(), "platforms", len(g.Platforms))
 	case !os.IsNotExist(err):
 		e.log.Warn("street network cache unusable; will rebuild", "err", err)
 	}

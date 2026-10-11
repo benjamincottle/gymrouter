@@ -22,6 +22,20 @@ type Way struct {
 	Tags map[string]string
 }
 
+// Relation is a relation to write.
+type Relation struct {
+	ID      int64
+	Tags    map[string]string
+	Members []Member
+}
+
+// Member is one of a relation's members: Type is 0 for a node, 1 for a way, 2 for a relation.
+type Member struct {
+	Type int
+	Ref  int64
+	Role string
+}
+
 func zig(v int64) uint64 { return uint64(v<<1) ^ uint64(v>>63) }
 
 func packed(vals []uint64) []byte {
@@ -69,6 +83,8 @@ type Options struct {
 	PerBlock int
 	// Relation ends the file with a block holding a relation, as real extracts end.
 	Relation bool
+	// Relations are written after the ways, in a block of their own.
+	Relations []Relation
 }
 
 // Encode returns a PBF file: a header block, then one block of dense nodes and one of ways (the order real
@@ -94,11 +110,54 @@ func EncodeWith(nodes []Node, ways []Way, o Options) []byte {
 	for i := 0; i == 0 || i < len(ways); i += per(len(ways)) {
 		out = append(out, wayBlock(ways[i:min(i+per(len(ways)), len(ways))])...)
 	}
+	if len(o.Relations) > 0 {
+		out = append(out, relationBlock(o.Relations)...)
+	}
 	if o.Relation {
-		rel := protowire.AppendVarint(protowire.AppendTag(nil, 1, protowire.VarintType), 1) // its ID; nothing reads more
+		rel := protowire.AppendVarint(protowire.AppendTag(nil, 1, protowire.VarintType), 1) // just its ID
 		out = append(out, blob("OSMData", bytesField(bytesField(nil, 1, nil), 2, bytesField(nil, 4, rel)), true)...)
 	}
 	return out
+}
+
+// relationBlock is a block of relations.
+func relationBlock(rels []Relation) []byte {
+	table := [][]byte{{}}
+	index := map[string]uint64{}
+	str := func(s string) uint64 {
+		if i, ok := index[s]; ok {
+			return i
+		}
+		table = append(table, []byte(s))
+		index[s] = uint64(len(table) - 1)
+		return index[s]
+	}
+	var group []byte
+	for _, r := range rels {
+		var keys, vals, roles, ids, types []uint64
+		for k, v := range r.Tags {
+			keys, vals = append(keys, str(k)), append(vals, str(v))
+		}
+		var prev int64
+		for _, m := range r.Members {
+			roles, ids, types = append(roles, str(m.Role)), append(ids, zig(m.Ref-prev)), append(types, uint64(m.Type))
+			prev = m.Ref
+		}
+		var rb []byte
+		rb = protowire.AppendTag(rb, 1, protowire.VarintType)
+		rb = protowire.AppendVarint(rb, uint64(r.ID))
+		rb = bytesField(rb, 2, packed(keys))
+		rb = bytesField(rb, 3, packed(vals))
+		rb = bytesField(rb, 8, packed(roles))
+		rb = bytesField(rb, 9, packed(ids))
+		rb = bytesField(rb, 10, packed(types))
+		group = bytesField(group, 4, rb)
+	}
+	var st []byte
+	for _, s := range table {
+		st = bytesField(st, 1, s)
+	}
+	return blob("OSMData", bytesField(bytesField(nil, 1, st), 2, group), true)
 }
 
 // nodeBlock is a block of dense nodes.

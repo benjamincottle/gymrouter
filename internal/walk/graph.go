@@ -41,6 +41,8 @@ type Graph struct {
 	MinLat, MaxLat, MinLon, MaxLon float64
 	// Area is the box the network was clipped to when it was built from a larger extract; zero if it wasn't.
 	Area geo.Box
+	// Platforms are the railway platforms in the extract (see PlatformAt).
+	Platforms []Platform
 }
 
 // Nodes returns the number of nodes.
@@ -242,10 +244,11 @@ var errUnsorted = errors.New("walk: the extract's nodes aren't in order of ID, w
 // part of it inside that box, however much larger the extract is. A way that leaves the box is cut at its last node
 // inside.
 //
-// Unclipped, the file is read twice: the ways first (to learn which nodes matter), then the nodes. Clipped, there is
+// Unclipped, the file is read for its ways first (to learn which nodes matter), then its nodes. Clipped, there is
 // a pass before those, over the nodes, to learn which are inside the box, so that only the ways that touch it are
-// kept: the memory the build needs then goes with the size of the box, not of the extract. In a sorted file (all the
-// nodes, then all the ways, then relations) each pass reads only its part.
+// kept: the memory the build needs then goes with the size of the box, not of the extract. Before the ways there is
+// also a pass for the relations, which say which ways make up a platform drawn in pieces. In a sorted file (all the
+// nodes, then all the ways, then relations) each pass skips the part before its own.
 func FromPBF(path string, clip *geo.Box) (*Graph, error) {
 	return fromPBF(path, clip, &Builder{}, true)
 }
@@ -261,6 +264,7 @@ func fromPBF(path string, clip *geo.Box, b *Builder, shortCuts bool) (*Graph, er
 	}
 	var lay osmpbf.Layout
 	var inside idSet
+	var plats platformWays
 	if clip != nil {
 		if err := readPBF(path, 0, osmpbf.Handler{WantNodes: true, Until: until(osmpbf.UntilWays), Layout: &lay, Node: func(n osmpbf.Node) error {
 			if clip.Contains(n.Lat, n.Lon) && !inside.add(n.ID) {
@@ -275,11 +279,24 @@ func fromPBF(path string, clip *geo.Box, b *Builder, shortCuts bool) (*Graph, er
 	if shortCuts && lay.Sorted && lay.WaysAt > 0 {
 		waysAt = lay.WaysAt
 	}
+	// The platforms drawn in several pieces, before the ways: a relation says which ways are its edge, and those
+	// ways don't say so themselves.
+	if err := readPBF(path, waysAt, osmpbf.Handler{WantRelations: true, Sorted: lay.Sorted, Relation: func(r osmpbf.Relation) error {
+		plats.relation(r.Tags, r.Members)
+		return nil
+	}}); err != nil {
+		return nil, err
+	}
 	if err := readPBF(path, waysAt, osmpbf.Handler{WantWays: true, Until: until(osmpbf.UntilRelations), Sorted: lay.Sorted, Way: func(w osmpbf.Way) error {
+		plats.member(w.ID, w.Refs)
 		if clip == nil {
 			b.AddWay(w.Tags, w.Refs)
+			plats.add(w.Tags, w.Refs)
 		} else if cost, ok := classify(w.Tags); ok && inside.hasAny(w.Refs) {
 			b.addWay(cost, w.Refs)
+			plats.add(w.Tags, w.Refs)
+		} else if !ok && w.Tags["railway"] == "platform" && inside.hasAny(w.Refs) {
+			plats.add(w.Tags, w.Refs) // a platform drawn as an area isn't a way to walk along, but it's still a platform
 		}
 		return nil
 	}}); err != nil {
@@ -287,10 +304,12 @@ func fromPBF(path string, clip *geo.Box, b *Builder, shortCuts bool) (*Graph, er
 	}
 	inside = idSet{} // done with: the build needs the room
 	b.Prepare()
+	plats.prepare()
 	if err := readPBF(path, 0, osmpbf.Handler{WantNodes: true, Until: until(osmpbf.UntilWays), Node: func(n osmpbf.Node) error {
 		// A kept way's nodes outside the box get no position, which is where Build cuts it.
 		if clip == nil || clip.Contains(n.Lat, n.Lon) {
 			b.AddNode(n.ID, n.Lat, n.Lon)
+			plats.node(n.ID, n.Lat, n.Lon)
 		}
 		return nil
 	}}); err != nil {
@@ -303,6 +322,7 @@ func fromPBF(path string, clip *geo.Box, b *Builder, shortCuts bool) (*Graph, er
 	if clip != nil {
 		g.Area = *clip
 	}
+	g.Platforms = plats.platforms()
 	return g, nil
 }
 

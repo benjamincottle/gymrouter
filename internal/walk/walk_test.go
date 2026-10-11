@@ -381,6 +381,176 @@ func TestClippingNeedsNodesInOrder(t *testing.T) {
 	}
 }
 
+// A station beside the streets: a platform drawn as an area (so not a way to walk along) with a face each side, one
+// drawn as a line along its edge, one that runs out of the box, and one wholly outside it.
+func TestPlatformsAreKeptWithTheNetwork(t *testing.T) {
+	nodes, ways, box := streets()
+	next := int64(1000)
+	shape := func(tags map[string]string, pts ...geo.Point) {
+		var refs []int64
+		for i, p := range pts {
+			if i == len(pts)-1 && len(pts) > 2 && p == pts[0] {
+				refs = append(refs, refs[0]) // closed: back to the first node
+				break
+			}
+			nodes = append(nodes, osmpbftest.Node{ID: next, Lat: p.Lat, Lon: p.Lon})
+			refs = append(refs, next)
+			next++
+		}
+		ways = append(ways, osmpbftest.Way{ID: next, Refs: refs, Tags: tags})
+	}
+	rect := func(lat, lon0, lon1 float64) []geo.Point {
+		return []geo.Point{{Lat: lat, Lon: lon0}, {Lat: lat, Lon: lon1}, {Lat: lat + 0.00008, Lon: lon1}, {Lat: lat + 0.00008, Lon: lon0}, {Lat: lat, Lon: lon0}}
+	}
+	shape(map[string]string{"railway": "platform", "ref": "1;2", "area": "yes"}, rect(-33.91, 151.001, 151.003)...)
+	shape(map[string]string{"railway": "platform", "ref": "3"}, geo.Point{Lat: -33.9105, Lon: 151.001}, geo.Point{Lat: -33.9105, Lon: 151.003})
+	shape(map[string]string{"railway": "platform", "ref": "4", "area": "yes"}, rect(-33.911, 151.004, 151.008)...) // across the edge at 151.0055
+	shape(map[string]string{"railway": "platform", "ref": "5", "area": "yes"}, rect(-33.912, 151.007, 151.009)...) // outside
+	path := writeFile(t, osmpbftest.EncodeWith(nodes, ways, osmpbftest.Options{Sorted: true, PerBlock: 7, Relation: true}))
+
+	g, err := fromPBF(path, &box, &Builder{MinComponent: 1}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refs := map[string]int{}
+	for _, p := range g.Platforms {
+		refs[p.Ref] = len(p.Outline)
+	}
+	// Whole ones keep every point (an area's last is its first); the one across the edge keeps only what's inside:
+	// its two western corners, the first of them again to close it.
+	if len(g.Platforms) != 3 || refs["1;2"] != 5 || refs["3"] != 2 || refs["4"] != 3 {
+		t.Fatalf("platforms kept: %v", refs)
+	}
+	// The area isn't walked along, the line is: 18 street nodes and the line's 2 (an island, kept at this size).
+	if g.Nodes() != 20 {
+		t.Errorf("%d nodes: an area platform's corners shouldn't be street nodes", g.Nodes())
+	}
+	whole, err := fromPBF(path, nil, &Builder{MinComponent: 1}, true)
+	if err != nil || len(whole.Platforms) != 4 {
+		t.Errorf("unclipped: %d platforms, %v", len(whole.Platforms), err)
+	}
+
+	// The timetable's point for a platform finds its outline: by its number when several are close, else the nearest.
+	on12 := geo.Point{Lat: -33.90996, Lon: 151.002} // on the island
+	for name, tc := range map[string]struct {
+		at   geo.Point
+		code string
+		want string // the ref of the platform found; "" for none
+	}{
+		"25 m off the island, as platform 2":         {geo.Point{Lat: -33.90969, Lon: 151.002}, "2", "1;2"}, // its number reaches further
+		"25 m off the island, no number":             {geo.Point{Lat: -33.90969, Lon: 151.002}, "", ""},
+		"25 m off the island, as platform 3":         {geo.Point{Lat: -33.90969, Lon: 151.002}, "3", ""},
+		"on the island, as platform 2":               {on12, "2", "1;2"},
+		"on the island, no number":                   {on12, "", "1;2"},
+		"on the island, as platform 3":               {on12, "3", "1;2"}, // 3 is 55 m away: too far to be it
+		"between the two, as platform 3":             {geo.Point{Lat: -33.91041, Lon: 151.002}, "3", "3"},
+		"between the two, as platform 1":             {geo.Point{Lat: -33.91041, Lon: 151.002}, "1", "3"}, // the island is 46 m off
+		"beside the line, within 15 m":               {geo.Point{Lat: -33.91060, Lon: 151.002}, "", "3"},
+		"22 m from the line, no number":              {geo.Point{Lat: -33.91070, Lon: 151.002}, "", ""},
+		"22 m from the line, as platform 3":          {geo.Point{Lat: -33.91070, Lon: 151.002}, "3", "3"},
+		"45 m from the line, as platform 3":          {geo.Point{Lat: -33.91091, Lon: 151.002}, "3", ""},
+		"past the end of the island by 10 m":         {geo.Point{Lat: -33.90996, Lon: 151.00311}, "1", "1;2"},
+		"past the end of the island by 30 m":         {geo.Point{Lat: -33.90996, Lon: 151.00333}, "1", ""},
+		"by what is left of the one cut at the edge": {geo.Point{Lat: -33.91096, Lon: 151.00405}, "4", "4"},
+		"where the rest of it was":                   {geo.Point{Lat: -33.91096, Lon: 151.0045}, "4", ""},
+		"at the one outside it (not kept)":           {geo.Point{Lat: -33.912, Lon: 151.008}, "5", ""},
+	} {
+		out, ok := g.PlatformAt(tc.at, tc.code)
+		got := ""
+		for _, p := range g.Platforms {
+			if ok && len(p.Outline) == len(out) && p.Outline[0] == out[0] {
+				got = p.Ref
+			}
+		}
+		if got != tc.want {
+			t.Errorf("%s: found %q, want %q", name, got, tc.want)
+		}
+	}
+
+	// They're kept with the cache.
+	saved := filepath.Join(t.TempDir(), "walk.graph")
+	if err := g.Save(saved); err != nil {
+		t.Fatal(err)
+	}
+	h, err := Load(saved)
+	if err != nil || !reflect.DeepEqual(h.Platforms, g.Platforms) {
+		t.Errorf("after save and load: %v, %d platforms", err, len(h.Platforms))
+	}
+}
+
+// A platform with a stairwell cut out of it is drawn as a relation: its outer edge in two pieces that carry no tags of
+// their own (one of them drawn the other way round), and the hole.
+func TestPlatformsDrawnInPieces(t *testing.T) {
+	nodes, ways, box := streets()
+	at := func(id int64, lat, lon float64) int64 {
+		nodes = append(nodes, osmpbftest.Node{ID: id, Lat: lat, Lon: lon})
+		return id
+	}
+	// The edge: south-west, south-east, north-east, north-west corners, 185 m by 9 m.
+	sw, se, ne, nw := at(2001, -33.91, 151.001), at(2002, -33.91, 151.003), at(2003, -33.90992, 151.003), at(2004, -33.90992, 151.001)
+	h1, h2, h3 := at(2005, -33.90997, 151.0019), at(2006, -33.90997, 151.0021), at(2007, -33.90995, 151.002)
+	far1, far2 := at(2008, -33.92, 151.02), at(2009, -33.92, 151.021) // a platform outside the box
+	ways = append(ways,
+		osmpbftest.Way{ID: 501, Refs: []int64{sw, se, ne}},
+		osmpbftest.Way{ID: 502, Refs: []int64{sw, nw, ne}}, // the other half, drawn from the same corner
+		osmpbftest.Way{ID: 503, Refs: []int64{h1, h2, h3, h1}},
+		osmpbftest.Way{ID: 504, Refs: []int64{far1, far2}},
+	)
+	way := func(id int64, role string) osmpbftest.Member { return osmpbftest.Member{Type: 1, Ref: id, Role: role} }
+	rels := []osmpbftest.Relation{
+		{ID: 900, Tags: map[string]string{"type": "multipolygon", "railway": "platform", "ref": "16;17"},
+			Members: []osmpbftest.Member{way(501, "outer"), way(503, "inner"), way(502, "outer")}},
+		{ID: 901, Tags: map[string]string{"type": "multipolygon", "railway": "platform", "ref": "9"}, Members: []osmpbftest.Member{way(504, "outer")}},
+		{ID: 902, Tags: map[string]string{"type": "multipolygon", "railway": "platform", "ref": "8"}, Members: []osmpbftest.Member{way(777, "outer")}}, // a way the extract doesn't have
+		{ID: 903, Tags: map[string]string{"type": "multipolygon", "landuse": "grass"}, Members: []osmpbftest.Member{way(1, "outer")}},
+	}
+	for name, o := range map[string]osmpbftest.Options{
+		"sorted":     {Sorted: true, PerBlock: 9, Relations: rels, Relation: true},
+		"not sorted": {Relations: rels},
+	} {
+		g, err := fromPBF(writeFile(t, osmpbftest.EncodeWith(nodes, ways, o)), &box, &Builder{MinComponent: 1}, true)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if len(g.Platforms) != 1 || g.Platforms[0].Ref != "16;17" {
+			t.Fatalf("%s: platforms %+v", name, g.Platforms)
+		}
+		// One closed outline of the four corners, however the pieces were drawn.
+		out := g.Platforms[0].Outline
+		if len(out) != 5 || out[0] != out[4] {
+			t.Errorf("%s: outline %v", name, out)
+		}
+		for where, p := range map[string]geo.Point{"its middle": {Lat: -33.90996, Lon: 151.0015}, "the stairwell": {Lat: -33.90996, Lon: 151.002}} {
+			if found, ok := g.PlatformAt(p, "17"); !ok || len(found) != 5 {
+				t.Errorf("%s: %s isn't on the platform", name, where)
+			}
+		}
+		if g.Nodes() != 18 {
+			t.Errorf("%s: %d nodes: a platform's pieces aren't streets", name, g.Nodes())
+		}
+	}
+}
+
+func TestJoinEnds(t *testing.T) {
+	for name, tc := range map[string]struct {
+		parts [][]int64
+		want  [][]int64
+	}{
+		"one closed way":                 {[][]int64{{1, 2, 3, 1}}, [][]int64{{1, 2, 3, 1}}},
+		"two halves, head to tail":       {[][]int64{{1, 2, 3}, {3, 4, 1}}, [][]int64{{1, 2, 3, 4, 1}}},
+		"the second drawn backwards":     {[][]int64{{1, 2, 3}, {1, 4, 3}}, [][]int64{{1, 2, 3, 4, 1}}},
+		"three pieces, out of order":     {[][]int64{{1, 2}, {3, 1}, {2, 3}}, [][]int64{{3, 1, 2, 3}}}, // the same ring, from another corner
+		"joined at the front":            {[][]int64{{2, 3}, {1, 2}, {3, 1}}, [][]int64{{1, 2, 3, 1}}},
+		"two rings":                      {[][]int64{{1, 2, 1}, {5, 6}, {6, 7, 5}}, [][]int64{{1, 2, 1}, {5, 6, 7, 5}}},
+		"a piece missing: what there is": {[][]int64{{1, 2, 3}, nil, {3, 4}}, [][]int64{{1, 2, 3, 4}}},
+		"nothing":                        {nil, nil},
+	} {
+		if got := joinEnds(tc.parts); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: %v, want %v", name, got, tc.want)
+		}
+	}
+}
+
 // Real data, if an extract is at $WALK_TEST_PBF (Geofabrik's New South Wales, or any that covers Sydney): clipped to
 // the app's area, with a walk at each end of it. WALK_TEST_COMPARE=1 also builds it without the short cuts a sorted
 // file allows, to see that the network is the same and what they save.
@@ -397,6 +567,23 @@ func TestRealExtract(t *testing.T) {
 	}
 	took := time.Since(start)
 	t.Logf("%d nodes, %d half-edges, reaching %.3f to %.3f E and %.3f to %.3f; built in %v", g.Nodes(), g.Edges(), g.MinLon, g.MaxLon, g.MinLat, g.MaxLat, took.Round(100*time.Millisecond))
+	// Platforms, as the timetable places them: one drawn as a single shape, and three drawn in pieces.
+	t.Logf("%d platforms", len(g.Platforms))
+	for name, p := range map[string]struct {
+		at   geo.Point
+		code string
+	}{
+		"Hornsby 1":   {geo.Point{Lat: -33.70323338, Lon: 151.09857464}, "1"},
+		"Central 18":  {geo.Point{Lat: -33.88405165, Lon: 151.20698224}, "18"},
+		"Chatswood 1": {geo.Point{Lat: -33.79746616, Lon: 151.18107432}, "1"},
+		"Auburn 1":    {geo.Point{Lat: -33.84922459, Lon: 151.03296397}, "1"},
+	} {
+		if out, ok := g.PlatformAt(p.at, p.code); !ok {
+			t.Errorf("%s has no platform outline", name)
+		} else {
+			t.Logf("%s: an outline of %d points", name, len(out))
+		}
+	}
 	if g.MinLon < area.MinLon || g.MaxLon > area.MaxLon || g.MinLat < area.MinLat || g.MaxLat > area.MaxLat {
 		t.Error("the network reaches outside the area")
 	}

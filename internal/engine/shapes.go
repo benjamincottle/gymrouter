@@ -135,6 +135,33 @@ func (e *Engine) LegGeometry(s *Snapshot, tripID, fromStop, toStop string) (path
 	return path, stops, true
 }
 
+// BoardingPlatform returns the outline of the platform a rail trip is boarded from at one of its stops, when the
+// street map has one there: a platform is far longer than the point the timetable gives for it, and anywhere on it
+// is where you wait.
+func (e *Engine) BoardingPlatform(s *Snapshot, tripID, fromStop string) ([]geo.Point, bool) {
+	g := e.Walker()
+	if g == nil {
+		return nil, false
+	}
+	d := s.Day
+	si, ok := d.StopIndex[fromStop]
+	if !ok {
+		return nil, false
+	}
+	rail := false
+	for _, ti := range d.TripIndex[tripID] {
+		r := d.Routes[d.Trips[ti].Route]
+		switch lines.Of(r.Type, r.ShortName).Mode {
+		case lines.Train, lines.RegionalTrain, lines.Metro, lines.LightRail:
+			rail = true
+		}
+	}
+	if !rail {
+		return nil, false
+	}
+	return g.PlatformAt(d.Stops[si].Pos, d.Stops[si].Platform)
+}
+
 // besideLine cuts a line where the first and last of a ride's calls sit beside it, and puts the stops passed on it.
 // It cuts beside each stop, not at the nearest corner: shapes are simplified, so the nearest corner can be past the
 // stop and the line would run on and double back. PlaceLeg also copes with a shape that passes the boarding stop

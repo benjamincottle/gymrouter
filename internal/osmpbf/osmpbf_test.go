@@ -163,3 +163,47 @@ func TestAnUnsortedFileIsReadInFull(t *testing.T) {
 		t.Errorf("no ways: %+v, err %v", lay, err)
 	}
 }
+
+func TestReadsRelations(t *testing.T) {
+	data := osmpbftest.EncodeWith(
+		[]osmpbftest.Node{{ID: 1, Lat: 1, Lon: 1}},
+		[]osmpbftest.Way{{ID: 5, Refs: []int64{1, 1}}, {ID: 9, Refs: []int64{1, 1}}},
+		osmpbftest.Options{Sorted: true, Relation: true, Relations: []osmpbftest.Relation{
+			{ID: 70, Tags: map[string]string{"type": "multipolygon", "railway": "platform", "ref": "16;17"},
+				Members: []osmpbftest.Member{{Type: 1, Ref: 9, Role: "outer"}, {Type: 1, Ref: 5, Role: "inner"}, {Type: 0, Ref: 1, Role: ""}}},
+			{ID: 71, Tags: map[string]string{"type": "route"}},
+		}})
+	var rels []osmpbf.Relation
+	read := func(h osmpbf.Handler) error {
+		rels = nil
+		h.Relation = func(r osmpbf.Relation) error {
+			r.Members = append([]osmpbf.Member(nil), r.Members...) // valid only during the call
+			rels = append(rels, r)
+			return nil
+		}
+		return osmpbf.Read(bytes.NewReader(data), h)
+	}
+	if err := read(osmpbf.Handler{WantRelations: true}); err != nil || len(rels) != 3 {
+		t.Fatalf("%d relations, err %v", len(rels), err)
+	}
+	r := rels[0]
+	if r.ID != 70 || r.Tags["railway"] != "platform" || r.Tags["ref"] != "16;17" || len(r.Members) != 3 {
+		t.Fatalf("relation: %+v", r)
+	}
+	want := []osmpbf.Member{{Type: osmpbf.MemberWay, Ref: 9, Role: "outer"}, {Type: osmpbf.MemberWay, Ref: 5, Role: "inner"}, {Type: osmpbf.MemberNode, Ref: 1, Role: ""}}
+	for i, m := range r.Members {
+		if m != want[i] {
+			t.Errorf("member %d: %+v, want %+v", i, m, want[i])
+		}
+	}
+	if rels[1].ID != 71 || len(rels[1].Members) != 0 || rels[2].ID != 1 {
+		t.Errorf("the others: %+v", rels[1:])
+	}
+	// Not wanted, they aren't decoded; and a pass that ends at the relations never reaches them.
+	if err := read(osmpbf.Handler{WantWays: true, Way: func(osmpbf.Way) error { return nil }}); err != nil || len(rels) != 0 {
+		t.Errorf("relations not asked for: %d, err %v", len(rels), err)
+	}
+	if err := read(osmpbf.Handler{WantRelations: true, Until: osmpbf.UntilRelations}); err != nil || len(rels) != 0 {
+		t.Errorf("a pass that ends at the relations read %d, err %v", len(rels), err)
+	}
+}

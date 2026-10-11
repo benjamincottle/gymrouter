@@ -1,5 +1,6 @@
-// Package osmpbf is a minimal reader for OpenStreetMap .osm.pbf files: just nodes and ways, which is all
-// a walking network needs. It decodes the wire format directly with protowire, so it adds no dependency.
+// Package osmpbf is a minimal reader for OpenStreetMap .osm.pbf files: nodes and ways, which is all a walking
+// network needs, and relations, for the shapes drawn in several pieces (a platform with stairwells cut out of it).
+// It decodes the wire format directly with protowire, so it adds no dependency.
 package osmpbf
 
 import (
@@ -32,13 +33,37 @@ type Way struct {
 	Tags map[string]string
 }
 
-// Handler receives what was read. Return an error to stop. Nodes and ways are delivered in file order.
-// A Way's Refs and Tags are only valid during the call.
+// Relation groups other things, each with a role: a shape's outer edge and the holes in it, say.
+type Relation struct {
+	ID      int64
+	Tags    map[string]string
+	Members []Member
+}
+
+// Member is one of the things a relation groups.
+type Member struct {
+	Type MemberType
+	Ref  int64  // the ID of the node, way or relation
+	Role string // "outer", "inner", …
+}
+
+// MemberType says what a relation's member is.
+type MemberType uint8
+
+const (
+	MemberNode MemberType = iota
+	MemberWay
+	MemberRelation
+)
+
+// Handler receives what was read. Return an error to stop. Nodes, ways and relations are delivered in file order.
+// A Way's Refs and Tags, and a Relation's Tags and Members, are only valid during the call.
 type Handler struct {
-	Node func(Node) error
-	Way  func(Way) error
-	// WantNodes and WantWays let a pass skip decoding what it doesn't need.
-	WantNodes, WantWays bool
+	Node     func(Node) error
+	Way      func(Way) error
+	Relation func(Relation) error
+	// WantNodes, WantWays and WantRelations let a pass skip decoding what it doesn't need.
+	WantNodes, WantWays, WantRelations bool
 	// Until ends the read early, at the first block holding ways or relations. It only does so in a sorted file
 	// (see Layout): anywhere else a node may follow a way, and the whole file is read.
 	Until Until
@@ -382,9 +407,12 @@ func (bl *block) decodeGroup(b []byte, h Handler) error {
 			if h.WantWays && h.Way != nil {
 				err = bl.decodeWay(v, h)
 			}
-		case 4: // a relation
+		case 4:
 			if bl.until != UntilEnd {
 				return errDone
+			}
+			if h.WantRelations && h.Relation != nil {
+				err = bl.decodeRelation(v, h)
 			}
 		}
 		if err != nil {
@@ -551,4 +579,72 @@ func (bl *block) decodeWay(b []byte, h Handler) error {
 		w.Refs[i] = id
 	}
 	return h.Way(w)
+}
+
+func (bl *block) decodeRelation(b []byte, h Handler) error {
+	var r Relation
+	var keys, vals, roles, ids, types []uint64
+	for len(b) > 0 {
+		num, typ, n := protowire.ConsumeTag(b)
+		if n < 0 {
+			return errors.New("osmpbf: bad relation")
+		}
+		b = b[n:]
+		switch {
+		case num == 1 && typ == protowire.VarintType:
+			v, n := protowire.ConsumeVarint(b)
+			if n < 0 {
+				return errors.New("osmpbf: bad relation id")
+			}
+			r.ID, b = int64(v), b[n:]
+		case (num == 2 || num == 3 || num == 8 || num == 9 || num == 10) && typ == protowire.BytesType:
+			v, n := protowire.ConsumeBytes(b)
+			if n < 0 {
+				return errors.New("osmpbf: bad relation field")
+			}
+			var err error
+			switch num {
+			case 2:
+				keys, err = packed(v, keys)
+			case 3:
+				vals, err = packed(v, vals)
+			case 8:
+				roles, err = packed(v, roles)
+			case 9:
+				ids, err = packed(v, ids)
+			case 10:
+				types, err = packed(v, types)
+			}
+			if err != nil {
+				return err
+			}
+			b = b[n:]
+		default:
+			n := protowire.ConsumeFieldValue(num, typ, b)
+			if n < 0 {
+				return errors.New("osmpbf: bad relation field")
+			}
+			b = b[n:]
+		}
+	}
+	if len(keys) != len(vals) || len(ids) != len(roles) || len(ids) != len(types) {
+		return errors.New("osmpbf: relation arrays differ in length")
+	}
+	r.Tags = make(map[string]string, len(keys))
+	for i := range keys {
+		if keys[i] >= uint64(len(bl.strings)) || vals[i] >= uint64(len(bl.strings)) {
+			return errors.New("osmpbf: tag string index out of range")
+		}
+		r.Tags[string(bl.strings[keys[i]])] = string(bl.strings[vals[i]])
+	}
+	r.Members = make([]Member, len(ids))
+	var id int64
+	for i := range ids {
+		if roles[i] >= uint64(len(bl.strings)) || types[i] > uint64(MemberRelation) {
+			return errors.New("osmpbf: bad relation member")
+		}
+		id += zigzag(ids[i])
+		r.Members[i] = Member{Type: MemberType(types[i]), Ref: id, Role: string(bl.strings[roles[i]])}
+	}
+	return h.Relation(r)
 }
