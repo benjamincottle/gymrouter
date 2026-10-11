@@ -182,6 +182,41 @@ export function assess(
 }
 
 /**
+ * What a suggested trip is, for remembering that it was dismissed: the vehicles it takes that yours doesn't. So it's
+ * still the same suggestion once you're off a ride the two share, and a different one as soon as it takes another vehicle.
+ */
+export function suggestionKey(mine: Option, s: Option): string {
+  const own = new Set(tripsFrom(mine, 0))
+  const all = tripsFrom(s, 0)
+  const others = all.filter((id) => !own.has(id))
+  return (others.length > 0 ? others : all).join('|')
+}
+
+/**
+ * The legs the map frames during a trip: the step you're on, whole (the walk, the ride from where you get on to where
+ * you get off, the change). At the stop waiting, it's the ride you're waiting for. Null until you've set off (`setOff`:
+ * you're past the trip's first step, see progress.ts), when the map shows the whole trip.
+ */
+export function focusLegs(o: Option, phase: Phase, setOff: boolean): number[] | null {
+  if (!setOff) return null
+  const walksBetween = (from: number, to: number) => o.legs.map((l, i) => (i > from && i < to && l.kind === 'walk' ? i : -1)).filter((i) => i >= 0)
+  const rideBefore = (end: number) => o.legs.reduce((last, l, i) => (i < end && l.kind === 'ride' ? i : last), -1)
+  const lastRide = rideBefore(o.legs.length)
+  switch (phase.kind) {
+    case 'riding':
+      return [phase.ride]
+    case 'before': {
+      const walks = walksBetween(rideBefore(phase.ride), phase.ride)
+      return phase.waiting || walks.length === 0 ? [phase.ride] : walks // a change at the same stop is a wait
+    }
+    default: {
+      const walks = walksBetween(lastRide, o.legs.length)
+      return walks.length > 0 ? walks : lastRide >= 0 ? [lastRide] : null
+    }
+  }
+}
+
+/**
  * How sure an option's changes are, to go with offering it: "with no changes", "with a tight change",
  * "with 2 changes, the tightest at risk".
  */

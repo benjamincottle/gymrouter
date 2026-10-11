@@ -3,7 +3,7 @@ import type { ComponentChildren } from 'preact'
 import { findChange, type PlaceRef, type Segment, type TimedWalk } from '../walks.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 import { position, rows, type Row } from '../options.ts'
-import { HOUSE, Shoe, VEHICLE_PATHS, vehicleOf } from './icons.tsx'
+import { HOUSE, Shoe, Stopwatch, VEHICLE_PATHS, vehicleOf, Walker } from './icons.tsx'
 import { TextButton } from './ui.tsx'
 import { lineColour, textOn } from '../colour.ts'
 
@@ -21,6 +21,7 @@ export function LineChip({ line }: { line: Line }) {
 export interface Tracking {
   now: number
   at?: { row: number; frac: number } | null // where your location puts you on the steps (else the clock decides)
+  riding?: boolean // on a vehicle: you're drawn as it on its step (else on foot: walking, or waiting at the stop)
   segs: Segment[]
   onTime: (s: Segment) => void
 }
@@ -54,6 +55,7 @@ export function Timeline({
       place={placeKind(r.kind === 'arrive' ? ends.end : ends.start)}
       line={r.kind === 'leg' ? r.leg.line : undefined}
       me={me && me.row === k ? me.frac : undefined}
+      riding={track?.riding}
     />
   )
   return (
@@ -107,11 +109,12 @@ function ModeGlyph({ mode }: { mode?: string }) {
  * One step's piece of the line down the middle: a thick line in the ride's colour (the vehicle where you get on, a
  * white dot where you get off), dotted with a walker for walking, the home or gym at either end, and you if you're here.
  */
-function Rail({ kind, place, line, me }: {
+function Rail({ kind, place, line, me, riding }: {
   kind: 'ride' | 'walk' | 'start' | 'arrive'
   place: 'home' | 'gym' // at the start (or the end) of the trip
   line?: Line
   me?: number
+  riding?: boolean
 }) {
   const bg = line && lineColour(line.color)
   const style = bg && { '--c': bg, '--t': textOn(bg) }
@@ -128,9 +131,7 @@ function Rail({ kind, place, line, me }: {
       )}
       {kind === 'walk' && (
         <svg class="walker" viewBox="0 0 24 24" width="18" height="18">
-          {/* someone walking, heading right (on down the trip) */}
-          <circle cx="13.6" cy="4" r="2" />
-          <path d="M12.8 7.6 L11.2 13.2 L14.2 16.2 L15.2 20.6 M11.2 13.2 L9.8 17 L7.2 20.2 M12.4 8.6 L14.6 11.6 L16.8 12.4 M12.4 8.6 L9.8 10.4 L8.6 13" />
+          <Walker />
         </svg>
       )}
       {(kind === 'start' || kind === 'arrive') && (
@@ -140,7 +141,7 @@ function Rail({ kind, place, line, me }: {
       )}
       {me !== undefined && (
         <i class="you" style={{ top: `${me * 100}%` }}>
-          {/* heading on down the trip; at either end, the place you're at */}
+          {/* what you're doing: on the vehicle, or on foot; at either end, the place you're at */}
           <svg viewBox="0 0 24 24" width="18" height="18">
             {kind === 'start' || kind === 'arrive' ? (
               place === 'home' ? (
@@ -150,13 +151,25 @@ function Rail({ kind, place, line, me }: {
                   <Shoe />
                 </g>
               )
+            ) : kind === 'ride' && riding ? (
+              <path d={VEHICLE_PATHS[vehicleOf(line?.mode)]} />
             ) : (
-              <path d="M6.5 9.5 L12 15 L17.5 9.5" />
+              <Walker />
             )}
           </svg>
         </i>
       )}
     </span>
+  )
+}
+
+/** Starts timing a walk or a change: a stopwatch, then the link. */
+function TimeMyWalk({ onClick }: { onClick: () => void }) {
+  return (
+    <TextButton onClick={onClick}>
+      <Stopwatch />
+      Time my walk
+    </TextButton>
   )
 }
 
@@ -179,9 +192,7 @@ function LegRow({ leg, last, destination, rail, onTime }: {
           {onTime && (
             <>
               {' '}
-              <TextButton onClick={onTime}>
-                Time my walk
-              </TextButton>
+              <TimeMyWalk onClick={onTime} />
             </>
           )}
         </span>
@@ -257,7 +268,7 @@ function TransferRow({
         <span class="meta">{t.fallback_dep ? `If missed, the next one is at ${clock(t.fallback_dep)}` : 'No later service on this line'}</span>
         {onTime && (
           <span class="meta">
-            <TextButton onClick={onTime}>Time my walk</TextButton>
+            <TimeMyWalk onClick={onTime} />
           </span>
         )}
       </div>

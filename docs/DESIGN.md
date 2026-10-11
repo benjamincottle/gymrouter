@@ -49,12 +49,21 @@ The map's own paint (casing, walk lines, stop dots) and the MapLibre controls (z
 tokens too, in both themes. Controls are square, 44px, edge-outlined, and have no shadow. Ride lines are the line colour only, with
 no casing. Walks are round 4.5px ink dots every 8px along the street route (a dot
 image placed along the line, never a dashed line, which MapLibre stretches between zoom levels). A ride's stops (where you get on and
-off, and those passed on the way) sit on the line's centre (the server places them on the shape): white dots with a 1px ink outline, as wide as the line.
+off, and those passed on the way) sit on the line's centre (the server places them on the shape): white dots with a
+1.5px ink outline, 10px across, so they stand a little proud of the 6px line.
 Vehicles are discs in the line's colour, 20px inside a 2.5px ink outline, with the mode's glyph from the rail (train, bus
 or ferry) in ink or white: all one size whatever the line is called, since the colour and the trip say which line it is.
-You are the `--you` dot, 14px inside a 3px white border with a soft dark edge so the border shows on a pale map (and the
-halo of the location's accuracy). Once you're on board, your own vehicle isn't drawn: you are where it is. Vehicles you
-have yet to catch still are.
+You are a `--you` disc, 22px inside a 3px white border (28px across, as on the trip's rail) with a soft dark edge so
+the border shows on a pale map (and the halo of the location's accuracy). In it, in white and 16px, is what you're
+doing: the rail's walker while you walk or wait at a stop, the vehicle's glyph (train, bus or ferry) while you ride.
+Once you're on board, your own vehicle isn't drawn: you are where it is. Vehicles you have yet to catch still are.
+
+**What the map fits.** The whole trip, with the vehicle you'll catch first once it's near. During a trip, once you've
+set off (the "you" marker has left the trip's first step: by your location, or by the leave time without one), it
+fits the step you're on instead, whole, with you in it: the walk, the ride from where you get on to where you get off,
+the change. At the stop waiting, that's the ride you're waiting for, with its vehicle once it's near. The view moves
+on to each new step by itself. Once you've zoomed or moved the map yourself it's left alone, by this and by live
+updates alike, until the map is next opened.
 
 ### Type
 
@@ -141,6 +150,9 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   - There's no "ghost" variant. A row of buttons puts the commit action last.
 - **Text action:** underlined, weight 600, inline in a sentence. `quiet` uses `--pencil`. It has a 44px hit area
   through `::after`. Use it for things like "Earlier trips", "Time my walk" and "Measure my pace".
+  - "Time my walk" starts with a stopwatch: the Settings stopwatch drawn 16px in the link's own ink (`Stopwatch` in
+    `icons.tsx`), `--s1` before the words and not underlined. Drawn, not the ⏱ emoji, which every phone draws its own
+    way and some in colour.
 - **Icon button:** 44×44, no outline, `--panel` on hover. The `danger` variant colours the icon `--missed`. Always has
   an `aria-label`.
 - **Segmented control:** one size (16px/600, 44px), a radio group (one tab stop, arrow keys). The chosen option has
@@ -158,6 +170,8 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   - `caution` (`--tight`) when something works but is degraded;
   - `bad` (`--missed`) for failed or missed.
   - At most one action. A dismiss × only if it can safely be ignored.
+  - A callout that suggests a trip shows it under its text as a row from the options board (`TripRow`: leave, tape,
+    arrive, risk mark, compact duration), and its text leaves out what the row says.
   - Panels with their own job (pace test, walk timer) are sections, not callouts.
 - **Section:** a heavy top rule (except the first section on Settings and the screens opened from it, right under the header), then a title (20px/800/semi) with an optional 24px icon (ink lines, one part filled).
   An intro line in 14px pencil may follow.
@@ -216,7 +230,9 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
     the dots run to just above the rule; into the shoe, from just below it. Changes get a `--panel` row with a risk
     badge.
   - The house or the shoe marks each end, centred on its row's line of text (the time, "Leave Home", "Arrive"). The
-    "you" marker never covers text; at either end it holds the drawing of the place you're at.
+    "you" marker (28px) never covers text. It holds what you're doing, in white: at either end the drawing of the place
+    you're at; on a ride you're on, the vehicle's glyph (train, bus or ferry); otherwise the walker, walking or
+    waiting at a stop. The map's marker is the same.
 - **The shoe:** a gym is a climbing shoe, as home is a house: toe down and to the right, a loop on its heel, two
   straps and a rubber sole (`Shoe` in `web/src/views/icons.tsx`, drawn once and used everywhere). It marks the gym's
   end of the rail and of the direction toggle, and heads Gyms in Settings.
@@ -234,14 +250,19 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   and colour everywhere (chip, tape, map): they're the names on the buses' signs.
 - **In-trip warnings** (above Now, at most one at a time):
   - `bad`, when the trip can't be made as it stands. It says what won't be made, then the next best with how sure its
-    changes are, and offers the switch: "**You won't make the change at North Ryde Station: the 288 leaves at 12:34.**
-    Next best: 291, arriving 12:38, with no changes." [Switch to this]. The other openings: "You won't make the M1 at
-    11:52." and "One of your services is no longer running."
+    changes are, that trip's row, and offers the switch: "**You won't make the change at North Ryde Station: the 288
+    leaves at 12:34.** Next best, with no changes:", the row, [Switch to this]. The other openings: "You won't make
+    the M1 at 11:52." and "One of your services is no longer running."
   - It shows as soon as there's nothing to spare, and then stays until there's the "tight" setting to spare again (1 min
     unless changed), so a connection near the line doesn't come and go with each live update. While it's only staying, it
     says "You may not make…" rather than "You won't make…".
   - `good`, when another way arrives at least 3 minutes sooner and its changes are no riskier than those still ahead
-    of you: "**A faster way just opened up:** 291, arriving 12:38, 4 min sooner, with no changes." [Switch to this].
+    of you: "**A faster way just opened up:** 4 min sooner, with no changes.", that trip's row, [Switch to this].
+    - It can be dismissed, and then that way isn't offered again on this trip: it's known by the vehicles it takes
+      that yours doesn't. Only the fastest way is ever offered, so once it's dismissed nothing shows until a different
+      way is the fastest.
+  - The row is the suggested trip from where you are now: it leaves when you'd have to set off from here (now, on a
+    vehicle).
   - How sure the changes are reads `with no changes`, `with a safe change` (or tight, at-risk), `with 3 safe changes`,
     `with 2 changes, the tightest at risk`.
 - **Longer walk:** a neutral callout above the board for each end whose nearest stop on the gym's lines is beyond the
@@ -294,6 +315,14 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   phones and is centred on desktop. A title says what will happen; the body lists exactly what is lost; actions are
   Cancel, then the danger action.
 - **Map sheet (phone):** a full-screen dialog. The header leads with "‹ Back to trip" (or "‹ Back"), then the title.
+  - **The handle** (during a trip): a 40 × 4px ink bar, `--r-mark`, centred just under the rule between the map and
+    the steps, with a 44px hit area that reaches up over the map's bottom edge (and stops short of the attribution in
+    the corner). Dragged down 24px or more, the map takes the steps' room; dragged back up, they return; a tap does
+    either. Two positions, nothing in between. It's a button ("Show more of the map" / "Show the trip's steps").
+  - With the map pulled down, the arrive line stays under it with what to do now: the Now instruction (16px/600) and
+    its line beneath in 14px pencil ("T1 leaves 13:48 (in 27 min), on time", "Get off at 14:28 (in 6 min), Wynyard
+    Station").
+  - It stays as you left it for the rest of the trip, however often the map is opened.
 
 ## UX conventions
 

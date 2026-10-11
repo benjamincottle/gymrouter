@@ -75,6 +75,43 @@ clean today). Roughly in order of value.
     binary, which govulncheck never sees.
   - [x] Local dev: `.env` holding the real API key is mode 0644 (`config.toml` is 0600); `chmod 600 .env`.
 
+# TODO: field review (2026-10-11)
+
+In a trip and Map (but for the stops countdown) are done on branch `field-review-2`: what was chosen, and from what, is
+in the spec's decision log (2026-10-11). The rest is recorded only, not started.
+
+## In a trip
+
+- [x] **The "faster way opened up" notice can be dismissed** during an active trip.
+- [x] **The "faster way opened up" notice shows the suggested trip's strip**, like the ones in the list of trips.
+- [x] **A tiny stopwatch (⏱) at the start of the "Time my walk" links.**
+- [ ] **A countdown of stops left on a ride?** And haptic feedback when it's time to get off?
+
+## Map
+
+- [x] **Once a trip has started, the map opens zoomed to the current leg.** Before that it's the whole trip, as now.
+      "Started" needs a definition: maybe once you were supposed to leave.
+- [x] **You as a mini walking figure, train, bus, etc.** during an active trip, instead of a plain blue dot. Keep the
+      white outline, so probably a white icon (it may need to be bigger to be legible). The same on the trip's
+      vertical tape, where "you" is an arrow now. Mock these first.
+- [x] **Pull down on the map's bottom edge** during an active trip to make it take up most of the screen, and drag it
+      back again.
+- [x] **The stops along a route are slightly more prominent** on the map.
+
+## Server
+
+- [ ] **Take the walking paths from Geofabrik** instead of BBBike: more current data, updated daily. But the extract
+      is the whole of NSW, so work out how to trim the download to our area before building the walking graph. The
+      goal is to be able to support routing walks to and from gyms outside the BBBike area (Penrith and Climber
+      Collective, for example).
+      (Checked 2026-10-11: `new-south-wales-latest.osm.pbf` is 269 MB, against BBBike Sydney's 57 MB, and over
+      `maxWalkSource`, 250 MiB, in `internal/engine/provision.go`.)
+
+## Investigate
+
+- [ ] **Platform start points placed along the platform** to line up with the fastest exit at the destination
+      (i.e. dynamic). Can it be done?
+
 # TODO: field reports (2026-10-10)
 
 Branch `field-review`, committed locally step by step. In working order: quick fixes, then the in-trip estimates, the

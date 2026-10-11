@@ -4,15 +4,16 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, spare, statusTime } from '../format.ts'
 import { useNow, useVisible, useWide } from '../hooks.ts'
-import { assess, changesNote, instruction, keepFrom, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, USABLE_M, type Assessment, type Missed, type Phase, type Position } from '../intrip.ts'
+import { assess, changesNote, focusLegs, instruction, keepFrom, phaseAt, replanOrigin, replanTime, spareToBoard, suggestionKey, tripsFrom, USABLE_M, type Assessment, type Missed, type Phase, type Position } from '../intrip.ts'
 import type { Option, PlanRequest } from '../types.ts'
 import type { Walk } from '../walkmeasure.ts'
 import { existing, legTrace, segments, stopKey, type PlaceRef, type Retime, type Segment, type TimedWalk } from '../walks.ts'
-import { MapPane, MapSheet } from './board.tsx'
+import { MapPane, MapSheet, TripRow } from './board.tsx'
 import { Timeline, type Tracking } from './option.tsx'
 import { position, rows } from '../options.ts'
 import { advance, phaseOf, rowLines, shapeKey, walkLeftS, walkTo, type At, type LonLat } from '../progress.ts'
 import { boarding, type Fix, type Sighting } from '../boarding.ts'
+import { vehicleOf, type Doing } from './icons.tsx'
 import { WalkTimer } from './walktimer.tsx'
 import { ActionBar, Button, Callout, Confirm, TextButton } from './ui.tsx'
 
@@ -28,6 +29,8 @@ export interface ActiveTrip {
   serviceDate: string
   walkSpeedMps: number
   tightS: number // the "tight" setting: a warning that's showing clears once there's this much to spare again
+  dismissed?: string[] // "faster way" notices dismissed on this trip (suggestionKey): not offered again
+  mapTall?: boolean // the phone's map is pulled down over the steps: it stays as you left it
 }
 
 export const TRIP_KEY = 'gymrouter.trip'
@@ -65,6 +68,8 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   useEffect(() => timerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), [timing])
   const o = trip.option
   const phaseRef = useRef<Phase>(phaseAt(o, now))
+  const tripRef = useRef(trip) // the trip as it is now, for a re-check that started before it last changed
+  tripRef.current = trip
 
   // Where you are on the steps: from your location along each step's line, the clock only as a fallback.
   const [shapes, setShapes] = useState<Record<string, LonLat[]>>({})
@@ -227,7 +232,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
         setCheckedAt(Date.now())
         setError('')
         // The same trip: take the live times for what's still ahead (also when a change in it has gone).
-        if (a.current) onUpdate({ ...trip, option: merge(trip.option, ph.ride, a.current) })
+        if (a.current) onUpdate({ ...tripRef.current, option: merge(trip.option, ph.ride, a.current) })
       } catch (e) {
         if (e instanceof AuthError) onAuthError()
         else if (live) setError(`Couldn't re-check the trip: ${problem(e)}`)
@@ -246,17 +251,34 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   const switchTo = (s: Option) => {
     const ph = phaseRef.current
     const keep = ph.kind === 'riding' || ph.kind === 'before' ? ph.ride : o.legs.length
-    onUpdate({ ...trip, option: merge(o, keep, s), plannedArrive: s.arrive })
+    onUpdate({ ...trip, option: merge(o, keep, s), plannedArrive: s.arrive, dismissed: undefined })
     held.current = null
     setCheck(null)
   }
 
+  // A faster way that's been dismissed stays away: the same vehicles aren't offered again on this trip.
+  const faster = check?.status === 'better' && !trip.dismissed?.includes(suggestionKey(o, check.suggestion)) ? check : null
+  // The map frames the step you're on once you've set off; until then, the whole trip.
+  const focus = focusLegs(o, phase, steps[at.row]?.kind !== 'start')
+
+  // You, on the map: on foot, or the vehicle you're on.
+  const doing: Doing = phase.kind === 'riding' ? vehicleOf(o.legs[phase.ride].line?.mode) : 'walk'
+
   const ins = instruction(o, phase, trip.ends.end.name)
+  // The line under it: when the ride you're heading for leaves, or when you get off the one you're on.
+  const d = ins.detail
+  const nowDetail = !d ? null
+    : phase.kind === 'before'
+      ? (Date.parse(d.dep) < now - 30_000
+          ? `${d.line?.name} was due ${clock(d.dep)} (${countdown(d.dep, now).replace(/^left /, '')})`
+          : `${d.line?.name} leaves ${clock(d.dep)} (${countdown(d.dep, now)})`) + (d.status === 'predicted' ? `, ${delay(d.delay_s)}` : '')
+      : phase.kind === 'riding' ? `Get off at ${clock(d.arr)} (${countdown(d.arr, now)}), ${placeName(d.to)}` : null
   // The trip's description: you on its rail, and its walks to time (from the map, timing goes back to this screen).
 
   const track: Tracking = {
     now,
     at,
+    riding: phase.kind === 'riding',
     segs: segments(o, trip.ends.start, trip.ends.end),
     onTime: (s) => {
       setMapOpen(false)
@@ -309,6 +331,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
         <Callout
           tone="bad"
           role="alert"
+          detail={check.suggestion && <div class="trip-row"><TripRow option={check.suggestion} /></div>}
           action={
             check.suggestion && (
               <Button onClick={() => switchTo(check.suggestion!)}>
@@ -318,24 +341,23 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           }
         >
           <strong>{missedText(check.missed)}</strong>{' '}
-          {check.suggestion
-            ? `Next best: ${check.suggestion.lines.map((l) => l.split(' ')[1]).join(', ')}, arriving ${clock(check.suggestion.arrive)}, ${changesNote(check.suggestion)}.`
-            : "There's no other way on these lines right now."}
+          {check.suggestion ? `Next best, ${changesNote(check.suggestion)}:` : "There's no other way on these lines right now."}
         </Callout>
       )}
-      {check?.status === 'better' && (
+      {faster && (
         <Callout
           tone="good"
           role="status"
+          detail={<div class="trip-row"><TripRow option={faster.suggestion} /></div>}
+          onDismiss={() => onUpdate({ ...trip, dismissed: [...(trip.dismissed ?? []), suggestionKey(o, faster.suggestion)] })}
           action={
-            <Button onClick={() => switchTo(check.suggestion)}>
+            <Button onClick={() => switchTo(faster.suggestion)}>
               Switch to this
             </Button>
           }
         >
-          <strong>A faster way just opened up:</strong> {check.suggestion.lines.map((l) => l.split(' ')[1]).join(', ')}, arriving{' '}
-          {clock(check.suggestion.arrive)}, {duration((Date.parse(check.current.arrive) - Date.parse(check.suggestion.arrive)) / 1000)} sooner,{' '}
-          {changesNote(check.suggestion)}.
+          <strong>A faster way just opened up:</strong>{' '}
+          {duration((Date.parse(faster.current.arrive) - Date.parse(faster.suggestion.arrive)) / 1000)} sooner, {changesNote(faster.suggestion)}.
         </Callout>
       )}
 
@@ -347,12 +369,9 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
             Leave {dayOf(o.leave_at, now) && `${dayOf(o.leave_at, now)} `}at <strong>{clock(o.leave_at)}</strong> ({countdown(o.leave_at, now)})
           </p>
         )}
-        {ins.detail && phase.kind === 'before' && (
+        {nowDetail && phase.kind === 'before' && (
           <p>
-            {Date.parse(ins.detail.dep) < now - 30_000
-              ? `${ins.detail.line?.name} was due ${clock(ins.detail.dep)} (${countdown(ins.detail.dep, now).replace(/^left /, '')})`
-              : `${ins.detail.line?.name} leaves ${clock(ins.detail.dep)} (${countdown(ins.detail.dep, now)})`}
-            {ins.detail.status === 'predicted' && `, ${delay(ins.detail.delay_s)}`}
+            {nowDetail}
             {spareS !== null && !(phase.kind === 'before' && phase.waiting) && (
               <span class={spareS < 0 ? 'spare bad' : spareS < 60 ? 'spare tight' : 'spare'}>
                 {spareS < 0 ? `You need to hurry: ${Math.ceil(-spareS / 60)} min short at walking pace.` : `${spare(spareS)} from here.`}
@@ -360,11 +379,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
             )}
           </p>
         )}
-        {ins.detail && phase.kind === 'riding' && (
-          <p>
-            Get off at {clock(ins.detail.arr)} ({countdown(ins.detail.arr, now)}), {placeName(ins.detail.to)}
-          </p>
-        )}
+        {nowDetail && phase.kind === 'riding' && <p>{nowDetail}</p>}
       </section>
 
       {upcoming && (
@@ -428,12 +443,14 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           serviceDate={trip.serviceDate}
           token={token}
           me={where}
+          doing={doing}
           aboard={riding}
           walks={walks}
           places={{ start: trip.ends.start.key, end: trip.ends.end.key }}
           origin={trip.origin}
           destination={trip.destination}
           option={o}
+          focus={focus}
         />
       )}
 
@@ -443,6 +460,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           serviceDate={trip.serviceDate}
           token={token}
           me={where}
+          doing={doing}
           aboard={riding}
           walks={walks}
           places={{ start: trip.ends.start.key, end: trip.ends.end.key }}
@@ -450,9 +468,13 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           destination={trip.destination}
           title={trip.title}
           option={o}
+          focus={focus}
           now={now}
           onClose={() => setMapOpen(false)}
-          steps={{ ends: trip.ends, track }}
+          steps={{
+            ends: trip.ends, track, now: { main: ins.now, detail: nowDetail },
+            tall: !!trip.mapTall, onTall: (tall) => onUpdate({ ...trip, mapTall: tall }),
+          }}
         />
       )}
     </div>

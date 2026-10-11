@@ -222,6 +222,13 @@ select {
   color: var(--pencil);
 }
 
+/* the stopwatch that starts a "Time my walk" link, sitting on the text's line */
+.text-btn .stopwatch {
+  margin-right: var(--s1);
+  vertical-align: -2.5px;
+  stroke-width: 2.2;
+}
+
 .icon-btn {
   display: inline-grid;
   place-items: center;
@@ -500,8 +507,17 @@ details > summary {
   grid-column: 1;
 }
 
-.callout > .actions {
+.callout > .actions,
+.callout > .detail {
   grid-column: 1 / -1;
+}
+
+/* the trip a notice suggests, as the list of options shows one (TripRow) */
+.trip-row {
+  display: grid;
+  grid-template-columns: max-content 1fr max-content 12px max-content;
+  column-gap: var(--s3);
+  align-items: center;
 }
 
 .callout .dismiss {
@@ -1310,7 +1326,7 @@ details > summary {
   stroke-linejoin: round;
 }
 
-.rail .walker circle {
+.rail .walker .head {
   fill: var(--pencil);
   stroke: none;
 }
@@ -1420,6 +1436,11 @@ details > summary {
   stroke-linejoin: round;
 }
 
+.rail .you .head {
+  fill: var(--white);
+  stroke: none;
+}
+
 /* the shoe in the marker: white on the marker's blue is the dark page's drawing in either theme, a little heavier at this size */
 .rail .you .shoe {
   --shoe-sole: none;
@@ -1516,6 +1537,57 @@ details > summary {
 
 .sheet-leave {
   font-size: var(--fs-lead);
+}
+
+/* during a trip: a handle on the rule under the map. Dragged down (or tapped), the map takes the steps' room; dragged
+   back up, they return */
+.sheet-summary.pull {
+  padding-top: 0;
+}
+
+.sheet-handle {
+  grid-column: 1 / -1;
+  position: relative;
+  width: 100%;
+  z-index: 3; /* its hit area reaches up over the map's bottom edge */
+  height: var(--s4);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sheet-handle::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: calc(50% - 20px);
+  width: 40px;
+  height: 4px;
+  border-radius: var(--r-mark);
+  background: var(--ink);
+}
+
+/* 44px to take hold of, clear of the map's attribution in the corner */
+.sheet-handle::after {
+  content: '';
+  position: absolute;
+  inset: -14px var(--s7);
+}
+
+/* with the map pulled down, what to do now stays under it */
+.sheet-now {
+  grid-column: 1 / -1;
+}
+
+.sheet-summary .sheet-now p {
+  display: block;
+  margin: 0;
+}
+
+.sheet-now p:first-child {
+  font-weight: 600;
 }
 
 /* during a trip the description sits under the map, scrolling on its own */

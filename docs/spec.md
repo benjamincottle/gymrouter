@@ -643,3 +643,32 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   platform 24's tunnel; and the complete bundle's line. Bending the line for the rides left over, and routing along
   OpenStreetMap's rails, were both left out: the first until those rides turn out to be noticed, the second because
   the feed already has the answer.
+- 2026-10-11: Field review, in a trip and on the map. Each was chosen from mockups taken from the running app, in
+  both themes (the rules are in `docs/DESIGN.md`):
+  - **A "faster way" notice can be dismissed**, and that way then isn't offered again on the trip (kept with the
+    trip, so a reload doesn't bring it back). It's known by the vehicles it takes that yours doesn't, so it's still
+    the same suggestion once you're off a ride the two share. Only the fastest way is ever offered: with it dismissed,
+    a second, slower "faster way" isn't put up in its place (chosen over offering the next one straight away, which
+    would turn one dismissal into a queue of notices). Rejected: no more notices for the rest of the trip, and a
+    timed silence after which the same one could return.
+  - **Both in-trip notices show the trip they suggest as a row from the list of options** (leave, tape, arrive,
+    risk, duration), and their sentences drop what the row says. Chosen over the tape alone under today's sentence,
+    and over two tapes, yours against the faster one. The "You won't make…" warning gets the row too, so a suggested
+    trip looks the same wherever it's offered.
+  - **"Time my walk" starts with a small drawn stopwatch** (16px, the Settings one). Not the ⏱ emoji: each phone
+    draws its own, an iPhone's in colour.
+  - **You are drawn as what you're doing**, on the rail and on the map: a walker on foot (walking, or waiting at a
+    stop), the vehicle's glyph on a ride, and on the rail the house or shoe at either end as before (supersedes the
+    arrow on the rail and the plain blue dot on the map). White on the same blue, inside the white border. The rail's
+    marker stays 28px (32 and 36 were tried); the map's grows from 20px to 28px to hold the figure and to match it
+    (24, 26 and 32 were tried: 24 was too small to read, 26 is a vehicle's size).
+  - **The map fits the step you're on once you've set off**, and the whole trip before that. "Set off" is the "you"
+    marker's own rule: your location has you past the trip's first step, or without a location the leave time has
+    come (chosen over the leave time alone, which is wrong whenever you leave early or late). The step is fitted
+    whole, with you in it (chosen over only what's left of it, and over the step plus the next one); waiting at a
+    stop it's the ride you're waiting for. The view moves on with each new step unless you've moved the map yourself.
+  - **The phone's map can be pulled down over the steps** by a handle on the rule under it (drag or tap; two
+    positions), leaving the arrive line and what to do now. It stays as you left it for the rest of the trip. The
+    arrive line alone was the other choice.
+  - **Stops along a route are 10px** with a 1.5px outline (from 6px and 1px: as wide as the line, they were hard to
+    pick out). 8.5px, and bigger stops only where you get on and off, were the other choices.

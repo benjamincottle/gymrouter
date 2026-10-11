@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { assess, changesNote, instruction, keepFrom, phaseAt, replanOrigin, replanTime, spareToBoard, tripsFrom, type Missed } from './intrip.ts'
+import { assess, changesNote, focusLegs, instruction, keepFrom, phaseAt, replanOrigin, replanTime, spareToBoard, suggestionKey, tripsFrom, type Missed } from './intrip.ts'
 import type { Leg, Option } from './types.ts'
 
 const stop = (id: string, lat: number, lon: number, station?: string) => ({ id, name: station ? `${station}, Platform 1` : id, station, lat, lon })
@@ -180,4 +180,31 @@ test('instructions', () => {
   assert.equal(instruction(planned, { kind: 'riding', ride: 1 }).now, 'On the T9: get off at Epping Station')
   assert.equal(instruction(planned, { kind: 'arrived' }).now, "You've arrived")
   assert.equal(instruction(planned, { kind: 'final-walk' }, '9 Degrees Parramatta').now, 'Walk to 9 Degrees Parramatta')
+})
+
+test('a dismissed suggestion is known by the vehicles it takes that yours does not', () => {
+  const bus = ride('bus', '288', B, D, '14:10', '14:20')
+  const viaBus = option([ride('t9', 'T9', A, B, '13:54', '14:09'), bus], '14:22')
+  assert.equal(suggestionKey(planned, viaBus), 'bus')
+  // Off the ride the two share, it's still the same suggestion.
+  assert.equal(suggestionKey(planned, option([walk('14:09', '14:10', B, B), bus], '14:22')), 'bus')
+  // Another vehicle makes it another suggestion.
+  assert.notEqual(suggestionKey(planned, option([ride('bus2', '291', B, D, '14:11', '14:19')], '14:21')), 'bus')
+  // Only your own vehicles (getting off somewhere else): all of them.
+  assert.equal(suggestionKey(planned, option([ride('t9', 'T9', A, D, '13:54', '14:20')], '14:22')), 't9')
+})
+
+test('the map frames the step you are on, once you have set off', () => {
+  assert.equal(focusLegs(planned, { kind: 'before', ride: 1 }, false), null, 'not set off yet: the whole trip')
+  assert.deepEqual(focusLegs(planned, { kind: 'before', ride: 1 }, true), [0], 'the walk to the first stop')
+  assert.deepEqual(focusLegs(planned, { kind: 'before', ride: 1, waiting: true }, true), [1], 'at the stop: the ride you are waiting for')
+  assert.deepEqual(focusLegs(planned, { kind: 'riding', ride: 1 }, true), [1])
+  assert.deepEqual(focusLegs(planned, { kind: 'before', ride: 3 }, true), [2], 'the walk of a change')
+  assert.deepEqual(focusLegs(planned, { kind: 'riding', ride: 3 }, true), [3])
+  assert.deepEqual(focusLegs(planned, { kind: 'final-walk' }, true), [4])
+  assert.deepEqual(focusLegs(planned, { kind: 'arrived' }, true), [4])
+  // A change at the same stop has no walk: it's a wait for the next ride.
+  const sameStop = option([ride('t9', 'T9', A, B, '13:54', '14:09'), ride('m1', 'M1', B, D, '14:12', '14:19')], '14:19')
+  assert.deepEqual(focusLegs(sameStop, { kind: 'before', ride: 1 }, true), [1])
+  assert.deepEqual(focusLegs(sameStop, { kind: 'final-walk' }, true), [1], 'no last walk: the last ride')
 })

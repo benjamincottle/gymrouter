@@ -76,15 +76,7 @@ export function Board(p: Props) {
         {opts.map((o, i) => (
           <li class={i === selected ? 'selected' : undefined}>
             <button class="strip-row" role="radio" aria-checked={i === selected} tabIndex={i === selected ? 0 : -1} onClick={() => choose(i)}>
-              <span class="strip-leave">{clock(o.leave_at)}</span>
-              <Strip option={o} />
-              <span class="strip-arrive">{clock(o.arrive)}</span>
-              <span class={`risk-mark risk-${o.risk}`} title={`${riskLabel(o.risk)} connections`}>
-                <span class="sr-only">{riskLabel(o.risk)}</span>
-              </span>
-              <span class="strip-dur" title="Door to door">
-                {shortDuration(o.duration_s)}
-              </span>
+              <TripRow option={o} />
             </button>
             {o.alternative && i === selected && <p class="alt-note">A different route, a little slower than the best.</p>}
           </li>
@@ -111,6 +103,26 @@ export function Board(p: Props) {
         <MapSheet {...p} option={sel} now={now} onClose={() => setMapOpen(false)} onStart={p.onStart && (() => p.onStart!(sel))} />
       )}
     </div>
+  )
+}
+
+/**
+ * One trip as the list of options shows it: when it leaves, its tape, when it arrives, how sure its changes are and
+ * how long it takes. The columns are its container's (.strips, or .trip-row in a notice that suggests the trip).
+ */
+export function TripRow({ option: o }: { option: Option }) {
+  return (
+    <>
+      <span class="strip-leave">{clock(o.leave_at)}</span>
+      <Strip option={o} />
+      <span class="strip-arrive">{clock(o.arrive)}</span>
+      <span class={`risk-mark risk-${o.risk}`} title={`${riskLabel(o.risk)} connections`}>
+        <span class="sr-only">{riskLabel(o.risk)}</span>
+      </span>
+      <span class="strip-dur" title="Door to door">
+        {shortDuration(o.duration_s)}
+      </span>
+    </>
   )
 }
 
@@ -193,7 +205,9 @@ function useMapView(): { View: ComponentType<MapViewProps> | null; failed: boole
 type MapProps = Pick<Props, 'token' | 'walks' | 'places' | 'serviceDate' | 'origin' | 'destination'> & {
   option: Option
   me?: MapViewProps['me']
+  doing?: MapViewProps['doing']
   aboard?: MapViewProps['aboard']
+  focus?: MapViewProps['focus']
 }
 
 function MapBody({ View, failed, ...p }: MapProps & { View: ComponentType<MapViewProps> | null; failed: boolean }) {
@@ -230,15 +244,61 @@ type MapSheetProps = Omit<Props, 'onStart' | 'options' | 'onShift' | 'ends'> & {
   onClose: () => void
   onStart?: () => void // offered on the map so a trip can start without closing it
   me?: MapViewProps['me']
+  doing?: MapViewProps['doing']
   aboard?: MapViewProps['aboard']
-  steps?: { ends: Ends; track: Tracking } // during a trip: the trip's description under the map
+  focus?: MapViewProps['focus']
+  steps?: InTripSteps // during a trip: the trip's description under the map
 }
+
+/** What sits under the map during a trip: the steps, or with the map pulled down over them, just what to do now. */
+export interface InTripSteps {
+  ends: Ends
+  track: Tracking
+  now: { main: string; detail?: string | null }
+  tall: boolean // the map is pulled down
+  onTall: (tall: boolean) => void
+}
+
+/** How far the handle has to be dragged to move the map (less is a tap, or a change of mind). */
+const PULL_PX = 24
 
 /** Phones: the map over everything, with the way back first and, while planning, Start trip where the thumb is. */
 export function MapSheet({ option, now, onClose, onStart, title, live, steps, ...p }: MapSheetProps) {
-  // Open with the step you're on in view.
+  // Open with the step you're on in view (and when the steps come back from under the map).
   const stepsRef = useRef<HTMLDivElement>(null)
-  useEffect(() => stepsRef.current?.querySelector('.you')?.scrollIntoView({ block: 'center' }), [])
+  useEffect(() => stepsRef.current?.querySelector('.you')?.scrollIntoView({ block: 'center' }), [steps?.tall])
+  // The handle under the map: drag it down and the map takes the steps' room, up and they come back; a tap does either.
+  const [pull, setPull] = useState<number | null>(null) // the steps' height while the handle is being dragged
+  const grip = useRef<{ y: number; h: number; moved: boolean } | null>(null)
+  const dragged = useRef(false)
+  const handle = steps && {
+    onPointerDown: (e: PointerEvent) => {
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+      grip.current = { y: e.clientY, h: steps.tall ? 0 : (stepsRef.current?.offsetHeight ?? 0), moved: false }
+    },
+    onPointerMove: (e: PointerEvent) => {
+      const g = grip.current
+      if (!g) return
+      if (Math.abs(e.clientY - g.y) > 4) g.moved = true
+      if (g.moved) setPull(Math.max(0, g.h - (e.clientY - g.y)))
+    },
+    onPointerUp: (e: PointerEvent) => {
+      const g = grip.current
+      grip.current = null
+      setPull(null)
+      if (!g?.moved) return
+      dragged.current = true // the click that follows a drag isn't a tap
+      if (Math.abs(e.clientY - g.y) >= PULL_PX) steps.onTall(e.clientY > g.y)
+    },
+    onPointerCancel: () => {
+      grip.current = null
+      setPull(null)
+    },
+    onClick: () => {
+      if (!dragged.current) steps.onTall(!steps.tall)
+      dragged.current = false
+    },
+  }
   const map = useMapView()
   const sheetRef = useRef<HTMLDivElement>(null)
   useDialog(sheetRef, onClose) // focus starts on Back; Escape closes; the page behind is inert
@@ -254,7 +314,10 @@ export function MapSheet({ option, now, onClose, onStart, title, live, steps, ..
         <span class="sheet-title">{title}</span>
       </header>
       <MapBody {...p} option={option} {...map} />
-      <footer class="sheet-summary">
+      <footer class={steps ? 'sheet-summary pull' : 'sheet-summary'}>
+        {steps && (
+          <button class="sheet-handle" aria-expanded={!steps.tall} aria-label={steps.tall ? "Show the trip's steps" : 'Show more of the map'} {...handle} />
+        )}
         <div>
           {steps ? (
             // Under way: what matters is when you get there.
@@ -281,8 +344,14 @@ export function MapSheet({ option, now, onClose, onStart, title, live, steps, ..
             Start trip
           </Button>
         )}
-        {steps && (
-          <div class="sheet-steps" ref={stepsRef}>
+        {steps && steps.tall && pull === null && (
+          <div class="sheet-now">
+            <p>{steps.now.main}</p>
+            {steps.now.detail && <p class="meta">{steps.now.detail}</p>}
+          </div>
+        )}
+        {steps && (!steps.tall || pull !== null) && (
+          <div class="sheet-steps" ref={stepsRef} style={pull === null ? undefined : { height: `${pull}px`, overflow: 'hidden' }}>
             <Timeline option={option} ends={steps.ends} walks={p.walks} track={steps.track} />
           </div>
         )}
