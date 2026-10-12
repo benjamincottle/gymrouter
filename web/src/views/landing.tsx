@@ -1,5 +1,6 @@
 /**
- * What a browser without a setup link sees: the name and the mark, nothing to press. The only way in is a setup link.
+ * What a browser without a setup link sees: the mark, the name and what to do, nothing to press. The only way in is a
+ * setup link.
  *
  * The mark is the app icon's drawing at page scale, on the same wall: bolt holes every 12 icon units, a line arriving
  * along a row of them (with a stop every other hole) at the foot of a volume bolted into one. style.css lays it out
@@ -22,6 +23,7 @@ export function Landing() {
         <circle class="bolt" cx="44" cy="32" r="1.3" />
       </svg>
       <h1 class="landing-name">Gym Router</h1>
+      <p class="landing-hint">Open your setup link to start.</p>
     </main>
   )
 }

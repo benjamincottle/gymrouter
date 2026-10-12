@@ -6,7 +6,7 @@ import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, shortDu
 import { useNow, useWide } from '../hooks.ts'
 import type { Leg, Option } from '../types.ts'
 import { Timeline, type Ends, type Tracking } from './option.tsx'
-import { changesAndStops, reselect, tape, tripKey } from '../options.ts'
+import { changesAndStops, reselect, riskReason, tape, tripKey } from '../options.ts'
 import type { MapViewProps } from '../map/mapview.tsx'
 import { ActionBar, Button, Callout, onRadioKeys, TextButton, useDialog } from './ui.tsx'
 import { lineColour, textOn } from '../colour.ts'
@@ -90,7 +90,7 @@ export function Board(p: Props) {
           </Button>
         )}
         {p.onStart && (
-          <Button onClick={() => p.onStart!(sel)}>
+          <Button variant="commit" onClick={() => p.onStart!(sel)}>
             Start trip
           </Button>
         )}
@@ -151,6 +151,11 @@ function Hero({ option: o, live, now }: { option: Option; live: boolean; now: nu
           {ride.status === 'predicted' && ride.delay_s !== undefined && ` (${delay(ride.delay_s)})`}
         </p>
       )}
+      {/* How sure the trip is, beside the number it qualifies: the rows' squares only show its colour. */}
+      <p class="hero-sub hero-risk">
+        <span class={`badge risk-${o.risk}`}>{riskLabel(o.risk)}</span>
+        {riskReason(o)}
+      </p>
     </section>
   )
 }
@@ -341,7 +346,7 @@ export function MapSheet({ option, now, onClose, onStart, title, live, steps, ..
           {!steps && <Strip option={option} />}
         </div>
         {onStart && (
-          <Button onClick={onStart}>
+          <Button variant="commit" onClick={onStart}>
             Start trip
           </Button>
         )}

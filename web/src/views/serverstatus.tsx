@@ -19,10 +19,11 @@ const Chevron = () => (
 )
 
 /**
- * The server's state for the footer: a status dot, a short line, and what needs a look (usually nothing). The line
- * opens to everything the status call returned.
+ * The footer: the server's state (a status dot, a short line, and what needs a look, usually nothing; the line opens
+ * to everything the status call returned), then the version. It's for whoever runs the server, so `quiet` (the trip
+ * screen) shows it only when there's something to act on: the server isn't OK, or the app is out of date.
  */
-export function ServerStatusLine({ token }: { token: string }) {
+export function ServerStatusLine({ token, quiet }: { token: string; quiet?: boolean }) {
   const visible = useVisible()
   const status = usePolling(token, (signal) => api.status(token, signal), CHECK_MS, visible)
   const [open, setOpen] = useState(false)
@@ -38,33 +39,37 @@ export function ServerStatusLine({ token }: { token: string }) {
     if (!open) status.refresh() // what you open is what the server says now
     setOpen(!open)
   }
+  const stale = !!version && outdated(version)
+  if (quiet && !stale && s.state !== 'warning' && s.state !== 'error') return null
   return (
-    <div class="server-status">
-      <button class="status-toggle" aria-expanded={open} aria-controls="server-detail" onClick={toggle}>
-        <span class="status-dot" data-state={s.state} aria-hidden="true" />
-        <span role="status">
-          {s.title}
-          {status.updatedAt > 0 && s.state !== 'error' && `, checked ${statusTime(status.updatedAt)}`}
-        </span>
-        <Chevron />
-      </button>
-      {s.issues.map((i) => (
-        <p>{i}</p>
-      ))}
-      {open && (
-        <div id="server-detail" class="server-detail">
-          {status.data ? <Detail status={status.data} token={token} refresh={status.refresh} /> : <p>{s.state === 'error' ? 'Nothing to show until the server answers.' : 'Asking the server…'}</p>}
-        </div>
-      )}
-      {version &&
-        (outdated(version) ? (
-          <p role="status">
-            This app is out of date. <TextButton onClick={() => location.reload()}>Reload</TextButton> to get version {version}.
-          </p>
-        ) : (
-          <p>Version {version}</p>
+    <footer class="footer">
+      <div class="server-status">
+        <button class="status-toggle" aria-expanded={open} aria-controls="server-detail" onClick={toggle}>
+          <span class="status-dot" data-state={s.state} aria-hidden="true" />
+          <span role="status">
+            {s.title}
+            {status.updatedAt > 0 && s.state !== 'error' && `, checked ${statusTime(status.updatedAt)}`}
+          </span>
+          <Chevron />
+        </button>
+        {s.issues.map((i) => (
+          <p>{i}</p>
         ))}
-    </div>
+        {open && (
+          <div id="server-detail" class="server-detail">
+            {status.data ? <Detail status={status.data} token={token} refresh={status.refresh} /> : <p>{s.state === 'error' ? 'Nothing to show until the server answers.' : 'Asking the server…'}</p>}
+          </div>
+        )}
+        {version &&
+          (stale ? (
+            <p role="status">
+              This app is out of date. <TextButton onClick={() => location.reload()}>Reload</TextButton> to get version {version}.
+            </p>
+          ) : (
+            <p>Version {version}</p>
+          ))}
+      </div>
+    </footer>
   )
 }
 

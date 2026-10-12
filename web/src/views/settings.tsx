@@ -7,7 +7,7 @@ import { DeleteButton, EditButton, IconColour, IconDevices, IconGym, IconHome, I
 import type { DefaultsResponse } from '../types.ts'
 import { GymChooser, newGym, newHome, PlaceEditor, type EditorKind } from './places.tsx'
 import { BrandLogo } from './brand.tsx'
-import { Button, Callout, Confirm, ConfirmSheet, Field, Row, Section, Segmented, TextButton, type Tone } from './ui.tsx'
+import { Button, Callout, Confirm, ConfirmSheet, Row, RowAction, Section, Segmented, TextButton, type Tone } from './ui.tsx'
 
 interface Props {
   settings: Settings
@@ -24,7 +24,8 @@ type Editing =
 const editNew = (kind: EditorKind): Editing => ({ kind, place: kind === 'home' ? { ...newHome(), lines: [] } : newGym(), isNew: true })
 
 export function SettingsView({ settings, setSettings, server, onAuthError, onSetUp }: Props) {
-  // First run: add a home, then choose gyms.
+  // First run: add a home, then choose gyms. Two steps, and nothing to cancel back to.
+  const [setup] = useState(settings.homes.length === 0)
   const [editing, setEditing] = useState<Editing | null>(
     settings.homes.length === 0 ? editNew('home') : settings.gyms.length === 0 ? { kind: 'choose-gyms' } : null,
   )
@@ -57,6 +58,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
         <GymChooser
           known={server?.gyms ?? null}
           have={settings.gyms}
+          firstRun={setup && settings.gyms.length === 0}
           home={home}
           token={settings.token!}
           maxWalkM={settings.maxWalkM}
@@ -84,6 +86,8 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
         token={settings.token!}
         homes={settings.homes}
         maxWalkM={settings.maxWalkM}
+        walkLimitM={settings.maxWalkM ?? d?.max_walk_m}
+        firstRun={setup && editing.kind === 'home' && settings.homes.length === 0}
         onAuthError={onAuthError}
         onCancel={() => setEditing(null)}
         onSave={(g) => {
@@ -130,8 +134,12 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
               </Row>
             ),
           )}
+          <li class="action">
+            <RowAction kind="add" onClick={() => setEditing(editNew('home'))}>
+              Add home
+            </RowAction>
+          </li>
         </ul>
-        <Button onClick={() => setEditing(editNew('home'))}>Add home</Button>
       </Section>
 
       <Section title="Gyms" icon={<IconGym />} intro="Stored only on this device, with the lines used to get to each one.">
@@ -167,6 +175,11 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
               </Row>
             ),
           )}
+          <li class="action">
+            <RowAction kind="add" disabled={settings.gyms.length >= MAX_GYMS} onClick={() => setEditing({ kind: 'choose-gyms' })}>
+              Add gym
+            </RowAction>
+          </li>
         </ul>
         {settings.gyms.length > 1 && (
           <p class="meta">
@@ -178,60 +191,56 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
             )}
           </p>
         )}
-        <div class="actions section-actions">
-          <Button disabled={settings.gyms.length >= MAX_GYMS} onClick={() => setEditing({ kind: 'choose-gyms' })}>
-            Add gym
-          </Button>
-        </div>
       </Section>
 
       <Section title="Walking and changes" icon={<IconWalk />}>
-        <NumberField
-          label="Walking speed (km/h)"
-          value={settings.walkSpeedMps !== undefined ? round1(settings.walkSpeedMps * 3.6) : undefined}
-          fallback={d && round1(d.walk_speed_mps * 3.6)}
-          step="0.1"
-          about="Every walk is worked out at this pace, along its route on the street map."
-          extra={
-            !paceTest && (
-              <TextButton quiet onClick={() => setPaceTest(true)}>
-                Measure my pace
-              </TextButton>
-            )
-          }
-          onChange={(v) => setSettings({ ...settings, walkSpeedMps: v === undefined ? undefined : v / 3.6 })}
-        />
-        {paceTest && (
-          <PaceTest
-            onClose={() => setPaceTest(false)}
-            onUse={(mps) => {
-              setSettings({ ...settings, walkSpeedMps: Math.round(mps * 100) / 100 })
-              setPaceTest(false)
-            }}
+        <div class="setting-rows">
+          <NumberField
+            label="Walking speed (km/h)"
+            value={settings.walkSpeedMps !== undefined ? round1(settings.walkSpeedMps * 3.6) : undefined}
+            fallback={d && round1(d.walk_speed_mps * 3.6)}
+            step="0.1"
+            extra={
+              !paceTest && (
+                <TextButton quiet onClick={() => setPaceTest(true)}>
+                  Measure my pace
+                </TextButton>
+              )
+            }
+            onChange={(v) => setSettings({ ...settings, walkSpeedMps: v === undefined ? undefined : v / 3.6 })}
           />
-        )}
-        <NumberField
-          label="Change buffer at the same stop (min)"
-          value={settings.minChangeS !== undefined ? settings.minChangeS / 60 : undefined}
-          fallback={d && d.min_change_s / 60}
-          step="0.5"
-          onChange={(v) => setSettings({ ...settings, minChangeS: v === undefined ? undefined : Math.round(v * 60) })}
-        />
-        <NumberField
-          label="Leave buffer (min)"
-          value={settings.leaveBufferS !== undefined ? settings.leaveBufferS / 60 : undefined}
-          fallback={0}
-          step="1"
-          about="Extra time to get out the door: shoes, keys."
-          onChange={(v) => setSettings({ ...settings, leaveBufferS: v === undefined ? undefined : Math.round(v * 60) })}
-        />
-        <NumberField
-          label="Longest walk to a stop (m)"
-          value={settings.maxWalkM}
-          fallback={d?.max_walk_m}
-          step="50"
-          onChange={(v) => setSettings({ ...settings, maxWalkM: v })}
-        />
+          {paceTest && (
+            <PaceTest
+              onClose={() => setPaceTest(false)}
+              onUse={(mps) => {
+                setSettings({ ...settings, walkSpeedMps: Math.round(mps * 100) / 100 })
+                setPaceTest(false)
+              }}
+            />
+          )}
+          <NumberField
+            label="Change buffer at the same stop (min)"
+            value={settings.minChangeS !== undefined ? settings.minChangeS / 60 : undefined}
+            fallback={d && d.min_change_s / 60}
+            step="0.5"
+            onChange={(v) => setSettings({ ...settings, minChangeS: v === undefined ? undefined : Math.round(v * 60) })}
+          />
+          <NumberField
+            label="Leave buffer (min)"
+            value={settings.leaveBufferS !== undefined ? settings.leaveBufferS / 60 : undefined}
+            fallback={0}
+            step="1"
+            about="Extra time to get out the door: shoes, keys."
+            onChange={(v) => setSettings({ ...settings, leaveBufferS: v === undefined ? undefined : Math.round(v * 60) })}
+          />
+          <NumberField
+            label="Longest walk to a stop (m)"
+            value={settings.maxWalkM}
+            fallback={d?.max_walk_m}
+            step="50"
+            onChange={(v) => setSettings({ ...settings, maxWalkM: v })}
+          />
+        </div>
         {dismissed > 0 && (
           <p class="meta">
             You've dismissed {dismissed} "Longer walk" notice{dismissed === 1 ? '' : 's'}.{' '}
@@ -243,20 +252,22 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
       </Section>
 
       <Section title="Connection risk" icon={<IconRisk />} intro={'How much spare time a change needs to count as safe or tight. Below "tight" it\'s at risk.'}>
-        <NumberField
-          label="Safe from (min)"
-          value={settings.risk && settings.risk.safe_s !== (d?.risk.safe_s ?? 180) ? settings.risk.safe_s / 60 : undefined}
-          fallback={d && d.risk.safe_s / 60}
-          step="0.5"
-          onChange={(v) => setRisk('safe', v === undefined ? undefined : Math.round(v * 60))}
-        />
-        <NumberField
-          label="Tight from (min)"
-          value={settings.risk && settings.risk.tight_s !== (d?.risk.tight_s ?? 60) ? settings.risk.tight_s / 60 : undefined}
-          fallback={d && d.risk.tight_s / 60}
-          step="0.5"
-          onChange={(v) => setRisk('tight', v === undefined ? undefined : Math.round(v * 60))}
-        />
+        <div class="setting-rows">
+          <NumberField
+            label="Safe from (min)"
+            value={settings.risk && settings.risk.safe_s !== (d?.risk.safe_s ?? 180) ? settings.risk.safe_s / 60 : undefined}
+            fallback={d && d.risk.safe_s / 60}
+            step="0.5"
+            onChange={(v) => setRisk('safe', v === undefined ? undefined : Math.round(v * 60))}
+          />
+          <NumberField
+            label="Tight from (min)"
+            value={settings.risk && settings.risk.tight_s !== (d?.risk.tight_s ?? 60) ? settings.risk.tight_s / 60 : undefined}
+            fallback={d && d.risk.tight_s / 60}
+            step="0.5"
+            onChange={(v) => setRisk('tight', v === undefined ? undefined : Math.round(v * 60))}
+          />
+        </div>
       </Section>
 
       <Section title="Appearance" icon={<IconColour />}>
@@ -298,8 +309,9 @@ function round1(v: number) {
 }
 
 /**
- * A number setting. Empty means "use the default", and the hint says what that is; a changed value offers the default
- * back. Changes save as you go, and say so briefly.
+ * A number setting, on one line: its name, then a short field. Empty means "use the default", which the field shows as
+ * its placeholder. A line under the name only when there's something to say: what it's for, the way back to the
+ * default once it's changed, and that a change was saved.
  */
 function NumberField({ label, value, fallback, step, about, extra, onChange }: {
   label: string
@@ -321,28 +333,22 @@ function NumberField({ label, value, fallback, step, about, extra, onChange }: {
   }
   const def = fallback === undefined ? '' : String(fallback)
   return (
-    <Field
-      label={label}
-      hint={
-        <span aria-live="polite">
-          {about && `${about} `}
-          {value === undefined ? (
-            def && `Empty uses the default, ${def}. `
-          ) : (
-            <>
-              Your setting.{' '}
-              {def && (
-                <TextButton quiet onClick={() => change(undefined)}>
-                  Use the default ({def})
-                </TextButton>
-              )}{' '}
-            </>
+    <label class="setting">
+      <span class="main">
+        {label}
+        <span class="meta" aria-live="polite">
+          {about && <span>{about}</span>}
+          {value !== undefined && def && (
+            <span>
+              <TextButton quiet onClick={() => change(undefined)}>
+                Use the default ({def})
+              </TextButton>
+            </span>
           )}
-          {extra}
-          {saved && <strong class="saved"> Saved.</strong>}
+          {extra && <span>{extra}</span>}
+          {saved && <strong class="saved">Saved.</strong>}
         </span>
-      }
-    >
+      </span>
       <input
         type="number"
         inputMode="decimal"
@@ -356,7 +362,7 @@ function NumberField({ label, value, fallback, step, about, extra, onChange }: {
           change(v !== undefined && Number.isFinite(v) && v >= 0 ? v : undefined)
         }}
       />
-    </Field>
+    </label>
   )
 }
 
@@ -399,44 +405,50 @@ function Backup({ settings, setSettings }: { settings: Settings; setSettings: (s
 
   return (
     <Section title="Backup and other devices" icon={<IconDevices />} intro="Backups and setup links include your access token and homes. Treat them like a password.">
-      <div class="actions">
-        <Button aria-expanded={showShare} onClick={() => setShowShare(!showShare)}>
-          Set up another device
-        </Button>
-        <Button onClick={download}>Export backup</Button>
-        <Button onClick={() => fileRef.current?.click()}>Import backup</Button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json,.json"
-          hidden
-          onChange={(e) => {
-            const f = (e.target as HTMLInputElement).files?.[0]
-            if (f) readFile(f)
-            ;(e.target as HTMLInputElement).value = ''
-          }}
-        />
-      </div>
+      <ul class="rows">
+        <li class="action">
+          <RowAction kind="open" open={showShare} onClick={() => setShowShare(!showShare)}>
+            Set up another device
+          </RowAction>
+        </li>
+        {showShare && (
+          <li class="share">
+            <p>Scan with the other device, or copy the link to it privately.</p>
+            {link && <QRCode text={link} />}
+            <Button
+              onClick={() =>
+                navigator.clipboard?.writeText(link).then(
+                  () => setMsg({ tone: 'neutral', text: 'Link copied.' }),
+                  () => setMsg({ tone: 'caution', text: "Couldn't copy the link. Scan the QR code instead." }),
+                )
+              }
+            >
+              Copy link
+            </Button>
+          </li>
+        )}
+        <li class="action">
+          <RowAction onClick={download}>Export backup</RowAction>
+        </li>
+        <li class="action">
+          <RowAction onClick={() => fileRef.current?.click()}>Import backup</RowAction>
+        </li>
+      </ul>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={(e) => {
+          const f = (e.target as HTMLInputElement).files?.[0]
+          if (f) readFile(f)
+          ;(e.target as HTMLInputElement).value = ''
+        }}
+      />
       {msg && (
         <Callout tone={msg.tone} role={msg.tone === 'bad' ? 'alert' : 'status'} onDismiss={() => setMsg(null)} class="backup-msg">
           {msg.text}
         </Callout>
-      )}
-      {showShare && (
-        <div class="share">
-          <p>Scan with the other device, or copy the link to it privately.</p>
-          {link && <QRCode text={link} />}
-          <Button
-            onClick={() =>
-              navigator.clipboard?.writeText(link).then(
-                () => setMsg({ tone: 'neutral', text: 'Link copied.' }),
-                () => setMsg({ tone: 'caution', text: "Couldn't copy the link. Scan the QR code instead." }),
-              )
-            }
-          >
-            Copy link
-          </Button>
-        </div>
       )}
       {incoming && (
         <ConfirmSheet

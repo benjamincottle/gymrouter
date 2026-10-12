@@ -187,7 +187,7 @@ export function EditButton({ label, onClick }: { label: string; onClick: () => v
 
 export function DeleteButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <IconButton label={label} danger onClick={onClick}>
+    <IconButton label={label} onClick={onClick}>
       <svg class="icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
         <path d="M4.5 6.5 H19.5 M9.5 6.5 V4.5 H14.5 V6.5 M6.5 6.5 L7.5 20 H16.5 L17.5 6.5 M10.3 10 V16.5 M13.7 10 V16.5" />
       </svg>
