@@ -866,3 +866,33 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - 2026-10-12: **The header's underline is gone:** "Gym Router" and the Settings icon no longer carry an ink bar for
   the screen you're on. The Settings icon is still ink on Settings and pencil elsewhere; the screens say which they
   are.
+- 2026-10-13: Five things from using it, settled on a sheet of mock-ups before any was built.
+  - **Finding a gym's lines shows how far it is, for real.** The figure moved in quarters (a step for each timetable
+    read and each gym searched) and sat in small text under a list long enough to hide it. Reading a day's timetable is
+    nearly all of the work (about 5 s against 0.7 s to search a gym on it), so the server now says how much of each
+    timetable it has read (by bytes of the feed) and counts every departure time searched. The job's status is
+    `stage` (`reading`, `searching`) and `progress` (0 to 1) in place of `done`/`of`. The app shows a bar that fills
+    along the top of the action bar, pinned with the buttons, over one plain line: "Processing timetables", "Analysing
+    trips", then "Adding your gyms"; the same bar sits under "Suggest lines" in the gym editor. Cancel stays live.
+    Rejected: a spinner (alive, but not how far); a tape for each gym (the server searches gyms one after another, so
+    each could only move in bursts; searching them side by side made the tapes move together and say the same thing
+    three times); a dot for each departure time (the tallest, and it scrolls away).
+  - **A gym's lines are chips in a row for each kind of transport** (train, metro, light rail, bus, ferry), each row
+    led by the kind's drawing and word. A chip is filled in its line's colour when the line is used and an outline
+    when it isn't; a tap changes it. Fourteen lines take about 230px where the tick rows took over 800. The share of
+    searches is no longer written beside each line: the order says it (most used first), and a chip's title has the
+    figure.
+  - **A trip says "Live" or "Timetabled" beside Arrive.** The trip screen never said whether its times were live; until
+    12 October it said "Location on (±12 m). Checked 09:32." always, and that day's review cut the line to show only
+    when something is off. The word comes from each re-check (the plan's `realtime`, which the trip screen ignored).
+    No time beside it: a failed re-check has its own line. The planning screen's "Timetable only, updated 09:31" is
+    left as it is for now.
+  - **Tight is yellow in light, as a fill.** Text needs 4.5:1 on the wall, which made light's Tight (`#865404`) a
+    brown as a 12px square. Squares, badges, the caution callout's bar and the server status dot now use
+    `--tight-fill` (`#e0a100`, the dark theme's yellow a little stronger); words keep `--tight`, since a yellow is
+    1.9:1 on the wall. The Tight badge's text is ink. Dark is unchanged. Rejected: brighter fills for all four levels
+    with a deeper red for missed; a square that's full, half or empty; retuning the three hues at text's darkness;
+    an amber edge on the yellow square.
+  - **A gym without a logo has the shoe** where its logo would be, in ink. Rejected: its initials on an ink tile; a
+    colour for the shoe, chosen (a setting for telling two of your own gyms apart, which their names do) or given by
+    the app.

@@ -1,18 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
-import { api, ApiError, AuthError, problem } from '../api.ts'
+import { api, ApiError, AuthError, problem, type SuggestProgress } from '../api.ts'
 import { gymFromKnown, isLine, LINE_MODES, MAX_GYMS, MAX_LINES, newId, placeRequest, withSuggested, type Gym, type Home } from '../settings.ts'
 import { groupStops, relevantGroups, type StopGroup } from '../stops.ts'
 import type { GeocodeResult, KnownGym, NearStop, SuggestResult } from '../types.ts'
-import { LineChip } from './option.tsx'
 import { BrandLogo } from './brand.tsx'
 import { distance } from '../format.ts'
-import { Chevron } from './icons.tsx'
-import { ActionBar, Button, Callout, Field, Row, Section, Select, TextButton } from './ui.tsx'
+import { lineColour, textOn } from '../colour.ts'
+import { Chevron, VEHICLE_PATHS, vehicleOf } from './icons.tsx'
+import { ActionBar, Button, Callout, Field, Progress, Row, Section, Select, TextButton } from './ui.tsx'
 
 export const newHome = (): Home => ({ id: newId(), name: 'Home', lat: NaN, lon: NaN, access: [] })
 export const newGym = (): Gym => ({ id: newId(), name: '', lat: NaN, lon: NaN, access: [], lines: [] })
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/** What a line search is doing, in the words beside its bar. */
+const STAGE: Record<SuggestProgress['stage'], string> = {
+  waiting: 'Waiting for another search',
+  reading: 'Processing timetables',
+  searching: 'Analysing trips',
+}
 
 export type EditorKind = 'home' | 'gym'
 
@@ -232,14 +239,13 @@ export function PlaceEditor({ kind, place, isNew, token, homes, maxWalkM, walkLi
 
 const shareLabel = (share: number) => `${Math.max(1, Math.round(share * 100))}% of searches`
 
-function chipOf(key: string, color?: string) {
-  const i = key.indexOf(' ')
-  return (
-    <>
-      <LineChip line={{ mode: key.slice(0, i), name: key.slice(i + 1), color }} /> {key.slice(0, i)}
-    </>
-  )
+/** Each kind of transport, as the heading of its row of lines. */
+const KIND: Record<(typeof LINE_MODES)[number], string> = {
+  train: 'Train', metro: 'Metro', 'light-rail': 'Light rail', bus: 'Bus', ferry: 'Ferry', 'regional-train': 'Regional', coach: 'Coach',
 }
+
+const modeOf = (line: string) => line.slice(0, line.indexOf(' '))
+const nameOf = (line: string) => line.slice(line.indexOf(' ') + 1)
 
 /** Chooses the lines worth considering for a gym: the server suggests them from a home, the person decides. */
 function LinesSection({
@@ -256,7 +262,7 @@ function LinesSection({
   const [homeId, setHomeId] = useState(homes[0]?.id ?? '')
   const [result, setResult] = useState<SuggestResult | null>(null)
   const [busy, setBusy] = useState(false)
-  const [progress, setProgress] = useState(0)
+  const [progress, setProgress] = useState<SuggestProgress | null>(null)
   const [error, setError] = useState('')
   const [mode, setMode] = useState<string>('bus')
   const [name, setName] = useState('')
@@ -270,7 +276,7 @@ function LinesSection({
     const c = new AbortController()
     ctrl.current = c
     setBusy(true)
-    setProgress(0)
+    setProgress(null)
     setError('')
     try {
       const r = (await api.suggestLines(token, placeRequest(home), [placeRequest(gym)], c.signal, setProgress, maxWalkM)).results[0]
@@ -290,7 +296,11 @@ function LinesSection({
   const toggle = (l: string) => setLines(has(l) ? gym.lines.filter((x) => x !== l) : [...gym.lines, l].slice(0, MAX_LINES))
   const candidates = (result?.lines ?? []).filter((l) => isLine(l.line))
   const known = new Set(candidates.map((l) => l.line))
-  const own = gym.lines.filter((l) => !known.has(l))
+  // The gym's other lines (it was opened with them, or they were added by hand). One that's dropped stays in its
+  // row as an outline, to be tapped back, for as long as the editor is open.
+  const mine = useRef<string[]>([])
+  for (const l of gym.lines) if (!mine.current.includes(l)) mine.current.push(l)
+  const own = mine.current.filter((l) => !known.has(l))
   // A suggestion brings its lines' colours. The rest (a gym opened for editing, a line added by hand) are asked for,
   // so every chip here is in its line's colour, as it is everywhere else.
   const [colours, setColours] = useState<Record<string, string>>({})
@@ -301,6 +311,11 @@ function LinesSection({
     api.lineColours(token, ownKey.split(','), c.signal).then((r) => setColours((cur) => ({ ...cur, ...r.colors })), () => undefined)
     return () => c.abort()
   }, [ownKey])
+  // Every line on offer: the search's, most used first, then the gym's others.
+  const all: { line: string; color?: string; share?: number }[] = [
+    ...candidates.map((l) => ({ line: l.line, color: l.color, share: l.share })),
+    ...own.map((l) => ({ line: l, color: colours[l] })),
+  ]
   const manual = `${mode} ${name.trim()}`
   const canAdd = name.trim() !== '' && isLine(manual) && !has(manual)
 
@@ -321,9 +336,9 @@ function LinesSection({
             </label>
           )}
           <Button onClick={find} disabled={busy}>
-            {busy ? `Reading the timetable… ${Math.round(progress * 100)}%` : result ? `Search again from ${home?.name}` : `Suggest lines from ${home?.name}`}
+            {busy ? 'Suggesting lines…' : result ? `Search again from ${home?.name}` : `Suggest lines from ${home?.name}`}
           </Button>
-          {busy && <p class="meta">Checking trips at many departure times. This can take up to a minute.</p>}
+          {busy && <Progress fraction={progress?.fraction ?? 0}>{STAGE[progress?.stage ?? 'reading']}</Progress>}
         </div>
       )}
       {error && (
@@ -343,31 +358,39 @@ function LinesSection({
         </p>
       )}
 
-      {(candidates.length > 0 || own.length > 0) && (
-        <ul class="rows lines">
-          {candidates.map((l) => (
-            <li>
-              <label class="check">
-                <input type="checkbox" checked={has(l.line)} onChange={() => toggle(l.line)} />
-                <span class="main">
-                  {chipOf(l.line, l.color)}
-                  <span class="meta">{shareLabel(l.share)}</span>
+      {all.length > 0 && (
+        <>
+          <p class="meta">Filled lines are used. Tap a line to add or drop it.</p>
+          <div class="line-kinds">
+            {LINE_MODES.filter((m) => all.some((l) => modeOf(l.line) === m)).map((m) => (
+              <div class="line-kind" role="group" aria-label={KIND[m]}>
+                <span class="line-kind-name">
+                  <svg class="icon" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+                    <path d={VEHICLE_PATHS[vehicleOf(m)]} />
+                  </svg>
+                  {KIND[m]}
                 </span>
-              </label>
-            </li>
-          ))}
-          {own.map((l) => (
-            <li>
-              <label class="check">
-                <input type="checkbox" checked onChange={() => toggle(l)} />
-                <span class="main">
-                  {chipOf(l, colours[l])}
-                  {result && <span class="meta">Added by you</span>}
-                </span>
-              </label>
-            </li>
-          ))}
-        </ul>
+                <div class="line-toggles">
+                  {all.filter((l) => modeOf(l.line) === m).map((l) => {
+                    const bg = lineColour(l.color)
+                    return (
+                      <button
+                        type="button"
+                        class="line-toggle"
+                        aria-pressed={has(l.line)}
+                        title={l.share === undefined ? undefined : shareLabel(l.share)}
+                        style={has(l.line) ? { borderColor: bg, background: bg, color: textOn(bg) } : undefined}
+                        onClick={() => toggle(l.line)}
+                      >
+                        {nameOf(l.line)}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {result && result.itineraries.length > 0 && (
@@ -424,13 +447,18 @@ interface ChooserProps {
   onCancel?: () => void
 }
 
+/** How long the bar is left to run to its end, saying "Adding your gyms", once the search is done. */
+const FINISH_MS = 700
+
 /** Picks gyms from the ones the app already knows, and finds the lines near home for them in one go. */
 export function GymChooser({ known, have, firstRun, home, token, maxWalkM, onAuthError, onAdd, onCustom, onCancel }: ChooserProps) {
   const available = (known ?? []).filter((k) => !have.some((g) => g.ref === k.id))
   const [sel, setSel] = useState<Set<string>>(new Set()) // nothing ticked: the app knows more gyms than anyone climbs at
   const full = have.length + sel.size >= MAX_GYMS // the device has no room for another
+  const many = sel.size > 1
   const [busy, setBusy] = useState(false)
-  const [progress, setProgress] = useState(0)
+  const [progress, setProgress] = useState<SuggestProgress | null>(null)
+  const [adding, setAdding] = useState(false) // the search is done: the bar runs to its end before the screen goes
   const [error, setError] = useState('')
   const ctrl = useRef<AbortController | null>(null)
   useEffect(() => () => ctrl.current?.abort(), [])
@@ -453,12 +481,15 @@ export function GymChooser({ known, have, firstRun, home, token, maxWalkM, onAut
       const c = new AbortController()
       ctrl.current = c
       setBusy(true)
-      setProgress(0)
+      setProgress(null)
       setError('')
       try {
         const res = await api.suggestLines(token, placeRequest(home), gyms.map((g) => placeRequest(g)), c.signal, setProgress, maxWalkM)
         if (c.signal.aborted) return
         gyms = gyms.map((g, i) => (res.results[i] ? withSuggested(g, res.results[i], home.id) : g))
+        setAdding(true)
+        await sleep(FINISH_MS)
+        if (c.signal.aborted) return
       } catch (e) {
         if (c.signal.aborted) return
         if (e instanceof AuthError) return onAuthError()
@@ -507,22 +538,26 @@ export function GymChooser({ known, have, firstRun, home, token, maxWalkM, onAut
           Add another gym
         </TextButton>
       </p>
-      {busy && home && <p class="meta">Finding the lines near {home.name}: {Math.round(progress * 100)}%. This can take up to a minute.</p>}
       {error && (
         <Callout tone="bad" role="alert">
           {error}
         </Callout>
       )}
       {(onCancel || available.length > 0) && (
-        <ActionBar>
-          {onCancel && (
-            <Button disabled={busy} onClick={onCancel}>
-              Cancel
-            </Button>
-          )}
+        <ActionBar
+          progress={
+            busy && (
+              <Progress fraction={adding ? 1 : (progress?.fraction ?? 0)}>
+                {adding ? `Adding your gym${many ? 's' : ''}` : STAGE[progress?.stage ?? 'reading']}
+              </Progress>
+            )
+          }
+        >
+          {/* Cancel stays live during the search: leaving stops waiting for it. */}
+          {onCancel && <Button onClick={onCancel}>Cancel</Button>}
           {available.length > 0 && (
             <Button variant="commit" disabled={busy || sel.size === 0} onClick={add}>
-              {busy ? 'Finding lines…' : sel.size <= 1 ? 'Add gym' : 'Add gyms'}
+              {busy ? `Adding gym${many ? 's' : ''}…` : many ? 'Add gyms' : 'Add gym'}
             </Button>
           )}
         </ActionBar>

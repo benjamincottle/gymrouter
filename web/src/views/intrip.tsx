@@ -54,6 +54,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   const [locState, setLocState] = useState<'on' | 'denied'>(() => (navigator.geolocation ? 'on' : 'denied'))
   const [check, setCheck] = useState<Assessment | null>(null)
   const [error, setError] = useState('')
+  const [liveData, setLiveData] = useState<boolean | null>(null) // whether the last re-check had live times
   const [mapOpen, setMapOpen] = useState(false)
   const [ending, setEnding] = useState(false)
   const wide = useWide()
@@ -223,12 +224,16 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
         const a = assess(tripsFrom(trip.option, ph.ride), res.kept, res.options, trip.plannedArrive, { missed: held.current, clearS: trip.tightS })
         held.current = a.status === 'missed' ? a.missed : null
         setCheck(a)
+        setLiveData(res.realtime)
         setError('')
         // The same trip: take the live times for what's still ahead (also when a change in it has gone).
         if (a.current) onUpdate({ ...tripRef.current, option: merge(trip.option, ph.ride, a.current) })
       } catch (e) {
         if (e instanceof AuthError) onAuthError()
-        else if (live) setError(`Couldn't re-check the trip: ${problem(e)}`)
+        else if (live) {
+          setError(`Couldn't re-check the trip: ${problem(e)}`)
+          setLiveData(null) // unknown until a check works again; the line below says why
+        }
       }
     }
     recheck.current = run
@@ -329,7 +334,16 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
       )}
 
       <section class="hero">
-        <p class="label">{phase.kind === 'arrived' ? 'Arrived' : 'Arrive'}</p>
+        <p class="label">
+          {phase.kind === 'arrived' ? 'Arrived' : 'Arrive'}
+          {/* Whether the last re-check had live times, while there's still a service ahead to have them for. */}
+          {liveData !== null && (phase.kind === 'before' || phase.kind === 'riding') && (
+            <span class="live-tag">
+              <span class={liveData ? 'live-dot live' : 'live-dot'} aria-hidden="true" />
+              {liveData ? 'Live' : 'Timetabled'}
+            </span>
+          )}
+        </p>
         <p class="hero-time num">{clock(o.arrive)}</p>
         <p class="hero-arrive">
           {check?.status === 'missed'

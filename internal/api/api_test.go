@@ -1077,11 +1077,12 @@ func TestSuggestLines(t *testing.T) {
 	}
 	var r struct {
 		State    string
-		Done, Of int
+		Stage    string
+		Progress float64
 		Results  []result
 	}
 	_ = json.Unmarshal(runSuggest(t, h, body), &r)
-	if r.State != "done" || len(r.Results) != 2 || r.Done != r.Of || r.Of != 6 {
+	if r.State != "done" || len(r.Results) != 2 || r.Progress != 1 || r.Stage != "searching" {
 		t.Fatalf("suggest: %+v", r)
 	}
 	for i, res := range r.Results {

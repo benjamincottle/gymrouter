@@ -15,6 +15,8 @@
   --you: #2457d6;    /* the "you" marker, here and on the map */
   --safe: #2a6e45;
   --tight: #865404;
+  --tight-fill: #e0a100; /* tight as a fill (squares, badges, bars): a yellow, which words on the wall can't be */
+  --on-tight: #1e2226;   /* text on it */
   --risk: #b13a0a;
   --missed: #b42318;
   --on-tone: #ffffff; /* text on a risk colour */
@@ -75,6 +77,8 @@
   --you: #4d8df0;
   --safe: #5cc285;
   --tight: #e0a53a;
+  --tight-fill: #e0a53a;
+  --on-tight: #1b1e21;
   --risk: #f08a4b;
   --missed: #f2766b;
   --on-tone: #1b1e21;
@@ -265,6 +269,7 @@ select {
   bottom: 0;
   z-index: 4;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--s2);
   margin: var(--s5) calc(-1 * var(--s4)) 0;
@@ -273,8 +278,46 @@ select {
   background: var(--wall);
 }
 
-.action-bar > :first-child:not(:only-child) {
+.action-bar > button:first-of-type:not(:only-of-type) {
   margin-right: auto;
+}
+
+/* how far a long job is: a bar that fills, then what it's doing and the percentage */
+.progress {
+  width: 100%;
+}
+
+.progress-bar {
+  height: var(--bar);
+  background: var(--rule);
+}
+
+/* it glides from one answer to the next (the server is asked every second) */
+.progress-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  transition: width 1s linear;
+}
+
+.progress-line {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-top: var(--s2);
+  font-size: var(--fs-small);
+}
+
+/* in an action bar the bar takes the hairline's place along the top, edge to edge, and the line sits clear of the
+   buttons (with the bar's own gap, --s4) */
+.action-bar > .progress {
+  flex: 0 0 calc(100% + 2 * var(--s4));
+  margin: calc(-1 * var(--s3) - 1px) calc(-1 * var(--s4)) var(--s2);
+}
+
+.action-bar > .progress > .progress-line {
+  margin-top: var(--s3);
+  padding: 0 var(--s4);
 }
 
 /* ---- icons: ink line drawings, one part filled ---- */
@@ -335,7 +378,7 @@ select {
 }
 
 .icon .risk-safe-fill { fill: var(--safe); stroke: none; }
-.icon .risk-tight-fill { fill: var(--tight); stroke: none; }
+.icon .risk-tight-fill { fill: var(--tight-fill); stroke: none; }
 .icon .risk-risk-fill { fill: var(--risk); stroke: none; }
 
 /* ---- segmented control: one size ---- */
@@ -554,7 +597,7 @@ details > summary {
 }
 
 .callout[data-tone='good'] { --c: var(--safe); }
-.callout[data-tone='caution'] { --c: var(--tight); }
+.callout[data-tone='caution'] { --c: var(--tight-fill); }
 .callout[data-tone='bad'] { --c: var(--missed); }
 
 .callout > p {
@@ -782,12 +825,12 @@ details > summary {
   font-size: var(--fs-micro);
   font-weight: 800;
   line-height: 18px;
-  color: var(--on-tone);
+  color: var(--on, var(--on-tone));
   background: var(--c, var(--safe));
 }
 
 .risk-safe { --c: var(--safe); }
-.risk-tight { --c: var(--tight); }
+.risk-tight { --c: var(--tight-fill); --on: var(--on-tight); }
 .risk-at-risk { --c: var(--risk); }
 .risk-missed { --c: var(--missed); }
 
@@ -1031,7 +1074,7 @@ details > summary {
 }
 
 .status-dot[data-state='ok'] { background: var(--safe); }
-.status-dot[data-state='warning'] { background: var(--tight); }
+.status-dot[data-state='warning'] { background: var(--tight-fill); }
 .status-dot[data-state='error'] { background: var(--missed); }
 
 /* ---- planning a trip ---- */
@@ -2109,6 +2152,20 @@ details > summary {
   border-top: 0;
 }
 
+/* whether the trip's times are live, at the end of the Arrive label's row */
+.intrip .hero > .label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s3);
+}
+
+.live-tag {
+  font-size: var(--fs-small);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
 .intrip > .callout {
   margin-top: var(--s4);
 }
@@ -2341,6 +2398,10 @@ details > summary {
     scroll-behavior: auto !important;
   }
 
+  .progress-bar > i {
+    transition: none;
+  }
+
   .rail .you,
   .stop-strip .you,
   .landing-run,
@@ -2447,6 +2508,63 @@ details > summary {
   justify-items: start;
   gap: var(--s2);
   margin-bottom: var(--s3);
+}
+
+/* a gym's lines: a row for each kind of transport, its drawing and word, then its lines as chips to tap */
+.line-kinds {
+  margin: var(--s3) 0;
+  border-top: var(--hair);
+}
+
+.line-kind {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  column-gap: var(--s3);
+  align-items: start;
+  padding: var(--s3) 0;
+  border-bottom: var(--hair);
+}
+
+.line-kind-name {
+  display: grid;
+  justify-items: center;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--pencil);
+}
+
+.line-kind-name .icon {
+  color: var(--ink);
+}
+
+/* 30px chips 14px apart: 44px from one row's target to the next */
+.line-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px var(--s2);
+}
+
+/* a line: an outline until it's chosen, then filled in its own colour (set inline), as on the tape */
+.line-toggle {
+  position: relative;
+  min-width: var(--control);
+  height: 30px;
+  padding: 0 6px;
+  border: 1.5px solid var(--edge);
+  border-radius: var(--r-mark);
+  background: transparent;
+  font-size: var(--fs-small);
+  font-weight: 800;
+  font-stretch: var(--narrow);
+  cursor: pointer;
+}
+
+.line-toggle::after {
+  content: '';
+  position: absolute;
+  inset: -7px -4px;
 }
 
 .place-actions {

@@ -38,7 +38,9 @@ raw colour, size or spacing value in a component. Use a token, or add one here f
 | `--dot` | ink at 9% | ink at 6% | the wall's bolt holes |
 | `--focus`, `--you` | `#2457d6` | `#7aa2ff` / `#4d8df0` | the focus ring; the "you" marker on the rail and the map |
 | `--safe` | `#2a6e45` | `#5cc285` | safe connections, on time, good-news callouts |
-| `--tight` | `#865404` | `#e0a53a` | tight connections, slightly late, caution callouts |
+| `--tight` | `#865404` | `#e0a53a` | tight and slightly late, as words ("1 min late", "40 s spare") |
+| `--tight-fill` | `#e0a100` | `#e0a53a` | tight as a fill: risk marks and badges, the bar of a caution callout, the server status dot. A yellow reads as tight where the dark amber read as brown, but words in it can't be read on the light wall (1.9:1), so they keep `--tight` |
+| `--on-tight` | `#1e2226` | `#1b1e21` | text on `--tight-fill` (the Tight badge) |
 | `--risk` | `#b13a0a` | `#f08a4b` | at-risk connections |
 | `--missed` | `#b42318` | `#f2766b` | missed or late, errors, danger actions |
 | `--on-tone` | `#ffffff` | `#1b1e21` | text on a risk colour (badges) |
@@ -162,7 +164,7 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
 ## Components
 
 Each exists once in code and is reused: `web/src/views/ui.tsx` (Button, TextButton, IconButton, Segmented, Section,
-Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onRadioKeys`), the tokens in
+Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus `useDialog` and `onRadioKeys`), the tokens in
 `web/src/style.css`, data colours in `web/src/colour.ts`, and error wording in `problem()` (`web/src/api.ts`). Don't restyle one locally; add a variant here if one is really needed.
 
 - **Button**, four looks at one size:
@@ -205,7 +207,7 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
 - **Callout:** a `--panel` fill with a 4px left bar. Tones:
   - neutral (ink) for information and confirmations;
   - `good` (`--safe`) for a better option;
-  - `caution` (`--tight`) when something works but is degraded;
+  - `caution` (`--tight-fill`) when something works but is degraded;
   - `bad` (`--missed`) for failed or missed.
   - At most one action. A dismiss × only if it can safely be ignored.
   - A callout that suggests a trip shows it under its text as a row from the options board (`TripRow`: leave, tape,
@@ -219,6 +221,28 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
 - **Tick lists** (the gym chooser): checkbox rows start unticked, and the commit button counts what's ticked. At a
   limit the unticked rows are disabled (pencil text) and a 14px pencil line under the list says what the limit is and
   how to free a place ("A device holds up to 12 gyms. Untick one to tick another.").
+  - While the lines near home are found for the ticked gyms, the action bar shows how far it is (see Progress), the
+    commit button reads "Adding gyms…" and Cancel stays live: leaving stops waiting for the search.
+- **Progress** (a job long enough to watch: finding a gym's lines): a `--bar` (4px) of `--rule` that fills with ink,
+  then one line in 14px, regular weight: what's being done on the left, the percentage on the right. No spinner.
+  - The words are the server's stages: "Processing timetables", then "Analysing trips", once for each of the two days
+    searched ("Waiting for another search" if one is already running). In the gym chooser, "Adding your gyms" as the
+    bar runs to its end, before the screen goes.
+  - The bar is real: the server says how much of each timetable it has read and counts every departure time it
+    searches. It's asked every second, and the bar glides from one answer to the next.
+  - **In an action bar** it takes the hairline's place along the top, edge to edge, so it's on screen however long
+    the list above is; its line sits `--s4` clear of the buttons. Beside a job in the content ("Suggest lines" in the
+    gym editor) it sits under the job's button, as wide as the column.
+- **A gym's lines** (the gym editor): a row for each kind of transport that has any, between hairlines, in the order
+  train, metro, light rail, bus, ferry, regional, coach. Each row starts with the kind's drawing from the rail (24px,
+  ink: the train for everything on rails) over its word in 12px/600 pencil, then its lines as chips to tap.
+  - A chip is a button, 30px tall and at least 44px wide, 14px/800 narrow, `--r-mark`; `--s2` apart in a row and
+    14px between rows, so each has a 44px target. A line in use is filled in its own colour, as on the tape; one that
+    isn't is a 1.5px `--edge` outline with its name in ink. A tap adds or drops it (`aria-pressed`).
+  - Above the rows, in 14px pencil: "Filled lines are used. Tap a line to add or drop it."
+  - A search's lines come first in each row, most used first, then the gym's others. Nothing moves when a chip is
+    tapped, and a line that's dropped stays in its row as an outline for as long as the editor is open.
+  - A chip doesn't say how often its line was used (its title does, after a search): the order says it.
 - **Direction toggle** (trip screen, at the end of the When row, above the runners): an outlined button, 44px tall
   with `--s2` padding, holding the rail's own drawings at 20px (the house and the arrow in 2px lines, the shoe in its
   own): the house, an arrow, the shoe when the trip goes from home to the gym; the shoe, an arrow, the house when it
@@ -229,8 +253,8 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
     narrow for both (under about 340px) the toggle wraps onto a line of its own, still at the right.
   - Its label says which way and what a tap does: "From Home to a gym: reverse", "From 9 Degrees Chatswood to Home:
     reverse". The arrow is a drawing between two drawings, not a symbol standing in for a word (see Copy).
-- **Gym rows** (trip screen, before a gym is chosen): a `--rule` tape, the gym's logo, its name (18px/800/semi) and
-  its address beneath in 14px pencil. The row is a button that chooses the gym and shows its options.
+- **Gym rows** (trip screen, before a gym is chosen): a `--rule` tape, the gym's logo (or the shoe, for a gym
+  without one: see The shoe), its name (18px/800/semi) and its address beneath in 14px pencil. The row is a button that chooses the gym and shows its options.
   - **The runner** (with "Leave now" only): an icon button at the far right of the row, someone running with speed
     lines behind (drawn 2px like the walker on the rail, the lines 1.5px). It starts the fastest trip, the way the direction toggle says,
     without stopping at the options: the option that arrives soonest among those you can still catch. The gym's screen shows
@@ -298,6 +322,8 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
 - **The shoe:** a gym is a climbing shoe, as home is a house: toe down and to the right, a loop on its heel, two
   straps and a rubber sole (`Shoe` in `web/src/views/icons.tsx`, drawn once and used everywhere). It marks the gym's
   end of the rail and of the direction toggle, and heads Gyms in Settings.
+  - **A gym without a logo** (one you added yourself) has the shoe where its logo would be, in ink at the logo's
+    size, on the trip screen and in Settings. It isn't coloured and can't be changed: the name tells two apart.
   - Its lines are 1.25 in its 24 box at every size, finer than the other drawings (2, or 1.7 on a section's icon): at
     their weight the loop and the straps close up.
   - **The sole is the dark part in either theme**, since rubber is. On a light page that's an outline with the sole
@@ -306,9 +332,9 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
   - In the "you" marker the shoe is white on `--you`, so it's the dark page's drawing in either theme, its straps
     `--you`, its lines 1.5.
   - The app icon and the page before sign-in keep their climbing volume: that's the app's mark, not a gym.
-- **Line chip, risk badge, risk mark:** 12px/800 on `--r-mark`. Badge text is `--on-tone`. A line's chip is in its
-  line's colour wherever it's drawn, the gym editor's list of lines included: the colours of lines no search has
-  used yet are asked of the server (`GET /api/lines`).
+- **Line chip, risk badge, risk mark:** 12px/800 on `--r-mark`. Badge text is `--on-tone` (`--on-tight` on Tight,
+  whose fill is `--tight-fill`). A line's chip is in its line's colour wherever it's drawn, the gym editor's chips
+  included: the colours of lines no search has used yet are asked of the server (`GET /api/lines`).
 - **Trackwork:** a `caution` callout above the board for each line whose trains the options replace with buses: the
   line's chip, "**Trackwork:** buses replace some trains. Their signs say 20T4 or 23T4." The buses keep their own names
   and colour everywhere (chip, tape, map): they're the names on the buses' signs.
@@ -373,7 +399,7 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
   - on the trip screen, only when there's something to act on: the server isn't OK, or the app is out of date.
   - The data credits ("Contains Transport for NSW data…") are only on Settings, at the end, above the footer.
 - **Server status** (the footer): a status dot and one short line, so a problem on the server
-  gets noticed without anyone checking it. The dot uses the status colours: `--safe` "Server OK", `--tight` "Server
+  gets noticed without anyone checking it. The dot uses the status colours: `--safe` "Server OK", `--tight-fill` "Server
   working, needs a look", `--missed` "Server can't plan" or "Can't reach the server". Each issue follows on its own line
   in plain words. Only what's actionable and usually absent turns it orange (not lines that don't run on a weekend).
   Checked on opening and every 5 minutes while the app is open; checking doesn't count as using the app.
@@ -409,6 +435,10 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
   - 2 min or more late: `--missed`;
   - no live data, "timetabled": `--pencil`.
   - The word and the colour always agree.
+- **Live or timetabled** (during a trip, at the right end of the Arrive label's row, so it costs no height): a
+  `--safe` dot and "Live", or a pencil dot and "Timetabled", in 14px pencil. It's what the last re-check said of the
+  trip's times. There's no time beside it: a re-check that fails gets the status line below, and the word goes until
+  one works again. It shows while there's still a service ahead (not on the last walk, nor once you've arrived).
 - **In-trip status line** (under Then): only when something is off. "No location just now; following the
   timetable.", "Location unavailable; following the timetable." with "Try my location again", and "Couldn't re-check
   the trip: …". With location on and the last check good there is no line.
@@ -480,7 +510,7 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
   then "Choose stops", a text action with a chevron that opens the list. A place with stops already ticked opens with
   the list showing.
 - **Loading:** show what's coming in place, as a skeleton of rows or the board's ruled lines (`.skeleton`), rather
-  than a bare "Loading…". Long jobs (suggesting lines) show progress beside the job, not only inside the button label.
+  than a bare "Loading…". Long jobs (finding a gym's lines) show how far they are (see Progress), not only a button label.
 - **Searching as you choose:** a pick (a gym, reversing the trip) searches at once; editing the time (the When choice,
   day, hour, minute, Earlier/Later with a set time) searches once it has been still for half a second, so stepping
   through a time doesn't search every step on the way. The last result stays on screen meanwhile.

@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 )
@@ -106,9 +107,15 @@ func TestLoadServiceOvernightAndSources(t *testing.T) {
 	}
 	notTrain := func(r Route) bool { return r.Type != 2 }
 	tue := time.Date(2026, 10, 6, 0, 0, 0, 0, time.UTC)
-	d, err := LoadService(tue, Source{Path: writeFeed(t, base), Include: notTrain}, Source{Path: writeFeed(t, other)})
+	var read []float64
+	d, err := LoadServiceProgress(tue, func(f float64) { read = append(read, f) },
+		Source{Path: writeFeed(t, base), Include: notTrain}, Source{Path: writeFeed(t, other)})
 	if err != nil {
 		t.Fatal(err)
+	}
+	// Progress runs over both feeds together: forward only, and to the end.
+	if len(read) < 2 || read[len(read)-1] != 1 || !sort.Float64sAreSorted(read) {
+		t.Errorf("progress: %v", read)
 	}
 	got := map[string]Trip{}
 	for _, tr := range d.Trips {

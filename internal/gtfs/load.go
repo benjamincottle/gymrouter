@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -116,16 +117,76 @@ func LoadDay(path string, date time.Time) (*Day, error) {
 // trips from the previous day still running after midnight (times shifted by -24h).
 // Stops are merged by stop_id across sources (the first source's definition wins).
 func LoadService(date time.Time, sources ...Source) (*Day, error) {
+	return LoadServiceProgress(date, nil, sources...)
+}
+
+// LoadServiceProgress is LoadService for a load long enough to watch: progress, if not nil, is told how much of the
+// feeds has been read so far (0 to 1), about 200 times over the load.
+func LoadServiceProgress(date time.Time, progress func(float64), sources ...Source) (*Day, error) {
 	d := &Day{Date: date, StopIndex: map[string]int32{}, TripIndex: map[string][]int32{}}
+	m := newMeter(progress, sources)
 	for _, src := range sources {
-		if err := d.load(src); err != nil {
+		if err := d.load(src, m); err != nil {
 			return nil, fmt.Errorf("%s: %w", src.Path, err)
 		}
 	}
 	return d, nil
 }
 
-func (d *Day) load(src Source) error {
+// meteredFiles are the files a load reads row by row: nearly all of its time, so their sizes are what its progress is
+// measured against.
+var meteredFiles = []string{"stops.txt", "routes.txt", "pathways.txt", "trips.txt", "stop_times.txt"}
+
+// meter counts the bytes a load has read of its feeds' metered files. A nil meter counts nothing.
+type meter struct {
+	fn                func(float64)
+	read, total, told int64
+}
+
+func newMeter(fn func(float64), sources []Source) *meter {
+	if fn == nil {
+		return nil
+	}
+	m := &meter{fn: fn}
+	for _, src := range sources {
+		zr, err := zip.OpenReader(src.Path)
+		if err != nil {
+			continue // the load itself reports it
+		}
+		for _, f := range zr.File {
+			if slices.Contains(meteredFiles, f.Name) {
+				m.total += int64(f.UncompressedSize64)
+			}
+		}
+		zr.Close()
+	}
+	return m
+}
+
+func (m *meter) wrap(r io.Reader) io.Reader {
+	if m == nil || m.total == 0 {
+		return r
+	}
+	return &meteredReader{r: r, m: m}
+}
+
+type meteredReader struct {
+	r io.Reader
+	m *meter
+}
+
+func (mr *meteredReader) Read(p []byte) (int, error) {
+	n, err := mr.r.Read(p)
+	m := mr.m
+	m.read += int64(n)
+	if m.read-m.told >= m.total/200 {
+		m.told = m.read
+		m.fn(math.Min(1, float64(m.read)/float64(m.total)))
+	}
+	return n, err
+}
+
+func (d *Day) load(src Source, m *meter) error {
 	zr, err := zip.OpenReader(src.Path)
 	if err != nil {
 		return err
@@ -136,7 +197,7 @@ func (d *Day) load(src Source) error {
 		files[f.Name] = f
 	}
 
-	err = readCSV(files, "stops.txt", true, func(r row) error {
+	err = readMetered(files, "stops.txt", true, m, func(r row) error {
 		id := r.get("stop_id")
 		if _, dup := d.StopIndex[id]; dup {
 			return nil
@@ -158,7 +219,7 @@ func (d *Day) load(src Source) error {
 	}
 
 	routeIndex := map[string]int32{}
-	err = readCSV(files, "routes.txt", true, func(r row) error {
+	err = readMetered(files, "routes.txt", true, m, func(r row) error {
 		t, _ := strconv.Atoi(r.get("route_type"))
 		rt := Route{
 			ID: r.get("route_id"), AgencyID: r.get("agency_id"), ShortName: r.get("route_short_name"),
@@ -185,7 +246,7 @@ func (d *Day) load(src Source) error {
 		return err
 	}
 
-	err = readCSV(files, "pathways.txt", false, func(r row) error {
+	err = readMetered(files, "pathways.txt", false, m, func(r row) error {
 		secs, err := strconv.Atoi(r.get("traversal_time"))
 		if err != nil || secs < 0 {
 			return nil // no usable time
@@ -202,7 +263,7 @@ func (d *Day) load(src Source) error {
 	// Trip slots for this source: trip_id → indexes into d.Trips (today and/or yesterday copies).
 	slots := map[string][]int32{}
 	first := int32(len(d.Trips))
-	err = readCSV(files, "trips.txt", true, func(r row) error {
+	err = readMetered(files, "trips.txt", true, m, func(r row) error {
 		ri, ok := routeIndex[r.get("route_id")]
 		if !ok {
 			return nil
@@ -223,7 +284,7 @@ func (d *Day) load(src Source) error {
 		return err
 	}
 
-	err = readCSV(files, "stop_times.txt", true, func(r row) error {
+	err = readMetered(files, "stop_times.txt", true, m, func(r row) error {
 		ts, ok := slots[r.get("trip_id")]
 		if !ok {
 			return nil
@@ -362,6 +423,11 @@ func (r row) get(col string) string {
 const maxCSVBytes = 4 << 30
 
 func readCSV(files map[string]*zip.File, name string, required bool, fn func(row) error) error {
+	return readMetered(files, name, required, nil, fn)
+}
+
+// readMetered is readCSV, counting what it reads on m (which may be nil).
+func readMetered(files map[string]*zip.File, name string, required bool, m *meter, fn func(row) error) error {
 	f, ok := files[name]
 	if !ok {
 		if required {
@@ -377,7 +443,7 @@ func readCSV(files map[string]*zip.File, name string, required bool, fn func(row
 		return err
 	}
 	defer rc.Close()
-	cr := csv.NewReader(rc)
+	cr := csv.NewReader(m.wrap(rc))
 	cr.ReuseRecord = true
 	cr.FieldsPerRecord = -1
 	header, err := cr.Read()

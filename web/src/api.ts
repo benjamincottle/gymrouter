@@ -84,11 +84,11 @@ const wait = (ms: number, signal?: AbortSignal) =>
 
 /**
  * Finds the lines from one place to each of several. The server runs it as a job (it reads the whole timetable, which
- * can outlast a request), so this starts it and polls; `onProgress` gets the fraction done. `radiusM` is the longest
+ * can outlast a request), so this starts it and polls; `onProgress` gets how far it is. `radiusM` is the longest
  * walk (the device's setting, else the server's), so the stops it starts from are the ones a plan would use.
  */
 async function suggestLines(
-  t: string, from: PlaceRequest, to: PlaceRequest[], signal?: AbortSignal, onProgress?: (fraction: number) => void,
+  t: string, from: PlaceRequest, to: PlaceRequest[], signal?: AbortSignal, onProgress?: (p: SuggestProgress) => void,
   radiusM?: number,
 ): Promise<SuggestResponse> {
   let job: string
@@ -99,11 +99,12 @@ async function suggestLines(
     } catch (e) {
       // Another search is running (another device, or a retry): wait for it to finish.
       if (!(e instanceof ApiError && e.status === 429 && attempt < 30)) throw e
+      onProgress?.({ stage: 'waiting', fraction: 0 })
       await wait(5000, signal)
     }
   }
   for (let failures = 0; ; ) {
-    await wait(1500, signal)
+    await wait(SUGGEST_POLL_MS, signal)
     let s: SuggestJob
     try {
       s = await call<SuggestJob>(t, 'GET', `/api/suggest-lines/${job}`, undefined, signal)
@@ -113,16 +114,28 @@ async function suggestLines(
       if (signal?.aborted || e instanceof AuthError || (e instanceof ApiError && e.status !== 502 && e.status !== 503) || ++failures > 5) throw e
       continue
     }
-    if (s.of > 0) onProgress?.(s.done / s.of)
+    if (s.state === 'running') onProgress?.({ stage: s.stage ?? 'reading', fraction: s.progress })
     if (s.state === 'done') return { results: s.results ?? [] }
     if (s.state === 'failed') throw new ApiError(400, s.error ?? "couldn't look up lines")
   }
 }
 
+/** How often a line search is asked how far it is; the bar glides from one answer to the next (style.css). */
+const SUGGEST_POLL_MS = 1000
+
+/**
+ * How far a line search is: what the server is doing (waiting for another search to finish, reading a day's
+ * timetable, searching it) and how much of the whole is done, 0 to 1.
+ */
+export interface SuggestProgress {
+  stage: 'waiting' | 'reading' | 'searching'
+  fraction: number
+}
+
 interface SuggestJob {
   state: 'running' | 'done' | 'failed'
-  done: number
-  of: number
+  stage?: 'reading' | 'searching'
+  progress: number
   results?: SuggestResponse['results']
   error?: string
 }

@@ -173,8 +173,32 @@ export function RowAction({ kind = 'go', open, children, ...rest }: Omit<ButtonA
 }
 
 /** The screen's commit action, pinned to the bottom where the thumb is: the way out first, the commit last. */
-export function ActionBar({ children }: { children: ComponentChildren }) {
-  return <div class="action-bar">{children}</div>
+export function ActionBar({ progress, children }: { progress?: ComponentChildren; children: ComponentChildren }) {
+  return (
+    <div class="action-bar">
+      {progress}
+      {children}
+    </div>
+  )
+}
+
+/**
+ * How far a long job is: a bar that fills, a line saying what it's doing, and the percentage. In an action bar
+ * (its `progress`) the bar takes the place of the hairline along the top.
+ */
+export function Progress({ fraction, children }: { fraction: number; children: string }) {
+  const pct = Math.round(Math.min(1, Math.max(0, fraction)) * 100)
+  return (
+    <div class="progress" role="progressbar" aria-label={children} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+      <div class="progress-bar">
+        <i style={{ width: `${pct}%` }} />
+      </div>
+      <p class="progress-line">
+        <span>{children}</span>
+        <span>{pct}%</span>
+      </p>
+    </div>
+  )
 }
 
 /**

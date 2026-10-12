@@ -54,7 +54,7 @@ type Engine interface {
 	WalkPath(a, b geo.Point) ([]geo.Point, bool)
 	UpdateStreetMap() error
 	Suggest(ctx context.Context, from engine.SuggestPlace, targets []engine.SuggestPlace, radiusM float64,
-		progress func(done, of int)) ([]*engine.SuggestResult, error)
+		progress func(engine.SuggestProgress)) ([]*engine.SuggestResult, error)
 }
 
 // maxBody bounds request bodies.
