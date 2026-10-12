@@ -7,7 +7,7 @@ import { LineChip } from './option.tsx'
 import { BrandLogo } from './brand.tsx'
 import { distance } from '../format.ts'
 import { Chevron } from './icons.tsx'
-import { ActionBar, Button, Callout, Field, Row, Section, TextButton } from './ui.tsx'
+import { ActionBar, Button, Callout, Field, Row, Section, Select, TextButton } from './ui.tsx'
 
 export const newHome = (): Home => ({ id: newId(), name: 'Home', lat: NaN, lon: NaN, access: [] })
 export const newGym = (): Gym => ({ id: newId(), name: '', lat: NaN, lon: NaN, access: [], lines: [] })
@@ -169,7 +169,7 @@ export function PlaceEditor({ kind, place, isNew, token, homes, maxWalkM, walkLi
         <Section title={gym ? 'Stops near the gym' : 'Your stops'}>
           <p>Using every stop within {walkLimitM ? `a ${distance(walkLimitM)} walk` : 'your longest walk'}.</p>
           <p class="stops-more">
-            <TextButton aria-expanded={false} onClick={() => setChoosing(true)}>
+            <TextButton quiet aria-expanded={false} onClick={() => setChoosing(true)}>
               Choose stops
               <Chevron />
             </TextButton>
@@ -201,7 +201,7 @@ export function PlaceEditor({ kind, place, isNew, token, homes, maxWalkM, walkLi
           </ul>
           {groups.length > visibleGroups.length && (
             <p class="stops-more">
-              <TextButton onClick={() => setShowAll(true)}>Show {groups.length - visibleGroups.length} more</TextButton>
+              <TextButton quiet onClick={() => setShowAll(true)}>Show {groups.length - visibleGroups.length} more</TextButton>
             </p>
           )}
         </Section>
@@ -291,6 +291,16 @@ function LinesSection({
   const candidates = (result?.lines ?? []).filter((l) => isLine(l.line))
   const known = new Set(candidates.map((l) => l.line))
   const own = gym.lines.filter((l) => !known.has(l))
+  // A suggestion brings its lines' colours. The rest (a gym opened for editing, a line added by hand) are asked for,
+  // so every chip here is in its line's colour, as it is everywhere else.
+  const [colours, setColours] = useState<Record<string, string>>({})
+  const ownKey = own.join(',')
+  useEffect(() => {
+    if (!ownKey) return
+    const c = new AbortController()
+    api.lineColours(token, ownKey.split(','), c.signal).then((r) => setColours((cur) => ({ ...cur, ...r.colors })), () => undefined)
+    return () => c.abort()
+  }, [ownKey])
   const manual = `${mode} ${name.trim()}`
   const canAdd = name.trim() !== '' && isLine(manual) && !has(manual)
 
@@ -303,11 +313,11 @@ function LinesSection({
           {homes.length > 1 && (
             <label class="inline-choice">
               From
-              <select value={home?.id} onChange={(e) => setHomeId((e.target as HTMLSelectElement).value)}>
+              <Select value={home?.id} onChange={(e) => setHomeId((e.target as HTMLSelectElement).value)}>
                 {homes.map((h) => (
                   <option value={h.id}>{h.name}</option>
                 ))}
-              </select>
+              </Select>
             </label>
           )}
           <Button onClick={find} disabled={busy}>
@@ -351,7 +361,7 @@ function LinesSection({
               <label class="check">
                 <input type="checkbox" checked onChange={() => toggle(l)} />
                 <span class="main">
-                  {chipOf(l)}
+                  {chipOf(l, colours[l])}
                   {result && <span class="meta">Added by you</span>}
                 </span>
               </label>
@@ -383,11 +393,11 @@ function LinesSection({
       >
         <Field label="Add a line">
           <span class="inline-pair">
-            <select value={mode} onChange={(e) => setMode((e.target as HTMLSelectElement).value)} aria-label="Mode">
+            <Select value={mode} onChange={(e) => setMode((e.target as HTMLSelectElement).value)} aria-label="Mode">
               {LINE_MODES.map((m) => (
                 <option value={m}>{m}</option>
               ))}
-            </select>
+            </Select>
             <input value={name} maxLength={12} placeholder="288, T9, M1" onInput={(e) => setName((e.target as HTMLInputElement).value)} />
           </span>
         </Field>

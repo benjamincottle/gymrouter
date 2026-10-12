@@ -1179,6 +1179,27 @@ func TestStopsNearWorksBeforeAnyLinesAreChosen(t *testing.T) {
 	}
 }
 
+func TestLineColoursComeFromTheCatalogueWithoutLoadingLines(t *testing.T) {
+	h := newHarnessEmpty(t)
+	rec := h.do(t, "GET", "/api/lines?lines="+url.QueryEscape("metro M1,train T9,bus NOPE"), token, nil)
+	var got struct {
+		Colors map[string]string `json:"colors"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &got)
+	if rec.Code != 200 || got.Colors["metro M1"] == "" || got.Colors["train T9"] == "" {
+		t.Fatalf("line colours: %d %s", rec.Code, rec.Body)
+	}
+	if _, ok := got.Colors["bus NOPE"]; ok {
+		t.Errorf("a line the timetable doesn't have got a colour: %v", got.Colors)
+	}
+	if n := len(h.env.Engine.Lines()); n != 0 {
+		t.Errorf("asking for colours loaded %d lines", n)
+	}
+	if rec := h.do(t, "GET", "/api/lines", token, nil); rec.Code != 400 {
+		t.Errorf("no lines: %d", rec.Code)
+	}
+}
+
 func TestPlanReportsHowWalksWereTimed(t *testing.T) {
 	h := newHarness(t)
 	var p struct {

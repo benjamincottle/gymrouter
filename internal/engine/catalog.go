@@ -29,6 +29,8 @@ type Catalog struct {
 	Stops []CatalogStop
 	// Lines is every public line in the timetable, whether or not it runs on Date.
 	Lines lines.Set
+	// Colors is each line's route colour (hex, no '#'), for the lines that have one.
+	Colors map[lines.Key]string
 }
 
 // NearStop is a catalogue stop with the estimated walk to it.
@@ -75,10 +77,13 @@ func NewCatalog(d *gtfs.Day) *Catalog {
 			perStop[st.Stop][k] = true
 		}
 	}
-	c := &Catalog{Date: d.Date, Lines: lines.Set{}}
-	for _, k := range routeLine {
+	c := &Catalog{Date: d.Date, Lines: lines.Set{}, Colors: map[lines.Key]string{}}
+	for i, k := range routeLine {
 		if k.Mode != lines.ReplacementBus {
 			c.Lines[k] = true
+			if col := d.Routes[i].Color; col != "" && c.Colors[k] == "" {
+				c.Colors[k] = col
+			}
 		}
 	}
 	for si, set := range perStop {

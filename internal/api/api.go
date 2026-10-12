@@ -81,6 +81,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/defaults", s.defaults)
 	api.HandleFunc("POST /api/plan", s.plan)
 	api.HandleFunc("POST /api/lines", s.loadLines)
+	api.HandleFunc("GET /api/lines", s.lineColours)
 	api.HandleFunc("POST /api/stops/near", s.stopsNear)
 	api.HandleFunc("POST /api/suggest-lines", s.suggestLines)
 	api.HandleFunc("GET /api/suggest-lines/{id}", s.suggestStatus)
@@ -343,6 +344,30 @@ func (s *Server) linesParam(w http.ResponseWriter, r *http.Request) (lines.Set, 
 		return nil, false
 	}
 	return set, true
+}
+
+// lineColours gives the colours of the lines named, from the stop catalogue (every public line, loaded or not), so a
+// line's chip can be drawn in its colour before any search has used it. It loads nothing. A line without a colour,
+// or one asked for while the catalogue is still being built, is left out.
+func (s *Server) lineColours(w http.ResponseWriter, r *http.Request) {
+	var ss []string
+	if v := r.URL.Query().Get("lines"); v != "" {
+		ss = strings.Split(v, ",")
+	}
+	set, err := parseLines(ss)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	out := map[string]string{}
+	if cat := s.eng.Catalog(); cat != nil {
+		for k := range set {
+			if c := cat.Colors[k]; c != "" {
+				out[k.String()] = c
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"colors": out})
 }
 
 // maxRides bounds the rides one vehicles request may name.
