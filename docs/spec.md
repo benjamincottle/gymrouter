@@ -818,3 +818,27 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   gym's row keeps its 2px): the strip is the emphasis. In the gym chooser, "Add another gym" moves out of the action
   bar to a text link under the list ("Not listed? Add another gym"), and the commit reads "Add gyms" with no count when
   more than one is ticked: three buttons wrapped on phones under about 400 px wide. A bar holds two buttons at most.
+- 2026-10-12: A design review of the whole app, and what came of it. The language stays (rules, not cards; ink on
+  chalk; colour only for lines and risk; no Material 3). Thirteen changes were mocked on the running app, each beside
+  the app as it was, and chosen from the sheet. Taken up (docs/DESIGN.md has the rules):
+  - **The main action is filled** (supersedes "no button is ever filled", 2026-10-05). One filled ink button a screen at
+    most: Start trip, Save home, Add gyms, Switch to this. The alternative beside it keeps its outline. What that rule
+    rejected, an accent-coloured button, stays rejected: the fill is ink.
+  - **The countdown says how sure the chosen trip is:** its risk badge and why, under "for the M1 at…". The earliest
+    option is still the one chosen first, even when it's at risk: the line says so now. The squares in the rows stay.
+  - **Settings' actions are rows:** "Add home" and "Add gym" are the last row of their lists; Set up another device,
+    Export backup and Import backup are rows. The only button left on Settings is Reset this device.
+  - **A row's bin is ink.** Red arrives with "Delete …?".
+  - **Number settings are one line each:** the name, then a short field showing the default. "Empty uses the default"
+    is gone from under each; "Use the default (3)" and "Saved." still show when they apply.
+  - **"Live" or "Timetable only" sits at the end of the gym's row,** not on a band of its own, and no longer says when
+    the plan was updated.
+  - **First run asks two questions:** "Where do you start from?" (step 1 of 2), then "Which gyms do you climb at?"
+    (step 2 of 2), with no Cancel. The address search says only "Your address isn't stored on the server."
+  - **Stops are closed until asked for** in the home and gym editors: "Using every stop within a 1 km walk. Choose
+    stops".
+  - **The page before sign-in says what to do:** "Open your setup link to start."
+  - **The server status and version are on Settings only,** and on the trip screen just when the server isn't OK or
+    the app is out of date.
+  - **The in-trip location line shows only when something is off.**
+  - Left as they are, by choice: the runner on a gym's row and the direction toggle keep their drawings without words.

@@ -170,7 +170,7 @@ select {
   color: inherit;
 }
 
-/* ---- buttons: outline only, three looks, one size ---- */
+/* ---- buttons: four looks, one size ---- */
 
 .btn {
   display: inline-flex;
@@ -185,6 +185,12 @@ select {
   font-weight: 600;
   line-height: 1.15;
   cursor: pointer;
+}
+
+/* the one action that moves a screen forward: filled, in ink (at most one on a screen) */
+.btn.commit {
+  background: var(--ink);
+  color: var(--wall);
 }
 
 .btn.danger {
@@ -245,10 +251,6 @@ select {
 
 .icon-btn:hover {
   background: var(--panel);
-}
-
-.icon-btn.danger {
-  color: var(--missed);
 }
 
 .actions {
@@ -588,6 +590,86 @@ details > summary {
   width: 28px;
   height: 28px;
   object-fit: contain;
+}
+
+/* an action that is a row of its list or section: adding to the list (a plus), doing something (›), or opening
+   something in place (a chevron) */
+.rows > li.action {
+  padding: 0;
+}
+
+.row-action {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 56px;
+  padding: var(--s2) var(--s2) var(--s2) 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row-action.add {
+  font-weight: 600;
+}
+
+.row-action.go,
+.row-action.open {
+  justify-content: space-between;
+}
+
+.row-action.go::after {
+  content: '›';
+  flex: none;
+  color: var(--pencil);
+}
+
+.row-action .chevron {
+  flex: none;
+  color: var(--pencil);
+  stroke-width: 2;
+}
+
+.row-action:hover:not(:disabled) {
+  background: var(--panel);
+}
+
+.row-action:disabled {
+  color: var(--pencil);
+  cursor: default;
+}
+
+/* a number setting: one line, its name then a short field; a second line under the name only when there's
+   something to say */
+.setting-rows {
+  margin-bottom: var(--s3);
+  border-top: var(--hair);
+}
+
+.setting {
+  display: grid;
+  grid-template-columns: 1fr 5.5rem;
+  align-items: center;
+  column-gap: var(--s3);
+  min-height: 56px;
+  padding: var(--s1) 0;
+  border-bottom: var(--hair);
+}
+
+.setting .meta,
+.setting .meta > * {
+  display: block;
+}
+
+.setting input {
+  text-align: right;
+}
+
+.setting-rows > .pace {
+  margin: 0;
+  border-top: 0;
 }
 
 /* inline confirm: the row (or a bar) becomes the question */
@@ -1014,10 +1096,17 @@ details > summary {
   color: var(--pencil);
 }
 
-/* the chosen gym leads: tap its name to change it */
+/* the chosen gym leads: tap its name to change it; whether the times are live sits at the row's end */
 .route {
+  grid-template-columns: 8px 32px 1fr auto;
   cursor: default;
   border-top: var(--hair);
+}
+
+.route .live {
+  grid-column: 4;
+  grid-row: 1 / span 2;
+  white-space: nowrap;
 }
 
 .route::before {
@@ -1046,6 +1135,15 @@ details > summary {
 }
 
 .status-line {
+  margin-top: var(--s4);
+}
+
+/* under the gym's row there's only a line while the first plan loads, or its walks are estimates */
+.results > .status-line:first-child {
+  margin-top: 0;
+}
+
+.results > * + .board {
   margin-top: var(--s4);
 }
 
@@ -1084,6 +1182,18 @@ details > summary {
 .hero-sub {
   grid-column: 1 / -1;
   margin-top: var(--s2);
+}
+
+/* how sure the chosen trip is: its badge, then why */
+.hero-sub.hero-risk {
+  margin-top: var(--s1);
+}
+
+/* on the trip screen the hero follows the gym's row, which ends in a hairline: no rule of its own */
+.board > .hero {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .shift {
@@ -2013,12 +2123,12 @@ details > summary {
   margin-top: var(--s1);
 }
 
-.share {
-  display: flex;
+/* the setup link, opened under its row */
+.rows > li.share {
   flex-direction: column;
   align-items: flex-start;
   gap: var(--s3);
-  margin-top: var(--s4);
+  padding: var(--s3) 0 var(--s4);
 }
 
 .qr {
@@ -2130,6 +2240,17 @@ details > summary {
   animation: landing-name 0.6s ease-out 1.05s both;
 }
 
+/* what to do, under the name */
+.landing-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% + var(--u) * 24.5 + var(--s3));
+  text-align: center;
+  color: var(--pencil);
+  animation: landing-name 0.6s ease-out 1.05s both;
+}
+
 @keyframes landing-run {
   from { clip-path: inset(0 100% 0 0); }
   to { clip-path: inset(0 0 0 0); }
@@ -2154,7 +2275,8 @@ details > summary {
   .stop-strip .you,
   .landing-run,
   .landing-volume,
-  .landing-name {
+  .landing-name,
+  .landing-hint {
     animation: none;
   }
 }
@@ -2257,17 +2379,12 @@ details > summary {
   margin-bottom: var(--s3);
 }
 
-.place-actions,
-.section-actions {
+.place-actions {
   margin: var(--s3) 0;
 }
 
 .place-set {
   margin-top: var(--s2);
-}
-
-.section > .rows + .btn {
-  margin-top: var(--s1);
 }
 
 .section > .callout {

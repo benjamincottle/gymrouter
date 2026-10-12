@@ -1,5 +1,6 @@
 // Pure helpers for lists of options, kept apart from the views so they can be tested.
 
+import { placeName, spare } from './format.ts'
 import type { Leg, Option, StopRef, Transfer } from './types.ts'
 
 const ms = (iso: string) => Date.parse(iso)
@@ -47,6 +48,16 @@ export function changesAndStops(o: Option): string {
   const changes = o.rides <= 1 ? 'no changes' : `${o.rides - 1} change${o.rides > 2 ? 's' : ''}`
   const n = stopCount(o)
   return n > 0 ? `${changes}, ${n} stop${n === 1 ? '' : 's'}` : changes
+}
+
+/**
+ * Why a trip is as sure as it is, for the line under the countdown beside its risk badge: its change and the time to
+ * spare there (the tightest of several), or that it has none. "change at North Ryde Station, 22 s spare"
+ */
+export function riskReason(o: Option): string {
+  if (o.transfers.length === 0) return 'no changes'
+  const t = o.transfers.reduce((a, b) => (b.slack_s < a.slack_s ? b : a))
+  return `${o.transfers.length > 1 ? 'tightest change' : 'change'} at ${placeName(o.legs[t.from_leg]?.to)}, ${spare(t.slack_s)}`
 }
 
 /** One step of an option as the description shows it, with the stretch of time it covers. */

@@ -5,6 +5,8 @@ import { groupStops, relevantGroups, type StopGroup } from '../stops.ts'
 import type { GeocodeResult, KnownGym, NearStop, SuggestResult } from '../types.ts'
 import { LineChip } from './option.tsx'
 import { BrandLogo } from './brand.tsx'
+import { distance } from '../format.ts'
+import { Chevron } from './icons.tsx'
 import { ActionBar, Button, Callout, Field, Row, Section, TextButton } from './ui.tsx'
 
 export const newHome = (): Home => ({ id: newId(), name: 'Home', lat: NaN, lon: NaN, access: [] })
@@ -21,13 +23,15 @@ interface Props {
   token: string
   homes: Home[] // line suggestions start from one of these
   maxWalkM?: number // the device's longest walk, for line suggestions
+  walkLimitM?: number // the longest walk in force (the device's, or the server's default), to say what "no stops chosen" means
+  firstRun?: boolean // the first home: step 1 of setting up, with nothing to cancel back to
   onAuthError: () => void
   onSave: (p: Gym) => void
   onCancel: () => void
 }
 
 /** Adds or edits a home or a gym: where it is, the stops to walk to, and (for a gym) its lines. */
-export function PlaceEditor({ kind, place, isNew, token, homes, maxWalkM, onAuthError, onSave, onCancel }: Props) {
+export function PlaceEditor({ kind, place, isNew, token, homes, maxWalkM, walkLimitM, firstRun, onAuthError, onSave, onCancel }: Props) {
   const [p, setP] = useState<Gym>(place)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<GeocodeResult[]>([])
@@ -102,6 +106,8 @@ export function PlaceEditor({ kind, place, isNew, token, homes, maxWalkM, onAuth
   // One row per station (all its platforms) or standalone stop.
   const groups = useMemo(() => groupStops(stops ?? []), [stops])
   const [showAll, setShowAll] = useState(false)
+  // The list is closed until asked for: with none chosen, every stop in range is used, which suits most places.
+  const [choosing, setChoosing] = useState(place.access.length > 0)
   const selectedIds = useMemo(() => new Set(p.access.map((a) => a.stop)), [p.access])
   const picked = (g: StopGroup) => g.ids.some((id) => selectedIds.has(id))
   // Ticking keeps which stops, not how long the walk is: that's worked out from the street map for each trip.
@@ -115,7 +121,10 @@ export function PlaceEditor({ kind, place, isNew, token, homes, maxWalkM, onAuth
 
   return (
     <div class="stack settings">
-      <Section title={isNew ? `Add ${kind}` : `Edit ${kind}`}>
+      <Section
+        title={firstRun ? 'Where do you start from?' : isNew ? `Add ${kind}` : `Edit ${kind}`}
+        intro={firstRun && 'Step 1 of 2. Next: the gyms you climb at.'}
+      >
         <Field label="Name">
           <input
             value={p.name}
@@ -143,7 +152,7 @@ export function PlaceEditor({ kind, place, isNew, token, homes, maxWalkM, onAuth
             ))}
           </ul>
         )}
-        <p class="meta">Searches go through your server to the Transport for NSW trip planner; nothing is stored.</p>
+        {!gym && <p class="meta">Your address isn't stored on the server.</p>}
         <div class="actions place-actions">
           <Button onClick={useMyLocation}>Use my current location</Button>
         </div>
@@ -156,7 +165,18 @@ export function PlaceEditor({ kind, place, isNew, token, homes, maxWalkM, onAuth
         )}
       </Section>
 
-      {stops && (
+      {stops && !choosing && stops.length > 0 && (
+        <Section title={gym ? 'Stops near the gym' : 'Your stops'}>
+          <p>Using every stop within {walkLimitM ? `a ${distance(walkLimitM)} walk` : 'your longest walk'}.</p>
+          <p class="stops-more">
+            <TextButton aria-expanded={false} onClick={() => setChoosing(true)}>
+              Choose stops
+              <Chevron />
+            </TextButton>
+          </p>
+        </Section>
+      )}
+      {stops && (choosing || stops.length === 0) && (
         <Section title={gym ? 'Stops near the gym' : 'Your stops'} intro={'Pick the stops you\'d actually walk to. If you pick none, every stop within your longest walk is considered (or, if there are none, the nearest ones). Walking times come from the street map, at your walking speed.'}>
           {stops.length === 0 && <p class="meta">No stops within 3 km.</p>}
           <ul class="rows stops">
@@ -201,8 +221,8 @@ export function PlaceEditor({ kind, place, isNew, token, homes, maxWalkM, onAuth
 
       {gym && hasLocation && p.lines.length === 0 && <p class="meta">Choose at least one line to save the gym.</p>}
       <ActionBar>
-        <Button onClick={onCancel}>Cancel</Button>
-        <Button disabled={!canSave} onClick={() => onSave({ ...p, name: p.name.trim() })}>
+        {!firstRun && <Button onClick={onCancel}>Cancel</Button>}
+        <Button variant="commit" disabled={!canSave} onClick={() => onSave({ ...p, name: p.name.trim() })}>
           Save {kind}
         </Button>
       </ActionBar>
@@ -383,6 +403,7 @@ function LinesSection({
 interface ChooserProps {
   known: KnownGym[] | null
   have: Gym[] // already on this device
+  firstRun?: boolean // step 2 of setting up
   home: Home | undefined
   token: string
   maxWalkM?: number // the device's longest walk, for line suggestions
@@ -394,7 +415,7 @@ interface ChooserProps {
 }
 
 /** Picks gyms from the ones the app already knows, and finds the lines near home for them in one go. */
-export function GymChooser({ known, have, home, token, maxWalkM, onAuthError, onAdd, onCustom, onCancel }: ChooserProps) {
+export function GymChooser({ known, have, firstRun, home, token, maxWalkM, onAuthError, onAdd, onCustom, onCancel }: ChooserProps) {
   const available = (known ?? []).filter((k) => !have.some((g) => g.ref === k.id))
   const [sel, setSel] = useState<Set<string>>(new Set()) // nothing ticked: the app knows more gyms than anyone climbs at
   const full = have.length + sel.size >= MAX_GYMS // the device has no room for another
@@ -449,7 +470,7 @@ export function GymChooser({ known, have, home, token, maxWalkM, onAuthError, on
       ) : (
         <>
           <p class="meta intro">
-            The app knows these gyms and the lines that serve them. Tick the ones you climb at.{' '}
+            {firstRun && 'Step 2 of 2. '}The app knows these gyms and the lines that serve them. Tick the ones you climb at.{' '}
             {home ? `It will look up the lines near ${home.name} too, which can take up to a minute.` : ''}
           </p>
           <ul class="rows">
@@ -490,7 +511,7 @@ export function GymChooser({ known, have, home, token, maxWalkM, onAuthError, on
             </Button>
           )}
           {available.length > 0 && (
-            <Button disabled={busy || sel.size === 0} onClick={add}>
+            <Button variant="commit" disabled={busy || sel.size === 0} onClick={add}>
               {busy ? 'Finding lines…' : sel.size <= 1 ? 'Add gym' : 'Add gyms'}
             </Button>
           )}

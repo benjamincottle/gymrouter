@@ -2,7 +2,7 @@
 // you are (or the vehicle you're on), and suggests a switch when something slips.
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
-import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, spare, statusTime } from '../format.ts'
+import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, spare } from '../format.ts'
 import { useNow, useVisible, useWide } from '../hooks.ts'
 import { assess, changesNote, focusLegs, instruction, keepFrom, phaseAt, replanOrigin, replanTime, spareToBoard, stopKey, suggestionKey, tripsFrom, USABLE_M, type Assessment, type Missed, type Phase, type Position } from '../intrip.ts'
 import type { Option, PlanRequest } from '../types.ts'
@@ -53,7 +53,6 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   // Location is on for the whole trip (it's what makes the map and "time to spare" useful); it stays on this device.
   const [locState, setLocState] = useState<'on' | 'denied'>(() => (navigator.geolocation ? 'on' : 'denied'))
   const [check, setCheck] = useState<Assessment | null>(null)
-  const [checkedAt, setCheckedAt] = useState(0)
   const [error, setError] = useState('')
   const [mapOpen, setMapOpen] = useState(false)
   const [ending, setEnding] = useState(false)
@@ -224,7 +223,6 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
         const a = assess(tripsFrom(trip.option, ph.ride), res.kept, res.options, trip.plannedArrive, { missed: held.current, clearS: trip.tightS })
         held.current = a.status === 'missed' ? a.missed : null
         setCheck(a)
-        setCheckedAt(Date.now())
         setError('')
         // The same trip: take the live times for what's still ahead (also when a change in it has gone).
         if (a.current) onUpdate({ ...tripRef.current, option: merge(trip.option, ph.ride, a.current) })
@@ -307,6 +305,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   // The next change: the one after the ride you're on or heading for.
   const upcoming = o.transfers.find((t) => (phase.kind === 'riding' || phase.kind === 'before') && t.from_leg === phase.ride)
   const start = Date.parse(o.leave_at)
+  const lostLocation = locState === 'on' && !here && !!pos // there was a fix, and now there isn't
 
   return (
     <div class="intrip">
@@ -350,7 +349,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
           detail={check.suggestion && <div class="trip-row"><TripRow option={check.suggestion} /></div>}
           action={
             check.suggestion && (
-              <Button onClick={() => switchTo(check.suggestion!)}>
+              <Button variant="commit" onClick={() => switchTo(check.suggestion!)}>
                 Switch to this
               </Button>
             )
@@ -367,7 +366,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
           detail={<div class="trip-row"><TripRow option={faster.suggestion} /></div>}
           onDismiss={() => onUpdate({ ...trip, dismissed: [...(trip.dismissed ?? []), suggestionKey(o, faster.suggestion)] })}
           action={
-            <Button onClick={() => switchTo(faster.suggestion)}>
+            <Button variant="commit" onClick={() => switchTo(faster.suggestion)}>
               Switch to this
             </Button>
           }
@@ -411,18 +410,20 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
         </section>
       )}
 
-      <p class="meta status-line">
-        {locState === 'on' && (here ? `Location on (±${Math.round(here.accuracy)} m). ` : pos ? 'No location just now; following the timetable. ' : 'Finding your location… ')}
-        {locState === 'denied' && 'Location unavailable; following the timetable. '}
-        {checkedAt ? `Checked ${statusTime(checkedAt)}.` : 'Checking…'}
-        {error && ` ${error}`}
-        {locState === 'denied' && navigator.geolocation && (
-          <>
-            {' '}
-            <TextButton onClick={() => setLocState('on')}>Try my location again</TextButton>
-          </>
-        )}
-      </p>
+      {/* Only when something is off: with location on and the last check good, there's nothing to say. */}
+      {(lostLocation || locState === 'denied' || error) && (
+        <p class="meta status-line">
+          {lostLocation && 'No location just now; following the timetable. '}
+          {locState === 'denied' && 'Location unavailable; following the timetable. '}
+          {error}
+          {locState === 'denied' && navigator.geolocation && (
+            <>
+              {' '}
+              <TextButton onClick={() => setLocState('on')}>Try my location again</TextButton>
+            </>
+          )}
+        </p>
+      )}
 
       <section class="steps" aria-label="The trip">
         <Timeline option={o} ends={trip.ends} track={track} />

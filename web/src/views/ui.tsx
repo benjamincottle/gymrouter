@@ -2,11 +2,15 @@
 // markup themselves, so a change to how a button or a callout looks happens here and in style.css, once.
 import { useEffect, useRef, type MutableRef } from 'preact/hooks'
 import type { ComponentChildren, JSX } from 'preact'
+import { Chevron } from './icons.tsx'
 
 type ButtonAttrs = Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, 'class'> & { class?: string }
 
-/** A button: outlined in ink, never filled; `danger` is red. Always 44px tall. */
-export function Button({ variant, class: cls, ...rest }: ButtonAttrs & { variant?: 'danger' }) {
+/**
+ * A button, always 44px tall: `commit` is filled in ink, for the one action that moves a screen forward (at most one
+ * on a screen); otherwise it's outlined in ink; `danger` is red.
+ */
+export function Button({ variant, class: cls, ...rest }: ButtonAttrs & { variant?: 'commit' | 'danger' }) {
   return <button class={['btn', variant, cls].filter(Boolean).join(' ')} {...rest} />
 }
 
@@ -16,9 +20,9 @@ export function TextButton({ quiet, ...rest }: Omit<ButtonAttrs, 'class'> & { qu
 }
 
 /** A 44px square button with an icon and a label for screen readers. */
-export function IconButton({ label, danger, class: cls, children, ...rest }: ButtonAttrs & { label: string; danger?: boolean }) {
+export function IconButton({ label, class: cls, children, ...rest }: ButtonAttrs & { label: string }) {
   return (
-    <button class={['icon-btn', danger && 'danger', cls].filter(Boolean).join(' ')} aria-label={label} title={label} {...rest}>
+    <button class={['icon-btn', cls].filter(Boolean).join(' ')} aria-label={label} title={label} {...rest}>
       {children}
     </button>
   )
@@ -139,6 +143,25 @@ export function Row({ lead, main, meta, children, class: cls }: {
   )
 }
 
+/**
+ * An action that is a whole row of a list or of a section in Settings, not a button: `add` is the last row of its list
+ * (a plus, then the words); `go` does something (it ends in ›); `open` opens something in place (a chevron, down to
+ * open and up to close).
+ */
+export function RowAction({ kind = 'go', open, children, ...rest }: Omit<ButtonAttrs, 'class'> & { kind?: 'add' | 'go' | 'open'; open?: boolean }) {
+  return (
+    <button class={`row-action ${kind}`} aria-expanded={kind === 'open' ? !!open : undefined} {...rest}>
+      {kind === 'add' && (
+        <svg class="icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      )}
+      <span>{children}</span>
+      {kind === 'open' && <Chevron up={open} />}
+    </button>
+  )
+}
+
 /** The screen's commit action, pinned to the bottom where the thumb is: the way out first, the commit last. */
 export function ActionBar({ children }: { children: ComponentChildren }) {
   return <div class="action-bar">{children}</div>
@@ -254,7 +277,7 @@ export function ConfirmSheet({ title, children, confirm, danger = true, onConfir
           <button ref={cancelRef} class="btn" onClick={onCancel}>
             Cancel
           </button>
-          <Button variant={danger ? 'danger' : undefined} onClick={onConfirm}>
+          <Button variant={danger ? 'danger' : 'commit'} onClick={onConfirm}>
             {confirm}
           </Button>
         </div>

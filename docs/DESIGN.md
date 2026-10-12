@@ -17,6 +17,8 @@ build it. If code and this file disagree, the code is wrong. The decisions behin
   colours, and the trip's steps hang off a rail in the same colours. Spend boldness there and keep everything around them quiet.
 - **Rules, not cards.** Sections start with a heavy ink rule and rows are separated by hairlines. Don't use rounded
   card stacks or drop shadows.
+- **One action leads.** A screen has at most one filled button, the action that moves it forward. Everything else is
+  quieter: an outline, a row, or underlined text.
 
 ## Tokens
 
@@ -114,8 +116,8 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   - the app icon keeps its own 7px corner.
   - Nothing else.
 - **Lines:**
-  - `--heavy` (3px ink) starts a section: Settings sections, Now, sheet bars. The hero on the trip screen sits under a
-    hairline instead: the status line above it is part of the same results.
+  - `--heavy` (3px ink) starts a section: Settings sections, Now, sheet bars. The hero on the trip screen has no rule
+    of its own: the gym's row above it ends in a hairline.
   - `--hair` (1px rule) separates rows.
   - `--bar` (4px) is the side bar of a callout and of the selected row.
   - Control outlines are 1.5px `--edge` (fields) or 1.5px ink (buttons and segmented controls).
@@ -137,48 +139,62 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   - Settings and the editors use a single readable column, max 40rem, centred. So does the trip screen until there
     is a home and a gym (the "Get started" empty state): there's nothing for a map to show yet.
 - **The commit action lives in the action bar.** The screen's main action ("Start trip", "Save gym") sits in a bar
-  pinned to the bottom of the pane, with a hairline above it. The commit button is rightmost; a secondary action (the way
-  out, or "Show on map") is leftmost. Long forms never hide their Save at the bottom of the page.
+  pinned to the bottom of the pane, with a hairline above it. The commit button is rightmost and filled (see Button); a
+  secondary action (the way out, or "Show on map") is leftmost and outlined. Long forms never hide their Save at the
+  bottom of the page.
   - A bar holds two buttons at most: three don't fit a phone without wrapping. Another way forward is a text action
     in the content, where it applies: the gym chooser's "Not listed? Add another gym" sits under its list.
 - **Order of a trip screen:**
   1. when and which way (and which home, when there are several): everything that changes the search comes before
      the gym, so a search starts only once it's what you meant. It stays on top after a gym is chosen, so it never
      moves;
-  2. route (the gym leads the results; before one is chosen, the list of gyms);
-  3. status line;
-  4. hero;
-  5. Earlier/Later;
-  6. options board;
-  7. summary;
-  8. steps;
-  9. action bar.
+  2. route (the gym leads the results, with whether the times are live at the end of its row; before one is chosen,
+     the list of gyms);
+  3. hero;
+  4. Earlier/Later;
+  5. options board;
+  6. summary;
+  7. steps;
+  8. action bar.
 
 ## Components
 
 Each exists once in code and is reused: `web/src/views/ui.tsx` (Button, TextButton, IconButton, Segmented, Section,
-Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onRadioKeys`), the tokens in
+Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onRadioKeys`), the tokens in
 `web/src/style.css`, data colours in `web/src/colour.ts`, and error wording in `problem()` (`web/src/api.ts`). Don't restyle one locally; add a variant here if one is really needed.
 
-- **Button**, outline only (no button is ever filled), three looks at one size:
-  - default: ink outline, transparent;
-  - `danger`: `--missed` outline and text;
-  - **disabled**: a thin `--rule` outline, `--pencil` text, no fill.
+- **Button**, four looks at one size:
+  - `commit`: filled ink, `--wall` text. The one action that moves the screen forward: "Start trip", "Save home",
+    "Add gyms", "Switch to this", the one button of an empty state. **At most one on a screen**, and never beside
+    another filled button. It's ink, not an accent colour: the same fill as a stop tag or the route's tape.
+  - default: ink outline, transparent. The alternative beside a commit and the way out ("Show on map", "Cancel",
+    "Back", "Keep"), and an action inside a form that isn't its commit ("Search", "Use my current location",
+    "Try again").
+  - `danger`: `--missed` outline and text.
+  - **disabled**: a thin `--rule` outline, `--pencil` text, no fill, whatever the look.
   - There's no "ghost" variant. A row of buttons puts the commit action last.
+- **Row action:** an action that belongs to a list or a section of Settings is a whole row between hairlines, 56px,
+  not a button (`RowAction`):
+  - adding to a list is the list's last row, a plus then the words at 600: "Add home", "Add gym";
+  - an action of a section is a row of body text ending in `›` ("Export backup", "Import backup"), or in the chevron
+    of something that opens in place ("Set up another device": down to open, up to close);
+  - disabled, its text is `--pencil`.
 - **Text action:** underlined, weight 600, inline in a sentence. `quiet` uses `--pencil`. It has a 44px hit area
   through `::after`. Use it for things like "Earlier trips" and "Measure my pace".
   - One that opens or closes something ends with a 16px chevron, `--s1` after the words: down to open, up to close
     (`Chevron`), and says which with `aria-expanded`. A ride's stops line is the one that does.
-- **Icon button:** 44×44, no outline, `--panel` on hover. The `danger` variant colours the icon `--missed`. Always has
-  an `aria-label`.
+- **Icon button:** 44×44, no outline, `--panel` on hover, ink. Always has an `aria-label`. A row's bin is ink like
+  its pencil: red arrives with the question (see Destructive actions), not before.
 - **Segmented control:** one size (16px/600, 44px), a radio group (one tab stop, arrow keys). The chosen option has
   a 4px ink bar along its bottom (inset), the same ink as the control's outline so it reads as part of the frame;
   the others stay ink, never greyed (grey means disabled).
 - **Field:** a label (600) above, then a 44px input in `--panel` with a 1.5px `--edge` outline that turns ink on focus,
   then an optional hint (14px pencil, 400).
-  - Defaults: an empty field means "use the default", and its hint says what the default is ("Empty uses the default,
-    5.5"). A changed field shows its value and offers "Use the default (3)". Settings save as they change and say
-    "Saved." in the hint for two seconds (`NumberField` in Settings).
+  - **Number settings** are one line each, rows between hairlines (`NumberField` in Settings): the name on the left,
+    a short field (5.5rem, its number right-aligned) on the right. An empty field means "use the default" and shows
+    the default as its placeholder; nothing under it says so. A second line under the name, in 14px pencil, only when
+    there's something to say: what the setting is for when its name doesn't ("Extra time to get out the door: shoes,
+    keys."), "Use the default (3)" once it's changed, and "Saved." for two seconds after a change.
 - **Callout:** a `--panel` fill with a 4px left bar. Tones:
   - neutral (ink) for information and confirmations;
   - `good` (`--safe`) for a better option;
@@ -218,6 +234,15 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   - There's no runner with "Leave at" or "Arrive by": a trip that starts, starts now.
 - **Route row** (trip screen): an ink tape, the gym's logo, the gym's name (18px/800/semi, a button that changes
   the gym, with a chevron), and "from Home" (or "to Home") beneath it. The direction toggle above reverses the trip.
+  - **Live or not**, at the end of the row once there's a plan, in 14px pencil: a `--safe` dot and "Live", or a pencil
+    dot and "Timetable only". No "updated" time: plans refresh themselves, and an error says how old the plan under it
+    is. While the first plan loads, a line under the row says "Planning…" (or "Finding the fastest trip…"); "Walks are
+    rough estimates until the server has prepared the street map." shows there too while it's true.
+- **Hero** (trip screen): "Leave in" and the countdown, the arrive time, then "for the M1 at 15:20 from Epping
+  Station (on time)", then **how sure the chosen trip is**: its risk badge and why, in the steps' words. "At risk
+  change at North Ryde Station, 22 s spare"; with several changes, the tightest: "Tight tightest change at Central
+  Station, 1 min spare"; with none, "Safe no changes". The word sits beside the number it qualifies, and teaches what
+  the squares in the rows mean.
 - **Options board:** one row per option: leave, tape strip, arrive, risk mark, compact duration.
   - The selected row gets a `--panel` fill and an inset 4px ink bar. Its content doesn't move.
   - The rows share their columns: the times and the duration are as wide as their widest entry, the duration is
@@ -331,9 +356,10 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
     whichever gym and either way round, until the place's nearest stop is a different one.
   - Settings, under "Longest walk to a stop" and only while there are any: "You've dismissed 2 "Longer walk" notices.
     Show them again" (a quiet text action; "Show it again" for one).
-- **Footer:** a hairline, then the server status; it sits at the bottom edge of the screen when the content is shorter
-  than the screen. The data credits ("Contains Transport for NSW data…") are only on Settings, at the end, above the
-  footer.
+- **Footer:** a hairline, then the server status and the version. It's for whoever runs the server, so it shows:
+  - on Settings, always, at the bottom edge of the screen when the content is shorter than the screen;
+  - on the trip screen, only when there's something to act on: the server isn't OK, or the app is out of date.
+  - The data credits ("Contains Transport for NSW data…") are only on Settings, at the end, above the footer.
 - **Server status** (the footer): a status dot and one short line, so a problem on the server
   gets noticed without anyone checking it. The dot uses the status colours: `--safe` "Server OK", `--tight` "Server
   working, needs a look", `--missed` "Server can't plan" or "Can't reach the server". Each issue follows on its own line
@@ -367,6 +393,9 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   - 2 min or more late: `--missed`;
   - no live data, "timetabled": `--pencil`.
   - The word and the colour always agree.
+- **In-trip status line** (under Then): only when something is off. "No location just now; following the
+  timetable.", "Location unavailable; following the timetable." with "Try my location again", and "Couldn't re-check
+  the trip: …". With location on and the last check good there is no line.
 - **Inline confirm:** see Destructive actions.
 - **Dialog sheet:** a scrim at 45%, then a sheet on the wall colour with a heavy top rule. It rises from the bottom on
   phones and is centred on desktop. A title says what will happen; the body lists exactly what is lost; actions are
@@ -405,8 +434,8 @@ A walk time in a place's list of stops carries a tilde (`~3 min`): it's the stre
 Use in-app confirmation only, never `window.confirm()`. Everything shares one visual language: a `danger` button for
 the destructive choice, the safe choice focused by default, and Escape cancelling.
 
-- **One item** (a home, a gym) gets an **inline confirm**: the row turns into the question, with a
-  `--panel` fill and a 4px `--missed` bar. "Delete 9 Degrees Chatswood?" sits on line 1, what goes with it on line 2,
+- **One item** (a home, a gym) gets an **inline confirm**: the row's bin is ink; tapped, the row turns into the
+  question, with a `--panel` fill and a 4px `--missed` bar. "Delete 9 Degrees Chatswood?" sits on line 1, what goes with it on line 2,
   then [Keep] [Delete].
 - **End trip** gets an **inline confirm bar** under the trip header: "End this trip? Live tracking and re-checks stop."
   then [Keep going] [End trip].
@@ -426,6 +455,14 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
 - **Degraded but working** (timetable only, walks estimated, location off) is a `caution` callout or the status line.
   It's not an error.
 - **Empty states** say what to do and offer the action as a button ("Add a gym").
+  - **Without a setup link** (the page before sign-in): the mark, the name, and one line in pencil, "Open your setup
+    link to start." Nothing to press, and nothing about the server.
+- **First run** is two steps, each a question: "Where do you start from?" with "Step 1 of 2. Next: the gyms you climb
+  at." under it, then "Which gyms do you climb at?" with "Step 2 of 2." leading its intro. Neither has Cancel: there's
+  nothing to go back to.
+- **Stops for a place** (the home and gym editors) are closed until asked for: "Using every stop within a 1 km walk."
+  then "Choose stops", a text action with a chevron that opens the list. A place with stops already ticked opens with
+  the list showing.
 - **Loading:** show what's coming in place, as a skeleton of rows or the board's ruled lines (`.skeleton`), rather
   than a bare "Loading…". Long jobs (suggesting lines) show progress beside the job, not only inside the button label.
 - **Searching as you choose:** a pick (a gym, reversing the trip) searches at once; editing the time (the When choice,

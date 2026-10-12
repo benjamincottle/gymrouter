@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { changesAndStops, fastest, position, reselect, rows, stopCount, tape, tripKey } from './options.ts'
+import { changesAndStops, fastest, position, reselect, riskReason, rows, stopCount, tape, tripKey } from './options.ts'
 import type { Leg, Option } from './types.ts'
 
 const iso = (hhmm: string) => `2026-10-08T${hhmm}:00+11:00`
@@ -97,4 +97,18 @@ test('the tape: rides and the walking around them, each with its share of the tr
   assert.deepEqual(shares({ ...tight, arrive: iso('09:00') }), ['walk 10', 'ride 20', 'walk 0', 'ride 20', 'walk 10'])
   // Straight off the last ride at the door: no walk at the end. On board already: none at the start.
   assert.deepEqual(tape(option('08:05', ride('t1', 'A', '08:05', '08:30'))).map((p) => p.kind), ['ride'])
+})
+
+test('the line under the countdown names the change and its time to spare, the tightest of several', () => {
+  const direct = option('08:00', ride('t1', 'A', '08:05', '08:30'))
+  assert.equal(riskReason(direct), 'no changes')
+  const at = (name: string): Leg => ({ ...ride('t', 'A', '08:05', '08:30'), to: { ...stop('p'), name: `${name}, Platform 1`, station: name } })
+  const one: Option = { ...direct, legs: [direct.legs[0], at('North Ryde Station'), ride('t2', 'B', '08:35', '08:50')], transfers: [{ from_leg: 1, to_leg: 2, walk_s: 120, slack_s: 22, risk: 'at-risk' }] }
+  assert.equal(riskReason(one), 'change at North Ryde Station, 22 s spare')
+  const two: Option = {
+    ...one,
+    legs: [...one.legs.slice(0, 2), at('Central Station'), ride('t3', 'C', '09:00', '09:10')],
+    transfers: [{ from_leg: 1, to_leg: 2, walk_s: 120, slack_s: 240, risk: 'safe' }, { from_leg: 2, to_leg: 3, walk_s: 60, slack_s: 95, risk: 'tight' }],
+  }
+  assert.equal(riskReason(two), 'tightest change at Central Station, 1 min spare')
 })

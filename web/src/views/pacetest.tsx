@@ -70,7 +70,7 @@ export function PaceTest({ onUse, onClose }: { onUse: (mps: number) => void; onC
           </p>
           <div class="actions">
             <Button onClick={onClose}>Cancel</Button>
-            <Button onClick={start}>
+            <Button variant="commit" onClick={start}>
               Start
             </Button>
           </div>
@@ -96,7 +96,7 @@ export function PaceTest({ onUse, onClose }: { onUse: (mps: number) => void; onC
             >
               Cancel
             </Button>
-            <Button onClick={done}>
+            <Button variant="commit" onClick={done}>
               Done
             </Button>
           </div>
@@ -122,7 +122,7 @@ export function PaceTest({ onUse, onClose }: { onUse: (mps: number) => void; onC
             <Button onClick={onClose}>Cancel</Button>
             <Button onClick={start}>Try again</Button>
             {result && (
-              <Button onClick={() => onUse(result.mps)}>
+              <Button variant="commit" onClick={() => onUse(result.mps)}>
                 Use {kmh(result.mps)} km/h
               </Button>
             )}
