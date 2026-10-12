@@ -163,12 +163,22 @@ export const IconPhone = () => (
   </Icon>
 )
 
-/** Someone running, heading right, with speed lines behind: on a gym's row, starts the fastest trip there. */
+/** Someone running, heading right, with speed lines behind. For a 24 × 24 box. */
+export const HURRY = {
+  head: { cx: 18, cy: 4.2, r: 2 },
+  body: 'M16 7.6 L12.6 13 L16.4 15.4 L15.4 20.4 M12.6 13 L9.8 16.6 L6 16.2 M15.4 8.6 L18.6 11 L21.4 9.6 M15.4 8.6 L11.8 8.2 L9.8 10.8',
+  streaks: 'M2 7 H6.5 M1.5 11.5 H5.5',
+}
+
+/**
+ * The runner: on a gym's row, starts the fastest trip there; before where to board a train, and on the platform on
+ * the map, marks the quick way off it.
+ */
 export const IconHurry = () => (
   <svg class="icon hurry" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
-    <circle class="ink" cx="18" cy="4.2" r="2" />
-    <path d="M16 7.6 L12.6 13 L16.4 15.4 L15.4 20.4 M12.6 13 L9.8 16.6 L6 16.2 M15.4 8.6 L18.6 11 L21.4 9.6 M15.4 8.6 L11.8 8.2 L9.8 10.8" />
-    <path class="streaks" d="M2 7 H6.5 M1.5 11.5 H5.5" />
+    <circle class="ink" {...HURRY.head} />
+    <path d={HURRY.body} />
+    <path class="streaks" d={HURRY.streaks} />
   </svg>
 )
 

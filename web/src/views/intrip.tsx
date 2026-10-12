@@ -9,7 +9,7 @@ import type { Option, PlanRequest } from '../types.ts'
 import type { Walk } from '../walkmeasure.ts'
 import { existing, legTrace, segments, stopKey, type PlaceRef, type Retime, type Segment, type TimedWalk } from '../walks.ts'
 import { MapPane, MapSheet, TripRow } from './board.tsx'
-import { RideCountdown, Timeline, type Tracking } from './option.tsx'
+import { BoardStrip, RideCountdown, Timeline, type Tracking } from './option.tsx'
 import { callPlaces, stopsPassed, type RideProgress } from '../countdown.ts'
 import { position, rows } from '../options.ts'
 import { advance, phaseOf, rowLines, shapeKey, walkLeftS, walkTo, type At, type LonLat } from '../progress.ts'
@@ -304,6 +304,8 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
       // The strip under the instruction names the stops, so the line only says when.
       : phase.kind === 'riding' ? `Get off at ${clock(d.arr)} (${countdown(d.arr, now)})${ride ? '' : `, ${placeName(d.to)}`}` : null
   const countdownStrip = ride && onLeg ? <RideCountdown leg={onLeg} ride={ride} /> : null
+  // The train you're getting to or waiting for, when the server has said where to board it.
+  const catching = phase.kind === 'before' && o.legs[phase.ride]?.board ? phase.ride : null
   // The trip's description: you on its rail, and its walks to time (from the map, timing goes back to this screen).
 
   const track: Tracking = {
@@ -413,6 +415,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
             )}
           </p>
         )}
+        {catching !== null && <BoardStrip leg={o.legs[catching]} />}
         {countdownStrip}
         {nowDetail && phase.kind === 'riding' && <p>{nowDetail}</p>}
       </section>
@@ -487,6 +490,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           option={o}
           focus={focus}
           progress={ride}
+          catching={catching}
         />
       )}
 
@@ -506,6 +510,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           option={o}
           focus={focus}
           progress={ride}
+          catching={catching}
           now={now}
           onClose={() => setMapOpen(false)}
           steps={{

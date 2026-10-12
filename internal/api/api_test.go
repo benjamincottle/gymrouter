@@ -632,6 +632,90 @@ func TestLegShapeAndMap(t *testing.T) {
 }
 
 // A train's shape carries the platform it's boarded from, when the street map has one at the stop; a bus's has none.
+// A train or metro ride says where to board once the street map knows its platforms: which carriage, of how many,
+// and where on the platform that carriage stops.
+func TestRideLegsSayWhereToBoard(t *testing.T) {
+	h := newHarness(t)
+	type board struct {
+		Carriage, Of int
+		Spot         *[2]float64
+	}
+	type plan struct {
+		Options []struct {
+			Legs []struct {
+				Kind  string
+				Line  struct{ Mode string }
+				From  struct{ Lat, Lon float64 }
+				To    struct{ Lat, Lon float64 }
+				Board *board
+			}
+		}
+	}
+	get := func() plan {
+		rec := h.do(t, "POST", "/api/plan", token, eppingToLaneCove)
+		var p plan
+		if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil || rec.Code != 200 {
+			t.Fatalf("plan: %d %s", rec.Code, rec.Body)
+		}
+		return p
+	}
+	// With no platforms known there's nothing to measure along, and nothing is said.
+	first := get()
+	g := walktest.Grid(t, geo.Point{Lat: -33.7727, Lon: 151.0821})
+	seen := map[[2]float64]bool{}
+	for _, o := range first.Options {
+		for _, l := range o.Legs {
+			if l.Board != nil {
+				t.Fatalf("advice with no platforms known: %+v", l.Board)
+			}
+			if l.Kind != "ride" || l.Line.Mode != "metro" {
+				continue
+			}
+			for _, at := range []geo.Point{{Lat: l.From.Lat, Lon: l.From.Lon}, {Lat: l.To.Lat, Lon: l.To.Lon}} {
+				if seen[[2]float64{at.Lat, at.Lon}] {
+					continue
+				}
+				seen[[2]float64{at.Lat, at.Lon}] = true
+				g.Platforms = append(g.Platforms, walk.Platform{Outline: []geo.Point{ // 155 m long, running north
+					{Lat: at.Lat - 0.0007, Lon: at.Lon - 0.00003}, {Lat: at.Lat + 0.0007, Lon: at.Lon - 0.00003},
+					{Lat: at.Lat + 0.0007, Lon: at.Lon + 0.00003}, {Lat: at.Lat - 0.0007, Lon: at.Lon + 0.00003},
+					{Lat: at.Lat - 0.0007, Lon: at.Lon - 0.00003},
+				}})
+			}
+		}
+	}
+	if len(seen) == 0 {
+		t.Fatal("no metro ride among the options")
+	}
+	h.env.Engine.SetWalker(g)
+	said := 0
+	for _, o := range get().Options {
+		for _, l := range o.Legs {
+			if l.Kind != "ride" || l.Line.Mode != "metro" {
+				if l.Board != nil {
+					t.Errorf("advice for a %s %s: %+v", l.Line.Mode, l.Kind, l.Board)
+				}
+				continue
+			}
+			if l.Board == nil {
+				continue // a ride whose next one leaves from the same platform, say
+			}
+			said++
+			if l.Board.Of != 6 || l.Board.Carriage < 1 || l.Board.Carriage > 6 {
+				t.Errorf("carriage %d of %d", l.Board.Carriage, l.Board.Of)
+			}
+			if l.Board.Spot == nil {
+				t.Error("no spot, though the platform is known")
+			} else if d := geo.DistanceM(geo.Point{Lat: l.Board.Spot[1], Lon: l.Board.Spot[0]}, geo.Point{Lat: l.From.Lat, Lon: l.From.Lon}); d > 90 {
+				t.Errorf("the spot is %.0f m from the platform's stop: off the platform", d)
+			}
+		}
+	}
+	if said == 0 {
+		t.Error("no metro ride says where to board")
+	}
+}
+
 func TestLegShapeCarriesTheBoardingPlatform(t *testing.T) {
 	h := newHarness(t)
 	rec := h.do(t, "POST", "/api/plan", token, eppingToLaneCove)

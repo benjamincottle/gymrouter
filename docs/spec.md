@@ -753,3 +753,47 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   What it can't know is where a 4-car train stops on a long platform, and which stairs you'd take is a guess. The
   cost would be in the special cases, and wrong advice is worse than none, so the next step, when wanted, is a
   prototype that only prints its advice for trips we know (TODO.md).
+- 2026-10-12: Where to stand, how it will look and when, chosen from mock-ups. Still not built: the prototype that
+  prints its advice has to show the advice is right first (TODO.md).
+  - It aims for the stairs or escalators your way on takes at the far end, never a lift, and it shows on every train
+    ride where the carriage is known. There is no test for whether it's worth showing: "worth it" would need a rule
+    of its own, and a wrong guess at it hides advice that was right.
+  - In Now, from "Get to the station" until you're on board, and nowhere else. Not on the ride's step and not while
+    planning: it's only of use at the platform. It starts at "Get to", not "Wait", because Now only says "Wait" once
+    a location puts you on the platform, and underground there's none.
+  - The train is a strip heading right, a piece for each carriage, the front one with a driver's cab. Every carriage
+    is a hairline-grey outline but yours, a thin outline in the line's colour. Under it, the runner from the gym rows
+    and one sentence, "Board the 4th carriage from the front." The runner there starts the fastest trip; here it
+    marks the quick way off. The reason ("for the escalators at Central") is left out: short wins on a platform.
+  - On the map the platform you board from has a faint fill in the line's colour, and where the spot to stand is
+    known the runner sits on it, in the "you" marker's disc at 45% strength. It never reacts to where you are: a
+    phone's location on a platform is out by about a carriage, so an "arrived" state would flicker.
+  - The carriage comes from the destination platform alone. The spot on the platform you board from is only known
+    where the train fills it (Hornsby's 2 and 3 are 77 m longer than an 8-carriage train, and where a train stops
+    along them isn't published): elsewhere the strip shows and the map has no marker.
+  - Decided after the prototype ran (2026-10-12): where the platform is longer than the train, the train is taken to
+    stop in the middle of its room, and the carriage and the spot on the map follow from that. Saying nothing lost
+    four rides in ten, and the middle is at least the right end of the train. When two ways on are within seconds of
+    each other the best is still the one aimed for.
+  - Found the same day: the street map already says where trains stop. Its stopping point for a platform (tagged
+    with the platform's timetable ID) lists, a carriage at a time, which way off is beside it, for 553 of the 591
+    train and metro stopping points in the area. With that list used first, measuring along the outline second and
+    the middle last, the prototype names a carriage for every ride that needs one (153, 20 and 27 of 200). The list
+    and measuring differ by a carriage more often than they agree, so the list has to be checked on the ground at
+    stations we know before it's trusted. Ways off on the level (ramps, a walk off the end of a terminal platform)
+    count as targets; anything that is only a lift doesn't.
+  - And the metro says where it stops: its trains report a position while stopped, the same one to the last digit
+    train after train, and that position is the train's front. They stop in the middle of the platform, so the
+    middle rule is the metro's real rule; where a platform's outline in the map is wrong, the reported position
+    stands in for it. Which end of the map's carriage list is the front comes from the direction the track is
+    drawn in, which agreed with the stairs every time the stairs could tell (219 of 219).
+- 2026-10-12: Where to stand is built, pending field tests. A train or metro ride in a plan carries `board`: the
+  carriage, of how many, and the spot on the platform (`internal/stand`). The street network's build keeps the
+  map's stopping points with their carriage lists and their track's direction (cache file version 4: one rebuild on
+  the first start), and the metro's 40 reported stopping points are built in, collected from the live feed that day.
+  The app shows it as decided above. Checked against the prototype on the same 102 plans: the same carriage for 215
+  of the 218 rides both answered (one tie between stairs and an escalator at one point, since settled in favour of
+  the one the map puts nearer; two were trains of different lengths under one name). It costs about a millisecond a
+  ride, and each ride's answer is remembered, so a trip being followed doesn't pay again. Still to check on a
+  platform: the map's lists at Hornsby, which of the map and measuring is right where they differ, the metro's
+  stopping points, and how far out the middle rule is where there's no list (TODO.md).

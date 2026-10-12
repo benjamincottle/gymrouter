@@ -123,7 +123,8 @@ type Engine struct {
 
 	today      atomic.Pointer[Snapshot]
 	shapes     atomic.Pointer[shapeSet]
-	lastActive atomic.Int64 // unix nanos
+	stations   atomic.Pointer[stationsOf] // the day's stations, indexed for boarding advice
+	lastActive atomic.Int64               // unix nanos
 	wake       chan struct{}
 
 	loadMu     sync.Mutex // serialises timetable loads

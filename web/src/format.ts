@@ -113,6 +113,13 @@ export function fromLocalInput(v: string): string {
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+/** Which carriage to board, as an instruction: "Board the 4th carriage from the front." */
+export function boardText(carriage: number, of: number): string {
+  if (carriage <= 1) return 'Board the front carriage.'
+  if (carriage >= of) return 'Board the back carriage.'
+  return `Board the ${ordinal(carriage)} carriage from the front.`
+}
+
 /** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st, 22nd, 23rd … */
 export function ordinal(n: number): string {
   const tens = n % 100

@@ -64,6 +64,14 @@ the light map, black on the dark), and the stops behind you go quiet (smaller, h
 plain dots. Where you get off is a larger white dot with the stop's dot in it (12px inside a 2px `--stop-ink` outline,
 a 5px `--stop-ink` centre), as on the rail.
 
+**The train you're heading for.** While you're getting to a train or waiting for it, and the server has said where to
+board (see Where to board), the platform you board from is picked out in the line's colour: a 16% fill inside a 1.5px
+outline at 60%, under the ride's own line. Where your carriage stops on it stands the runner in a "you" marker at 45%
+strength: the same disc, border and soft edge, with the runner in white where you'd have the walker, drawn under
+your own marker. It never reacts to where you are. There is no "you're there", and your own marker passes over it: a
+phone's location on a platform is out by about a carriage, so anything that reacted would flicker. Both go once
+you're on board.
+
 **What the map fits.** The whole trip, with the vehicle you'll catch first once it's near. During a trip, once you've
 set off (the "you" marker has left the trip's first step: by your location, or by the leave time without one), it
 fits the step you're on instead, whole, with you in it: the walk, the ride from where you get on to where you get off,
@@ -298,6 +306,20 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
     - How many stops are behind you comes from where you are along the ride's line (your location, or your
       vehicle's when yours has gone quiet); with nothing to place you by, from the times it calls at them. It never
       goes back a stop.
+  - **Where to board, as a strip** (in Now while you're getting to a train or waiting for it, when the server says
+    which carriage; `BoardStrip`): the train, heading right like everything else on a trip. A piece for each
+    carriage, 22px tall with `--s1` between, each an outline only: 1.5px `--rule` with `--r-mark` corners. The front
+    carriage (the right-hand one) has a driver's cab, its top front corner swept down to the nose. Your carriage's
+    outline is the line's colour instead, at the same weight. No carriage is filled and none is numbered.
+    - Under it, the runner from the gym rows (`IconHurry`, at its own 24px) and the instruction in bold: "Board the
+      4th carriage from the front." ("Board the front carriage.", "Board the back carriage."). On a gym's row the
+      runner starts the fastest trip; here it marks the quick way off the train. It doesn't say why (which stairs it's
+      for): short wins on a platform.
+    - It's in Now from "Get to …" through "Wait for …", and nowhere else: not on the ride's step, not while planning,
+      not under the pulled-down map. It goes once you're on board.
+    - It shows whenever the server says which carriage, with no test for whether it's worth it. It never aims for a
+      lift. Nothing shows when the server doesn't say: a bus, a train of unknown length, a platform the street map
+      doesn't have, the next train at the same platform.
   - How sure the changes are reads `with no changes`, `with a safe change` (or tight, at-risk), `with 3 safe changes`,
     `with 2 changes, the tightest at risk`.
 - **Longer walk:** a neutral callout above the board for each end whose nearest stop on the gym's lines is beyond the

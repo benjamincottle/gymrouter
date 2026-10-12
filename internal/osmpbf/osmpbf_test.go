@@ -207,3 +207,53 @@ func TestReadsRelations(t *testing.T) {
 		t.Errorf("a pass that ends at the relations read %d, err %v", len(rels), err)
 	}
 }
+
+func TestReadsNodeTagsWhenAsked(t *testing.T) {
+	nodes := []osmpbftest.Node{
+		{ID: 1, Lat: -33.7, Lon: 151.1},
+		{ID: 2, Lat: -33.71, Lon: 151.11, Tags: map[string]string{"railway": "stop", "ref": "2077303", "exit:carriages:forward": "no|no|lift|steps"}},
+		{ID: 3, Lat: -33.72, Lon: 151.12},
+		{ID: 4, Lat: -33.73, Lon: 151.13, Tags: map[string]string{"highway": "crossing"}},
+	}
+	for name, data := range map[string][]byte{
+		"tagged": osmpbftest.Encode(nodes, nil),
+		"none":   osmpbftest.Encode(nodes[:1], nil),
+	} {
+		var got []osmpbf.Node
+		read := func(tags bool) {
+			got = nil
+			err := osmpbf.Read(bytes.NewReader(data), osmpbf.Handler{WantNodes: true, WantNodeTags: tags, Node: func(n osmpbf.Node) error {
+				if n.Tags != nil { // valid only during the call
+					c := map[string]string{}
+					for k, v := range n.Tags {
+						c[k] = v
+					}
+					n.Tags = c
+				}
+				got = append(got, n)
+				return nil
+			}})
+			if err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+		}
+		read(true)
+		if name == "none" {
+			if len(got) != 1 || got[0].Tags != nil {
+				t.Errorf("none: %+v", got)
+			}
+			continue
+		}
+		if len(got) != 4 || got[0].Tags != nil || got[2].Tags != nil {
+			t.Fatalf("tagged: %+v", got)
+		}
+		if got[1].Tags["ref"] != "2077303" || got[1].Tags["exit:carriages:forward"] != "no|no|lift|steps" || len(got[1].Tags) != 3 || got[3].Tags["highway"] != "crossing" {
+			t.Errorf("tags: %+v, %+v", got[1].Tags, got[3].Tags)
+		}
+		// Not asked for, they aren't read.
+		read(false)
+		if len(got) != 4 || got[1].Tags != nil || got[1].ID != 2 {
+			t.Errorf("tags not asked for: %+v", got)
+		}
+	}
+}

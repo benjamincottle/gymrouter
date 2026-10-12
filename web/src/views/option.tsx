@@ -1,11 +1,11 @@
-import { clock, delay, placeName, platform, riskLabel, spare } from '../format.ts'
+import { boardText, clock, delay, placeName, platform, riskLabel, spare } from '../format.ts'
 import type { ComponentChildren } from 'preact'
 import { useState } from 'preact/hooks'
 import { LAST_STOPS, stopsToGo, type RideProgress } from '../countdown.ts'
 import { findChange, type PlaceRef, type Segment, type TimedWalk } from '../walks.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 import { position, rows, type Row } from '../options.ts'
-import { Chevron, HOUSE, Shoe, Stopwatch, VEHICLE_PATHS, vehicleOf, Walker } from './icons.tsx'
+import { Chevron, HOUSE, IconHurry, Shoe, Stopwatch, VEHICLE_PATHS, vehicleOf, Walker } from './icons.tsx'
 import { TextButton } from './ui.tsx'
 import { lineColour, textOn } from '../colour.ts'
 
@@ -394,6 +394,40 @@ export function RideCountdown({ leg, ride }: { leg: Leg; ride: RideProgress }) {
         <span>{left > 1 && calls[ride.passed] ? `Next: ${placeName(calls[ride.passed])}` : ''}</span>
         <span>{left > 1 ? stopsToGo(left) : 'Next stop is yours'}</span>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Where to board a train so you step off beside your way on: the train heading right, a piece for each carriage with
+ * yours outlined in the line's colour, and under it the runner and the instruction.
+ */
+export function BoardStrip({ leg }: { leg: Leg }) {
+  const b = leg.board
+  if (!b) return null
+  const say = boardText(b.carriage, b.of)
+  return (
+    <div class="board-strip" style={{ '--c': lineColour(leg.line?.color) }}>
+      <div class="carriages" role="img" aria-label={say}>
+        {/* The front carriage is the last drawn: the train heads right. */}
+        {Array.from({ length: b.of }, (_, k) => {
+          const n = b.of - k
+          return n === 1 ? (
+            <i class={n === b.carriage ? 'cab yours' : 'cab'}>
+              <b />
+              <svg viewBox="0 0 20 22" width="20" height="22" aria-hidden="true">
+                <path d="M0 .75 H.25 C7.25 .75 15.25 7.75 18.75 15.75 Q19.25 17.25 19.25 18.75 Q19.25 21.25 16.75 21.25 H0" />
+              </svg>
+            </i>
+          ) : (
+            <i class={n === b.carriage ? 'yours' : undefined} />
+          )
+        })}
+      </div>
+      <p class="board-say">
+        <IconHurry />
+        <strong>{say}</strong>
+      </p>
     </div>
   )
 }

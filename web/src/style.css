@@ -1680,6 +1680,66 @@ details > summary {
   color: var(--ink);
 }
 
+/* ---- where to board a train: each carriage an outline, yours in the line's colour, the front one with a cab ---- */
+
+.board-strip {
+  margin-top: var(--s3);
+}
+
+.board-strip .carriages {
+  display: flex;
+  gap: var(--s1);
+  height: 22px;
+  color: var(--rule);
+}
+
+.board-strip .carriages i {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1.5px solid;
+  border-radius: var(--r-mark);
+}
+
+.board-strip .carriages .yours {
+  color: var(--c, var(--line-fallback));
+}
+
+/* The cab: a box open at its front, then the nose drawn onto it at a fixed size, so it keeps its shape whatever
+   the carriage's width. */
+.board-strip .carriages .cab {
+  display: flex;
+  border: 0;
+  border-radius: 0;
+}
+
+.board-strip .carriages .cab b {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1.5px solid;
+  border-right: 0;
+  border-radius: var(--r-mark) 0 0 var(--r-mark);
+}
+
+.board-strip .carriages .cab svg {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.board-say {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s2);
+}
+
+.board-say .icon {
+  flex: none;
+}
+
 /* ---- the map: a sheet on phones, a pane beside the trip on desktop ---- */
 
 .sheet {
