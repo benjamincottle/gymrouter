@@ -75,6 +75,22 @@ func WriteZip(path string, shapes map[string]Shape, days ...*Day) error {
 		return cw.Error()
 	}
 
+	// The stairs, lifts and entrances the kept pathways lead to are stops too (they have positions, which say where
+	// along a platform each way off it is), though no trip calls at them.
+	paths := pathwayRows(days, stops)
+	for _, p := range paths {
+		for _, id := range p[1:3] {
+			if _, have := stops[id]; have {
+				continue
+			}
+			for _, d := range days {
+				if i, ok := d.StopIndex[id]; ok && (d.Stops[i].LocationType == "2" || d.Stops[i].LocationType == "3") {
+					stops[id] = d.Stops[i]
+					break
+				}
+			}
+		}
+	}
 	var stopRows [][]string
 	for _, s := range stops {
 		stopRows = append(stopRows, []string{s.ID, s.Name, ftoa(s.Pos.Lat), ftoa(s.Pos.Lon), s.LocationType, s.Parent, s.Platform})
@@ -121,7 +137,7 @@ func WriteZip(path string, shapes map[string]Shape, days ...*Day) error {
 		{"stop_times.txt", []string{"trip_id", "arrival_time", "departure_time", "stop_id", "stop_sequence", "shape_dist_traveled"}, timeRows},
 		{"calendar_dates.txt", []string{"service_id", "date", "exception_type"}, calRows},
 		{"shapes.txt", []string{"shape_id", "shape_pt_lat", "shape_pt_lon", "shape_pt_sequence", "shape_dist_traveled"}, shapeRows(shapes)},
-		{"pathways.txt", []string{"pathway_id", "from_stop_id", "to_stop_id", "pathway_mode", "is_bidirectional", "traversal_time"}, pathwayRows(days, stops)},
+		{"pathways.txt", []string{"pathway_id", "from_stop_id", "to_stop_id", "pathway_mode", "is_bidirectional", "traversal_time"}, paths},
 	} {
 		if err := write(w.name, w.header, w.rows); err != nil {
 			zw.Close()

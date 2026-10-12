@@ -16,6 +16,7 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/par"
 	"github.com/benjamincottle/gymrouter/internal/plan"
 	"github.com/benjamincottle/gymrouter/internal/raptor"
+	"github.com/benjamincottle/gymrouter/internal/stand"
 )
 
 // Request limits.
@@ -123,9 +124,22 @@ type legResp struct {
 	Stops    int32      `json:"stops,omitempty"` // ride legs: stops travelled, counting the one you get off at
 	// Calls are a ride's stops after the one you get on at, in order, ending with the one you get off at.
 	Calls []callResp `json:"calls,omitempty"`
+	// Board is where to board a train so as to step off beside the way on, when that's known.
+	Board *boardResp `json:"board,omitempty"`
 	// Path is the walk along the streets, [lon, lat] pairs, for the first and last legs when known.
 	Path [][2]float64 `json:"path,omitempty"`
 }
+
+// boardResp is where to board a train: the carriage, counted from the front, of how many, and where on the platform
+// that carriage stops ([lon, lat]) when the platform's outline is known.
+type boardResp struct {
+	Carriage int         `json:"carriage"`
+	Of       int         `json:"of"`
+	Spot     *[2]float64 `json:"spot,omitempty"`
+}
+
+// boarder works out where to board a ride of a trip (see Engine.Boarding).
+type boarder func(legs []raptor.Leg, i int) (stand.Advice, bool)
 
 // callResp is one stop a ride calls at: its name (and its station's, for a platform) and when the ride gets there, by
 // live data when the trip has it. Arr is left out for a call the trip skips.
@@ -363,15 +377,16 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	if onboard {
 		buffer = 0 // already on the way
 	}
+	board := func(legs []raptor.Leg, i int) (stand.Advice, bool) { return s.eng.Boarding(snap, legs, i, toAp.Place) }
 	resp.Options = make([]optionResp, len(options))
 	par.Do(len(options), func(i int) { // each option's walks are drawn along the streets
-		resp.Options[i] = optionJSON(snap, options[i], buffer, fromAp, toAp, s.eng.WalkPath)
+		resp.Options[i] = optionJSON(snap, options[i], buffer, fromAp, toAp, s.eng.WalkPath, board)
 	})
 	if len(req.Keep) > 0 {
 		resp.Kept = &keptResp{}
 		if rides, ok := keptRides(snap.Day, req.Keep, ob); ok {
 			if o, catch, ok := plan.Check(snap.Net, preq, rides); ok {
-				out := optionJSON(snap, o, 0, fromAp, toAp, s.eng.WalkPath)
+				out := optionJSON(snap, o, 0, fromAp, toAp, s.eng.WalkPath, board)
 				resp.Kept.Option = &out
 				if !onboard {
 					resp.Kept.CatchS = &catch
@@ -746,7 +761,7 @@ func callsJSON(snap *engine.Snapshot, t *gtfs.Trip, board, alight int32) []callR
 	return out
 }
 
-func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32, fromAp, toAp engine.Approach, walkPath func(a, b geo.Point) ([]geo.Point, bool)) optionResp {
+func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32, fromAp, toAp engine.Approach, walkPath func(a, b geo.Point) ([]geo.Point, bool), board boarder) optionResp {
 	d := snap.Day
 	leave := o.LeaveAt - buffer
 	out := optionResp{
@@ -777,6 +792,12 @@ func optionJSON(snap *engine.Snapshot, o plan.Option, buffer int32, fromAp, toAp
 			lr.TripID, lr.Headsign = t.ID, t.Headsign
 			lr.Stops = l.AlightIdx - l.BoardIdx
 			lr.Calls = callsJSON(snap, t, l.BoardIdx, l.AlightIdx)
+			if adv, ok := board(o.Legs, i); ok {
+				lr.Board = &boardResp{Carriage: adv.Carriage, Of: adv.Of}
+				if adv.HasSpot {
+					lr.Board.Spot = &coords([]geo.Point{adv.Spot})[0]
+				}
+			}
 			switch t.Status {
 			case gtfs.Predicted:
 				lr.Status = "predicted"

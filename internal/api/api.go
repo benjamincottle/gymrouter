@@ -23,6 +23,7 @@ import (
 	"github.com/benjamincottle/gymrouter/internal/gyms"
 	"github.com/benjamincottle/gymrouter/internal/lines"
 	"github.com/benjamincottle/gymrouter/internal/raptor"
+	"github.com/benjamincottle/gymrouter/internal/stand"
 	"github.com/benjamincottle/gymrouter/internal/tfnsw"
 	"github.com/benjamincottle/gymrouter/internal/walk"
 )
@@ -39,6 +40,7 @@ type Engine interface {
 	Geocode(ctx context.Context, q string) ([]tfnsw.Place, error)
 	LegGeometry(s *engine.Snapshot, tripID, fromStop, toStop string) (path, stops []geo.Point, ok bool)
 	BoardingPlatform(s *engine.Snapshot, tripID, fromStop string) ([]geo.Point, bool)
+	Boarding(s *engine.Snapshot, legs []raptor.Leg, i int, place geo.Point) (stand.Advice, bool)
 	VehiclesNear(set lines.Set, rides []engine.Ride) []engine.Vehicle
 	MapFile() (string, bool)
 	Ensure(set lines.Set) error

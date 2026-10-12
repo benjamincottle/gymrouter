@@ -41,6 +41,14 @@ func (s TrainStop) Carriages(heading float64) []string {
 
 // TrainStopFor returns the stop the map marks for a platform, by the platform's stop ID in the timetable.
 func (g *Graph) TrainStopFor(ref string) (TrainStop, bool) {
+	if g.stopByRef == nil { // a graph put together by hand
+		for _, s := range g.TrainStops {
+			if s.Ref == ref {
+				return s, true
+			}
+		}
+		return TrainStop{}, false
+	}
 	i, ok := g.stopByRef[ref]
 	if !ok {
 		return TrainStop{}, false
