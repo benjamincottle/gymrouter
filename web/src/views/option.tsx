@@ -397,7 +397,7 @@ export function BoardStrip({ leg }: { leg: Leg }) {
       </div>
       <p class="board-say">
         <IconHurry />
-        <strong>{say}</strong>
+        <span>{say}</span>
       </p>
     </div>
   )

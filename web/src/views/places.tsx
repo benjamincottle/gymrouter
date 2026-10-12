@@ -469,27 +469,33 @@ export function GymChooser({ known, have, home, token, maxWalkM, onAuthError, on
           {full && <p class="meta">A device holds up to {MAX_GYMS} gyms. Untick one to tick another.</p>}
         </>
       )}
+      {/* A gym the app doesn't know: a way forward beside the list, not a third button in the bar. */}
+      <p class="meta">
+        {available.length > 0 && 'Not listed? '}
+        <TextButton quiet disabled={busy} onClick={onCustom}>
+          Add another gym
+        </TextButton>
+      </p>
       {busy && home && <p class="meta">Finding the lines near {home.name}: {Math.round(progress * 100)}%. This can take up to a minute.</p>}
       {error && (
         <Callout tone="bad" role="alert">
           {error}
         </Callout>
       )}
-      <ActionBar>
-        {onCancel && (
-          <Button disabled={busy} onClick={onCancel}>
-            Cancel
-          </Button>
-        )}
-        <Button disabled={busy} onClick={onCustom}>
-          Add another gym
-        </Button>
-        {available.length > 0 && (
-          <Button disabled={busy || sel.size === 0} onClick={add}>
-            {busy ? 'Finding lines…' : sel.size <= 1 ? 'Add gym' : `Add ${sel.size} gyms`}
-          </Button>
-        )}
-      </ActionBar>
+      {(onCancel || available.length > 0) && (
+        <ActionBar>
+          {onCancel && (
+            <Button disabled={busy} onClick={onCancel}>
+              Cancel
+            </Button>
+          )}
+          {available.length > 0 && (
+            <Button disabled={busy || sel.size === 0} onClick={add}>
+              {busy ? 'Finding lines…' : sel.size <= 1 ? 'Add gym' : 'Add gyms'}
+            </Button>
+          )}
+        </ActionBar>
+      )}
     </Section>
   )
 }

@@ -139,6 +139,8 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
 - **The commit action lives in the action bar.** The screen's main action ("Start trip", "Save gym") sits in a bar
   pinned to the bottom of the pane, with a hairline above it. The commit button is rightmost; a secondary action (the way
   out, or "Show on map") is leftmost. Long forms never hide their Save at the bottom of the page.
+  - A bar holds two buttons at most: three don't fit a phone without wrapping. Another way forward is a text action
+    in the content, where it applies: the gym chooser's "Not listed? Add another gym" sits under its list.
 - **Order of a trip screen:**
   1. when and which way (and which home, when there are several): everything that changes the search comes before
      the gym, so a search starts only once it's what you meant. It stays on top after a gym is chosen, so it never
@@ -307,8 +309,9 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
     carriage, 22px tall with `--s1` between, each an outline only: 1.5px `--rule` with `--r-mark` corners. The front
     carriage (the right-hand one) has a driver's cab, its top front corner swept down to the nose. Your carriage's
     outline is the line's colour instead, at the same weight. No carriage is filled and none is numbered.
-    - Under it, the runner from the gym rows (`IconHurry`, at its own 24px) and the instruction in bold: "Board the
-      4th carriage from the front." ("Board the front carriage.", "Board the back carriage."). On a gym's row the
+    - Under it, the runner from the gym rows (`IconHurry`, at its own 24px) and the instruction at the body's own
+      weight, not bold: "Board the 4th carriage from the front." ("Board the front carriage.", "Board the back
+      carriage."). The strip above it is the emphasis. On a gym's row the
       runner starts the fastest trip; here it marks the quick way off the train. It doesn't say why (which stairs it's
       for): short wins on a platform.
     - It's in Now from "Get to …" through "Wait for …", and nowhere else: not on the ride's step, not while planning,
@@ -462,7 +465,8 @@ the person who mapped a path knows there's something new to fetch.
   - "Back" leaves a sheet.
   - "Dismiss" closes a callout.
   - Don't use "Discard" or "Hide".
-- **Adding things:** "Add gym" (the action), "Add 3 gyms" (when it's a count), "Save gym" (the editor's commit).
+- **Adding things:** "Add gym" (the action), "Add gyms" (when more than one is ticked: no count), "Save gym" (the
+  editor's commit).
 - **No symbols as words:** no `→`, no `~` between places, no middle dots in meta. Use a comma or a second line.
 
 ## Not doing
