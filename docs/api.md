@@ -143,15 +143,18 @@ destinations there are, which can outlast a proxy's or phone's patience, so it r
 `202 {"job": "<id>"}` straight away (400 for bad input; 429 with `Retry-After` while another search runs, since only one
 runs at a time). Poll `GET /api/suggest-lines/{job}` every second or two:
 ```json
-{"state": "running", "done": 3, "of": 12}
-{"state": "failed", "done": 1, "of": 12, "error": "no stops within 3 km"}
-{"state": "done", "done": 12, "of": 12, "results": [{
+{"state": "running", "stage": "reading", "progress": 0.214}
+{"state": "failed", "stage": "reading", "progress": 0.389, "error": "no stops within 3 km"}
+{"state": "done", "stage": "searching", "progress": 1, "results": [{
   "windows": [{"label": "Weekday afternoon", "date": "2026-10-06", "departures": 19, "typical_s": 1490}],
   "lines": [{"line": "metro M1", "color": "168388", "share": 1.0, "recommended": true}],
   "itineraries": [{"desc": "metro M1 → […] → bus 533", "lines": ["metro M1", "bus 533"], "median_s": 1860,
                    "best_s": 1800, "seen": 13, "of": 19, "window": "Weekday afternoon"}]}]}
 ```
-`done`/`of` count steps (reading a day's timetable; searching one destination on it). `results` are in the order asked.
+`stage` is what it's doing: `reading` a day's timetable, then `searching` each destination on it, for each of the two
+days. `progress` is how much of the whole is done, 0 to 1: reading counts by how much of the feed has been read (it's
+nearly all of the work), searching by departure times. Neither is set before the job starts work. `results` are in the
+order asked.
 `share` is the fraction of departure times at which the line appeared in an option; `recommended` means at least 30%.
 Finished jobs are kept for 10 minutes, then 404. Coordinates are used in memory only.
 

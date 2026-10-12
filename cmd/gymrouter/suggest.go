@@ -122,7 +122,7 @@ func suggestLines(args []string) error {
 
 	res := suggest.Run(net, acc, egr, suggest.Window{
 		Label: date.Format("Mon 2006-01-02"), Start: t0, End: t1, Step: int32(step.Seconds()),
-	}, suggest.Params{MaxRides: 4, MinChange: int32(minChange.Seconds()), Slack: int32(slack.Seconds()), MaxAlts: 40})
+	}, suggest.Params{MaxRides: 4, MinChange: int32(minChange.Seconds()), Slack: int32(slack.Seconds()), MaxAlts: 40}, nil)
 	fmt.Printf("%s %s–%s, every %s (%d departure times)\n\n", date.Format("Mon 2006-01-02"), *start, *end, *step, res.Departures)
 	fmt.Printf("%-6s %-5s %-6s  %s\n", "median", "best", "seen", "itinerary")
 	for _, it := range res.Itineraries {

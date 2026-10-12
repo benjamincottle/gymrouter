@@ -123,7 +123,7 @@ func (e *Engine) BuildCatalog(ctx context.Context) {
 	}()
 	start := e.now()
 	date := e.LocalDate(e.now())
-	d, err := timetable.LoadAll(date, e.paths)
+	d, err := timetable.LoadAll(date, e.paths, nil)
 	if err != nil {
 		e.log.Error("building the stop catalogue failed", "err", err)
 		return

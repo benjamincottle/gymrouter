@@ -300,16 +300,26 @@ func TestCatalogListsEveryLineAtAStop(t *testing.T) {
 
 func TestSuggestFindsTheLinesBetweenTwoPlaces(t *testing.T) {
 	env := enginetest.NewWith(t, noPresets, nil)
-	var steps [][2]int
+	var steps []engine.SuggestProgress
 	results, err := env.Engine.Suggest(ctx,
 		engine.SuggestPlace{Pos: geo.Point{Lat: -33.7727, Lon: 151.0821}},         // Epping
 		[]engine.SuggestPlace{{Pos: geo.Point{Lat: -33.807948, Lon: 151.150629}}}, // Lane Cove
-		1200, func(done, of int) { steps = append(steps, [2]int{done, of}) })
+		1200, func(p engine.SuggestProgress) { steps = append(steps, p) })
 	if err != nil || len(results) != 1 {
 		t.Fatal(err, results)
 	}
-	if len(steps) != 4 || steps[3] != [2]int{4, 4} { // two days, each read then searched
-		t.Errorf("progress: %v", steps)
+	// Two days, each read and then searched one departure time after another: always forward, to the end.
+	stages := ""
+	for i, s := range steps {
+		if i > 0 && s.Fraction < steps[i-1].Fraction {
+			t.Fatalf("progress went back at step %d: %v", i, steps)
+		}
+		if i == 0 || s.Stage != steps[i-1].Stage {
+			stages += s.Stage + " "
+		}
+	}
+	if stages != "reading searching reading searching " || len(steps) < 40 || steps[0].Fraction != 0 || steps[len(steps)-1].Fraction != 1 {
+		t.Errorf("progress: %q in %d steps, from %v to %v", stages, len(steps), steps[0], steps[len(steps)-1])
 	}
 	res := results[0]
 	if len(res.Windows) == 0 || len(res.Lines) == 0 || len(res.Itineraries) == 0 {

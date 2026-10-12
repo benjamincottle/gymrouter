@@ -46,7 +46,7 @@ func TestJobStoreRunsOneAtATimeAndForgets(t *testing.T) {
 // panickyEngine is an Engine whose line search panics (nothing else is called).
 type panickyEngine struct{ Engine }
 
-func (panickyEngine) Suggest(context.Context, engine.SuggestPlace, []engine.SuggestPlace, float64, func(int, int)) ([]*engine.SuggestResult, error) {
+func (panickyEngine) Suggest(context.Context, engine.SuggestPlace, []engine.SuggestPlace, float64, func(engine.SuggestProgress)) ([]*engine.SuggestResult, error) {
 	panic("boom")
 }
 

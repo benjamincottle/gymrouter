@@ -58,15 +58,31 @@ func frugalGC() func() {
 	return func() { debug.SetGCPercent(prev) }
 }
 
+// SuggestProgress is how far a Suggest call has got: what it's doing, and how much of the whole is done.
+type SuggestProgress struct {
+	Stage    string  // SuggestReading or SuggestSearching
+	Fraction float64 // 0 to 1
+}
+
+// What a Suggest call does, for each day it searches: reads the day's whole timetable, then searches it.
+const (
+	SuggestReading   = "reading"
+	SuggestSearching = "searching"
+)
+
+// readWeight is how long reading a day's timetable takes, counted in searches of one destination on it: reading is
+// nearly all of the work (measured: about 5 s against 0.7 s).
+const readWeight = 7
+
 // MaxSuggestTargets bounds how many destinations one Suggest call searches (enough for every gym a device can hold).
 const MaxSuggestTargets = 12
 
 // Suggest searches the whole network from one place to each of the targets and reports, for each, which lines
 // appear in the best options. It loads the full timetable for each window's day once for all targets, for the
 // duration of the call, and runs one at a time (ErrBusy if another is running), so the server's memory stays bounded.
-// progress, if not nil, is told how many of the steps (reading a day's timetable, searching one target on it) are done.
+// progress, if not nil, is told how far it has got as it goes: through each read, and after every departure time searched.
 func (e *Engine) Suggest(ctx context.Context, from SuggestPlace, targets []SuggestPlace, radiusM float64,
-	progress func(done, of int)) ([]*SuggestResult, error) {
+	progress func(SuggestProgress)) ([]*SuggestResult, error) {
 	if len(targets) == 0 || len(targets) > MaxSuggestTargets {
 		return nil, fmt.Errorf("%w: need 1 to %d destinations", ErrNoStops, MaxSuggestTargets)
 	}
@@ -83,13 +99,10 @@ func (e *Engine) Suggest(ctx context.Context, from SuggestPlace, targets []Sugge
 	}()
 
 	if progress == nil {
-		progress = func(int, int) {}
+		progress = func(SuggestProgress) {}
 	}
-	steps, done := len(suggestWindows)*(1+len(targets)), 0
-	step := func() {
-		done++
-		progress(done, steps)
-	}
+	// Each day is a read and then a search for each target, in units of one target's search.
+	perDay := float64(readWeight + len(targets))
 	opts := e.routingOptions()
 	today := e.LocalDate(e.now())
 	results := make([]*SuggestResult, len(targets))
@@ -97,7 +110,7 @@ func (e *Engine) Suggest(ctx context.Context, from SuggestPlace, targets []Sugge
 	for i := range results {
 		results[i] = &SuggestResult{}
 	}
-	for _, w := range suggestWindows {
+	for wi, w := range suggestWindows {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -108,7 +121,10 @@ func (e *Engine) Suggest(ctx context.Context, from SuggestPlace, targets []Sugge
 				break
 			}
 		}
-		runs, err := e.suggestWindow(ctx, date, w.label, w.start, w.end, from, targets, radiusM, opts, step)
+		report := func(stage string, units float64) {
+			progress(SuggestProgress{Stage: stage, Fraction: (float64(wi)*perDay + units) / (float64(len(suggestWindows)) * perDay)})
+		}
+		runs, err := e.suggestWindow(ctx, date, w.label, w.start, w.end, from, targets, radiusM, opts, report)
 		if err != nil {
 			return nil, err
 		}
@@ -130,18 +146,18 @@ func (e *Engine) Suggest(ctx context.Context, from SuggestPlace, targets []Sugge
 }
 
 // suggestWindow searches one window on one day's whole network, once per target. It returns nothing if the
-// feed has no trips that day.
+// feed has no trips that day. report is told the stage and how much of the day's work is done, in units of one
+// target's search (readWeight for the read, then one for each target).
 func (e *Engine) suggestWindow(ctx context.Context, date time.Time, label string, start, end int32, from SuggestPlace,
-	targets []SuggestPlace, radiusM float64, opts raptor.Options, step func()) ([]suggest.WindowResult, error) {
-	day, err := timetable.LoadAll(date, e.paths)
+	targets []SuggestPlace, radiusM float64, opts raptor.Options, report func(stage string, units float64)) ([]suggest.WindowResult, error) {
+	report(SuggestReading, 0)
+	// The last tenth of the read is building the network from what was read.
+	day, err := timetable.LoadAll(date, e.paths, func(read float64) { report(SuggestReading, 0.9*readWeight*read) })
 	if err != nil {
 		return nil, err
 	}
-	step()
 	if len(day.Trips) == 0 {
-		for range targets {
-			step()
-		}
+		report(SuggestSearching, float64(readWeight+len(targets)))
 		return nil, nil
 	}
 	net := raptor.Build(day, opts)
@@ -158,9 +174,13 @@ func (e *Engine) suggestWindow(ctx context.Context, date time.Time, label string
 		if err != nil {
 			return nil, fmt.Errorf("destination %d: %w", i+1, err)
 		}
-		out = append(out, suggest.Run(net, access, egress, suggest.Window{Label: label, Start: start, End: end, Step: suggestStep},
-			suggest.DefaultParams()))
-		step()
+		win := suggest.Window{Label: label, Start: start, End: end, Step: suggestStep}
+		searched := 0
+		report(SuggestSearching, float64(readWeight+i))
+		out = append(out, suggest.Run(net, access, egress, win, suggest.DefaultParams(), func() {
+			searched++
+			report(SuggestSearching, float64(readWeight+i)+float64(searched)/float64(win.Departures()))
+		}))
 	}
 	return out, nil
 }

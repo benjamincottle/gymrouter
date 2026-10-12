@@ -62,8 +62,8 @@ type WindowResult struct {
 	LineColor map[lines.Key]string
 }
 
-// Run searches one window over a network.
-func Run(net *raptor.Network, access, egress []raptor.Access, w Window, p Params) WindowResult {
+// Run searches one window over a network. each, if not nil, is called after every departure time searched.
+func Run(net *raptor.Network, access, egress []raptor.Access, w Window, p Params, each func()) WindowResult {
 	type acc struct {
 		it   Itinerary
 		durs []int32
@@ -103,6 +103,9 @@ func Run(net *raptor.Network, access, egress []raptor.Access, w Window, p Params
 		}
 		for k := range atThisTime {
 			res.LineSeen[k]++
+		}
+		if each != nil {
+			each()
 		}
 		if w.Step <= 0 {
 			break

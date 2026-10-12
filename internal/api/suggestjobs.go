@@ -27,12 +27,12 @@ const (
 )
 
 type suggestJob struct {
-	State   string              `json:"state"` // running | done | failed
-	Done    int                 `json:"done"`  // steps finished, of Of (reading a day's timetable, searching a gym on it)
-	Of      int                 `json:"of"`
-	Results []suggestResultResp `json:"results,omitempty"`
-	Error   string              `json:"error,omitempty"`
-	ended   time.Time
+	State    string              `json:"state"`           // running | done | failed
+	Stage    string              `json:"stage,omitempty"` // reading | searching: what it's doing (a day's timetable, then the gyms on it)
+	Progress float64             `json:"progress"`        // how much of the whole is done, 0 to 1
+	Results  []suggestResultResp `json:"results,omitempty"`
+	Error    string              `json:"error,omitempty"`
+	ended    time.Time
 }
 
 type jobStore struct {
@@ -144,7 +144,9 @@ func (s *Server) runSuggest(job *suggestJob, from engine.SuggestPlace, targets [
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), jobTimeout)
 	defer cancel()
-	progress := func(done, of int) { s.jobs.update(job, func(j *suggestJob) { j.Done, j.Of = done, of }) }
+	progress := func(p engine.SuggestProgress) {
+		s.jobs.update(job, func(j *suggestJob) { j.Stage, j.Progress = p.Stage, math.Round(p.Fraction*1000)/1000 })
+	}
 	var results []*engine.SuggestResult
 	var err error
 	for {
@@ -166,7 +168,7 @@ func (s *Server) runSuggest(job *suggestJob, from engine.SuggestPlace, targets [
 			s.log.Error("suggest lines failed", "err", err)
 			j.State, j.Error = "failed", "couldn't look up lines"
 		default:
-			j.State, j.Results = "done", suggestJSON(results)
+			j.State, j.Progress, j.Results = "done", 1, suggestJSON(results)
 		}
 	})
 }
