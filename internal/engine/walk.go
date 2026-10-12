@@ -212,8 +212,8 @@ func (e *Engine) NearbyStops(c *Catalog, p geo.Point, radiusM float64, o raptor.
 	return out, nb.streets
 }
 
-// PathsFrom is for places whose walks are curated: the times are the person's own, but the route to each stop
-// can still be drawn along the streets. The result has no stops of its own, only paths.
+// PathsFrom is for a place whose stops and walk times came with the request (a trip being followed): the route to
+// each stop can still be drawn along the streets. The result has no stops of its own, only paths.
 func (e *Engine) PathsFrom(net *raptor.Network, p geo.Point, maxM float64) Approach {
 	g := e.Walker()
 	if g == nil {

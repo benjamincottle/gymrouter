@@ -54,7 +54,7 @@ type Routing struct {
 	DetourFactor  float64
 	MinChangeS    int32
 	MaxRides      int
-	MaxWalkM      float64 // to/from the first/last stop when not curated
+	MaxWalkM      float64 // to/from the first/last stop, when the place's stops haven't been chosen
 	AlternativesS int32
 	MaxWindowS    int32
 }

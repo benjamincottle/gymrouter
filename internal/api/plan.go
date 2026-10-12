@@ -21,11 +21,10 @@ import (
 
 // Request limits.
 const (
-	maxAccess    = 20
-	maxWalks     = 40
-	maxTransfers = 100
-	maxWalkS     = 3600
-	maxRadiusM   = 2000
+	maxAccess  = 20
+	maxWalks   = 40
+	maxWalkS   = 3600
+	maxRadiusM = 2000
 )
 
 // walkReq is how long the walk from a place to a stop takes.
@@ -58,19 +57,12 @@ type riskReq struct {
 	TightS int32 `json:"tight_s"`
 }
 
-type transferReq struct {
-	From string `json:"from"`
-	To   string `json:"to"`
-	Secs int32  `json:"secs"`
-}
-
 type prefsReq struct {
-	WalkSpeedMps float64       `json:"walk_speed_mps,omitempty"`
-	MinChangeS   *int32        `json:"min_change_s,omitempty"`
-	MaxWalkM     float64       `json:"max_walk_m,omitempty"`
-	LeaveBufferS int32         `json:"leave_buffer_s,omitempty"`
-	Risk         *riskReq      `json:"risk,omitempty"`
-	Transfers    []transferReq `json:"transfers,omitempty"`
+	WalkSpeedMps float64  `json:"walk_speed_mps,omitempty"`
+	MinChangeS   *int32   `json:"min_change_s,omitempty"`
+	MaxWalkM     float64  `json:"max_walk_m,omitempty"`
+	LeaveBufferS int32    `json:"leave_buffer_s,omitempty"`
+	Risk         *riskReq `json:"risk,omitempty"`
 }
 
 type planReq struct {
@@ -178,7 +170,7 @@ type planResp struct {
 	Realtime    bool       `json:"realtime"`
 	RealtimeAt  *time.Time `json:"realtime_at,omitempty"`
 	// Walking says how walks to and from stops were timed: "streets" (along real streets and paths) or
-	// "estimate" (straight line, while the street network is still being prepared). Curated walks apply either way.
+	// "estimate" (straight line, while the street network is still being prepared).
 	Walking string       `json:"walking"`
 	Options []optionResp `json:"options"`
 	// Trackwork lists the lines whose trains the options replace with buses.
@@ -199,7 +191,7 @@ type keptResp struct {
 }
 
 // stretchedResp gives, for each end that used stops beyond the longest walk, the walk to its nearest stop (metres)
-// and that stop as timed walks know it (see walkStop).
+// and that stop by the ID a request's walks would name it by (see walkStop).
 type stretchedResp struct {
 	FromM    int    `json:"from_m,omitempty"`
 	FromStop string `json:"from_stop,omitempty"`
@@ -299,10 +291,6 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 		allowed[i] = set.Has(rt.Type, rt.ShortName)
 	}
 	allow := func(r int32) bool { return allowed[r] }
-	var overrides []plan.TransferOverride
-	for _, t := range req.Prefs.Transfers {
-		overrides = append(overrides, plan.TransferOverride{From: t.From, To: t.To, Secs: t.Secs})
-	}
 	var ob *plan.Onboard
 	var access, egress []raptor.Access
 	var fromAp, toAp engine.Approach
@@ -319,7 +307,7 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 				if len(req.Keep) > 0 { // where they mean to get off stays reachable once the vehicle's time there has passed
 					ob.AlightCall = max(0, callAfter(snap.Day, ob.Trip, ob.BoardCall, req.Keep[0].To))
 				}
-				if access = plan.OnboardAccess(snap.Net, ob, snap.Secs(leave), overrides); len(access) == 0 {
+				if access = plan.OnboardAccess(snap.Net, ob, snap.Secs(leave)); len(access) == 0 {
 					fromErr = badf("that trip has already finished")
 				}
 			}
@@ -344,7 +332,7 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	}
 	preq := plan.Request{
 		Access: access, Egress: egress, Depart: snap.Secs(leave), Window: window,
-		MinChange: minChange, Overrides: overrides, Thresholds: th,
+		MinChange: minChange, Thresholds: th,
 		MaxRides: cfg.Routing.MaxRides, AltSlack: cfg.Routing.AlternativesS,
 		Allow:   allow,
 		Onboard: ob,
@@ -633,13 +621,6 @@ func validatePrefs(p prefsReq) error {
 		return badf("leave_buffer_s must be 0..1800")
 	case p.Risk != nil && (p.Risk.TightS < 0 || p.Risk.SafeS < p.Risk.TightS || p.Risk.SafeS > 1800):
 		return badf("risk: need 0 <= tight_s <= safe_s <= 1800")
-	case len(p.Transfers) > maxTransfers:
-		return badf("at most %d transfers", maxTransfers)
-	}
-	for _, t := range p.Transfers {
-		if t.From == "" || t.To == "" || t.Secs < 0 || t.Secs > maxWalkS {
-			return badf("transfers need from, to and 0 <= secs <= %d", maxWalkS)
-		}
 	}
 	return nil
 }

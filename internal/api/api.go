@@ -1,5 +1,5 @@
 // Package api is the HTTP API. All /api/* routes need the access token; /healthz is public and
-// minimal. Personal data (home locations, walk times) only arrives in request bodies, which are
+// minimal. Personal data (home locations, chosen stops) only arrives in request bodies, which are
 // never logged or stored.
 package api
 
