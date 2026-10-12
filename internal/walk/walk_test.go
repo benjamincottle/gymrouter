@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
@@ -475,6 +476,96 @@ func TestPlatformsAreKeptWithTheNetwork(t *testing.T) {
 	h, err := Load(saved)
 	if err != nil || !reflect.DeepEqual(h.Platforms, g.Platforms) {
 		t.Errorf("after save and load: %v, %d platforms", err, len(h.Platforms))
+	}
+}
+
+// A train's stopping point is a tagged node on its track. It's kept with which carriage is beside which way off, and
+// with the direction the track is drawn in, which says which end of that list is the front.
+func TestTrainStopsAreKeptWithTheNetwork(t *testing.T) {
+	nodes, ways, box := streets()
+	at := func(id int64, lat, lon float64, tags map[string]string) int64 {
+		nodes = append(nodes, osmpbftest.Node{ID: id, Lat: lat, Lon: lon, Tags: tags})
+		return id
+	}
+	stop := func(ref string, more map[string]string) map[string]string {
+		tags := map[string]string{"railway": "stop", "public_transport": "stop_position", "ref": ref}
+		for k, v := range more {
+			tags[k] = v
+		}
+		return tags
+	}
+	rail := map[string]string{"railway": "rail"}
+	// A track drawn eastwards, with a stop on it; one drawn westwards whose stop only has a list for trains running
+	// against it; a stop past the edge of the box (151.0055); and a tagged stop that's on no track.
+	ways = append(ways,
+		osmpbftest.Way{ID: 601, Tags: rail, Refs: []int64{
+			at(3001, -33.9102, 151.001, nil), at(3002, -33.9102, 151.002, stop("P1", map[string]string{"exit:carriages:forward": "stairs|no|no|lift;escalator"})), at(3003, -33.9102, 151.003, nil)}},
+		osmpbftest.Way{ID: 602, Tags: rail, Refs: []int64{
+			at(3013, -33.9103, 151.003, nil), at(3012, -33.9103, 151.002, stop("P2", map[string]string{"exit:carriages:backward": "no|ramp|no"})), at(3011, -33.9103, 151.001, nil)}},
+		osmpbftest.Way{ID: 603, Tags: rail, Refs: []int64{
+			at(3021, -33.9104, 151.007, nil), at(3022, -33.9104, 151.008, stop("P3", map[string]string{"exit:carriages:forward": "no|stairs"})), at(3023, -33.9104, 151.009, nil)}},
+		osmpbftest.Way{ID: 604, Tags: map[string]string{"highway": "footway"}, Refs: []int64{
+			at(3031, -33.9105, 151.001, nil), at(3032, -33.9105, 151.002, stop("P4", map[string]string{"exit:carriages:forward": "no|stairs"}))}},
+		osmpbftest.Way{ID: 605, Tags: rail, Refs: []int64{ // a stop with no list isn't worth keeping
+			at(3041, -33.9106, 151.001, nil), at(3042, -33.9106, 151.002, stop("P5", nil)), at(3043, -33.9106, 151.003, nil)}},
+	)
+	sort.Slice(nodes, func(i, j int) bool { return nodes[i].ID < nodes[j].ID })
+	path := writeFile(t, osmpbftest.EncodeWith(nodes, ways, osmpbftest.Options{Sorted: true, PerBlock: 7, Relation: true}))
+	g, err := fromPBF(path, &box, &Builder{MinComponent: 1}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.TrainStops) != 2 {
+		t.Fatalf("stops kept: %+v", g.TrainStops)
+	}
+	p1, ok := g.TrainStopFor("P1")
+	if !ok || math.Abs(p1.Bearing-90) > 0.5 || p1.Pos != (geo.Point{Lat: -33.9102, Lon: 151.002}) {
+		t.Fatalf("P1: %+v, %v", p1, ok)
+	}
+	east, west := []string{"stairs", "no", "no", "lift;escalator"}, []string{"lift;escalator", "no", "no", "stairs"}
+	if got := p1.Carriages(85); !reflect.DeepEqual(got, east) {
+		t.Errorf("P1, a train running with the track: %v", got)
+	}
+	if got := p1.Carriages(265); !reflect.DeepEqual(got, west) {
+		t.Errorf("P1, a train running against the track: %v", got)
+	}
+	// P2's track is drawn westwards and its list is for trains running against that: eastbound ones.
+	p2, ok := g.TrainStopFor("P2")
+	if !ok || math.Abs(p2.Bearing-270) > 0.5 {
+		t.Fatalf("P2: %+v, %v", p2, ok)
+	}
+	if got := p2.Carriages(90); !reflect.DeepEqual(got, []string{"no", "ramp", "no"}) {
+		t.Errorf("P2 eastbound: %v", got)
+	}
+	if got := p2.Carriages(270); !reflect.DeepEqual(got, []string{"no", "ramp", "no"}) { // its mirror: the same, as it happens
+		t.Errorf("P2 westbound: %v", got)
+	}
+	if _, ok := g.TrainStopFor("P3"); ok {
+		t.Error("a stop outside the area was kept")
+	}
+	if _, ok := g.TrainStopFor("P4"); ok {
+		t.Error("a stop that's on no track was kept")
+	}
+	// The 18 street nodes and the footway's 2: tracks aren't streets.
+	if g.Nodes() != 20 {
+		t.Errorf("%d nodes: tracks aren't streets", g.Nodes())
+	}
+	// They come back from the cache file as they went in.
+	file := filepath.Join(t.TempDir(), "walk.graph")
+	if err := g.Save(file); err != nil {
+		t.Fatal(err)
+	}
+	back, err := Load(file)
+	if err != nil || !reflect.DeepEqual(back.TrainStops, g.TrainStops) {
+		t.Fatalf("after a restart: %+v, %v", back.TrainStops, err)
+	}
+	if s, ok := back.TrainStopFor("P1"); !ok || !reflect.DeepEqual(s.Carriages(90), east) {
+		t.Errorf("P1 after a restart: %+v", s)
+	}
+	// The whole extract, unclipped, keeps the one past the edge too.
+	whole, err := fromPBF(path, nil, &Builder{MinComponent: 1}, true)
+	if err != nil || len(whole.TrainStops) != 3 {
+		t.Errorf("unclipped: %d stops, %v", len(whole.TrainStops), err)
 	}
 }
 

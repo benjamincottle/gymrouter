@@ -16,11 +16,12 @@ import (
 // The cache file lets a restart skip parsing the OSM extract. Format: magic, version, counts, the area the graph was
 // clipped to (min lon, min lat, max lon, max lat, in 1e-7 degrees; zeros if it wasn't), then the arrays, then the
 // platforms (how many; for each its ref's length and bytes, how many points, and each point's lat and lon in 1e-7
-// degrees). All little endian. Bump version when anything about the graph's meaning changes (e.g. the way
-// classification).
+// degrees), then the trains' stopping points (how many; for each its ref, its lat and lon, its track's bearing in
+// thousandths of a degree, and its two lists of carriages: how many entries, and each entry's length and bytes). All
+// little endian. Bump version when anything about the graph's meaning changes (e.g. the way classification).
 const (
 	fileMagic   = "GRWALK"
-	fileVersion = 3
+	fileVersion = 4
 )
 
 // Bounds on what Load will allocate for a corrupt file's platforms.
@@ -66,6 +67,29 @@ func (g *Graph) Save(path string) error {
 		for _, v := range []any{uint32(len(ref)), []byte(ref), uint32(len(p.Outline)), pts} {
 			if err := binary.Write(w, binary.LittleEndian, v); err != nil {
 				return err
+			}
+		}
+	}
+	if err := binary.Write(w, binary.LittleEndian, uint32(len(g.TrainStops))); err != nil {
+		return err
+	}
+	for _, s := range g.TrainStops {
+		ref := s.Ref[:min(len(s.Ref), maxPlatformRef)]
+		head := []any{uint32(len(ref)), []byte(ref), toFixed(s.Pos.Lat), toFixed(s.Pos.Lon), int32(math.Round(s.Bearing * 1000))}
+		for _, v := range head {
+			if err := binary.Write(w, binary.LittleEndian, v); err != nil {
+				return err
+			}
+		}
+		for _, list := range [][]string{s.Forward, s.Backward} {
+			if err := binary.Write(w, binary.LittleEndian, uint32(len(list))); err != nil {
+				return err
+			}
+			for _, e := range list {
+				if err := binary.Write(w, binary.LittleEndian, uint32(len(e))); err != nil {
+					return err
+				}
+				w.WriteString(e)
 			}
 		}
 	}
@@ -155,6 +179,47 @@ func Load(path string) (*Graph, error) {
 		}
 		g.Platforms[i] = Platform{Ref: string(ref), Outline: out}
 	}
+	if err := binary.Read(r, binary.LittleEndian, &count); err != nil || count > maxTrainStops {
+		return nil, errors.New("walk: graph file's train stops are missing or implausible")
+	}
+	text := func(limit uint32) (string, error) {
+		var n uint32
+		if err := binary.Read(r, binary.LittleEndian, &n); err != nil || n > limit {
+			return "", errors.New("walk: implausible train stop in graph file")
+		}
+		b := make([]byte, n)
+		if _, err := io.ReadFull(r, b); err != nil {
+			return "", fmt.Errorf("walk: truncated graph file: %w", err)
+		}
+		return string(b), nil
+	}
+	g.TrainStops = make([]TrainStop, count)
+	for i := range g.TrainStops {
+		ref, err := text(maxPlatformRef)
+		if err != nil {
+			return nil, err
+		}
+		var at [3]int32
+		if err := binary.Read(r, binary.LittleEndian, &at); err != nil {
+			return nil, fmt.Errorf("walk: truncated graph file: %w", err)
+		}
+		s := TrainStop{Ref: ref, Pos: geo.Point{Lat: float64(at[0]) / degScale, Lon: float64(at[1]) / degScale}, Bearing: float64(at[2]) / 1000}
+		for _, list := range []*[]string{&s.Forward, &s.Backward} {
+			var n uint32
+			if err := binary.Read(r, binary.LittleEndian, &n); err != nil || n > maxCarriages {
+				return nil, errors.New("walk: implausible train stop in graph file")
+			}
+			for k := uint32(0); k < n; k++ {
+				e, err := text(maxCarriageEntry)
+				if err != nil {
+					return nil, err
+				}
+				*list = append(*list, e)
+			}
+		}
+		g.TrainStops[i] = s
+	}
+	g.indexTrainStops()
 	g.finish()
 	return g, nil
 }

@@ -43,6 +43,10 @@ type Graph struct {
 	Area geo.Box
 	// Platforms are the railway platforms in the extract (see PlatformAt).
 	Platforms []Platform
+	// TrainStops are where trains stop at platforms, with the map's record of which carriage is beside which way off
+	// (see TrainStopFor).
+	TrainStops []TrainStop
+	stopByRef  map[string]int
 }
 
 // Nodes returns the number of nodes.
@@ -265,6 +269,7 @@ func fromPBF(path string, clip *geo.Box, b *Builder, shortCuts bool) (*Graph, er
 	var lay osmpbf.Layout
 	var inside idSet
 	var plats platformWays
+	var trains trainStops
 	if clip != nil {
 		if err := readPBF(path, 0, osmpbf.Handler{WantNodes: true, Until: until(osmpbf.UntilWays), Layout: &lay, Node: func(n osmpbf.Node) error {
 			if clip.Contains(n.Lat, n.Lon) && !inside.add(n.ID) {
@@ -289,6 +294,9 @@ func fromPBF(path string, clip *geo.Box, b *Builder, shortCuts bool) (*Graph, er
 	}
 	if err := readPBF(path, waysAt, osmpbf.Handler{WantWays: true, Until: until(osmpbf.UntilRelations), Sorted: lay.Sorted, Way: func(w osmpbf.Way) error {
 		plats.member(w.ID, w.Refs)
+		if w.Tags["railway"] != "" && (clip == nil || inside.hasAny(w.Refs)) {
+			trains.track(w.Tags, w.Refs)
+		}
 		if clip == nil {
 			b.AddWay(w.Tags, w.Refs)
 			plats.add(w.Tags, w.Refs)
@@ -305,11 +313,14 @@ func fromPBF(path string, clip *geo.Box, b *Builder, shortCuts bool) (*Graph, er
 	inside = idSet{} // done with: the build needs the room
 	b.Prepare()
 	plats.prepare()
-	if err := readPBF(path, 0, osmpbf.Handler{WantNodes: true, Until: until(osmpbf.UntilWays), Node: func(n osmpbf.Node) error {
+	trains.prepare()
+	// This pass reads the nodes' tags too: a train's stopping point is a tagged node on its track.
+	if err := readPBF(path, 0, osmpbf.Handler{WantNodes: true, WantNodeTags: true, Until: until(osmpbf.UntilWays), Node: func(n osmpbf.Node) error {
 		// A kept way's nodes outside the box get no position, which is where Build cuts it.
 		if clip == nil || clip.Contains(n.Lat, n.Lon) {
 			b.AddNode(n.ID, n.Lat, n.Lon)
 			plats.node(n.ID, n.Lat, n.Lon)
+			trains.node(n.ID, n.Lat, n.Lon, n.Tags)
 		}
 		return nil
 	}}); err != nil {
@@ -323,6 +334,8 @@ func fromPBF(path string, clip *geo.Box, b *Builder, shortCuts bool) (*Graph, er
 		g.Area = *clip
 	}
 	g.Platforms = plats.platforms()
+	g.TrainStops = trains.stops()
+	g.indexTrainStops()
 	return g, nil
 }
 

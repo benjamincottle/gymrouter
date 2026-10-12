@@ -20,10 +20,11 @@ const (
 	maxBlobSize   = 32 << 20 // OSM's own limit is 32 MiB, uncompressed
 )
 
-// Node is a point with its tags.
+// Node is a point. Its tags are only read when the handler asks (WantNodeTags), and are nil for a node with none.
 type Node struct {
 	ID       int64
 	Lat, Lon float64 // degrees
+	Tags     map[string]string
 }
 
 // Way is an ordered list of node IDs with tags.
@@ -57,13 +58,15 @@ const (
 )
 
 // Handler receives what was read. Return an error to stop. Nodes, ways and relations are delivered in file order.
-// A Way's Refs and Tags, and a Relation's Tags and Members, are only valid during the call.
+// A Node's Tags, a Way's Refs and Tags, and a Relation's Tags and Members, are only valid during the call.
 type Handler struct {
 	Node     func(Node) error
 	Way      func(Way) error
 	Relation func(Relation) error
 	// WantNodes, WantWays and WantRelations let a pass skip decoding what it doesn't need.
 	WantNodes, WantWays, WantRelations bool
+	// WantNodeTags has a node pass read the nodes' tags too: few nodes have any, and most passes only place them.
+	WantNodeTags bool
 	// Until ends the read early, at the first block holding ways or relations. It only does so in a sorted file
 	// (see Layout): anywhere else a node may follow a way, and the whole file is read.
 	Until Until
@@ -437,14 +440,14 @@ func packed(b []byte, out []uint64) ([]uint64, error) {
 func zigzag(v uint64) int64 { return int64(v>>1) ^ -int64(v&1) }
 
 func (bl *block) decodeDense(b []byte, h Handler) error {
-	var ids, lats, lons []uint64
+	var ids, lats, lons, kv []uint64
 	for len(b) > 0 {
 		num, typ, n := protowire.ConsumeTag(b)
 		if n < 0 {
 			return errors.New("osmpbf: bad dense nodes")
 		}
 		b = b[n:]
-		if typ == protowire.BytesType && (num == 1 || num == 8 || num == 9) {
+		if typ == protowire.BytesType && (num == 1 || num == 8 || num == 9 || (num == 10 && h.WantNodeTags)) {
 			v, n := protowire.ConsumeBytes(b)
 			if n < 0 {
 				return errors.New("osmpbf: bad dense field")
@@ -457,6 +460,8 @@ func (bl *block) decodeDense(b []byte, h Handler) error {
 				lats, err = packed(v, lats)
 			case 9:
 				lons, err = packed(v, lons)
+			case 10:
+				kv, err = packed(v, kv)
 			}
 			if err != nil {
 				return err
@@ -473,12 +478,26 @@ func (bl *block) decodeDense(b []byte, h Handler) error {
 	if len(ids) != len(lats) || len(ids) != len(lons) {
 		return errors.New("osmpbf: dense node arrays differ in length")
 	}
+	// The tags of every node in the block run on in one list: key, value, key, value, then a 0 to end each node's.
 	var id, lat, lon int64
+	at := 0
 	for i := range ids {
 		id += zigzag(ids[i])
 		lat += zigzag(lats[i])
 		lon += zigzag(lons[i])
-		if err := h.Node(Node{ID: id, Lat: bl.degrees(bl.latOff, lat), Lon: bl.degrees(bl.lonOff, lon)}); err != nil {
+		nd := Node{ID: id, Lat: bl.degrees(bl.latOff, lat), Lon: bl.degrees(bl.lonOff, lon)}
+		for at < len(kv) && kv[at] != 0 {
+			if at+1 >= len(kv) || kv[at] >= uint64(len(bl.strings)) || kv[at+1] >= uint64(len(bl.strings)) {
+				return errors.New("osmpbf: bad dense node tags")
+			}
+			if nd.Tags == nil {
+				nd.Tags = map[string]string{}
+			}
+			nd.Tags[string(bl.strings[kv[at]])] = string(bl.strings[kv[at+1]])
+			at += 2
+		}
+		at++ // the 0 that ends this node's tags
+		if err := h.Node(nd); err != nil {
 			return err
 		}
 	}
@@ -488,6 +507,7 @@ func (bl *block) decodeDense(b []byte, h Handler) error {
 func (bl *block) decodeNode(b []byte, h Handler) error {
 	var nd Node
 	var lat, lon int64
+	var keys, vals []uint64
 	for len(b) > 0 {
 		num, typ, n := protowire.ConsumeTag(b)
 		if n < 0 {
@@ -510,11 +530,40 @@ func (bl *block) decodeNode(b []byte, h Handler) error {
 			b = b[n:]
 			continue
 		}
+		if typ == protowire.BytesType && (num == 2 || num == 3) && h.WantNodeTags {
+			v, n := protowire.ConsumeBytes(b)
+			if n < 0 {
+				return errors.New("osmpbf: bad node field")
+			}
+			var err error
+			if num == 2 {
+				keys, err = packed(v, keys)
+			} else {
+				vals, err = packed(v, vals)
+			}
+			if err != nil {
+				return err
+			}
+			b = b[n:]
+			continue
+		}
 		n = protowire.ConsumeFieldValue(num, typ, b)
 		if n < 0 {
 			return errors.New("osmpbf: bad node field")
 		}
 		b = b[n:]
+	}
+	if len(keys) != len(vals) {
+		return errors.New("osmpbf: node tag arrays differ in length")
+	}
+	for i := range keys {
+		if keys[i] >= uint64(len(bl.strings)) || vals[i] >= uint64(len(bl.strings)) {
+			return errors.New("osmpbf: tag string index out of range")
+		}
+		if nd.Tags == nil {
+			nd.Tags = map[string]string{}
+		}
+		nd.Tags[string(bl.strings[keys[i]])] = string(bl.strings[vals[i]])
 	}
 	nd.Lat, nd.Lon = bl.degrees(bl.latOff, lat), bl.degrees(bl.lonOff, lon)
 	return h.Node(nd)

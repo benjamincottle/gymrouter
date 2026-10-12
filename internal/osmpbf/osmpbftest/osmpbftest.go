@@ -13,6 +13,7 @@ import (
 type Node struct {
 	ID       int64
 	Lat, Lon float64
+	Tags     map[string]string
 }
 
 // Way is a way to write.
@@ -162,22 +163,45 @@ func relationBlock(rels []Relation) []byte {
 
 // nodeBlock is a block of dense nodes.
 func nodeBlock(nodes []Node) []byte {
-	var ids, lats, lons []uint64
+	table := [][]byte{{}}
+	index := map[string]uint64{}
+	str := func(s string) uint64 {
+		if i, ok := index[s]; ok {
+			return i
+		}
+		table = append(table, []byte(s))
+		index[s] = uint64(len(table) - 1)
+		return index[s]
+	}
+	var ids, lats, lons, kv []uint64
 	var pid, plat, plon int64
+	tagged := false
 	for _, n := range nodes {
 		lat, lon := int64(n.Lat*1e7), int64(n.Lon*1e7) // granularity 100 nm
 		ids = append(ids, zig(n.ID-pid))
 		lats = append(lats, zig(lat-plat))
 		lons = append(lons, zig(lon-plon))
 		pid, plat, plon = n.ID, lat, lon
+		for k, v := range n.Tags {
+			kv = append(kv, str(k), str(v))
+			tagged = true
+		}
+		kv = append(kv, 0)
 	}
 	var dense []byte
 	dense = bytesField(dense, 1, packed(ids))
 	dense = bytesField(dense, 8, packed(lats))
 	dense = bytesField(dense, 9, packed(lons))
+	if tagged { // a block with no tagged node leaves the list out, as real files do
+		dense = bytesField(dense, 10, packed(kv))
+	}
 	var group []byte
 	group = bytesField(group, 2, dense)
-	return blob("OSMData", bytesField(bytesField(nil, 1, nil), 2, group), true)
+	var st []byte
+	for _, s := range table {
+		st = bytesField(st, 1, s)
+	}
+	return blob("OSMData", bytesField(bytesField(nil, 1, st), 2, group), true)
 }
 
 // wayBlock is a block of ways.
