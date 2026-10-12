@@ -140,6 +140,9 @@ export const api = {
   plan: (t: string, req: PlanRequest, signal?: AbortSignal) => call<PlanResponse>(t, 'POST', '/api/plan', req, signal),
   /** Asks the server to load these lines in the background, so the first search naming them doesn't wait. */
   loadLines: (t: string, lines: string[]) => call<object>(t, 'POST', '/api/lines', { lines }),
+  /** The lines' colours (hex, no '#'), whether or not the server has loaded them. A line without one is left out. */
+  lineColours: (t: string, lines: string[], signal?: AbortSignal) =>
+    call<{ colors: Record<string, string> }>(t, 'GET', `/api/lines?lines=${encodeURIComponent(lines.join(','))}`, undefined, signal),
   stopsNear: (t: string, lat: number, lon: number, radius_m: number) =>
     call<{ stops: NearStop[] }>(t, 'POST', '/api/stops/near', { lat, lon, radius_m }),
   /** Vehicles running the given rides (<trip>|<from stop>|<to stop>) while near the part ridden. */

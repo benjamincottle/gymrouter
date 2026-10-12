@@ -120,6 +120,12 @@ They're in the same order as the stops `/api/shape` places on the ride's line.
 opens and whenever they change. Lines the timetable doesn't have are skipped; a malformed line, or going over the cap
 on the total the server will hold, is a 400. Asking counts as using the lines (see `lines` under `POST /api/plan`).
 
+## `GET /api/lines?lines=<list>`
+`{"colors": {"train T1": "F99D1C", "bus 288": "00B5EF"}}`: the route colour (hex, no `#`) of each line named, from
+the stop catalogue, so a line's chip can be drawn in its colour before any search has used it. It loads nothing and
+doesn't count as using the lines. A line without a colour, one the timetable doesn't have, or any line while the
+catalogue is still being built, is left out. A malformed line is a 400.
+
 ## `POST /api/stops/near`
 `{"lat": …, "lon": …, "radius_m": 800}` → stops near the point (within `radius_m` or 500 m of the nearest, as for a plan) with every line that serves them, nearest first:
 `{"stops": [{"id", "name", "station", "lat", "lon", "walk_s", "lines": ["bus 288"]}]}`. Used to set up a home or gym,

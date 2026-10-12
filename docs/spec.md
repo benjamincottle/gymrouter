@@ -143,6 +143,7 @@ Non-goals (v1)
 - API (JSON; all `/api/*` require the token header except `/healthz`):
   - `GET  /api/defaults` — routing/risk defaults and the known gyms.
   - `POST /api/plan` — {from, to: place (lat/lon + optional access stops), lines, mode, time, prefs} → options.
+  - `GET  /api/lines?lines=<list>` — the lines' colours, without loading them.
   - `POST /api/stops/near` — {lat, lon} → nearby stops (all lines serving them) with estimated walk times.
   - `POST /api/suggest-lines` — {from, to: [places]} → a job id; `GET /api/suggest-lines/{job}` → progress, then per destination the candidate lines with how often they appear in the best options.
   - `GET  /api/vehicles?lines=<list>&rides=<list>` — live vehicles running your rides, near the part ridden.
@@ -842,3 +843,13 @@ no predictions (other timetable versions) and are ignored; run-number matching c
     the app is out of date.
   - **The in-trip location line shows only when something is off.**
   - Left as they are, by choice: the runner on a gym's row and the direction toggle keep their drawings without words.
+- 2026-10-12: The smaller things from the design review, tidied in one pass.
+  - Text actions are ink when they get you going again ("Reload", "Try my location again") and pencil when they're
+    there if you want them; "Choose stops" and "Show 59 more" were ink and are pencil now.
+  - Line chips in the gym editor are in their lines' colours before any suggestion: `GET /api/lines?lines=…` gives the
+    colours from the stop catalogue, without loading the lines.
+  - Selects and tick boxes are drawn as the app's fields are (its chevron, an edge outline, ink when ticked).
+  - The map's attribution is a square-cornered panel like the other map controls, not a white pill.
+  - "Stored only on this device" is said once in Settings, for homes and gyms together.
+  - "Trips put your most used gyms first. Reset the order" is gone from Settings, and with it the way to reset the
+    order. The trip screen still lists the most used gyms first.

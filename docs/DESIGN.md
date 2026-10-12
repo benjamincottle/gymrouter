@@ -49,7 +49,8 @@ Line colours come from the feed. Text on a line colour is ink or white, whicheve
 taken from the feed's `text_color`. A line without a colour uses one fallback grey, `#5e6670`, everywhere.
 
 The map's own paint (casing, walk lines, stop dots) and the MapLibre controls (zoom, locate, attribution) use these
-tokens too, in both themes. Controls are square, 44px, edge-outlined, and have no shadow. Ride lines are the line colour only, with
+tokens too, in both themes. Controls are square, 44px, edge-outlined, and have no shadow. The attribution is a
+`--panel` box with the same outline and `--r-control` corners, never a pill. Ride lines are the line colour only, with
 no casing. Walks are round 4.5px ink dots every 8px along the street route (a dot
 image placed along the line, never a dashed line, which MapLibre stretches between zoom levels). A ride's stops (where you get on and
 off, and those passed on the way) sit on the line's centre (the server places them on the shape): white dots with a
@@ -179,8 +180,10 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
   - an action of a section is a row of body text ending in `›` ("Export backup", "Import backup"), or in the chevron
     of something that opens in place ("Set up another device": down to open, up to close);
   - disabled, its text is `--pencil`.
-- **Text action:** underlined, weight 600, inline in a sentence. `quiet` uses `--pencil`. It has a 44px hit area
-  through `::after`. Use it for things like "Earlier trips" and "Measure my pace".
+- **Text action:** underlined, weight 600, inline in a sentence. It has a 44px hit area through `::after`.
+  - **Ink or pencil:** ink when it's what gets you going again ("Reload", "Try my location again", "Update now");
+    `quiet` (`--pencil`) when it's there if you want it ("Earlier trips", "Measure my pace", "Choose stops",
+    "Show 59 more", "End trip"). Most are quiet.
   - One that opens or closes something ends with a 16px chevron, `--s1` after the words: down to open, up to close
     (`Chevron`), and says which with `aria-expanded`. A ride's stops line is the one that does.
 - **Icon button:** 44×44, no outline, `--panel` on hover, ink. Always has an `aria-label`. A row's bin is ink like
@@ -190,6 +193,9 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
   the others stay ink, never greyed (grey means disabled).
 - **Field:** a label (600) above, then a 44px input in `--panel` with a 1.5px `--edge` outline that turns ink on focus,
   then an optional hint (14px pencil, 400).
+  - **A choice from a list** is the system's picker drawn as a field (`Select`): no system arrow, the app's 16px
+    chevron at its end. **A tick box** is drawn as a field too: 22px, edge outline on panel, `--r-control`; ticked,
+    it fills with ink and its tick is `--wall`.
   - **Number settings** are one line each, rows between hairlines (`NumberField` in Settings): the name on the left,
     a short field (5.5rem, its number right-aligned) on the right. An empty field means "use the default" and shows
     the default as its placeholder; nothing under it says so. A second line under the name, in 14px pencil, only when
@@ -298,7 +304,9 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
   - In the "you" marker the shoe is white on `--you`, so it's the dark page's drawing in either theme, its straps
     `--you`, its lines 1.5.
   - The app icon and the page before sign-in keep their climbing volume: that's the app's mark, not a gym.
-- **Line chip, risk badge, risk mark:** 12px/800 on `--r-mark`. Badge text is `--on-tone`.
+- **Line chip, risk badge, risk mark:** 12px/800 on `--r-mark`. Badge text is `--on-tone`. A line's chip is in its
+  line's colour wherever it's drawn, the gym editor's list of lines included: the colours of lines no search has
+  used yet are asked of the server (`GET /api/lines`).
 - **Trackwork:** a `caution` callout above the board for each line whose trains the options replace with buses: the
   line's chip, "**Trackwork:** buses replace some trains. Their signs say 20T4 or 23T4." The buses keep their own names
   and colour everywhere (chip, tape, map): they're the names on the buses' signs.

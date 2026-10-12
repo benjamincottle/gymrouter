@@ -10,7 +10,7 @@ import { BrandLogo } from './brand.tsx'
 import { DirectionGlyph, IconHurry } from './icons.tsx'
 import type { ActiveTrip } from './intrip.tsx'
 import { LineChip } from './option.tsx'
-import { Button, Callout, IconButton, Segmented } from './ui.tsx'
+import { Button, Callout, IconButton, Segmented, Select } from './ui.tsx'
 
 type Direction = 'to-gym' | 'home'
 
@@ -160,14 +160,14 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
         {settings.homes.length > 1 && (
           <label class="inline-choice">
             {direction === 'to-gym' ? 'From' : 'To'}
-            <select
+            <Select
               value={home.id}
               onChange={(e) => setSettings({ ...settings, activeHome: (e.target as HTMLSelectElement).value })}
             >
               {settings.homes.map((h) => (
                 <option value={h.id}>{h.name}</option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
         <div class="when-row">
@@ -306,22 +306,22 @@ function DayTime({ value, onChange, label }: { value: string; onChange: (v: stri
   const pick = (e: Event) => (e.target as HTMLSelectElement).value
   return (
     <div class="daytime" role="group" aria-label={label}>
-      <select class="day" aria-label="Day" value={day} onChange={(e) => set(pick(e), hour, minute)}>
+      <Select class="day" aria-label="Day" value={day} onChange={(e) => set(pick(e), hour, minute)}>
         {days.map((d) => (
           <option value={d}>{dayLabel(today, d)}</option>
         ))}
-      </select>
-      <select aria-label="Hour" value={hour} onChange={(e) => set(day, pick(e), minute)}>
+      </Select>
+      <Select aria-label="Hour" value={hour} onChange={(e) => set(day, pick(e), minute)}>
         {Array.from({ length: 24 }, (_, h) => (
           <option value={pad(h)}>{pad(h)}</option>
         ))}
-      </select>
+      </Select>
       <span aria-hidden="true">:</span>
-      <select aria-label="Minutes" value={minute} onChange={(e) => set(day, hour, pick(e))}>
+      <Select aria-label="Minutes" value={minute} onChange={(e) => set(day, hour, pick(e))}>
         {Array.from({ length: 12 }, (_, i) => (
           <option value={pad(i * 5)}>{pad(i * 5)}</option>
         ))}
-      </select>
+      </Select>
     </div>
   )
 }

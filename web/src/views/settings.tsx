@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { encode } from 'uqr'
-import { dismissedWalks, emptySettings, MAX_GYMS, resetGymOrder, sanitize, settingsLink, showDismissedWalks, type Gym, type Home, type Settings } from '../settings.ts'
+import { dismissedWalks, emptySettings, MAX_GYMS, sanitize, settingsLink, showDismissedWalks, type Gym, type Home, type Settings } from '../settings.ts'
 import type { ComponentChildren } from 'preact'
 import { PaceTest } from './pacetest.tsx'
 import { DeleteButton, EditButton, IconColour, IconDevices, IconGym, IconHome, IconPhone, IconRisk, IconWalk } from './icons.tsx'
@@ -109,7 +109,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
 
   return (
     <div class="stack settings">
-      <Section title="Homes" icon={<IconHome />} intro="Stored only on this device.">
+      <Section title="Homes" icon={<IconHome />} intro="Your homes and gyms are stored only on this device.">
         <ul class="rows">
           {settings.homes.map((h) =>
             deleting === `home:${h.id}` ? (
@@ -142,7 +142,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
         </ul>
       </Section>
 
-      <Section title="Gyms" icon={<IconGym />} intro="Stored only on this device, with the lines used to get to each one.">
+      <Section title="Gyms" icon={<IconGym />} intro="Each keeps the lines used to get to it.">
         {warning && (
           <Callout tone="caution" role="status" onDismiss={() => setWarning('')}>
             {warning}
@@ -181,16 +181,6 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
             </RowAction>
           </li>
         </ul>
-        {settings.gyms.length > 1 && (
-          <p class="meta">
-            Trips put your most used gyms first.{' '}
-            {settings.gyms.some((g) => g.uses) && (
-              <TextButton quiet onClick={() => setSettings(resetGymOrder(settings))}>
-                Reset the order
-              </TextButton>
-            )}
-          </p>
-        )}
       </Section>
 
       <Section title="Walking and changes" icon={<IconWalk />}>

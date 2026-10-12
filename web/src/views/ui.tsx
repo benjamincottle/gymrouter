@@ -92,6 +92,16 @@ export function Field({ label, hint, children }: { label: ComponentChildren; hin
   )
 }
 
+/** A choice from a list: the system's own picker, drawn as a field with the app's chevron. `class` sizes it in its row. */
+export function Select({ class: cls, children, ...rest }: Omit<JSX.SelectHTMLAttributes<HTMLSelectElement>, 'class'> & { class?: string }) {
+  return (
+    <span class={cls ? `select ${cls}` : 'select'}>
+      <select {...rest}>{children}</select>
+      <Chevron />
+    </span>
+  )
+}
+
 export type Tone = 'neutral' | 'caution' | 'good' | 'bad'
 
 /**

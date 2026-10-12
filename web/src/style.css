@@ -410,6 +410,61 @@ input[type='radio'] {
   accent-color: var(--ink);
 }
 
+/* a tick box is drawn as a field is: an edge outline on panel, filled with ink when ticked */
+input[type='checkbox'] {
+  appearance: none;
+  display: grid;
+  place-content: center;
+  border: 1.5px solid var(--edge);
+  border-radius: var(--r-control);
+  background: var(--panel);
+  cursor: pointer;
+}
+
+input[type='checkbox']::before {
+  content: '';
+  width: 11px;
+  height: 6px;
+  margin-top: -3px;
+  border-left: 2.5px solid var(--wall);
+  border-bottom: 2.5px solid var(--wall);
+  transform: rotate(-45deg);
+  opacity: 0;
+}
+
+input[type='checkbox']:checked {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+input[type='checkbox']:checked::before {
+  opacity: 1;
+}
+
+input[type='checkbox']:disabled {
+  border-color: var(--rule);
+  cursor: default;
+}
+
+/* a choice from a list: the system's picker, drawn as a field with the app's chevron at its end */
+.select {
+  position: relative;
+  display: block;
+}
+
+.select select {
+  appearance: none;
+  padding-right: calc(var(--s2) + 16px + var(--s2));
+}
+
+.select .chevron {
+  position: absolute;
+  top: calc(50% - 8px);
+  right: var(--s2);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
 /* a field with its button beside it (search, add a line) */
 .row-form {
   display: flex;
@@ -428,8 +483,11 @@ input[type='radio'] {
   gap: var(--s2);
 }
 
-.inline-pair select {
+.inline-pair .select {
   flex: none;
+}
+
+.inline-pair select {
   width: auto;
 }
 
@@ -444,6 +502,11 @@ input[type='radio'] {
   align-items: center;
   gap: var(--s3);
   font-weight: 600;
+}
+
+.inline-choice .select {
+  flex: 1;
+  min-width: 0;
 }
 
 /* a checkbox or radio with its text */
@@ -1012,14 +1075,22 @@ details > summary {
   gap: var(--s2);
 }
 
+.daytime .select {
+  flex: none;
+}
+
 .daytime select {
   width: auto;
   font-stretch: var(--semi);
 }
 
-.daytime select.day {
+.daytime .select.day {
   flex: 1;
   min-width: 0;
+}
+
+.daytime .select.day select {
+  width: 100%;
 }
 
 .daytime span {
@@ -2011,9 +2082,26 @@ details > summary {
   filter: invert(1);
 }
 
-.maplibregl-ctrl-attrib.maplibregl-compact {
+/* the attribution too: a square-cornered panel, not MapLibre's white pill (its stylesheet loads after this one, with
+   the map, so these need the extra class to win) */
+.maplibregl-map .maplibregl-ctrl-attrib.maplibregl-compact {
+  border: 1.5px solid var(--edge);
+  border-radius: var(--r-control);
   background: var(--panel);
   color: var(--pencil);
+}
+
+.maplibregl-map .maplibregl-ctrl-attrib a {
+  color: inherit;
+}
+
+.maplibregl-map .maplibregl-ctrl-attrib-button {
+  border-radius: var(--r-control);
+  background-color: transparent;
+}
+
+[data-theme='dark'] .maplibregl-map .maplibregl-ctrl-attrib-button {
+  filter: invert(1);
 }
 
 .map-pane {

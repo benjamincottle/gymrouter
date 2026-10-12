@@ -11,7 +11,7 @@ func TestCatalogLeavesOutReplacementBuses(t *testing.T) {
 	d := &gtfs.Day{
 		Stops:     []gtfs.Stop{{ID: "platform"}, {ID: "stand"}},
 		StopIndex: map[string]int32{"platform": 0, "stand": 1},
-		Routes:    []gtfs.Route{{ShortName: "T4", Type: 2}, {ShortName: "23T4", Type: 714}},
+		Routes:    []gtfs.Route{{ShortName: "T4", Type: 2, Color: "005AA3"}, {ShortName: "23T4", Type: 714, Color: "00B5EF"}},
 		Trips: []gtfs.Trip{
 			{Route: 0, StopTimes: []gtfs.StopTime{{Stop: 0}}},
 			{Route: 1, StopTimes: []gtfs.StopTime{{Stop: 0}, {Stop: 1}}},
@@ -23,5 +23,8 @@ func TestCatalogLeavesOutReplacementBuses(t *testing.T) {
 	}
 	if !c.Lines[lines.Key{Mode: lines.Train, Name: "T4"}] || len(c.Lines) != 1 {
 		t.Errorf("lines = %v", c.Lines)
+	}
+	if c.Colors[lines.Key{Mode: lines.Train, Name: "T4"}] != "005AA3" || len(c.Colors) != 1 {
+		t.Errorf("colours = %v, want the T4's only", c.Colors)
 	}
 }
