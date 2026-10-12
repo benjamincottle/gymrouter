@@ -69,9 +69,12 @@ type Options struct {
 	Footpaths func(d *gtfs.Day, used []bool, straight [][]Footpath) [][]Footpath
 }
 
-// DefaultOptions are conservative generic defaults; personal values replace them later.
+// DefaultWalkSpeedMps is the walking speed walks are timed at unless a device sets its own: 5.5 km/h.
+const DefaultWalkSpeedMps = 5.5 / 3.6
+
+// DefaultOptions are generic defaults; a device's own values replace them later.
 func DefaultOptions() Options {
-	return Options{MaxTransferM: 400, WalkSpeedMps: 1.3, DetourFactor: 1.3, PlatformAllowance: 60}
+	return Options{MaxTransferM: 400, WalkSpeedMps: DefaultWalkSpeedMps, DetourFactor: 1.3, PlatformAllowance: 60}
 }
 
 // WalkSecs converts a straight-line distance to walking seconds.
@@ -297,9 +300,6 @@ type Query struct {
 	MaxRides  int
 	MinChange int32 // buffer when changing vehicles at the same stop
 	BanRoute  func(route int32) bool
-	// Transfer optionally overrides walking/changing time between two stops (personal times).
-	// It's consulted for footpaths and for changes at the same stop (from == to).
-	Transfer func(from, to int32) (secs int32, ok bool)
 }
 
 // LegKind distinguishes walking from riding.
@@ -544,13 +544,7 @@ func (n *Network) Run(q Query) []Journey {
 				}
 				ready := prev.arr
 				if prev.kind == ride {
-					change := q.MinChange
-					if q.Transfer != nil {
-						if v, ok := q.Transfer(p.Stops[i], p.Stops[i]); ok {
-							change = v
-						}
-					}
-					ready += change
+					ready += q.MinChange
 				}
 				if t < 0 || ready <= n.tripTimes(p, t)[i].Dep {
 					if nt := n.earliestTrip(p, i, ready); nt >= 0 &&
@@ -563,13 +557,7 @@ func (n *Network) Run(q Query) []Journey {
 		for _, s := range rideMarked {
 			from := labels[k][s]
 			for _, fp := range n.localFoot[s] {
-				secs := fp.Secs
-				if q.Transfer != nil {
-					if v, ok := q.Transfer(glob(s), glob(fp.To)); ok {
-						secs = v
-					}
-				}
-				arr := from.arr + secs
+				arr := from.arr + fp.Secs
 				if arr < best[fp.To] && arr < bestTarget {
 					labels[k][fp.To] = label{arr: arr, kind: walk, round: int8(k), from: s}
 					best[fp.To] = arr

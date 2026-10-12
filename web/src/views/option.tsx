@@ -2,10 +2,10 @@ import { boardText, clock, delay, placeName, platform, riskLabel, spare } from '
 import type { ComponentChildren } from 'preact'
 import { useState } from 'preact/hooks'
 import { LAST_STOPS, stopsToGo, type RideProgress } from '../countdown.ts'
-import { findChange, type PlaceRef, type Segment, type TimedWalk } from '../walks.ts'
+import type { PlaceRef } from '../settings.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 import { position, rows, type Row } from '../options.ts'
-import { Chevron, HOUSE, IconHurry, Shoe, Stopwatch, VEHICLE_PATHS, vehicleOf, Walker } from './icons.tsx'
+import { Chevron, HOUSE, IconHurry, Shoe, VEHICLE_PATHS, vehicleOf, Walker } from './icons.tsx'
 import { TextButton } from './ui.tsx'
 import { lineColour, textOn } from '../colour.ts'
 
@@ -19,7 +19,7 @@ export function LineChip({ line }: { line: Line }) {
   )
 }
 
-/** During a trip: where you are, and the walks you can time (see walks.ts segments). */
+/** During a trip: where you are. */
 export interface Tracking {
   now: number
   at?: { row: number; frac: number } | null // where your location puts you on the steps (else the clock decides)
@@ -27,8 +27,6 @@ export interface Tracking {
   ride?: RideProgress | null // the ride you're on, counted in stops (when its stops are known)
   opened?: Record<string, boolean> // rides whose stops you've opened or closed yourself (rideKey): your tap wins
   onOpen?: (ride: string, open: boolean) => void
-  segs: Segment[]
-  onTime: (s: Segment) => void
 }
 
 /** A ride, for remembering whether its stops are open: the vehicle and where you get on it. */
@@ -44,14 +42,13 @@ const placeKind = (p: PlaceRef) => (p.key.startsWith('home:') ? 'home' : 'gym')
 
 /**
  * The trip's description: a line down the middle in each leg's colours, from the home or gym it starts at to the one
- * it ends at. During a trip (`track`) you're on the line, and walks can be timed (walk times only come from recordings).
+ * it ends at. During a trip (`track`) you're on the line.
  */
 export function Timeline({
-  option: o, ends, walks, track,
+  option: o, ends, track,
 }: {
   option: Option
   ends: Ends
-  walks: TimedWalk[]
   track?: Tracking
 }) {
   const rs = rows(o, true)
@@ -61,7 +58,6 @@ export function Timeline({
   const [own, setOwn] = useState<Record<string, boolean>>({})
   const opened = track?.opened ?? own
   const setOpen = track?.onOpen ?? ((ride: string, open: boolean) => setOwn((cur) => ({ ...cur, [ride]: open })))
-  const seg = (leg: number) => track?.segs.find((s) => s.leg === leg)
   const rail = (r: Row, k: number) => (
     <Rail
       kind={r.kind === 'start' || r.kind === 'arrive' ? r.kind : 'walk'}
@@ -91,11 +87,7 @@ export function Timeline({
           )
         }
         if (r.kind === 'change') {
-          const s = seg(r.t.to_leg)
-          return (
-            <TransferRow t={r.t} from={r.from} to={r.to} modes={r.modes} walks={walks} rail={rail(r, k)}
-              onTime={s && track ? () => track.onTime(s) : undefined} />
-          )
+          return <TransferRow t={r.t} from={r.from} to={r.to} rail={rail(r, k)} />
         }
         if (r.leg.kind === 'ride') {
           const ride = track?.ride?.leg === r.i ? track.ride : undefined
@@ -107,11 +99,7 @@ export function Timeline({
               onOpen={known ? (open) => setOpen(key, open) : undefined} />
           )
         }
-        const s = r.leg.kind === 'walk' ? seg(r.i) : undefined
-        return (
-          <LegRow leg={r.leg} last={r.i === o.legs.length - 1} destination={ends.end.name} rail={rail(r, k)}
-            onTime={s && track ? () => track.onTime(s) : undefined} />
-        )
+        return <LegRow leg={r.leg} last={r.i === o.legs.length - 1} destination={ends.end.name} rail={rail(r, k)} />
       })}
     </ol>
   )
@@ -167,23 +155,12 @@ function Rail({ kind, place, me }: {
   )
 }
 
-/** Starts timing a walk or a change: a stopwatch, then the link. */
-function TimeMyWalk({ onClick }: { onClick: () => void }) {
-  return (
-    <TextButton onClick={onClick}>
-      <Stopwatch />
-      Time my walk
-    </TextButton>
-  )
-}
-
 /** A walk to the first stop or from the last (a walk between two rides is part of the change). */
-function LegRow({ leg, last, destination, rail, onTime }: {
+function LegRow({ leg, last, destination, rail }: {
   leg: Leg
   last: boolean
   destination: string
   rail: ComponentChildren
-  onTime?: () => void
 }) {
   const mins = Math.max(1, Math.round((Date.parse(leg.arr) - Date.parse(leg.dep)) / 60000))
   const target = leg.to ? `to ${placeName(leg.to)}` : last ? `to ${destination}` : ''
@@ -193,12 +170,6 @@ function LegRow({ leg, last, destination, rail, onTime }: {
       {rail}
       <span>
         Walk {mins} min {target}
-        {onTime && (
-          <>
-            {' '}
-            <TimeMyWalk onClick={onTime} />
-          </>
-        )}
       </span>
     </li>
   )
@@ -442,19 +413,15 @@ function ChangeIcon() {
 }
 
 function TransferRow({
-  t, from, to, modes, walks, rail, onTime,
+  t, from, to, rail,
 }: {
   t: Transfer
   from?: StopRef
   to?: StopRef
-  modes: [string?, string?] // of the rides either side
-  walks: TimedWalk[]
   rail: ComponentChildren
-  onTime?: () => void
 }) {
-  const mine = from && to ? findChange(walks, { stop: from, mode: modes[0] }, { stop: to, mode: modes[1] }) : undefined
   const sameStop = placeName(from) === placeName(to)
-  const walk = `${Math.max(1, Math.round(t.walk_s / 60))} min walk${sameStop ? '' : ` to ${placeName(to)}`}${mine ? ' (timed)' : ''}`
+  const walk = `${Math.max(1, Math.round(t.walk_s / 60))} min walk${sameStop ? '' : ` to ${placeName(to)}`}`
 
   return (
     <li class={`step change risk-${t.risk}`}>
@@ -470,11 +437,6 @@ function TransferRow({
           {walk}, {spare(t.slack_s)}
         </span>
         <span class="meta">{t.fallback_dep ? `If missed, the next one is at ${clock(t.fallback_dep)}` : 'No later service on this line'}</span>
-        {onTime && (
-          <span class="meta">
-            <TimeMyWalk onClick={onTime} />
-          </span>
-        )}
       </div>
     </li>
   )

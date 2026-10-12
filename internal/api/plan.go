@@ -21,28 +21,30 @@ import (
 
 // Request limits.
 const (
-	maxAccess    = 20
-	maxWalks     = 40
-	maxTransfers = 100
-	maxWalkS     = 3600
-	maxRadiusM   = 2000
+	maxAccess  = 20
+	maxWalks   = 40
+	maxWalkS   = 3600
+	maxRadiusM = 2000
 )
 
-type accessReq struct {
+// walkReq is how long the walk from a place to a stop takes.
+type walkReq struct {
 	Stop  string `json:"stop"`
 	WalkS int32  `json:"walk_s"`
 }
 
-// placeReq is a place (coordinates and optional curated stops) or, as the origin only, the vehicle the
+// placeReq is a place (coordinates and optionally the stops to use there) or, as the origin only, the vehicle the
 // traveller is on.
 type placeReq struct {
-	Lat    *float64    `json:"lat,omitempty"`
-	Lon    *float64    `json:"lon,omitempty"`
-	Access []accessReq `json:"access,omitempty"`
-	// Walks are walks the traveller has timed between this place and particular stops (stop or station IDs). They
+	Lat *float64 `json:"lat,omitempty"`
+	Lon *float64 `json:"lon,omitempty"`
+	// Access is the stops chosen for the place, by ID: those and no others, each walked to along the streets.
+	Access []string `json:"access,omitempty"`
+	// Walks say how long the walk from here to particular stops takes (stop or station IDs), where the app knows
+	// better than the street map from this point: during a trip, the walking left to the stop it's heading for. They
 	// beat any other time for that stop, and make it usable even if it isn't otherwise one of the place's stops.
-	Walks  []accessReq `json:"walks,omitempty"`
-	OnTrip *onTripReq  `json:"on_trip,omitempty"`
+	Walks  []walkReq  `json:"walks,omitempty"`
+	OnTrip *onTripReq `json:"on_trip,omitempty"`
 }
 
 type onTripReq struct {
@@ -55,19 +57,12 @@ type riskReq struct {
 	TightS int32 `json:"tight_s"`
 }
 
-type transferReq struct {
-	From string `json:"from"`
-	To   string `json:"to"`
-	Secs int32  `json:"secs"`
-}
-
 type prefsReq struct {
-	WalkSpeedMps float64       `json:"walk_speed_mps,omitempty"`
-	MinChangeS   *int32        `json:"min_change_s,omitempty"`
-	MaxWalkM     float64       `json:"max_walk_m,omitempty"`
-	LeaveBufferS int32         `json:"leave_buffer_s,omitempty"`
-	Risk         *riskReq      `json:"risk,omitempty"`
-	Transfers    []transferReq `json:"transfers,omitempty"`
+	WalkSpeedMps float64  `json:"walk_speed_mps,omitempty"`
+	MinChangeS   *int32   `json:"min_change_s,omitempty"`
+	MaxWalkM     float64  `json:"max_walk_m,omitempty"`
+	LeaveBufferS int32    `json:"leave_buffer_s,omitempty"`
+	Risk         *riskReq `json:"risk,omitempty"`
 }
 
 type planReq struct {
@@ -175,7 +170,7 @@ type planResp struct {
 	Realtime    bool       `json:"realtime"`
 	RealtimeAt  *time.Time `json:"realtime_at,omitempty"`
 	// Walking says how walks to and from stops were timed: "streets" (along real streets and paths) or
-	// "estimate" (straight line, while the street network is still being prepared). Curated walks apply either way.
+	// "estimate" (straight line, while the street network is still being prepared).
 	Walking string       `json:"walking"`
 	Options []optionResp `json:"options"`
 	// Trackwork lists the lines whose trains the options replace with buses.
@@ -196,7 +191,7 @@ type keptResp struct {
 }
 
 // stretchedResp gives, for each end that used stops beyond the longest walk, the walk to its nearest stop (metres)
-// and that stop as timed walks know it (see walkStop).
+// and that stop by the ID a request's walks would name it by (see walkStop).
 type stretchedResp struct {
 	FromM    int    `json:"from_m,omitempty"`
 	FromStop string `json:"from_stop,omitempty"`
@@ -296,10 +291,6 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 		allowed[i] = set.Has(rt.Type, rt.ShortName)
 	}
 	allow := func(r int32) bool { return allowed[r] }
-	var overrides []plan.TransferOverride
-	for _, t := range req.Prefs.Transfers {
-		overrides = append(overrides, plan.TransferOverride{From: t.From, To: t.To, Secs: t.Secs})
-	}
 	var ob *plan.Onboard
 	var access, egress []raptor.Access
 	var fromAp, toAp engine.Approach
@@ -316,7 +307,7 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 				if len(req.Keep) > 0 { // where they mean to get off stays reachable once the vehicle's time there has passed
 					ob.AlightCall = max(0, callAfter(snap.Day, ob.Trip, ob.BoardCall, req.Keep[0].To))
 				}
-				if access = plan.OnboardAccess(snap.Net, ob, snap.Secs(leave), overrides); len(access) == 0 {
+				if access = plan.OnboardAccess(snap.Net, ob, snap.Secs(leave)); len(access) == 0 {
 					fromErr = badf("that trip has already finished")
 				}
 			}
@@ -341,7 +332,7 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	}
 	preq := plan.Request{
 		Access: access, Egress: egress, Depart: snap.Secs(leave), Window: window,
-		MinChange: minChange, Overrides: overrides, Thresholds: th,
+		MinChange: minChange, Thresholds: th,
 		MaxRides: cfg.Routing.MaxRides, AltSlack: cfg.Routing.AlternativesS,
 		Allow:   allow,
 		Onboard: ob,
@@ -536,7 +527,12 @@ func checkPlace(p placeReq) error {
 	if len(p.Walks) > maxWalks {
 		return badf("at most %d walks", maxWalks)
 	}
-	for _, a := range append(p.Access, p.Walks...) {
+	for _, id := range p.Access {
+		if id == "" || len(id) > 64 {
+			return badf("access is a list of stop IDs")
+		}
+	}
+	for _, a := range p.Walks {
 		if a.WalkS < 0 || a.WalkS > maxWalkS {
 			return badf("walk_s must be 0..%d", maxWalkS)
 		}
@@ -625,20 +621,13 @@ func validatePrefs(p prefsReq) error {
 		return badf("leave_buffer_s must be 0..1800")
 	case p.Risk != nil && (p.Risk.TightS < 0 || p.Risk.SafeS < p.Risk.TightS || p.Risk.SafeS > 1800):
 		return badf("risk: need 0 <= tight_s <= safe_s <= 1800")
-	case len(p.Transfers) > maxTransfers:
-		return badf("at most %d transfers", maxTransfers)
-	}
-	for _, t := range p.Transfers {
-		if t.From == "" || t.To == "" || t.Secs < 0 || t.Secs > maxWalkS {
-			return badf("transfers need from, to and 0 <= secs <= %d", maxWalkS)
-		}
 	}
 	return nil
 }
 
-// access resolves a place to stops with walking times: curated stops if given, otherwise nearby stops
-// on the trip's lines (allow) reached along the streets (or by a straight-line estimate until the street network
-// exists). Timed walks then override those times and add their stops.
+// access resolves a place to stops with walking times: the stops chosen for it if any, otherwise nearby stops on
+// the trip's lines (allow), each reached along the streets (or by a straight-line estimate until the street network
+// exists). Walks the request gives then override those times and add their stops.
 func (s *Server) access(snap *engine.Snapshot, p placeReq, maxWalk float64, o raptor.Options, allow func(route int32) bool) ([]raptor.Access, engine.Approach, error) {
 	out, ap, err := s.baseAccess(snap, p, maxWalk, o, allow)
 	if len(p.Walks) == 0 {
@@ -650,13 +639,13 @@ func (s *Server) access(snap *engine.Snapshot, p placeReq, maxWalk float64, o ra
 	}
 	// The traveller has walked from here, so a long walk is no news.
 	ap.StretchedM = 0
-	if len(out) == 0 && ap.Access == nil { // only timed stops: draw the street routes anyway
+	if len(out) == 0 && ap.Access == nil { // only the stops with walks given: draw the street routes anyway
 		ap = s.eng.PathsFrom(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, math.Min(maxWalk*3, 6000))
 	}
 	return timed, ap, nil
 }
 
-// walkStop is a stop as timed walks know it: a rail platform is its station, anything else is itself.
+// walkStop is a stop as a request's walks name it: a rail platform by its station, anything else by itself.
 func walkStop(d *gtfs.Day, rail []bool, s int32) string {
 	st := d.Stops[s]
 	if st.Parent != "" && rail[s] {
@@ -665,9 +654,9 @@ func walkStop(d *gtfs.Day, rail []bool, s int32) string {
 	return st.ID
 }
 
-// withWalks applies timed walks to access stops, adding stops not yet there. A walk is to a stop, or to a station
+// withWalks applies a request's walks to access stops, adding stops not yet there. A walk is to a stop, or to a station
 // (for its rail platforms; a bus stand that belongs to the station is a stop of its own).
-func withWalks(d *gtfs.Day, rail []bool, access []raptor.Access, walks []accessReq) []raptor.Access {
+func withWalks(d *gtfs.Day, rail []bool, access []raptor.Access, walks []walkReq) []raptor.Access {
 	secs := map[string]int32{}
 	for _, w := range walks {
 		secs[w.Stop] = w.WalkS
@@ -699,22 +688,17 @@ func withWalks(d *gtfs.Day, rail []bool, access []raptor.Access, walks []accessR
 
 func (s *Server) baseAccess(snap *engine.Snapshot, p placeReq, maxWalk float64, o raptor.Options, allow func(route int32) bool) ([]raptor.Access, engine.Approach, error) {
 	if len(p.Access) > 0 {
-		var out []raptor.Access
-		for _, a := range p.Access {
-			if si, ok := snap.Day.StopIndex[a.Stop]; ok {
-				out = append(out, raptor.Access{Stop: si, Secs: a.WalkS})
+		var stops []int32
+		for _, id := range p.Access {
+			if si, ok := snap.Day.StopIndex[id]; ok {
+				stops = append(stops, si)
 			}
 		}
-		if len(out) == 0 {
+		if len(stops) == 0 {
 			return nil, engine.Approach{}, badf("none of the access stops exist in the timetable")
 		}
-		// The times are the person's own; draw the routes along the streets anyway.
-		var far int32
-		for _, a := range out {
-			far = max(far, a.Secs)
-		}
-		reachM := math.Min(math.Max(float64(far)*o.WalkSpeedMps*1.5, 1500), 6000)
-		return out, s.eng.PathsFrom(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, reachM), nil
+		ap := s.eng.ApproachTo(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, stops, o)
+		return ap.Access, ap, nil
 	}
 	ap := s.eng.Approach(snap.Net, geo.Point{Lat: *p.Lat, Lon: *p.Lon}, maxWalk, o, allow)
 	if len(ap.Access) == 0 {
@@ -877,9 +861,9 @@ func (s *Server) stopsNear(w http.ResponseWriter, r *http.Request) {
 }
 
 type suggestPlaceReq struct {
-	Lat    *float64    `json:"lat"`
-	Lon    *float64    `json:"lon"`
-	Access []accessReq `json:"access,omitempty"`
+	Lat    *float64 `json:"lat"`
+	Lon    *float64 `json:"lon"`
+	Access []string `json:"access,omitempty"`
 }
 
 type suggestReq struct {
@@ -926,11 +910,7 @@ func suggestPlace(p suggestPlaceReq) (engine.SuggestPlace, error) {
 	if err := checkPlace(placeReq{Lat: p.Lat, Lon: p.Lon, Access: p.Access}); err != nil {
 		return engine.SuggestPlace{}, err
 	}
-	out := engine.SuggestPlace{Pos: geo.Point{Lat: *p.Lat, Lon: *p.Lon}}
-	for _, a := range p.Access {
-		out.Access = append(out.Access, engine.StopWalk{Stop: a.Stop, WalkS: a.WalkS})
-	}
-	return out, nil
+	return engine.SuggestPlace{Pos: geo.Point{Lat: *p.Lat, Lon: *p.Lon}, Access: p.Access}, nil
 }
 
 // walkLegPath is the route to draw for a walk leg: from the place, between stops, to the place, piece by piece

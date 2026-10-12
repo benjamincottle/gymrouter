@@ -164,12 +164,9 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   - **disabled**: a thin `--rule` outline, `--pencil` text, no fill.
   - There's no "ghost" variant. A row of buttons puts the commit action last.
 - **Text action:** underlined, weight 600, inline in a sentence. `quiet` uses `--pencil`. It has a 44px hit area
-  through `::after`. Use it for things like "Earlier trips", "Time my walk" and "Measure my pace".
+  through `::after`. Use it for things like "Earlier trips" and "Measure my pace".
   - One that opens or closes something ends with a 16px chevron, `--s1` after the words: down to open, up to close
     (`Chevron`), and says which with `aria-expanded`. A ride's stops line is the one that does.
-  - "Time my walk" starts with a stopwatch: the Settings stopwatch drawn 16px in the link's own ink (`Stopwatch` in
-    `icons.tsx`), `--s1` before the words and not underlined. Drawn, not the ⏱ emoji, which every phone draws its own
-    way and some in colour.
 - **Icon button:** 44×44, no outline, `--panel` on hover. The `danger` variant colours the icon `--missed`. Always has
   an `aria-label`.
 - **Segmented control:** one size (16px/600, 44px), a radio group (one tab stop, arrow keys). The chosen option has
@@ -178,8 +175,7 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Field:** a label (600) above, then a 44px input in `--panel` with a 1.5px `--edge` outline that turns ink on focus,
   then an optional hint (14px pencil, 400).
   - Defaults: an empty field means "use the default", and its hint says what the default is ("Empty uses the default,
-    4.7"). A changed field shows its value and offers "Use the default (3)". When an empty field uses something learned on the
-    device instead, both say what ("Empty uses your pace on timed walks, 5.1", "Use your pace on timed walks (5.1)"). Settings save as they change and say
+    5.5"). A changed field shows its value and offers "Use the default (3)". Settings save as they change and say
     "Saved." in the hint for two seconds (`NumberField` in Settings).
 - **Callout:** a `--panel` fill with a 4px left bar. Tones:
   - neutral (ink) for information and confirmations;
@@ -189,7 +185,7 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   - At most one action. A dismiss × only if it can safely be ignored.
   - A callout that suggests a trip shows it under its text as a row from the options board (`TripRow`: leave, tape,
     arrive, risk mark, compact duration), and its text leaves out what the row says.
-  - Panels with their own job (pace test, walk timer) are sections, not callouts.
+  - Panels with their own job (the pace test) are sections, not callouts.
 - **Section:** a heavy top rule (except the first section on Settings and the screens opened from it, right under the header), then a title (20px/800/semi) with an optional 24px icon (ink lines, one part filled).
   An intro line in 14px pencil may follow.
 - **Pick rows:** a search result is a whole-row button with a `›` at the end, not a link.
@@ -325,8 +321,8 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 - **Longer walk:** a neutral callout above the board for each end whose nearest stop on the gym's lines is beyond the
   longest walk on foot (the server planned from the nearest stops anyway): "**Longer walk:** no stops on these lines
   within a 1 km walk of Home. The nearest is a 1.4 km walk." Distances read `800 m` (to 50 m) or `1.4 km`. It's information, not a
-  fault, so it isn't `caution`, and it goes once a walk from that place has been timed.
-  - It can be dismissed, and then stays away on this device for that walk, kept as a timed walk is: the place and its
+  fault, so it isn't `caution`.
+  - It can be dismissed, and then stays away on this device for that walk, kept by the place and its
     nearest stop (the station, for a train, metro or light-rail platform). So it's gone on every trip with that walk,
     whichever gym and either way round, until the place's nearest stop is a different one.
   - Settings, under "Longest walk to a stop" and only while there are any: "You've dismissed 2 "Longer walk" notices.
@@ -385,7 +381,7 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
 
 ### Time formats
 
-Predictions are in minutes, measurements are a stopwatch, and clock times are 24-hour. Each kind of time has one
+Predictions are in minutes, the pace test is a stopwatch, and clock times are 24-hour. Each kind of time has one
 format, everywhere.
 
 | Kind | Format | Used for |
@@ -395,17 +391,17 @@ format, everywhere.
 | Planned duration | `17 min`, `1 h 7 min` | door to door, walks, rides |
 | Compact duration | `42m`, `1h 7m` | only in tabular columns (the options board) |
 | Spare time | `1 min spare`; under a minute `40 s spare` | changes (whole minutes, rounded down) |
-| Measured | `2:23` | walk timer, timed walks, "timed 2:23" on stops, pace results |
+| Measured | `2:23` | the pace test in Settings: its clock and its result |
 | Age | `14 s ago`, `11 min ago`, `5 h ago`, `3 days ago` | the server status in full |
 
-Estimated walk times carry a tilde (`~3 min`); measured ones don't.
+A walk time in a place's list of stops carries a tilde (`~3 min`): it's the street map's, at your pace, when you looked.
 
 ### Destructive actions
 
 Use in-app confirmation only, never `window.confirm()`. Everything shares one visual language: a `danger` button for
 the destructive choice, the safe choice focused by default, and Escape cancelling.
 
-- **One item** (a home, a gym, a timed walk) gets an **inline confirm**: the row turns into the question, with a
+- **One item** (a home, a gym) gets an **inline confirm**: the row turns into the question, with a
   `--panel` fill and a 4px `--missed` bar. "Delete 9 Degrees Chatswood?" sits on line 1, what goes with it on line 2,
   then [Keep] [Delete].
 - **End trip** gets an **inline confirm bar** under the trip header: "End this trip? Live tracking and re-checks stop."

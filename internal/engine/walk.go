@@ -159,6 +159,33 @@ func (e *Engine) Approach(net *raptor.Network, p geo.Point, maxWalkM float64, o 
 	return ap
 }
 
+// ApproachTo is Approach for a place whose stops have been chosen: those stops and no others, each with its walk
+// along the streets from the place. A stop the street network can't reach from there, and every stop while there's
+// no network yet, gets the straight-line estimate instead: it was chosen, so it's used.
+func (e *Engine) ApproachTo(net *raptor.Network, p geo.Point, stops []int32, o raptor.Options) Approach {
+	ap := Approach{Place: p, net: net}
+	var far float64
+	for _, s := range stops {
+		far = max(far, geo.DistanceM(p, net.Day.Stops[s].Pos))
+	}
+	if g := e.Walker(); g != nil {
+		if reach, ok := g.From(p, min(far, BandCapM)*walkLimitFactor+150); ok {
+			ap.Streets, ap.reach = true, reach
+		}
+	}
+	for _, s := range stops {
+		pos := net.Day.Stops[s].Pos
+		secs := o.WalkSecs(geo.DistanceM(p, pos))
+		if ap.reach != nil {
+			if m, ok := ap.reach.Metres(pos); ok {
+				secs = int32(m / o.WalkSpeedMps)
+			}
+		}
+		ap.Access = append(ap.Access, raptor.Access{Stop: s, Secs: secs})
+	}
+	return ap
+}
+
 // Path returns the walk between the place and a stop along the streets, if known.
 func (a Approach) Path(stop int32) ([]geo.Point, bool) {
 	if a.reach == nil || stop < 0 {
@@ -185,8 +212,8 @@ func (e *Engine) NearbyStops(c *Catalog, p geo.Point, radiusM float64, o raptor.
 	return out, nb.streets
 }
 
-// PathsFrom is for places whose walks are curated: the times are the person's own, but the route to each stop
-// can still be drawn along the streets. The result has no stops of its own, only paths.
+// PathsFrom is for a place whose stops and walk times came with the request (a trip being followed): the route to
+// each stop can still be drawn along the streets. The result has no stops of its own, only paths.
 func (e *Engine) PathsFrom(net *raptor.Network, p geo.Point, maxM float64) Approach {
 	g := e.Walker()
 	if g == nil {

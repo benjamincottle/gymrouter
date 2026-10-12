@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -277,10 +278,10 @@ func TestPlanCuratedAccessAndGymToHome(t *testing.T) {
 		} `json:"stops"`
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &near)
-	var access []map[string]any
+	var access []string
 	for _, s := range near.Stops {
 		if s.Station == "Epping Station" {
-			access = append(access, map[string]any{"stop": s.ID, "walk_s": 240})
+			access = append(access, s.ID)
 		}
 	}
 	if rec.Code != 200 || len(access) == 0 {
@@ -301,6 +302,29 @@ func TestPlanCuratedAccessAndGymToHome(t *testing.T) {
 	last := p.Options[0].Legs[len(p.Options[0].Legs)-1]
 	if last.Kind != "walk" {
 		t.Errorf("last leg %+v", last)
+	}
+	// The walk to a chosen stop isn't a stored time: it's timed at the walking speed asked for, so twice the speed
+	// halves it.
+	walkS := func(mps float64) float64 {
+		req["prefs"] = map[string]any{"walk_speed_mps": mps}
+		var p struct {
+			Options []struct {
+				Legs []struct {
+					Kind     string
+					Dep, Arr time.Time
+				}
+			}
+		}
+		rec := h.do(t, "POST", "/api/plan", token, req)
+		if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil || rec.Code != 200 || len(p.Options) == 0 {
+			t.Fatalf("at %.1f m/s: %d %s", mps, rec.Code, rec.Body)
+		}
+		l := p.Options[0].Legs[len(p.Options[0].Legs)-1]
+		return l.Arr.Sub(l.Dep).Seconds()
+	}
+	slow, fast := walkS(1), walkS(2)
+	if slow < 30 || math.Abs(slow/fast-2) > 0.2 {
+		t.Errorf("the walk home takes %.0f s at 1 m/s and %.0f s at 2 m/s", slow, fast)
 	}
 }
 
@@ -324,7 +348,7 @@ func TestPlanStretchesTheWalkWhenNoStopIsInReach(t *testing.T) {
 	if rec.Code != 200 || len(p.Options) == 0 || p.StretchedWalk == nil || p.StretchedWalk.FromM <= 400 || p.StretchedWalk.ToM != 0 || p.StretchedWalk.ToStop != "" {
 		t.Fatalf("far home: %d %s", rec.Code, rec.Body)
 	}
-	// The nearest stop is named as a timed walk to it would be: a platform by its station.
+	// The nearest stop is named as the app keys a walk to it: a platform by its station.
 	var around struct {
 		Stops []struct {
 			Station   string
@@ -362,7 +386,7 @@ func TestPlanStretchesTheWalkWhenNoStopIsInReach(t *testing.T) {
 	rec = h.do(t, "POST", "/api/plan", token, req)
 	_ = json.Unmarshal(rec.Body.Bytes(), &p)
 	if rec.Code != 200 || p.StretchedWalk != nil {
-		t.Errorf("far home with a timed walk: %d %s", rec.Code, rec.Body)
+		t.Errorf("far home with its walk given: %d %s", rec.Code, rec.Body)
 	}
 
 	req["from"] = map[string]any{"lat": -34.2, "lon": 150.5}
@@ -402,7 +426,7 @@ func TestPlanValidation(t *testing.T) {
 		"far future":      with("time", "2027-01-01T10:00:00+11:00"),
 		"walk speed":      with("prefs", map[string]any{"walk_speed_mps": 50}),
 		"risk order":      with("prefs", map[string]any{"risk": map[string]any{"safe_s": 10, "tight_s": 60}}),
-		"bad access stop": with("from", map[string]any{"lat": -33.77, "lon": 151.08, "access": []any{map[string]any{"stop": "nope", "walk_s": 60}}}),
+		"bad access stop": with("from", map[string]any{"lat": -33.77, "lon": 151.08, "access": []string{"nope"}}),
 		"not json":        "{not json",
 		"trailing":        `{"from":{"lat":1,"lon":1},"to":{"lat":1,"lon":1}} {}`,
 		"too big":         `{"from":{"lat":1,"lon":1,"x":"` + strings.Repeat("a", 70<<10) + `"}}`,
@@ -1171,8 +1195,10 @@ func TestPlanReportsHowWalksWereTimed(t *testing.T) {
 		t.Fatalf("without a street network: %+v", p.Walking)
 	}
 	for _, l := range p.Options[0].Legs {
-		if l.Path != nil {
-			t.Error("estimated walks have no street path")
+		// A walk that passes a stop on the way is still drawn through it, in straight pieces: a point an end and one
+		// a stop passed. A route along streets would have many more.
+		if len(l.Path) > 4 {
+			t.Errorf("an estimated walk has a street path: %d points", len(l.Path))
 		}
 	}
 
@@ -1206,7 +1232,7 @@ func TestCuratedWalksAndChangesAreDrawnAlongStreets(t *testing.T) {
 	type plan struct {
 		Options []struct{ Legs []leg }
 	}
-	// Curated access stops for the start (as the app sends them for a home with timed walks).
+	// Chosen stops for the start (as the app sends them for a home with ticked stops).
 	rec := h.do(t, "POST", "/api/stops/near", token, map[string]any{"lat": -33.7727, "lon": 151.0821, "radius_m": 300})
 	var near struct {
 		Stops []struct {
@@ -1215,10 +1241,10 @@ func TestCuratedWalksAndChangesAreDrawnAlongStreets(t *testing.T) {
 		}
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &near)
-	var access []map[string]any
+	var access []string
 	for _, s := range near.Stops {
 		if s.Station == "Epping Station" {
-			access = append(access, map[string]any{"stop": s.ID, "walk_s": 240})
+			access = append(access, s.ID)
 		}
 	}
 	req := map[string]any{"from": map[string]any{"lat": -33.7727, "lon": 151.0821, "access": access}, "to": laneCove,

@@ -32,11 +32,11 @@ type Gym struct {
 	LineSet lines.Set `toml:"-" json:"-"`
 }
 
-// Access is a stop near a gym with a measured walk from its door.
+// Access is a stop to use at a gym, when it shouldn't be every stop within the walking limit. The walk to it is
+// timed from the street map, like any other.
 type Access struct {
-	Stop  string `toml:"stop" json:"stop"`
-	Name  string `toml:"name" json:"name"`
-	WalkS int32  `toml:"walk_s" json:"walk_s"`
+	Stop string `toml:"stop" json:"stop"`
+	Name string `toml:"name" json:"name"`
 }
 
 var (
@@ -100,8 +100,8 @@ func Parse(text string) ([]Gym, error) {
 		}
 		g.LineSet = set
 		for _, a := range g.Access {
-			if a.Stop == "" || a.Name == "" || a.WalkS < 0 || a.WalkS > 3600 {
-				errs = append(errs, fmt.Errorf("gym %q: access entries need a stop, a name and 0 <= walk_s <= 3600", g.ID))
+			if a.Stop == "" || a.Name == "" {
+				errs = append(errs, fmt.Errorf("gym %q: access entries need a stop and a name", g.ID))
 			}
 		}
 	}

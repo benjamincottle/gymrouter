@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
 import { addDays, dayLabel, distance, fromLocalInput, orList, roundUp, statusTime, toLocalInput } from '../format.ts'
 import { usePolling, useSettled, useVisible, useWide } from '../hooks.ts'
-import { byUse, dismissWalk, placeRef, planPlace, prefs, usedGym, walkDismissed, walkSpeed, type Gym, type Settings } from '../settings.ts'
+import { byUse, dismissWalk, placeRef, placeRequest, prefs, usedGym, walkDismissed, walkSpeed, type Gym, type Settings } from '../settings.ts'
 import { fastest } from '../options.ts'
 import type { DefaultsResponse, Option, PlanRequest } from '../types.ts'
 import { Board, WindowShift, type Shift } from './board.tsx'
@@ -67,8 +67,8 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   const request: PlanRequest | null = useMemo(() => {
     const g = settings.gyms.find((x) => x.id === gymId)
     if (!g || !home) return null
-    const gym = planPlace('gym', g, settings.walks)
-    const place = planPlace('home', home, settings.walks)
+    const gym = placeRequest(g)
+    const place = placeRequest(home)
     return {
       from: direction === 'to-gym' ? place : gym,
       to: direction === 'to-gym' ? gym : place,
@@ -141,14 +141,13 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
     )
   }
 
-  const places = { start: ends?.start.key, end: ends?.end.key }
   const reverse = () => setDirection(direction === 'to-gym' ? 'home' : 'to-gym')
   const way = direction === 'to-gym' ? `From ${home.name} to ${gym?.name ?? 'a gym'}` : `From ${gym?.name ?? 'a gym'} to ${home.name}`
   const brandOf = (g: Gym) => server.gyms.find((k) => k.id === g.ref)?.brand
   // Ends whose nearest stop is beyond the longest walk (on foot), which the server planned from anyway.
   const sw = plan.data?.stretched_walk
-  // Each is the walk between a place and its nearest stop, as a timed walk is, so one that's dismissed stays away on
-  // every trip with that walk, either way round.
+  // Each is the walk between a place and its nearest stop, so one that's dismissed stays away on every trip with that
+  // walk, either way round.
   const stretched = ends && sw
     ? ([[ends.start, sw.from_m, sw.from_stop], [ends.end, sw.to_m, sw.to_stop]] as const)
         .flatMap(([p, m, stop]) => (m && stop && !walkDismissed(settings, p.key, stop) ? [{ place: p.key, name: p.name, m, stop }] : []))
@@ -263,8 +262,6 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
                   live={leaveAt === null}
                   serviceDate={plan.data.service_date}
                   token={settings.token!}
-                  walks={settings.walks}
-                  places={places}
                   origin={direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat]}
                   destination={direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat]}
                   title={title!}

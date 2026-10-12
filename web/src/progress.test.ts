@@ -100,10 +100,6 @@ test('the walk left to a ride is the rest of the trip\'s own walk', () => {
   // Half way along it: half the time, whatever the walking speed.
   assert.equal(walkLeftS(lines[1], 240, here(150), 1.3), 120)
   assert.equal(walkLeftS(lines[1], 240, here(300), 1.3), 0)
-  // A traced route is followed instead of the straight line: a dog-leg about 440 m long, the first 100 m walked.
-  const traced = rowLines(rs, o, at(0), at(2600), {}, (i) => (i === 0 ? [at(0), at(0, 100), at(200, 100), at(300)] : undefined))
-  const left = walkLeftS(traced[1], 240, here(0, 100), 1.3)
-  assert.ok(left > 180 && left < 190, `left ${left}`)
   // Off the walk by more than the location's accuracy: back to it first, at walking speed.
   assert.equal(walkLeftS(lines[1], 240, here(150, 140, 10), 1.3), 120 + 130)
 })

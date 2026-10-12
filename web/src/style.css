@@ -230,13 +230,6 @@ select {
   stroke-width: 2;
 }
 
-/* the stopwatch that starts a "Time my walk" link, sitting on the text's line */
-.text-btn .stopwatch {
-  margin-right: var(--s1);
-  vertical-align: -2.5px;
-  stroke-width: 2.2;
-}
-
 .icon-btn {
   display: inline-grid;
   place-items: center;
@@ -448,18 +441,6 @@ input[type='radio'] {
   display: flex;
   align-items: center;
   gap: var(--s3);
-  font-weight: 600;
-}
-
-fieldset.choice {
-  margin: var(--s3) 0 0;
-  padding: 0;
-  border: 0;
-}
-
-fieldset.choice legend {
-  padding: 0;
-  margin-bottom: var(--s1);
   font-weight: 600;
 }
 
@@ -1994,29 +1975,19 @@ details > summary {
   margin-top: var(--s2);
 }
 
-.intrip .timer {
-  margin-top: var(--s4);
-}
-
-/* ---- timing a walk, measuring a pace ---- */
+/* ---- measuring a pace ---- */
 
 .timer-clock {
   margin: var(--s2) 0;
   font-size: var(--fs-display);
 }
 
-.timer p + p,
 .pace p + p {
   margin-top: var(--s2);
 }
 
-.timer .actions,
 .pace .actions {
   margin-top: var(--s4);
-}
-
-.timer .callout {
-  margin-top: var(--s3);
 }
 
 /* the pace test sits inside its field, between rules */

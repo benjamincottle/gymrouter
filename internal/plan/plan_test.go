@@ -95,27 +95,6 @@ func TestTransferRiskAndFallback(t *testing.T) {
 	}
 }
 
-func TestPersonalTransferOverride(t *testing.T) {
-	n := testNet(t)
-	r := req(n, 800, 0)
-	// A station ID stands for its rail platforms only: it doesn't reach the bus stop X1 that belongs to the station.
-	r.Overrides = []TransferOverride{{From: "X", To: "X", Secs: 150}}
-	if opts := Plan(n, r); opts[0].Arrive == 2360 {
-		t.Fatal("a station-level change time applied to a bus stop of the station")
-	}
-	// The bus stop by its own ID, the train by its station: X1→X2 takes 2.5 min.
-	r.Overrides = []TransferOverride{{From: "X1", To: "X", Secs: 150}}
-	opts := Plan(n, r)
-	// 1300 + 150 > 1400: train-a can't be made; best two-ride option now uses train-b (arr 2360),
-	// which beats nothing on arrival vs bus9 (2560) → both kept.
-	if opts[0].Arrive != 2360 {
-		t.Fatalf("want first arrival 2360 with override, got %d", opts[0].Arrive)
-	}
-	if got := opts[0].Transfers[0]; got.Walk != 150 || got.Slack != 2000-1300-150 {
-		t.Errorf("transfer walk %d slack %d", got.Walk, got.Slack)
-	}
-}
-
 func TestAlternativesSurfaceDifferentRoute(t *testing.T) {
 	n := testNet(t)
 	r := req(n, 800, 0)
@@ -169,7 +148,7 @@ func TestOnboardReplansFromTheVehicle(t *testing.T) {
 	busA := d.TripIndex["bus1-a"][0]
 	ob := Onboard{Trip: busA, BoardCall: 0}
 	r := Request{
-		Access: OnboardAccess(n, &ob, 1100, nil), Egress: []raptor.Access{{Stop: d.StopIndex["G"], Secs: 60}},
+		Access: OnboardAccess(n, &ob, 1100), Egress: []raptor.Access{{Stop: d.StopIndex["G"], Secs: 60}},
 		Depart: 1100, MinChange: 60, Onboard: &ob,
 	}
 	opts := Plan(n, r)
@@ -194,12 +173,12 @@ func TestOnboardReplansFromTheVehicle(t *testing.T) {
 	// On the direct bus 9: staying on is the answer.
 	bus9 := d.TripIndex["bus9"][0]
 	ob9 := Onboard{Trip: bus9, BoardCall: 0}
-	r.Access, r.Onboard, r.Depart = OnboardAccess(n, &ob9, 1500, nil), &ob9, 1500
+	r.Access, r.Onboard, r.Depart = OnboardAccess(n, &ob9, 1500), &ob9, 1500
 	opts = Plan(n, r)
 	if len(opts) == 0 || opts[0].Rides != 1 || opts[0].Arrive != 2560 || opts[0].Legs[0].Kind != raptor.Ride {
 		t.Fatalf("stay on bus 9: %+v", opts)
 	}
-	if got := OnboardAccess(n, &ob9, 3000, nil); len(got) != 0 {
+	if got := OnboardAccess(n, &ob9, 3000); len(got) != 0 {
 		t.Errorf("finished trip should have no remaining stops: %v", got)
 	}
 }
@@ -272,18 +251,20 @@ func TestCheckDescribesTheTripKeptToWhateverASearchWouldReturn(t *testing.T) {
 		t.Errorf("the dropped trip: ok %v arrive %d transfers %+v", ok, o.Arrive, o.Transfers)
 	}
 
-	// Your own time for the change counts, and a change there's no time for is Missed, not gone.
-	r.Overrides = []TransferOverride{{From: "X1", To: "X", Secs: 150}}
-	o, _, ok = Check(n, r, []Kept{ride("bus1-a", 0, 1), ride("train-a", 0, 1)})
-	if !ok || o.Transfers[0].Walk != 150 || o.Transfers[0].Slack != -50 || o.Transfers[0].Risk != Missed {
-		t.Errorf("timed change: ok %v %+v", ok, o.Transfers)
+	// A change there's no time for is Missed, not gone: at a crawl, the 55 m between the platforms takes longer than
+	// the 100 s the timetable leaves.
+	crawl := raptor.DefaultOptions()
+	crawl.WalkSpeedMps = 0.4
+	slow := raptor.Build(d, crawl)
+	o, _, ok = Check(slow, r, []Kept{ride("bus1-a", 0, 1), ride("train-a", 0, 1)})
+	if !ok || o.Transfers[0].Walk <= 100 || o.Transfers[0].Slack >= 0 || o.Transfers[0].Risk != Missed {
+		t.Errorf("a change too slow to make: ok %v %+v", ok, o.Transfers)
 	}
-	r.Overrides = nil
 
 	// On the bus, just past its time at your stop: you're still on that trip, and the search can still start there.
 	ob := Onboard{Trip: d.TripIndex["bus1-a"][0], BoardCall: 0, AlightCall: 1}
 	r.Onboard, r.Depart = &ob, 1320
-	r.Access = OnboardAccess(n, &ob, 1320, nil)
+	r.Access = OnboardAccess(n, &ob, 1320)
 	if len(r.Access) == 0 {
 		t.Fatal("the stop you're getting off at should stay reachable")
 	}
@@ -304,15 +285,8 @@ func TestCheckDescribesTheTripKeptToWhateverASearchWouldReturn(t *testing.T) {
 
 	// A stop already passed that isn't yours is gone, as before.
 	other := Onboard{Trip: ob.Trip, BoardCall: 0}
-	if got := OnboardAccess(n, &other, 1320, nil); len(got) != 0 {
+	if got := OnboardAccess(n, &other, 1320); len(got) != 0 {
 		t.Errorf("passed stops: %v", got)
-	}
-	// Your own time for the walk from the stop you get off at counts from the vehicle too.
-	acc := OnboardAccess(n, &Onboard{Trip: ob.Trip, BoardCall: 0}, 1100, []TransferOverride{{From: "X1", To: "X", Secs: 150}})
-	for _, a := range acc {
-		if a.Stop == d.StopIndex["X2"] && a.Secs != 200+150 {
-			t.Errorf("X2 from the bus with a timed change: %d s", a.Secs)
-		}
 	}
 
 	// A ride that no longer runs, or a place the trip doesn't reach: it can't be described.

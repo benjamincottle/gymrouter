@@ -1,8 +1,17 @@
 // In-trip tracking: where you are in the chosen option, what to re-plan from, and whether a
 // different option is now better. Pure functions, so they can be tested without a browser.
 
-import type { KeepRide, Kept, Leg, Option, PlaceRequest } from './types.ts'
-import { stopKey } from './walks.ts'
+import type { KeepRide, Kept, Leg, Option, PlaceRequest, StopRef } from './types.ts'
+
+const RAIL = ['train', 'regional-train', 'metro', 'light-rail']
+
+/**
+ * A stop as the server keys the walk to it (a request's `walks`): a rail platform by its station (the walk is to the
+ * station, whichever platform), anything else, a bus stand included, by itself. `mode` is the ride's you board there.
+ */
+export function stopKey(at: { stop: Pick<StopRef, 'id' | 'station_id'>; mode?: string }): string {
+  return at.mode && RAIL.includes(at.mode) && at.stop.station_id ? at.stop.station_id : at.stop.id
+}
 
 export interface Position {
   lat: number
@@ -56,8 +65,8 @@ export const SETTING_OFF_S = 300
 /**
  * Where to re-plan from: the vehicle you're on, your position, or the next stop. Before setting off, the trip's
  * own start: a trip planned for later may be started from somewhere else. `left` is the walking still to do to the
- * stop you're heading for, by the trip's own walk: sent with your position, so the re-check doesn't swap a walk
- * you've timed for the street map's idea of it.
+ * stop you're heading for, by the trip's own walk: sent with your position, so the re-check goes by the walk you're
+ * on, not a fresh route from wherever the phone says you are.
  */
 export function replanOrigin(
   o: Option, phase: Phase, pos: Position | null, original: PlaceRequest, nowMs: number, left?: { stop: string; secs: number } | null,
@@ -84,7 +93,7 @@ export function replanOrigin(
         return { ...original, walks: [...(original.walks ?? []).filter((w) => w.stop !== stop), { stop, walk_s }] }
       }
       const s = o.legs[phase.ride].from
-      return s ? { lat: s.lat, lon: s.lon, access: [{ stop: s.id, walk_s: 0 }] } : null
+      return s ? { lat: s.lat, lon: s.lon, access: [s.id], walks: [{ stop: s.id, walk_s: 0 }] } : null // at the stop: no walk
     }
     default:
       return null // nothing left to plan

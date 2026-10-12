@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/benjamincottle/gymrouter/internal/raptor"
 )
 
 // Config is the whole configuration file.
@@ -54,7 +56,7 @@ type Routing struct {
 	DetourFactor  float64
 	MinChangeS    int32
 	MaxRides      int
-	MaxWalkM      float64 // to/from the first/last stop when not curated
+	MaxWalkM      float64 // to/from the first/last stop, when the place's stops haven't been chosen
 	AlternativesS int32
 	MaxWindowS    int32
 }
@@ -87,7 +89,7 @@ func (d *Duration) UnmarshalText(b []byte) error {
 func Defaults() Config {
 	return Config{
 		Server: Server{Listen: ":8080", DataDir: "/data", StaticRefreshH: 5},
-		Routing: Routing{MaxTransferM: 400, WalkSpeedMps: 1.3, DetourFactor: 1.3, MinChangeS: 60, MaxRides: 4,
+		Routing: Routing{MaxTransferM: 400, WalkSpeedMps: raptor.DefaultWalkSpeedMps, DetourFactor: 1.3, MinChangeS: 60, MaxRides: 4,
 			MaxWalkM: 1000, AlternativesS: 600, MaxWindowS: 3 * 3600},
 		Risk: Risk{SafeS: 180, TightS: 60},
 		Data: Data{AutoDownload: true, WalkSource: "https://download.geofabrik.de/australia-oceania/australia/new-south-wales-latest.osm.pbf", PMTilesBin: "pmtiles"},

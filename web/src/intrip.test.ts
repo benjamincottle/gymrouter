@@ -57,15 +57,15 @@ test('re-plan origin depends on the phase', () => {
   assert.deepEqual(replanOrigin(planned, { kind: 'riding', ride: 1 }, null, home, now), { on_trip: { trip_id: 't9', from_stop: 'A' } })
   assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 1 }, null, home, ms('13:30')), home)
   assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 1 }, here, home, now), { lat: -33.8, lon: 151.1 })
-  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 3 }, null, home, now), { lat: C.lat, lon: C.lon, access: [{ stop: 'C', walk_s: 0 }] })
+  assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 3 }, null, home, now), { lat: C.lat, lon: C.lon, access: ['C'], walks: [{ stop: 'C', walk_s: 0 }] })
   assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 3 }, here, home, now), { lat: -33.8, lon: 151.1 })
   assert.equal(replanOrigin(planned, { kind: 'arrived' }, null, home, now), null)
-  // Walking to a stop: the walking left by the trip's own (timed) walk goes with your position.
+  // Walking to a stop: the walking left by the trip's own walk goes with your position.
   assert.deepEqual(replanOrigin(planned, { kind: 'before', ride: 1 }, here, home, now, { stop: 'central', secs: 200.4 }), {
     lat: -33.8, lon: 151.1, walks: [{ stop: 'central', walk_s: 200 }],
   })
   // Past the time to leave with no location: taken to be walking as planned, so what's left is the time until the
-  // ride goes (14 min to the 13:54), for its station, alongside the home's own walks.
+  // ride goes (14 min to the 13:54), for its station, alongside any walks the request already had.
   const timed = { ...home, walks: [{ stop: 'other', walk_s: 300 }, { stop: 'central', walk_s: 900 }] }
   assert.deepEqual(replanOrigin({ ...planned, legs: [planned.legs[0], { ...planned.legs[1], from: { ...A, station_id: 'central' } }, ...planned.legs.slice(2)] },
     { kind: 'before', ride: 1 }, null, timed, now, { stop: 'central', secs: 200 }),

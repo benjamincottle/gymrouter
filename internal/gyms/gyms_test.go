@@ -38,7 +38,8 @@ func TestValidation(t *testing.T) {
 		"no lines":    {strings.Replace(ok, `["bus 288"]`, `[]`, 1), "lines required"},
 		"bad line":    {strings.Replace(ok, `"bus 288"`, `"tram 1"`, 1), "unknown mode"},
 		"no position": {strings.Replace(strings.Replace(ok, "lat = -33.8", "lat = 0", 1), "lon = 151.1", "lon = 0", 1), "lat/lon"},
-		"bad access":  {ok + "[[gym.access]]\nstop = \"1\"\nwalk_s = 10\n", "access entries"},
+		"bad access":  {ok + "[[gym.access]]\nstop = \"1\"\n", "access entries"},
+		"a walk time": {ok + "[[gym.access]]\nstop = \"1\"\nname = \"Stop\"\nwalk_s = 10\n", "unknown keys"},
 		"unknown key": {ok + "colour = 1\n", "unknown keys"},
 		"bad brand":   {strings.Replace(ok, `name = "Gym"`, "name = \"Gym\"\nbrand = \"acme\"", 1), "unknown brand"},
 	} {
