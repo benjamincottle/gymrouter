@@ -209,6 +209,7 @@ type MapProps = Pick<Props, 'token' | 'walks' | 'places' | 'serviceDate' | 'orig
   aboard?: MapViewProps['aboard']
   focus?: MapViewProps['focus']
   progress?: MapViewProps['progress']
+  catching?: MapViewProps['catching']
 }
 
 function MapBody({ View, failed, ...p }: MapProps & { View: ComponentType<MapViewProps> | null; failed: boolean }) {
@@ -249,6 +250,7 @@ type MapSheetProps = Omit<Props, 'onStart' | 'options' | 'onShift' | 'ends'> & {
   aboard?: MapViewProps['aboard']
   focus?: MapViewProps['focus']
   progress?: MapViewProps['progress']
+  catching?: MapViewProps['catching']
   steps?: InTripSteps // during a trip: the trip's description under the map
 }
 

@@ -75,7 +75,8 @@ Response:
      {"kind": "ride", "from": {…}, "to": {…}, "dep": "…", "arr": "…",
       "line": {"mode": "metro", "name": "M1", "color": "168388", "text_color": "FFFFFF"},
       "trip_id": "…", "headsign": "…", "status": "predicted", "delay_s": 60, "sched_dep": "…", "stops": 6,
-      "calls": [{"name": "…", "station": "…", "arr": "…"}]}
+      "calls": [{"name": "…", "station": "…", "arr": "…"}],
+      "board": {"carriage": 4, "of": 8, "spot": [151.0986, -33.7034]}}
    ],
    "transfers": [{"from_leg": 1, "to_leg": 3, "walk_s": 120, "slack_s": 95, "risk": "tight", "fallback_dep": "…"}]
  }],
@@ -102,6 +103,14 @@ too late); it's left out with `on_trip`. Still on the first ride after its time 
 has what's left from now, less the walk.
 
 `stops` on a ride is the number of stops travelled, counting the one you get off at.
+`board` (a train or metro ride, when it's known) is where to board so as to step off beside the way on: the
+`carriage`, counted from the front, `of` how many, and the `spot` on the platform where that carriage stops (`[lon,
+lat]`, left out when the street map has no outline for the platform). The way on is the stairs or escalators the trip
+takes at the far end, to its next platform or out of the station, never a lift. The carriage comes from the street
+map's record of which carriage stops beside which way off; without one it's measured along the platform, from where
+the metro's trains report stopping or, for other trains, with the train in the middle of the room it has. It's left
+out when the next ride leaves from the same platform or the one across it, when the train's length isn't known, and
+while the street network is still being prepared.
 `calls` are those stops in order, ending with the one you get off at: each one's `name` (and its `station`, for a
 platform) and when the ride gets there (`arr`, by live data when the trip has it; left out for a stop the trip skips).
 They're in the same order as the stops `/api/shape` places on the ride's line.

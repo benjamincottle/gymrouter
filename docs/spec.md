@@ -787,3 +787,13 @@ no predictions (other timetable versions) and are ignored; run-number matching c
     middle rule is the metro's real rule; where a platform's outline in the map is wrong, the reported position
     stands in for it. Which end of the map's carriage list is the front comes from the direction the track is
     drawn in, which agreed with the stairs every time the stairs could tell (219 of 219).
+- 2026-10-12: Where to stand is built, pending field tests. A train or metro ride in a plan carries `board`: the
+  carriage, of how many, and the spot on the platform (`internal/stand`). The street network's build keeps the
+  map's stopping points with their carriage lists and their track's direction (cache file version 4: one rebuild on
+  the first start), and the metro's 40 reported stopping points are built in, collected from the live feed that day.
+  The app shows it as decided above. Checked against the prototype on the same 102 plans: the same carriage for 215
+  of the 218 rides both answered (one tie between stairs and an escalator at one point, since settled in favour of
+  the one the map puts nearer; two were trains of different lengths under one name). It costs about a millisecond a
+  ride, and each ride's answer is remembered, so a trip being followed doesn't pay again. Still to check on a
+  platform: the map's lists at Hornsby, which of the map and measuring is right where they differ, the metro's
+  stopping points, and how far out the middle rule is where there's no list (TODO.md).

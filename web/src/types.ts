@@ -47,6 +47,13 @@ export interface Call {
   arr?: string // by live data when the trip has it; absent for a stop the trip skips
 }
 
+/** Where to board a train: the carriage, counted from the front, of how many, and where on the platform it stops ([lon, lat]). */
+export interface Board {
+  carriage: number
+  of: number
+  spot?: [number, number]
+}
+
 export interface Leg {
   kind: 'walk' | 'ride'
   from?: StopRef
@@ -61,6 +68,7 @@ export interface Leg {
   sched_dep?: string
   stops?: number // ride legs: stops travelled, counting the one you get off at
   calls?: Call[] // ride legs: those stops in order, ending with the one you get off at
+  board?: Board // a train or metro ride: where to board to step off beside the way on, when that's known
   path?: [number, number][] // a walk along the streets, [lon, lat]
 }
 

@@ -146,8 +146,11 @@ Investigate are recorded only, not started.
 
 ## Investigate
 
-- [ ] **Platform start points placed along the platform** to line up with the fastest exit at the destination
-      (i.e. dynamic). Investigated 2026-10-11: feasible for most train platforms, to about a carriage or two, not to
+- [x] **Platform start points placed along the platform** to line up with the fastest exit at the destination
+      (i.e. dynamic). Built 2026-10-12, pending the field tests listed below: a train or metro ride in a plan says
+      which carriage to board and where on the platform it stops (`internal/stand`), Now shows it as a strip from
+      "Get to the station" until you're on board, and the map picks out the platform and marks the spot. What
+      follows is how it got there. Investigated 2026-10-11: feasible for most train platforms, to about a carriage or two, not to
       the metre. What it needs exists:
   - each platform's shape and length: the server now keeps an outline for every one of the timetable's 548 rail
     platforms in the area (median length 167 m);
