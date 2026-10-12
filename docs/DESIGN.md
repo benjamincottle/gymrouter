@@ -123,14 +123,15 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   - `--bar` (4px) is the side bar of a callout and of the selected row.
   - Control outlines are 1.5px `--edge` (fields) or 1.5px ink (buttons and segmented controls).
 - **Shadows:** none. The only exceptions are the "you" marker's soft edge and pulse (on the rail and the map) and the
-  inset underline and selection bars.
+  inset selection bars.
 - **Control height:** `--control` is 44px for every button, field and segmented control. Every tap target is at least
   44px, including text actions, which get an invisible hit area instead of padding.
 
 ## Layout
 
-- **Phone (below 1024px):** one column, at most 34rem wide, with `--s4` gutters. The header is sticky, with no rule;
-  the current screen is underlined in ink.
+- **Phone (below 1024px):** one column, at most 34rem wide, with `--s4` gutters. The header is sticky, with no rule.
+  Nothing in it is underlined: the Settings icon is ink while you're on Settings and pencil otherwise, and "Gym
+  Router" is always ink.
 - **Desktop (1024px and up):** the header spans the page (fixed, `--header-h`) over two panes. The trip pane on the
   left is `--pane-w` (460px) and scrolls with the page; the map (`.map-pane`, fixed) fills the rest and always shows the
   selected option, or says what will appear there before there is one. There's no "Show on map" button on desktop.
@@ -388,6 +389,10 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
     5 s while it's open, until the row is back to "Ready, built 8 s ago": the new age is the confirmation. If the
     server can't be asked, the row says why in `--missed` under the action (wording from `problem()`); a download
     that fails is the row's usual `--tight` problem, with Update now to try again.
+  - **Gyms** (the last row, and the only one about this device rather than the server): "7 on this device", then
+    **Reset order** on the same line, a quiet text action. It forgets how often each gym has been chosen, so the trip
+    screen lists them as added again. It's offered only while a gym has been chosen at least once; once tapped it's
+    gone, which is the confirmation. No confirm: nothing but the order is lost.
   - Under the rows, "The server's reply" opens the same way to the reply as it came: JSON on `--panel`, the one place a
     monospace face is used (the system's).
 - **Version** (the footer, last): `Version 87692b5`, the first seven characters of the commit the server was built
