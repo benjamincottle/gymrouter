@@ -4,14 +4,12 @@
 # Addresses: each gym's own site. To add a gym, append a [[gym]] block (rebuild to ship it).
 # `brand` picks the small logo shown next to the gym (web/public/brands/<brand>.png); leave it out for none.
 #
-# Optional measured walks from the gym door to a stop. Planners guess these badly (through the factory,
-# round the shortcut), so curated ones are where this app can beat them. If a gym has none, every stop
-# within the walking limit is considered.
+# Optional: the stops to use at a gym. If a gym has none, every stop within the walking limit is considered. The
+# walk to each is timed from the street map, like any other.
 #
 #   [[gym.access]]
 #   stop = "206638"          # GTFS stop_id
 #   name = "Mars Rd Stop"    # shown in the app
-#   walk_s = 300
 
 [[gym]]
 id = "lanecove"

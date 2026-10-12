@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/benjamincottle/gymrouter/internal/geo"
+	"github.com/benjamincottle/gymrouter/internal/gtfs"
+	"github.com/benjamincottle/gymrouter/internal/raptor"
 	"github.com/benjamincottle/gymrouter/internal/walk"
 )
 
@@ -68,5 +70,49 @@ func TestNearbyMeasuresTheLongestWalkOnFoot(t *testing.T) {
 	}
 	if s := e.nearby(home, []geo.Point{near}, 800).stretched; s != 0 {
 		t.Errorf("stretched %.0f m with a stop within the longest walk", s)
+	}
+}
+
+// The stops chosen for a place are walked to along the streets, however far, and timed at the walking speed. One
+// the streets can't reach from the place, and all of them when there are no streets, get the straight-line estimate.
+func TestApproachToTimesTheChosenStops(t *testing.T) {
+	e := gullyEngine(t)
+	home := gully(20, 0)
+	d := &gtfs.Day{Stops: []gtfs.Stop{
+		{ID: "across", Pos: gully(20, 1)},                       // 100 m off, ~1.4 km on foot round the gully
+		{ID: "mid", Pos: gully(10, 0)},                          // ~830 m along the street
+		{ID: "off", Pos: geo.Point{Lat: -33.95, Lon: 151.2005}}, // nowhere near a street
+	}}
+	net := &raptor.Network{Day: d}
+	o := raptor.DefaultOptions()
+	o.WalkSpeedMps = 1
+	ap := e.ApproachTo(net, home, []int32{0, 1, 2}, o)
+	if !ap.Streets || len(ap.Access) != 3 {
+		t.Fatalf("%+v", ap)
+	}
+	secs := map[int32]int32{}
+	for _, a := range ap.Access {
+		secs[a.Stop] = a.Secs
+	}
+	if secs[0] < 1300 || secs[0] > 1500 || secs[1] < 780 || secs[1] > 880 {
+		t.Errorf("on foot: across %d s, mid %d s", secs[0], secs[1])
+	}
+	if want := o.WalkSecs(geo.DistanceM(home, d.Stops[2].Pos)); secs[2] != want {
+		t.Errorf("off the streets: %d s, want the estimate %d", secs[2], want)
+	}
+	if _, ok := ap.Path(1); !ok {
+		t.Error("no route drawn to a chosen stop")
+	}
+	// Twice the pace, half the time.
+	o.WalkSpeedMps = 2
+	for _, a := range e.ApproachTo(net, home, []int32{1}, o).Access {
+		if a.Secs < secs[1]/2-5 || a.Secs > secs[1]/2+5 {
+			t.Errorf("at 2 m/s: %d s, want about %d", a.Secs, secs[1]/2)
+		}
+	}
+	// No street network yet: estimates.
+	bare := &Engine{}
+	if ap := bare.ApproachTo(net, home, []int32{1}, o); ap.Streets || len(ap.Access) != 1 || ap.Access[0].Secs != o.WalkSecs(geo.DistanceM(home, d.Stops[1].Pos)) {
+		t.Errorf("no network: %+v", ap)
 	}
 }

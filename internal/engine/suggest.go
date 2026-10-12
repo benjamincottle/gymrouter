@@ -16,17 +16,11 @@ import (
 // ErrNoStops is returned (wrapped) when a place has no stops to start or end a trip.
 var ErrNoStops = errors.New("no stops")
 
-// SuggestPlace is one end of a suggestion search: a position, and optionally the stops (with measured
-// walk times) to use instead of everything within the radius.
+// SuggestPlace is one end of a suggestion search: a position, and optionally the stops chosen for it (by ID) to use
+// instead of everything within the radius.
 type SuggestPlace struct {
 	Pos    geo.Point
-	Access []StopWalk
-}
-
-// StopWalk is a stop and the time to walk to it.
-type StopWalk struct {
-	Stop  string
-	WalkS int32
+	Access []string
 }
 
 // SuggestWindow summarises one searched window.
@@ -173,16 +167,16 @@ func (e *Engine) suggestWindow(ctx context.Context, date time.Time, label string
 
 func (e *Engine) suggestAccess(net *raptor.Network, p SuggestPlace, radiusM float64, o raptor.Options) ([]raptor.Access, error) {
 	if len(p.Access) > 0 {
-		var out []raptor.Access
-		for _, a := range p.Access {
-			if si, ok := net.Day.StopIndex[a.Stop]; ok {
-				out = append(out, raptor.Access{Stop: si, Secs: a.WalkS})
+		var stops []int32
+		for _, id := range p.Access {
+			if si, ok := net.Day.StopIndex[id]; ok {
+				stops = append(stops, si)
 			}
 		}
-		if len(out) == 0 {
+		if len(stops) == 0 {
 			return nil, fmt.Errorf("%w: none of the chosen stops run on that day", ErrNoStops)
 		}
-		return out, nil
+		return e.ApproachTo(net, p.Pos, stops, o).Access, nil
 	}
 	// The same stops the planner would use, so every suggested line is one it can reach.
 	out := e.Approach(net, p.Pos, radiusM, o, nil).Access

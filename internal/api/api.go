@@ -47,6 +47,7 @@ type Engine interface {
 	Prefetch(set lines.Set) error
 	Catalog() *engine.Catalog
 	Approach(net *raptor.Network, p geo.Point, maxWalkM float64, o raptor.Options, allow func(route int32) bool) engine.Approach
+	ApproachTo(net *raptor.Network, p geo.Point, stops []int32, o raptor.Options) engine.Approach
 	NearbyStops(c *engine.Catalog, p geo.Point, radiusM float64, o raptor.Options) ([]engine.NearStop, bool)
 	Walker() *walk.Graph
 	PathsFrom(net *raptor.Network, p geo.Point, maxM float64) engine.Approach

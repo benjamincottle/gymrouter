@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -277,10 +278,10 @@ func TestPlanCuratedAccessAndGymToHome(t *testing.T) {
 		} `json:"stops"`
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &near)
-	var access []map[string]any
+	var access []string
 	for _, s := range near.Stops {
 		if s.Station == "Epping Station" {
-			access = append(access, map[string]any{"stop": s.ID, "walk_s": 240})
+			access = append(access, s.ID)
 		}
 	}
 	if rec.Code != 200 || len(access) == 0 {
@@ -301,6 +302,29 @@ func TestPlanCuratedAccessAndGymToHome(t *testing.T) {
 	last := p.Options[0].Legs[len(p.Options[0].Legs)-1]
 	if last.Kind != "walk" {
 		t.Errorf("last leg %+v", last)
+	}
+	// The walk to a chosen stop isn't a stored time: it's timed at the walking speed asked for, so twice the speed
+	// halves it.
+	walkS := func(mps float64) float64 {
+		req["prefs"] = map[string]any{"walk_speed_mps": mps}
+		var p struct {
+			Options []struct {
+				Legs []struct {
+					Kind     string
+					Dep, Arr time.Time
+				}
+			}
+		}
+		rec := h.do(t, "POST", "/api/plan", token, req)
+		if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil || rec.Code != 200 || len(p.Options) == 0 {
+			t.Fatalf("at %.1f m/s: %d %s", mps, rec.Code, rec.Body)
+		}
+		l := p.Options[0].Legs[len(p.Options[0].Legs)-1]
+		return l.Arr.Sub(l.Dep).Seconds()
+	}
+	slow, fast := walkS(1), walkS(2)
+	if slow < 30 || math.Abs(slow/fast-2) > 0.2 {
+		t.Errorf("the walk home takes %.0f s at 1 m/s and %.0f s at 2 m/s", slow, fast)
 	}
 }
 
@@ -402,7 +426,7 @@ func TestPlanValidation(t *testing.T) {
 		"far future":      with("time", "2027-01-01T10:00:00+11:00"),
 		"walk speed":      with("prefs", map[string]any{"walk_speed_mps": 50}),
 		"risk order":      with("prefs", map[string]any{"risk": map[string]any{"safe_s": 10, "tight_s": 60}}),
-		"bad access stop": with("from", map[string]any{"lat": -33.77, "lon": 151.08, "access": []any{map[string]any{"stop": "nope", "walk_s": 60}}}),
+		"bad access stop": with("from", map[string]any{"lat": -33.77, "lon": 151.08, "access": []string{"nope"}}),
 		"not json":        "{not json",
 		"trailing":        `{"from":{"lat":1,"lon":1},"to":{"lat":1,"lon":1}} {}`,
 		"too big":         `{"from":{"lat":1,"lon":1,"x":"` + strings.Repeat("a", 70<<10) + `"}}`,
@@ -1215,10 +1239,10 @@ func TestCuratedWalksAndChangesAreDrawnAlongStreets(t *testing.T) {
 		}
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &near)
-	var access []map[string]any
+	var access []string
 	for _, s := range near.Stops {
 		if s.Station == "Epping Station" {
-			access = append(access, map[string]any{"stop": s.ID, "walk_s": 240})
+			access = append(access, s.ID)
 		}
 	}
 	req := map[string]any{"from": map[string]any{"lat": -33.7727, "lon": 151.0821, "access": access}, "to": laneCove,
