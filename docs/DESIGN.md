@@ -311,7 +311,8 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
     outline is the line's colour instead, at the same weight. No carriage is filled and none is numbered.
     - Under it, the runner from the gym rows (`IconHurry`, at its own 24px) and the instruction at the body's own
       weight, not bold: "Board the 4th carriage from the front." ("Board the front carriage.", "Board the back
-      carriage."). The strip above it is the emphasis. On a gym's row the
+      carriage."). The strip above it is the emphasis, so the runner is lighter here than on a gym's row, to sit
+      with regular text and the carriages' outlines: drawn 1.5px, its speed lines 1.2px. On a gym's row the
       runner starts the fastest trip; here it marks the quick way off the train. It doesn't say why (which stairs it's
       for): short wins on a platform.
     - It's in Now from "Get to …" through "Wait for …", and nowhere else: not on the ride's step, not while planning,

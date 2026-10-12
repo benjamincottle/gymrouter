@@ -1721,6 +1721,15 @@ details > summary {
   flex: none;
 }
 
+/* the runner beside regular text: as light as the carriages' outlines */
+.board-say .icon.hurry {
+  stroke-width: 1.5;
+}
+
+.board-say .icon.hurry .streaks {
+  stroke-width: 1.2;
+}
+
 /* ---- the map: a sheet on phones, a pane beside the trip on desktop ---- */
 
 .sheet {

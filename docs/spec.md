@@ -814,6 +814,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
     is left to the stop it's heading for. `prefs.transfers` is gone.
   - Greenfield: nothing is migrated. Timed walks and stored stop times already on a device are ignored.
 - 2026-10-12: Two small things from use. The "Board the 4th carriage from the front." line under the train strip is at
-  the body's weight, not bold: the strip is the emphasis. In the gym chooser, "Add another gym" moves out of the action
+  the body's weight, not bold, and its runner is drawn lighter to match (1.5px, speed lines 1.2px; the runner on a
+  gym's row keeps its 2px): the strip is the emphasis. In the gym chooser, "Add another gym" moves out of the action
   bar to a text link under the list ("Not listed? Add another gym"), and the commit reads "Add gyms" with no count when
   more than one is ticked: three buttons wrapped on phones under about 400 px wide. A bar holds two buttons at most.
