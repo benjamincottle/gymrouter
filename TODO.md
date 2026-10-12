@@ -112,12 +112,6 @@ Investigate are recorded only, not started.
       an outline: 505 are drawn in the street map as one shape, and the rest (Central's 16 to 21, Chatswood, North
       Sydney, Auburn, the north-west metro) as a shape in several pieces with the stairwells cut out, which the
       reader now reads too.
-- [ ] **A buzz when it's time to get off?** Set aside to think about (2026-10-11). What's known: the page can only
-      vibrate the phone while the app is open on screen, and not at all on an iPhone, so it can't be relied on with
-      the phone in a pocket. The route that reaches a locked phone is a push notification from the server ("Next stop
-      is yours", sent when your vehicle leaves the stop before): that needs Web Push on the server, a permission
-      prompt, the server being told which trip you're on, and on an iPhone the app added to the home screen. None of
-      it has been tested on a phone.
 
 ## Map
 
@@ -246,9 +240,9 @@ Investigate are recorded only, not started.
     carriages, which one the stairs are really beside; on the metro, that the front of the train stops where the
     collected position says; and on a long platform with no list (Epping, Eastwood, Strathfield 1), how far out the
     middle rule is.
-  - To build it: the street network's build would have to keep these stopping points, their tags and the direction
-    of the track through each (the reader doesn't keep a node's tags today); and the metro's stopping points would
-    be either a small built-in table (40 positions) or learned by the server from the live feed it already polls.
+  - As built: the street network's build keeps these stopping points, their lists and the direction of the track
+    through each, and the metro's 40 stopping points are a table built into the server. Having the server learn
+    them from the live feed it already polls instead would keep them current without a release; not done.
 
 ## To decide
 

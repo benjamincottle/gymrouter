@@ -797,3 +797,5 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   ride, and each ride's answer is remembered, so a trip being followed doesn't pay again. Still to check on a
   platform: the map's lists at Hornsby, which of the map and measuring is right where they differ, the metro's
   stopping points, and how far out the middle rule is where there's no list (TODO.md).
+- 2026-10-12: A buzz when it's time to get off is dropped. It was set aside on 2026-10-11 to think about; it isn't
+  needed.
