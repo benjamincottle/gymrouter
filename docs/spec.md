@@ -38,8 +38,8 @@ Non-goals (v1)
   just adding a home. Any other gym can still be added on the device.
 - **App repo is public-safe**: no secrets, no real config, no home locations, no recorded data that
   could reveal a home (test fixtures use gym-side or synthetic origins). Secret scanning in CI.
-- **Device storage (private data)**: home place(s), **gyms with their line sets and curated access stops**, home
-  access stops + walk times, walking speed, personal transfer-time overrides, **connection-risk thresholds**
+- **Device storage (private data)**: home place(s), **gyms with their line sets and chosen stops**, home
+  stops, walking speed, **connection-risk thresholds**
   (start from server defaults; user-tunable), access token. Sent in POST bodies; never stored on the server, except
   the names of the lines requests have named (so a restart can load them; see §5), which aren't tied to any place.
 - Multiple homes = more entries in device storage; no code change.
@@ -70,21 +70,20 @@ Non-goals (v1)
   place has no stops on those lines and the plan says so. The router chooses among the stops on time, so a station a
   little further beats the closest stop on a poor bus. When even the nearest stop is beyond the longest walk, the plan
   response says so (`stretched_walk`: which end, its nearest stop and the walk to it) and the trip screen says the walk is
-  longer than the setting (not once a walk from that place has been timed: the traveller knows by then; and not once
-  it has been dismissed, see 2026-10-10). Ticked stops
-  and timed walks are unaffected (they already work at any distance). Line suggestions find a place's stops by the same
+  longer than the setting (not once it has been dismissed, see 2026-10-10). Ticked stops
+  are unaffected (they work at any distance). Line suggestions find a place's stops by the same
   rule and radius as the planner, so every suggested line is one the planner can reach; setup's nearby-stops list uses
   the rule too.
-- **Walks follow real streets, and measured walks win.** General planners walk through places you can't
+- **Walks follow real streets, at your pace.** General planners walk through places you can't
   (e.g. through the Johnson factory at Lane Cove) and miss shortcuts that exist (e.g. cutting through the
   plumbing-supply site). Walks to and from stops, and between stops when changing, are routed over a pedestrian network built from OpenStreetMap
-  (footpaths, steps, streets; private and no-foot ways excluded). A curated access stop with a measured walk time
-  overrides the routed one, which is how the OSM data's mistakes get corrected. Walks are measured in the app during a trip: a timer
-  with a GPS trace (start, walk, "I'm here") for the walk to the first stop, each change, or the walk from the last stop.
-  Repeat walks average (most recent five) or replace, by preference; the traced route replaces the street-map route on the map. Traces and times stay on the device. Until the network has been built
+  (footpaths, steps, streets; private and no-foot ways excluded). Every walk's time is its route's length at the
+  walking speed (5.5 km/h unless set). Where OpenStreetMap is wrong, the fix goes into OpenStreetMap, and the server
+  status's "Update now" pulls it in; no walk is timed or stored by hand (see 2026-10-12). A stop ticked for a home or
+  gym says which stops to use, not how long the walk is. Until the network has been built
   (first start), walks fall back to straight line × detour and the app says so. Transfers between stops are timed along the
   streets too (cached per stop; pairs that can't be walked within a sensible detour, e.g. across a river, are dropped);
-  GTFS pathways inside stations still win, and a personal transfer time wins over both.
+  GTFS pathways inside stations still win.
 - The server provisions its own data: timetables (daily), the pedestrian network and the basemap are downloaded on
   first start and refreshed on a schedule, in the background, so a fresh deploy needs nothing but the config and secrets.
 - Leg model is mode-generic so bike/scooter legs can be added later.
@@ -130,7 +129,7 @@ Non-goals (v1)
   plan requests) to track progress. Re-checks the remaining legs on each refresh and suggests a switch if
   something slips (missed connection, delay, cancellation). Keeps the screen awake while active.
 - **Settings**: homes (pick on map → suggested nearby stops with estimated walk times, editable),
-  walking speed, transfer overrides, export/import (link + JSON), share setup (link + QR).
+  walking speed (typed, or measured with a short walk), export/import (link + JSON), share setup (link + QR).
 
 ## 9. Architecture
 - Single Go binary (stdlib `net/http`, `encoding/csv`, `archive/zip`; deps limited to
@@ -799,3 +798,18 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   stopping points, and how far out the middle rule is where there's no list (TODO.md).
 - 2026-10-12: A buzz when it's time to get off is dropped. It was set aside on 2026-10-11 to think about; it isn't
   needed.
+- 2026-10-12: Timed walks are removed. Timing a walk during a trip, the saved list of timed walks and changes, their
+  traced routes on the map, the pace learned from them and the personal change times they sent to the planner all go.
+  They were for when walk routing was rough. Now walks follow the street map well, and a missing path is better added
+  to OpenStreetMap, where it fixes the walk for good and for everyone, than timed around on one device. It also
+  settles the open question of whether a timed walk belongs to a station or a platform: there are none.
+  - Every walk is timed one way: its route along the street map at the walking speed.
+  - A ticked stop means which stop, not how long. It used to keep the walk time from the moment it was ticked, which
+    the planner took as given, so it went stale when the pace or the map changed. Now `access` in a plan request is a
+    list of stop IDs and the server times each from the street map (a straight-line estimate for one the map can't
+    reach). The same goes for a built-in gym's `[[gym.access]]`.
+  - The default walking speed is 5.5 km/h, up from 4.7.
+  - "Measure my pace" in Settings stays: it's how the walking speed can be set from a short walk.
+  - `walks` on a plan request's place stays, for the one job it still has: during a trip the app says how much walking
+    is left to the stop it's heading for. `prefs.transfers` is gone.
+  - Greenfield: nothing is migrated. Timed walks and stored stop times already on a device are ignored.

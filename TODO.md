@@ -244,27 +244,14 @@ Investigate are recorded only, not started.
     through each, and the metro's 40 stopping points are a table built into the server. Having the server learn
     them from the live feed it already polls instead would keep them current without a release; not done.
 
-## To decide
+## Walks
 
-- [ ] **Timed walks filed by platform, not by station?** Raised over Central (2026-10-10); discussed, not decided,
-      nothing built. Today a timed walk to a train, metro or light-rail platform is filed under its station ("any
-      platform counts: they're inside, a minute apart"), which is a weak assumption at Central:
-  - walks to the station: the time measured to one platform is used for every platform there, and retiming
-    averages timings to different platforms together;
-  - changes inside the station (the worse of the two): "Change at Central" is one time for every pair of
-    platforms and beats the timetable's own times for each pair, so a one-minute cross-platform change says
-    platform 1 to platform 24 takes a minute too.
-  The proposal: file a walk under the platform walked to, and give the station's untimed platforms the mean of the
-  timed ones until they're timed; apply a timed change only to the pair of platforms walked, with nothing
-  station-wide, so other pairs keep the timetable's times. Mostly an app change: the server already looks for a
-  time on the stop itself before its station.
-  To decide first:
-  - walks already timed can't be put to a platform: drop them and time again (greenfield, no migrations), or keep
-    them as the station's time;
-  - Settings would list "Home – Central Station, Platform 16", several rows for a busy station: needs a rule in
-    `docs/DESIGN.md`;
-  - the time for untimed platforms: the mean (simplest), or the longest timed (cautious: too short a walk is what
-    misses a train).
+- [x] **Timed walks are removed** (2026-10-12). Walk routing is good now and a missing path can be added to
+      OpenStreetMap, so timing walks by hand isn't needed: "Time my walk", the saved list, their traces on the map
+      and the pace learned from them are gone. Every walk is its route along the street map at the walking speed
+      (default now 5.5 km/h; "Measure my pace" stays). A ticked stop says which stop, not how long: its time comes
+      from the street map each time. This also settles whether a timed walk belongs to a station or a platform,
+      raised over Central on 2026-10-10: there are none.
 
 # TODO: field reports (2026-10-10)
 

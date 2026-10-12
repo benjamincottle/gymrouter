@@ -13,24 +13,23 @@ The gyms the app knows about (built-in public data) and the default preferences:
 ```json
 {"gyms": [{"id": "lanecove", "name": "9 Degrees Lane Cove", "address": "…", "lat": -33.8, "lon": 151.15,
            "lines": ["bus 288", "metro M1", "train T9"],
-           "access": [{"stop": "206638", "name": "Mars Rd Stop", "walk_s": 300}]}],
- "defaults": {"walk_speed_mps": 1.3, "min_change_s": 60, "max_walk_m": 1000, "risk": {"safe_s": 180, "tight_s": 60}}}
+           "access": [{"stop": "206638", "name": "Mars Rd Stop"}]}],
+ "defaults": {"walk_speed_mps": 1.528, "min_change_s": 60, "max_walk_m": 1000, "risk": {"safe_s": 180, "tight_s": 60}}}
 ```
-`lines` are the ones that serve the gym end; the device adds the lines near its own home. `access` (optional) holds
-measured walks from the gym door.
+`lines` are the ones that serve the gym end; the device adds the lines near its own home. `access` (optional) names
+the stops to use at the gym end, when it shouldn't be every stop within the walking limit.
 
 ## `POST /api/plan`
 ```json
 {
-  "from": {"lat": -33.7, "lon": 151.08, "access": [{"stop": "207720", "walk_s": 540}]},
+  "from": {"lat": -33.7, "lon": 151.08, "access": ["2077301", "2077303"]},
   "to":   {"lat": -33.808, "lon": 151.151},
   "lines": ["train T9", "metro M1", "bus 288"],
   "time": "2026-10-08T16:00:00+11:00",
   "window_min": 30,
   "prefs": {
     "walk_speed_mps": 1.4, "min_change_s": 60, "max_walk_m": 800, "leave_buffer_s": 60,
-    "risk": {"safe_s": 180, "tight_s": 60},
-    "transfers": [{"from": "2121", "to": "2121", "secs": 150}]
+    "risk": {"safe_s": 180, "tight_s": 60}
   }
 }
 ```
@@ -41,19 +40,18 @@ measured walks from the gym door.
   built-in gyms' lines always stay). The loaded lines are kept in the data directory, so they survive a restart.
   A train line brings the buses that replace its trains during trackwork (`replacement-bus 23T4` for the T4, matched by
   the line code at the end of the bus's name; `10M` for the metro); they aren't listed in `lines`.
-- A place is `lat`/`lon`, optionally with curated `access` stops and walk times. Without
+- A place is `lat`/`lon`, optionally with `access`: the IDs of the stops to use (up to 20), each walked to along the
+  streets at the walking speed (a straight-line estimate for one the street network can't reach, or while there is no
+  network). Without
   them, it uses every stop on the lines within `max_walk_m` or within 500 m of the nearest stop on them, whichever reaches
   further, measured on foot along the streets when known (straight line otherwise), and none past 3 km in a straight line. Past that the plan is a 400 ("no stops on those lines
   within 3 km"). Either end can be home or gym.
-- A place can also carry `walks` (up to 40, `[{"stop": "<stop or station ID>", "walk_s": 540}]`): walks the traveller
-  has timed between the place and a stop. They beat any other time for that stop (a station ID covers its rail platforms,
-not bus stands that belong to the station)
-  and add the stop if it isn't otherwise considered, curated or not. Not allowed with `on_trip`.
-  During a trip the app sends its position with one walk: the walking left to the stop it's heading for, by the trip's
-  own walk.
+- A place can also carry `walks` (up to 40, `[{"stop": "<stop or station ID>", "walk_s": 540}]`): how long the walk
+  from here to a stop takes, when the app knows better than the street map from this point. During a trip the app
+  sends its position with one: the walking left to the stop it's heading for, by the trip's own walk (and 0 for the
+  stop it's waiting at). A walk beats any other time for that stop (a station ID covers its rail platforms, not bus
+  stands that belong to the station) and adds the stop if it isn't otherwise considered. Not allowed with `on_trip`.
 - `time` is the earliest time to leave (default: now). Options leaving within `window_min` are returned.
-- `transfers` override walking/changing time between stops. A station ID covers its rail (train, metro, light rail)
-  platforms; a bus stand that belongs to the station only matches by its own ID.
 - `"arrive_by": true` treats `time` as the latest arrival: options arriving by then, latest departure first.
 - While travelling, the origin can be the vehicle you're on: `"from": {"on_trip": {"trip_id": "…",
   "from_stop": "<stop where you boarded>"}}`. Planning then starts now, on that vehicle: the first leg is that
@@ -86,11 +84,10 @@ Response:
 (the names on their signs).
 `stretched_walk` (left out when neither end needed it) is `{"from_m"?: 1430, "from_stop"?: "212110", "to_m"?: …, "to_stop"?: …}`:
 for each end that had no stop within `max_walk_m` (even its nearest is further), the walk to that nearest stop in metres,
-and the stop as timed `walks` name it (a train, metro or light-rail platform by its station's ID; any other stop by its
-own). An end with timed `walks` never reports it.
+and the stop by the ID `walks` would name it by (a train, metro or light-rail platform by its station's ID; any other
+stop by its own). An end with `walks` never reports it.
 `walking` is `streets` when walks to and from stops, and changes between stops, follow real streets and paths (the server's OpenStreetMap-based
-network), or `estimate` (straight line × a detour factor) while that network is still being prepared. Curated `access`
-walks apply either way. Walk legs carry a `path` (`[[lon, lat], …]`) along the streets when it is known. A walk that
+network), or `estimate` (straight line × a detour factor) while that network is still being prepared. Walk legs carry a `path` (`[[lon, lat], …]`) along the streets when it is known. A walk that
 passes a stop on the way (off at one stop, on foot to another and from there to the place) is drawn through that stop,
 each piece along the streets where known and straight otherwise. `max_walk_m` is measured on foot (see the place rules above).
 
