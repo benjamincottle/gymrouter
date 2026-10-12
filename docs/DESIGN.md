@@ -123,14 +123,15 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   - `--bar` (4px) is the side bar of a callout and of the selected row.
   - Control outlines are 1.5px `--edge` (fields) or 1.5px ink (buttons and segmented controls).
 - **Shadows:** none. The only exceptions are the "you" marker's soft edge and pulse (on the rail and the map) and the
-  inset underline and selection bars.
+  inset selection bars.
 - **Control height:** `--control` is 44px for every button, field and segmented control. Every tap target is at least
   44px, including text actions, which get an invisible hit area instead of padding.
 
 ## Layout
 
-- **Phone (below 1024px):** one column, at most 34rem wide, with `--s4` gutters. The header is sticky, with no rule;
-  the current screen is underlined in ink.
+- **Phone (below 1024px):** one column, at most 34rem wide, with `--s4` gutters. The header is sticky, with no rule.
+  Nothing in it is underlined: the Settings icon is ink while you're on Settings and pencil otherwise, and "Gym
+  Router" is always ink.
 - **Desktop (1024px and up):** the header spans the page (fixed, `--header-h`) over two panes. The trip pane on the
   left is `--pane-w` (460px) and scrolls with the page; the map (`.map-pane`, fixed) fills the rest and always shows the
   selected option, or says what will appear there before there is one. There's no "Show on map" button on desktop.

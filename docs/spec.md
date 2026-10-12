@@ -863,3 +863,6 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   line in Settings' Gyms section stays gone. The opened server status ends with a row "Gyms: 7 on this device" and a
   quiet "Reset order", shown while any gym has been chosen: out of the way, with the other things only its owner looks
   at.
+- 2026-10-12: **The header's underline is gone:** "Gym Router" and the Settings icon no longer carry an ink bar for
+  the screen you're on. The Settings icon is still ink on Settings and pencil elsewhere; the screens say which they
+  are.

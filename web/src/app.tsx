@@ -146,7 +146,7 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
       <header class="topbar">
         <h1>
           <button
-            class={view === 'trip' ? 'home-link active' : 'home-link'}
+            class="home-link"
             aria-current={view === 'trip' ? 'page' : undefined}
             onClick={() => {
               setView('trip')
