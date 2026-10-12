@@ -196,13 +196,6 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
             </svg>
           </button>
           <span class="from meta">{direction === 'to-gym' ? `from ${home.name}` : `to ${home.name}`}</span>
-          {/* Whether the times are live, once there's a plan (not on the way to starting the fastest trip). */}
-          {plan.updatedAt > 0 && !quick && (
-            <span class="live meta">
-              <span class={plan.data?.realtime ? 'live-dot live' : 'live-dot'} aria-hidden="true" />
-              {plan.data?.realtime ? 'Live' : 'Timetable only'}
-            </span>
-          )}
         </div>
       ) : (
         <div class="gyms" role="group" aria-label="Choose a gym">
@@ -229,7 +222,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
 
       {gym && (
         <section class="results" aria-label={title}>
-          <DataStatus loading={plan.loading} updatedAt={plan.updatedAt} walking={plan.data?.walking} starting={quick} />
+          <DataStatus realtime={plan.data?.realtime} loading={plan.loading} updatedAt={plan.updatedAt} walking={plan.data?.walking} starting={quick} />
           {/* On the way to starting the fastest trip, the options aren't shown: they'd only flash past. */}
           {quick ? (
             <BoardSkeleton />
@@ -326,17 +319,24 @@ function DayTime({ value, onChange, label }: { value: string; onChange: (v: stri
   )
 }
 
-/**
- * The line under the gym's row, only while there's something to say: the first plan is on its way, or its walks are
- * estimates. Whether the times are live is said in the gym's row.
- */
 function DataStatus({
-  loading, updatedAt, walking, starting,
-}: { loading: boolean; updatedAt: number; walking?: 'streets' | 'estimate'; starting?: boolean }) {
+  realtime, loading, updatedAt, walking, starting,
+}: { realtime?: boolean; loading: boolean; updatedAt: number; walking?: 'streets' | 'estimate'; starting?: boolean }) {
   if (starting) return <p class="meta status-line">Finding the fastest trip…</p>
-  if (!updatedAt) return loading ? <p class="meta status-line">Planning…</p> : null
-  if (walking === 'estimate') return <p class="meta status-line">Walks are rough estimates until the server has prepared the street map.</p>
-  return null
+  if (!updatedAt) return <p class="meta status-line">{loading ? 'Planning…' : ''}</p>
+  return (
+    <p class="meta status-line">
+      <span class={realtime ? 'live-dot live' : 'live-dot'} aria-hidden="true" />
+      {realtime ? 'Live data' : 'Timetable only'}, updated {statusTime(updatedAt)}
+      {loading && ', refreshing…'}
+      {walking === 'estimate' && (
+        <>
+          <br />
+          Walks are rough estimates until the server has prepared the street map.
+        </>
+      )}
+    </p>
+  )
 }
 
 /** While the first plan loads: the countdown and the board's rows, in outline. */

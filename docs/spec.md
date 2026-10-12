@@ -853,3 +853,6 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   - "Stored only on this device" is said once in Settings, for homes and gyms together.
   - "Trips put your most used gyms first. Reset the order" is gone from Settings, and with it the way to reset the
     order. The trip screen still lists the most used gyms first.
+- 2026-10-12: **The status line is back under the gym's row** (reverses "'Live' or 'Timetable only' sits at the end of
+  the gym's row", from the design review above). Beside the gym's name it read as part of the gym. The line says
+  "Live data, updated 09:31" (or "Timetable only, …") as before, and the countdown sits under its hairline again.
