@@ -14,7 +14,7 @@ import { position, rows } from '../options.ts'
 import { advance, phaseOf, rowLines, shapeKey, walkLeftS, walkTo, type At, type LonLat } from '../progress.ts'
 import { boarding, type Fix, type Sighting } from '../boarding.ts'
 import { vehicleOf, type Doing } from './icons.tsx'
-import { ActionBar, Button, Callout, Confirm, TextButton } from './ui.tsx'
+import { ActionBar, Button, Callout, Confirm, LiveTag, TextButton } from './ui.tsx'
 
 /** Everything needed to resume a trip after a reload; kept on this device only. */
 export interface ActiveTrip {
@@ -337,12 +337,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
         <p class="label">
           {phase.kind === 'arrived' ? 'Arrived' : 'Arrive'}
           {/* Whether the last re-check had live times, while there's still a service ahead to have them for. */}
-          {liveData !== null && (phase.kind === 'before' || phase.kind === 'riding') && (
-            <span class="live-tag">
-              <span class={liveData ? 'live-dot live' : 'live-dot'} aria-hidden="true" />
-              {liveData ? 'Live' : 'Timetabled'}
-            </span>
-          )}
+          {liveData !== null && (phase.kind === 'before' || phase.kind === 'riding') && <LiveTag live={liveData} />}
         </p>
         <p class="hero-time num">{clock(o.arrive)}</p>
         <p class="hero-arrive">

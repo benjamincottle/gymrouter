@@ -183,6 +183,19 @@ export function ActionBar({ progress, children }: { progress?: ComponentChildren
 }
 
 /**
+ * Whether the times on screen are live or the timetable's: a dot and one word, at the right end of the row that
+ * labels the countdown or the arrive time. `updating` while newer times are on their way.
+ */
+export function LiveTag({ live, updating }: { live: boolean; updating?: boolean }) {
+  return (
+    <span class="live-tag">
+      <span class={updating ? 'live-dot pending' : live ? 'live-dot live' : 'live-dot'} aria-hidden="true" />
+      {updating ? 'Updating…' : live ? 'Live' : 'Timetabled'}
+    </span>
+  )
+}
+
+/**
  * How far a long job is: a bar that fills, a line saying what it's doing, and the percentage. In an action bar
  * (its `progress`) the bar takes the place of the hairline along the top.
  */

@@ -10,11 +10,12 @@ import { BrandLogo } from './brand.tsx'
 import { DirectionGlyph, IconHurry } from './icons.tsx'
 import type { ActiveTrip } from './intrip.tsx'
 import { LineChip } from './option.tsx'
-import { Button, Callout, IconButton, Segmented, Select } from './ui.tsx'
+import { Button, Callout, IconButton, LiveTag, Segmented, Select } from './ui.tsx'
 
 type Direction = 'to-gym' | 'home'
 
 const REFRESH_MS = 30_000
+const UPDATING_AFTER_MS = 400 // a newer plan slower than this says "Updating…"
 const WINDOW_MIN = 45
 const SHIFT_MS = 30 * 60_000
 const SETTLE_MS = 500 // a time edit searches once it has been still this long
@@ -98,6 +99,15 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
     REFRESH_MS,
     visible,
   )
+  // "Updating…" once a newer plan has been on its way for a moment: the 30 s refresh usually lands before it shows,
+  // so the word is for a refresh that's slow (a weak signal), not a blink every half minute. (A changed search
+  // doesn't keep the old plan on screen: it starts again from "Planning…".)
+  const [updating, setUpdating] = useState(false)
+  useEffect(() => {
+    if (!plan.loading) return setUpdating(false)
+    const id = setTimeout(() => setUpdating(true), UPDATING_AFTER_MS)
+    return () => clearTimeout(id)
+  }, [plan.loading])
   useEffect(() => {
     if (plan.error instanceof AuthError) onAuthError()
   }, [plan.error, onAuthError])
@@ -222,7 +232,13 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
 
       {gym && (
         <section class="results" aria-label={title}>
-          <DataStatus realtime={plan.data?.realtime} loading={plan.loading} updatedAt={plan.updatedAt} walking={plan.data?.walking} starting={quick} />
+          <DataStatus
+            loading={plan.loading}
+            planned={!!plan.data}
+            updating={updating && plan.data?.options.length === 0}
+            walking={plan.data?.walking}
+            starting={quick}
+          />
           {/* On the way to starting the fastest trip, the options aren't shown: they'd only flash past. */}
           {quick ? (
             <BoardSkeleton />
@@ -260,6 +276,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
                   options={[...plan.data.options].sort((a, b) => Date.parse(a.leave_at) - Date.parse(b.leave_at))}
                   preferLatest={plannedWhen === 'arrive'}
                   live={leaveAt === null}
+                  tag={<LiveTag live={plan.data.realtime} updating={updating} />}
                   serviceDate={plan.data.service_date}
                   token={settings.token!}
                   origin={direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat]}
@@ -319,22 +336,22 @@ function DayTime({ value, onChange, label }: { value: string; onChange: (v: stri
   )
 }
 
+/**
+ * What there is to say about the plan apart from "Live" or "Timetabled", which sits beside the countdown (LiveTag):
+ * that the first one is on its way, that walks are estimates, or (`updating`, with no countdown to say it beside)
+ * that a newer one is.
+ */
 function DataStatus({
-  realtime, loading, updatedAt, walking, starting,
-}: { realtime?: boolean; loading: boolean; updatedAt: number; walking?: 'streets' | 'estimate'; starting?: boolean }) {
+  loading, planned, updating, walking, starting,
+}: { loading: boolean; planned: boolean; updating?: boolean; walking?: 'streets' | 'estimate'; starting?: boolean }) {
   if (starting) return <p class="meta status-line">Finding the fastest trip…</p>
-  if (!updatedAt) return <p class="meta status-line">{loading ? 'Planning…' : ''}</p>
+  if (!planned) return loading ? <p class="meta status-line">Planning…</p> : null
+  if (!updating && walking !== 'estimate') return null
   return (
     <p class="meta status-line">
-      <span class={realtime ? 'live-dot live' : 'live-dot'} aria-hidden="true" />
-      {realtime ? 'Live data' : 'Timetable only'}, updated {statusTime(updatedAt)}
-      {loading && ', refreshing…'}
-      {walking === 'estimate' && (
-        <>
-          <br />
-          Walks are rough estimates until the server has prepared the street map.
-        </>
-      )}
+      {updating && 'Updating…'}
+      {updating && walking === 'estimate' && <br />}
+      {walking === 'estimate' && 'Walks are rough estimates until the server has prepared the street map.'}
     </p>
   )
 }

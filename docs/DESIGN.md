@@ -119,8 +119,8 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   - the app icon keeps its own 7px corner.
   - Nothing else.
 - **Lines:**
-  - `--heavy` (3px ink) starts a section: Settings sections, Now, sheet bars. The hero on the trip screen sits under a
-    hairline instead: the status line above it is part of the same results.
+  - `--heavy` (3px ink) starts a section: Settings sections, Now, sheet bars. The hero on the trip screen has no rule
+    of its own: the hairline under the gym's row is above it.
   - `--hair` (1px rule) separates rows.
   - `--bar` (4px) is the side bar of a callout and of the selected row.
   - Control outlines are 1.5px `--edge` (fields) or 1.5px ink (buttons and segmented controls).
@@ -153,7 +153,7 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
      the gym, so a search starts only once it's what you meant. It stays on top after a gym is chosen, so it never
      moves;
   2. route (the gym leads the results; before one is chosen, the list of gyms);
-  3. status line;
+  3. status line (only while there's something to say: see Status line);
   4. hero;
   5. Earlier/Later;
   6. options board;
@@ -265,12 +265,21 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
   - There's no runner with "Leave at" or "Arrive by": a trip that starts, starts now.
 - **Route row** (trip screen): an ink tape, the gym's logo, the gym's name (18px/800/semi, a button that changes
   the gym, with a chevron), and "from Home" (or "to Home") beneath it. The direction toggle above reverses the trip.
-- **Status line** (trip screen, under the route row): in 14px pencil, a `--safe` dot and "Live data, updated 09:31",
-  or a pencil dot and "Timetable only, updated 09:31"; ", refreshing…" follows while a newer plan is on its way.
-  Nothing about live data goes in the gym's row. While the first plan loads the line says "Planning…" (or "Finding the
-  fastest trip…"); "Walks are rough estimates until the server has prepared the street map." is its second line while
-  it's true.
-- **Hero** (trip screen): "Leave in" and the countdown, the arrive time, then "for the M1 at 15:20 from Epping
+- **Live or timetabled** (`LiveTag`; at the right end of the row that labels the big number: "Leave in" on the trip
+  screen, "Arrive" during a trip, so it costs no height): in 14px pencil, a `--safe` dot and "Live", or a pencil dot
+  and "Timetabled". No time beside it. Nothing about live data goes in the gym's row.
+  - **On the trip screen** it's the plan's. While a refresh of the same search has been on its way for 400 ms (a
+    weak signal, or coming back to the app) it reads "Updating…" beside a pencil ring (the dot, not yet filled), so
+    the times under it are known to be the last ones; the 30 s refresh usually lands sooner and shows nothing. A
+    changed search doesn't keep the old plan: it starts again from "Planning…". The ring is pencil, not a status colour: nothing is wrong.
+  - **During a trip** it's what the last re-check said. A re-check that fails gets the status line under Then, and
+    the word goes until one works again. It shows while there's still a service ahead (not on the last walk, nor once
+    you've arrived).
+- **Status line** (trip screen, under the route row, in 14px pencil): only while there's something to say that the
+  tag can't. "Planning…" (or "Finding the fastest trip…") while the first plan loads, before there's a countdown;
+  "Walks are rough estimates until the server has prepared the street map." while it's true; "Updating…" when a newer
+  plan is on its way and there are no options, so no countdown to say it beside.
+- **Hero** (trip screen): "Leave in" (with the tag at the row's end) and the countdown, the arrive time, then "for the M1 at 15:20 from Epping
   Station (on time)", then **how sure the chosen trip is**: its risk badge and why, in the steps' words. "At risk
   change at North Ryde Station, 22 s spare"; with several changes, the tightest: "Tight tightest change at Central
   Station, 1 min spare"; with none, "Safe no changes". The word sits beside the number it qualifies, and teaches what
@@ -435,10 +444,6 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
   - 2 min or more late: `--missed`;
   - no live data, "timetabled": `--pencil`.
   - The word and the colour always agree.
-- **Live or timetabled** (during a trip, at the right end of the Arrive label's row, so it costs no height): a
-  `--safe` dot and "Live", or a pencil dot and "Timetabled", in 14px pencil. It's what the last re-check said of the
-  trip's times. There's no time beside it: a re-check that fails gets the status line below, and the word goes until
-  one works again. It shows while there's still a service ahead (not on the last walk, nor once you've arrived).
 - **In-trip status line** (under Then): only when something is off. "No location just now; following the
   timetable.", "Location unavailable; following the timetable." with "Try my location again", and "Couldn't re-check
   the trip: …". With location on and the last check good there is no line.
@@ -465,7 +470,7 @@ format, everywhere.
 
 | Kind | Format | Used for |
 |---|---|---|
-| Clock | `09:42` | departures, arrivals, "updated 09:31", "checked 09:32" |
+| Clock | `09:42` | departures, arrivals, "The plan below is from 09:31" |
 | Countdown | `18 min`, `1 h 5 min`, `now`, `left 2 min ago` | hero, "leaves in", map footer |
 | Planned duration | `17 min`, `1 h 7 min` | door to door, walks, rides |
 | Compact duration | `42m`, `1h 7m` | only in tabular columns (the options board) |
@@ -498,7 +503,8 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
   - offers Try again where retrying can help.
   - Keep the last good result on screen under it.
   - A server that can't be reached is an error, not "Loading…".
-- **Degraded but working** (timetable only, walks estimated, location off) is a `caution` callout or the status line.
+- **Degraded but working** (timetabled times, walks estimated, location off) is the tag beside the countdown, the
+  status line or a `caution` callout.
   It's not an error.
 - **Empty states** say what to do and offer the action as a button ("Add a gym").
   - **Without a setup link** (the page before sign-in): the mark, the name, and one line in pencil, "Open your setup
