@@ -856,3 +856,5 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - 2026-10-12: **The status line is back under the gym's row** (reverses "'Live' or 'Timetable only' sits at the end of
   the gym's row", from the design review above). Beside the gym's name it read as part of the gym. The line says
   "Live data, updated 09:31" (or "Timetable only, …") as before, and the countdown sits under its hairline again.
+- 2026-10-12: **Where to board sits above when the train leaves** in Now: the carriages and "Board the 6th carriage
+  from the front." come straight under the instruction, then "T1 leaves 19:27 …" and the time to spare.

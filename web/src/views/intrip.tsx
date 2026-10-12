@@ -384,6 +384,8 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
             Leave {dayOf(o.leave_at, now) && `${dayOf(o.leave_at, now)} `}at <strong>{clock(o.leave_at)}</strong> ({countdown(o.leave_at, now)})
           </p>
         )}
+        {/* Where to board comes before when it leaves: it's what you act on as you reach the platform. */}
+        {catching !== null && <BoardStrip leg={o.legs[catching]} />}
         {nowDetail && phase.kind === 'before' && (
           <p>
             {nowDetail}
@@ -394,7 +396,6 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
             )}
           </p>
         )}
-        {catching !== null && <BoardStrip leg={o.legs[catching]} />}
         {countdownStrip}
         {nowDetail && phase.kind === 'riding' && <p>{nowDetail}</p>}
       </section>

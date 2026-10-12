@@ -2131,6 +2131,11 @@ details > summary {
   margin-top: var(--s1);
 }
 
+/* when the train leaves, under where to board it */
+.now .board-strip + p {
+  margin-top: var(--s3);
+}
+
 .next {
   padding: var(--s3) 0;
   border-top: var(--hair);

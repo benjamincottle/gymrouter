@@ -349,6 +349,8 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
       with regular text and the carriages' outlines: drawn 1.5px, its speed lines 1.2px. On a gym's row the
       runner starts the fastest trip; here it marks the quick way off the train. It doesn't say why (which stairs it's
       for): short wins on a platform.
+    - It sits straight under the instruction, above when the train leaves ("T1 leaves 19:27 (in 16 min), on time")
+      and how much time you have, with `--s3` between.
     - It's in Now from "Get to …" through "Wait for …", and nowhere else: not on the ride's step, not while planning,
       not under the pulled-down map. It goes once you're on board.
     - It shows whenever the server says which carriage, with no test for whether it's worth it. It never aims for a
