@@ -117,8 +117,8 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   - the app icon keeps its own 7px corner.
   - Nothing else.
 - **Lines:**
-  - `--heavy` (3px ink) starts a section: Settings sections, Now, sheet bars. The hero on the trip screen has no rule
-    of its own: the gym's row above it ends in a hairline.
+  - `--heavy` (3px ink) starts a section: Settings sections, Now, sheet bars. The hero on the trip screen sits under a
+    hairline instead: the status line above it is part of the same results.
   - `--hair` (1px rule) separates rows.
   - `--bar` (4px) is the side bar of a callout and of the selected row.
   - Control outlines are 1.5px `--edge` (fields) or 1.5px ink (buttons and segmented controls).
@@ -149,14 +149,14 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   1. when and which way (and which home, when there are several): everything that changes the search comes before
      the gym, so a search starts only once it's what you meant. It stays on top after a gym is chosen, so it never
      moves;
-  2. route (the gym leads the results, with whether the times are live at the end of its row; before one is chosen,
-     the list of gyms);
-  3. hero;
-  4. Earlier/Later;
-  5. options board;
-  6. summary;
-  7. steps;
-  8. action bar.
+  2. route (the gym leads the results; before one is chosen, the list of gyms);
+  3. status line;
+  4. hero;
+  5. Earlier/Later;
+  6. options board;
+  7. summary;
+  8. steps;
+  9. action bar.
 
 ## Components
 
@@ -240,10 +240,11 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
   - There's no runner with "Leave at" or "Arrive by": a trip that starts, starts now.
 - **Route row** (trip screen): an ink tape, the gym's logo, the gym's name (18px/800/semi, a button that changes
   the gym, with a chevron), and "from Home" (or "to Home") beneath it. The direction toggle above reverses the trip.
-  - **Live or not**, at the end of the row once there's a plan, in 14px pencil: a `--safe` dot and "Live", or a pencil
-    dot and "Timetable only". No "updated" time: plans refresh themselves, and an error says how old the plan under it
-    is. While the first plan loads, a line under the row says "Planning…" (or "Finding the fastest trip…"); "Walks are
-    rough estimates until the server has prepared the street map." shows there too while it's true.
+- **Status line** (trip screen, under the route row): in 14px pencil, a `--safe` dot and "Live data, updated 09:31",
+  or a pencil dot and "Timetable only, updated 09:31"; ", refreshing…" follows while a newer plan is on its way.
+  Nothing about live data goes in the gym's row. While the first plan loads the line says "Planning…" (or "Finding the
+  fastest trip…"); "Walks are rough estimates until the server has prepared the street map." is its second line while
+  it's true.
 - **Hero** (trip screen): "Leave in" and the countdown, the arrive time, then "for the M1 at 15:20 from Epping
   Station (on time)", then **how sure the chosen trip is**: its risk badge and why, in the steps' words. "At risk
   change at North Ryde Station, 22 s spare"; with several changes, the tightest: "Tight tightest change at Central
@@ -348,6 +349,8 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
       with regular text and the carriages' outlines: drawn 1.5px, its speed lines 1.2px. On a gym's row the
       runner starts the fastest trip; here it marks the quick way off the train. It doesn't say why (which stairs it's
       for): short wins on a platform.
+    - It sits straight under the instruction, above when the train leaves ("T1 leaves 19:27 (in 16 min), on time")
+      and how much time you have, with `--s3` between.
     - It's in Now from "Get to …" through "Wait for …", and nowhere else: not on the ride's step, not while planning,
       not under the pulled-down map. It goes once you're on board.
     - It shows whenever the server says which carriage, with no test for whether it's worth it. It never aims for a

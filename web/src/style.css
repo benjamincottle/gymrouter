@@ -1167,17 +1167,10 @@ details > summary {
   color: var(--pencil);
 }
 
-/* the chosen gym leads: tap its name to change it; whether the times are live sits at the row's end */
+/* the chosen gym leads: tap its name to change it */
 .route {
-  grid-template-columns: 8px 32px 1fr auto;
   cursor: default;
   border-top: var(--hair);
-}
-
-.route .live {
-  grid-column: 4;
-  grid-row: 1 / span 2;
-  white-space: nowrap;
 }
 
 .route::before {
@@ -1206,15 +1199,6 @@ details > summary {
 }
 
 .status-line {
-  margin-top: var(--s4);
-}
-
-/* under the gym's row there's only a line while the first plan loads, or its walks are estimates */
-.results > .status-line:first-child {
-  margin-top: 0;
-}
-
-.results > * + .board {
   margin-top: var(--s4);
 }
 
@@ -1258,13 +1242,6 @@ details > summary {
 /* how sure the chosen trip is: its badge, then why */
 .hero-sub.hero-risk {
   margin-top: var(--s1);
-}
-
-/* on the trip screen the hero follows the gym's row, which ends in a hairline: no rule of its own */
-.board > .hero {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
 }
 
 .shift {
@@ -2152,6 +2129,11 @@ details > summary {
 
 .now p + p {
   margin-top: var(--s1);
+}
+
+/* when the train leaves, under where to board it */
+.now .board-strip + p {
+  margin-top: var(--s3);
 }
 
 .next {
