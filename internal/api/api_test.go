@@ -1195,8 +1195,10 @@ func TestPlanReportsHowWalksWereTimed(t *testing.T) {
 		t.Fatalf("without a street network: %+v", p.Walking)
 	}
 	for _, l := range p.Options[0].Legs {
-		if l.Path != nil {
-			t.Error("estimated walks have no street path")
+		// A walk that passes a stop on the way is still drawn through it, in straight pieces: a point an end and one
+		// a stop passed. A route along streets would have many more.
+		if len(l.Path) > 4 {
+			t.Errorf("an estimated walk has a street path: %d points", len(l.Path))
 		}
 	}
 

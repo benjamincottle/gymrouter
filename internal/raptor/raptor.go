@@ -69,9 +69,12 @@ type Options struct {
 	Footpaths func(d *gtfs.Day, used []bool, straight [][]Footpath) [][]Footpath
 }
 
-// DefaultOptions are conservative generic defaults; personal values replace them later.
+// DefaultWalkSpeedMps is the walking speed walks are timed at unless a device sets its own: 5.5 km/h.
+const DefaultWalkSpeedMps = 5.5 / 3.6
+
+// DefaultOptions are generic defaults; a device's own values replace them later.
 func DefaultOptions() Options {
-	return Options{MaxTransferM: 400, WalkSpeedMps: 1.3, DetourFactor: 1.3, PlatformAllowance: 60}
+	return Options{MaxTransferM: 400, WalkSpeedMps: DefaultWalkSpeedMps, DetourFactor: 1.3, PlatformAllowance: 60}
 }
 
 // WalkSecs converts a straight-line distance to walking seconds.
