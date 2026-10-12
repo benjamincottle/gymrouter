@@ -125,26 +125,10 @@ export const IconColour = () => (
   </Icon>
 )
 
-export const IconTimer = () => (
-  <Icon>
-    <circle cx="12" cy="13.5" r="7" />
-    <path d="M10 3.5 H14 M12 3.5 V6.5 M18 7.5 L19.5 6" />
-    <path class="acc-line" d="M12 13.5 L15 10" />
-  </Icon>
-)
-
 /** Opens (pointing down) or closes (up) what the text before it is about: a ride's stops. */
 export const Chevron = ({ up }: { up?: boolean }) => (
   <svg class="icon chevron" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
     <path d={up ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'} />
-  </svg>
-)
-
-/** The same stopwatch at the size of a line of text: it starts a "Time my walk" link. */
-export const Stopwatch = () => (
-  <svg class="icon stopwatch" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-    <circle cx="12" cy="13.5" r="7" />
-    <path d="M10 3.5 H14 M12 3.5 V6.5 M18 7.5 L19.5 6 M12 13.5 L15 10" />
   </svg>
 )
 

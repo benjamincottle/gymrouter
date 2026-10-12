@@ -63,7 +63,7 @@ lines = ["train T1", "train T2", "train T4", "train T8", "train T9", "metro M1",
 
 # ClimbFit Macquarie and St Leonards: addresses from climbfit.com.au, coordinates from OpenStreetMap. Lines found the same
 # way as Waterloo and Alexandria (six starting points, the app's line search), keeping the lines near the gym and the trunk
-# lines that kept showing up. A starting point: refine with timed walks.
+# lines that kept showing up. A starting point.
 
 [[gym]]
 id = "climbfit-macquarie"
@@ -87,7 +87,7 @@ lines = ["train T1", "train T8", "train T9", "metro M1", "bus 114", "bus 120", "
 # gym (Nomad, BlocHaus, SICG), otherwise the Transport for NSW address lookup. Lines found the same way as Waterloo and
 # Alexandria (six starting points, a weekday afternoon and a Sunday morning, the app's line search), keeping the lines
 # near the gym and the trunk lines that kept showing up. The T7 is listed for the three gyms out west because trackwork
-# sends the city's trains to Olympic Park instead of Auburn and Lidcombe. A starting point: refine with timed walks.
+# sends the city's trains to Olympic Park instead of Auburn and Lidcombe. A starting point.
 
 [[gym]]
 id = "nomad-annandale"

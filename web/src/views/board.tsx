@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import type { ComponentChildren, ComponentType } from 'preact'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, shortDuration } from '../format.ts'
 import { useNow, useWide } from '../hooks.ts'
-import type { TimedWalk } from '../walks.ts'
 import type { Leg, Option } from '../types.ts'
 import { Timeline, type Ends, type Tracking } from './option.tsx'
 import { changesAndStops, reselect, tape, tripKey } from '../options.ts'
@@ -19,8 +18,6 @@ interface Props {
   live: boolean
   serviceDate: string
   token: string
-  walks: TimedWalk[] // walks you've timed; their traced routes are drawn instead of the street-map ones
-  places: { start?: string; end?: string } // the home or gym at each end (placeKey)
   origin: [number, number]
   destination: [number, number]
   title: string
@@ -85,7 +82,7 @@ export function Board(p: Props) {
       <p class="summary">
         <strong>{duration(sel.duration_s)}</strong> door to door, {changesAndStops(sel)}
       </p>
-      <Timeline option={sel} ends={p.ends} walks={p.walks} />
+      <Timeline option={sel} ends={p.ends} />
       <ActionBar>
         {!wide && (
           <Button class="phone-only" onClick={() => setMapOpen(true)}>
@@ -202,7 +199,7 @@ function useMapView(): { View: ComponentType<MapViewProps> | null; failed: boole
   return { View, failed }
 }
 
-type MapProps = Pick<Props, 'token' | 'walks' | 'places' | 'serviceDate' | 'origin' | 'destination'> & {
+type MapProps = Pick<Props, 'token' | 'serviceDate' | 'origin' | 'destination'> & {
   option: Option
   me?: MapViewProps['me']
   doing?: MapViewProps['doing']
@@ -356,7 +353,7 @@ export function MapSheet({ option, now, onClose, onStart, title, live, steps, ..
         )}
         {steps && (!steps.tall || pull !== null) && (
           <div class="sheet-steps" ref={stepsRef} style={pull === null ? undefined : { height: `${pull}px`, overflow: 'hidden' }}>
-            <Timeline option={option} ends={steps.ends} walks={p.walks} track={steps.track} />
+            <Timeline option={option} ends={steps.ends} track={steps.track} />
           </div>
         )}
       </footer>

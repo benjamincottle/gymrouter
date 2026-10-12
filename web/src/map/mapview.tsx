@@ -7,7 +7,6 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { FetchSource, PMTiles, Protocol } from 'pmtiles'
 import { layers, namedFlavor } from '@protomaps/basemaps'
 import { ApiError, api } from '../api.ts'
-import { legTrace, type TimedWalk } from '../walks.ts'
 import { LAST_STOPS, type RideProgress } from '../countdown.ts'
 import { splitAt } from '../progress.ts'
 import { isDark } from '../theme.ts'
@@ -143,8 +142,6 @@ const NO_STOP: maplibregl.FilterSpecification = ['==', ['get', 'leg'], -1]
 
 export interface MapViewProps {
   token: string
-  walks: TimedWalk[] // timed walks: their traced routes are drawn instead of the street-map ones
-  places: { start?: string; end?: string } // the trip's home or gym at each end (placeKey), for its timed walks
   option: Option
   serviceDate: string
   origin: [number, number] // [lon, lat] of where the trip starts (home or gym)
@@ -161,7 +158,7 @@ export interface MapViewProps {
  * Draws the option's legs (only the parts ridden, with the stops passed), the vehicles running them while
  * they're near your part of the trip, and you. The view fits the whole trip, or during one the step you're on (`focus`).
  */
-export function MapView({ token, walks, places, option, serviceDate, origin, destination, me, doing = 'walk', aboard, focus, progress, catching }: MapViewProps) {
+export function MapView({ token, option, serviceDate, origin, destination, me, doing = 'walk', aboard, focus, progress, catching }: MapViewProps) {
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const [error, setError] = useState('')
@@ -420,9 +417,8 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
         if (!a || !b) continue
         bounds.extend(a).extend(b)
         if (l.kind === 'walk') {
-          // A walk you timed and traced beats the street-map route, which beats a straight line.
-          const traced = legTrace(walks, option, i, places.start, places.end)
-          const coords = traced ?? (l.path && l.path.length > 1 ? l.path : [a, b])
+          // Along the streets when the server knew the way, else a straight line.
+          const coords = l.path && l.path.length > 1 ? l.path : [a, b]
           legAlong(i, coords)
           features.push({ type: 'Feature', properties: { kind: 'walk' }, geometry: { type: 'LineString', coordinates: coords } })
           continue
@@ -464,7 +460,7 @@ export function MapView({ token, walks, places, option, serviceDate, origin, des
     return () => {
       live = false
     }
-  }, [option, serviceDate, token, walks])
+  }, [option, serviceDate, token])
 
   // The ride you're on: the line behind you dimmed, the stops behind you quiet, and your stop marked.
   // The train you're heading for: the platform it's boarded from, and where on it to wait.

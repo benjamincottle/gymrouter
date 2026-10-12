@@ -13,13 +13,9 @@ export const shapeKey = (l: Leg) => `${l.trip_id}|${l.from?.id}|${l.to?.id}`
 const pt = (s: { lat: number; lon: number }): LonLat => [s.lon, s.lat]
 
 /**
- * Each step's line on the ground, in order with the rows. `shapes` holds the routes of the rides fetched so far;
- * `traced` gives the route you traced when you timed a walk leg (walks.ts legTrace), which beats the street map's.
+ * Each step's line on the ground, in order with the rows. `shapes` holds the routes of the rides fetched so far.
  */
-export function rowLines(
-  rs: Row[], o: Option, start: LonLat, end: LonLat, shapes: Record<string, LonLat[]>,
-  traced: (leg: number) => LonLat[] | undefined = () => undefined,
-): LonLat[][] {
+export function rowLines(rs: Row[], o: Option, start: LonLat, end: LonLat, shapes: Record<string, LonLat[]>): LonLat[][] {
   return rs.map((r): LonLat[] => {
     switch (r.kind) {
       case 'start':
@@ -28,7 +24,7 @@ export function rowLines(
         return [end]
       case 'change': {
         const i = o.legs.findIndex((l, j) => j > r.t.from_leg && j < r.t.to_leg && l.kind === 'walk')
-        const path = i < 0 ? undefined : (traced(i) ?? o.legs[i].path)
+        const path = i < 0 ? undefined : o.legs[i].path
         if (path && path.length > 1) return path
         return [r.from, r.to].filter((s): s is StopRef => s !== undefined).map(pt)
       }
@@ -37,7 +33,7 @@ export function rowLines(
         const a = l.from ? pt(l.from) : start
         const b = l.to ? pt(l.to) : end
         if (l.kind === 'walk') {
-          const path = traced(r.i) ?? l.path
+          const path = l.path
           return path && path.length > 1 ? path : [a, b]
         }
         return shapes[shapeKey(l)] ?? [a, b]
@@ -48,7 +44,7 @@ export function rowLines(
 
 /**
  * The step you walk to reach the ride at legs[ride] (the walk to the first stop, or a change) and how long the trip
- * allows for it, in seconds: your own time if you've timed it. `bufferS` is the leave buffer, which the first walk's
+ * allows for it, in seconds. `bufferS` is the leave buffer, which the first walk's
  * times include.
  */
 export function walkTo(rs: Row[], o: Option, ride: number, bufferS = 0): { row: number; secs: number } | null {

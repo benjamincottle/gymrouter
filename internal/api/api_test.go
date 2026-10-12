@@ -348,7 +348,7 @@ func TestPlanStretchesTheWalkWhenNoStopIsInReach(t *testing.T) {
 	if rec.Code != 200 || len(p.Options) == 0 || p.StretchedWalk == nil || p.StretchedWalk.FromM <= 400 || p.StretchedWalk.ToM != 0 || p.StretchedWalk.ToStop != "" {
 		t.Fatalf("far home: %d %s", rec.Code, rec.Body)
 	}
-	// The nearest stop is named as a timed walk to it would be: a platform by its station.
+	// The nearest stop is named as the app keys a walk to it: a platform by its station.
 	var around struct {
 		Stops []struct {
 			Station   string
@@ -386,7 +386,7 @@ func TestPlanStretchesTheWalkWhenNoStopIsInReach(t *testing.T) {
 	rec = h.do(t, "POST", "/api/plan", token, req)
 	_ = json.Unmarshal(rec.Body.Bytes(), &p)
 	if rec.Code != 200 || p.StretchedWalk != nil {
-		t.Errorf("far home with a timed walk: %d %s", rec.Code, rec.Body)
+		t.Errorf("far home with its walk given: %d %s", rec.Code, rec.Body)
 	}
 
 	req["from"] = map[string]any{"lat": -34.2, "lon": 150.5}
@@ -1232,7 +1232,7 @@ func TestCuratedWalksAndChangesAreDrawnAlongStreets(t *testing.T) {
 	type plan struct {
 		Options []struct{ Legs []leg }
 	}
-	// Curated access stops for the start (as the app sends them for a home with timed walks).
+	// Chosen stops for the start (as the app sends them for a home with ticked stops).
 	rec := h.do(t, "POST", "/api/stops/near", token, map[string]any{"lat": -33.7727, "lon": 151.0821, "radius_m": 300})
 	var near struct {
 		Stops []struct {

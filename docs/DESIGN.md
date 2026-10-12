@@ -185,7 +185,7 @@ Field, Callout, Row, ActionBar, Confirm, ConfirmSheet, plus `useDialog` and `onR
   - At most one action. A dismiss × only if it can safely be ignored.
   - A callout that suggests a trip shows it under its text as a row from the options board (`TripRow`: leave, tape,
     arrive, risk mark, compact duration), and its text leaves out what the row says.
-  - Panels with their own job (pace test, walk timer) are sections, not callouts.
+  - Panels with their own job (the pace test) are sections, not callouts.
 - **Section:** a heavy top rule (except the first section on Settings and the screens opened from it, right under the header), then a title (20px/800/semi) with an optional 24px icon (ink lines, one part filled).
   An intro line in 14px pencil may follow.
 - **Pick rows:** a search result is a whole-row button with a `›` at the end, not a link.

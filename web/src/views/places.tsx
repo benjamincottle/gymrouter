@@ -5,8 +5,6 @@ import { groupStops, relevantGroups, type StopGroup } from '../stops.ts'
 import type { GeocodeResult, KnownGym, NearStop, SuggestResult } from '../types.ts'
 import { LineChip } from './option.tsx'
 import { BrandLogo } from './brand.tsx'
-import { mmss } from '../walkmeasure.ts'
-import { placeKey, walkSecs, type AccessWalk, type TimedWalk } from '../walks.ts'
 import { ActionBar, Button, Callout, Field, Row, Section, TextButton } from './ui.tsx'
 
 export const newHome = (): Home => ({ id: newId(), name: 'Home', lat: NaN, lon: NaN, access: [] })
@@ -22,7 +20,6 @@ interface Props {
   isNew: boolean
   token: string
   homes: Home[] // line suggestions start from one of these
-  walks: TimedWalk[] // walks timed during trips, shown against their stops
   maxWalkM?: number // the device's longest walk, for line suggestions
   onAuthError: () => void
   onSave: (p: Gym) => void
@@ -30,7 +27,7 @@ interface Props {
 }
 
 /** Adds or edits a home or a gym: where it is, the stops to walk to, and (for a gym) its lines. */
-export function PlaceEditor({ kind, place, isNew, token, homes, walks, maxWalkM, onAuthError, onSave, onCancel }: Props) {
+export function PlaceEditor({ kind, place, isNew, token, homes, maxWalkM, onAuthError, onSave, onCancel }: Props) {
   const [p, setP] = useState<Gym>(place)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<GeocodeResult[]>([])
@@ -106,18 +103,13 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, maxWalkM,
   const groups = useMemo(() => groupStops(stops ?? []), [stops])
   const [showAll, setShowAll] = useState(false)
   const selectedIds = useMemo(() => new Set(p.access.map((a) => a.stop)), [p.access])
-  const groupWalk = (g: StopGroup) => p.access.find((a) => g.ids.includes(a.stop))?.walk_s
+  const picked = (g: StopGroup) => g.ids.some((id) => selectedIds.has(id))
+  // Ticking keeps which stops, not how long the walk is: that's worked out from the street map for each trip.
   const toggle = (g: StopGroup) => {
-    const on = g.ids.some((id) => selectedIds.has(id))
     const rest = p.access.filter((a) => !g.ids.includes(a.stop))
-    setP({ ...p, access: on ? rest : [...rest, ...g.ids.map((stop) => ({ stop, name: g.name, walk_s: g.walk_s }))] })
+    setP({ ...p, access: picked(g) ? rest : [...rest, ...g.ids.map((stop) => ({ stop, name: g.name }))] })
   }
   const visibleGroups = showAll ? groups : relevantGroups(groups)
-
-  // Walks timed during trips win over the minutes typed here.
-  const key = placeKey(kind, p)
-  const timedOf = (g: StopGroup) =>
-    walks.find((w): w is AccessWalk => w.kind === 'access' && w.place === key && w.stop.some((id) => id === g.key || g.ids.includes(id)))
 
   const canSave = hasLocation && p.name.trim() !== '' && (!gym || p.lines.length > 0)
 
@@ -165,29 +157,23 @@ export function PlaceEditor({ kind, place, isNew, token, homes, walks, maxWalkM,
       </Section>
 
       {stops && (
-        <Section title={gym ? 'Stops near the gym' : 'Your stops'} intro={'Pick the stops you\'d actually walk to. If you pick none, every stop within your longest walk is considered (or, if there are none, the nearest ones). Walking times come from the street map until you time a walk on a trip ("Time my walk"); a timed walk is used for its stop, picked here or not.'}>
+        <Section title={gym ? 'Stops near the gym' : 'Your stops'} intro={'Pick the stops you\'d actually walk to. If you pick none, every stop within your longest walk is considered (or, if there are none, the nearest ones). Walking times come from the street map, at your walking speed.'}>
           {stops.length === 0 && <p class="meta">No stops within 3 km.</p>}
           <ul class="rows stops">
             {visibleGroups.map((g) => {
-              const walk = groupWalk(g)
-              const timed = timedOf(g)
               return (
                 <li>
                   <label class="check">
-                    <input type="checkbox" checked={walk !== undefined} onChange={() => toggle(g)} />
+                    <input type="checkbox" checked={picked(g)} onChange={() => toggle(g)} />
                     <span class="main">
                       {g.name}
                       <span class="meta">{g.lines.join(', ')}</span>
                     </span>
                   </label>
                   <span class="walkcell">
-                    {timed ? (
-                      <span title="Timed during a trip; this is the time used">timed {mmss(walkSecs(timed))}</span>
-                    ) : (
-                      <span class="meta" title="From the street map">
-                        ~{Math.max(1, Math.round(g.walk_s / 60))} min
-                      </span>
-                    )}
+                    <span class="meta" title="From the street map">
+                      ~{Math.max(1, Math.round(g.walk_s / 60))} min
+                    </span>
                   </span>
                 </li>
               )

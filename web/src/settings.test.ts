@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  applyFragment, byUse, dismissedWalks, dismissWalk, resetGymOrder, showDismissedWalks, walkDismissed, importNeedsConfirm, importQuestion, emptySettings, gymFromKnown, usedGym, isLine, withSuggested, load, parseFragment, placeRequest, planPlace, prefs, sanitize, save, settingsLink,
+  applyFragment, byUse, dismissedWalks, dismissWalk, resetGymOrder, showDismissedWalks, walkDismissed, importNeedsConfirm, importQuestion, emptySettings, gymFromKnown, usedGym, isLine, withSuggested, load, parseFragment, placeRequest, prefs, sanitize, save, settingsLink,
   type Settings,
 } from './settings.ts'
 import { addDays, countdown, dayLabel, dayOf, delay, duration, fromLocalInput, ordinal, platform, roundUp, shortDuration, spare, statusTime, toLocalInput } from './format.ts'
@@ -11,20 +11,16 @@ const TOKEN = 'abcdefghijklmnopqrstuvwxyz0123456789_-ABCDEF'
 const sample: Settings = {
   version: 1,
   token: TOKEN,
-  homes: [{ id: 'h1', name: 'Home', lat: -33.8, lon: 151.1, access: [{ stop: '2077', name: 'Some Station', walk_s: 600 }] }],
+  homes: [{ id: 'h1', name: 'Home', lat: -33.8, lon: 151.1, access: [{ stop: '2077', name: 'Some Station' }] }],
   gyms: [
     {
       id: 'g1', name: '9 Degrees Lane Cove', address: '1a/21 Mars Rd, Lane Cove West', lat: -33.80795, lon: 151.15063,
-      access: [{ stop: '206638', name: 'Mars Rd Stop', walk_s: 300 }], lines: ['train T9', 'metro M1', 'bus 288'],
+      access: [{ stop: '206638', name: 'Mars Rd Stop' }], lines: ['train T9', 'metro M1', 'bus 288'],
     },
   ],
   activeHome: 'h1',
   walkSpeedMps: 1.4,
   risk: { safe_s: 120, tight_s: 30 },
-  walks: [
-    { kind: 'change', from: ['2121'], to: ['2121'], label: 'Change at Epping', times: [150] },
-    { kind: 'access', place: 'home:h1', stop: ['2077'], label: 'Home – Some Station', times: [500, 520], trace: [[151.1, -33.8], [151.11, -33.81]] },
-  ],
 }
 
 test('sanitize keeps valid data and drops malformed entries', () => {
@@ -34,7 +30,6 @@ test('sanitize keeps valid data and drops malformed entries', () => {
     homes: [...sample.homes, { id: 'x', name: 'Bad', lat: 999, lon: 0 }, 'nope'],
     walkSpeedMps: 99,
     risk: { safe_s: 10, tight_s: 60 },
-    walks: [{ kind: 'change', from: ['a'], to: ['b'], label: 'x', times: [-5] }, { kind: 'nope' }, 'x'],
     extra: '<script>',
   }
   const s = sanitize(dirty)
@@ -42,10 +37,17 @@ test('sanitize keeps valid data and drops malformed entries', () => {
   assert.equal(s.homes.length, 1)
   assert.equal(s.walkSpeedMps, undefined)
   assert.equal(s.risk, undefined)
-  assert.deepEqual(s.walks, [])
   assert.equal('extra' in s, false)
   assert.deepEqual(sanitize(null), emptySettings())
   assert.deepEqual(sanitize(sample), sample)
+  // What isn't part of the settings is dropped: saved walk times, and a time against a chosen stop.
+  const extra = {
+    ...sample,
+    homes: [{ ...sample.homes[0], access: [{ stop: '2077', name: 'Some Station', walk_s: 600 }] }],
+    walks: [{ kind: 'access', place: 'home:h1', stop: ['2077'], label: 'Home – Some Station', times: [500] }],
+    retime: 'average',
+  }
+  assert.deepEqual(sanitize(extra), sample)
 })
 
 test('gyms keep their lines and drop malformed ones', () => {
@@ -68,11 +70,11 @@ test('isLine accepts what the server writes', () => {
   for (const bad of ['', 'bus', 'tram 1', 'bus  ', 'Bus 288', 5]) assert.equal(isLine(bad), false, String(bad))
 })
 
-test('a built-in gym keeps its curated lines and walks, with a fresh id', () => {
-  const k = { id: 'lanecove', name: 'Gym', lat: -33.8, lon: 151.1, lines: ['bus 288'], access: [{ stop: '1', name: 'Mars Rd', walk_s: 90 }] }
+test('a built-in gym keeps its lines and chosen stops, with a fresh id', () => {
+  const k = { id: 'lanecove', name: 'Gym', lat: -33.8, lon: 151.1, lines: ['bus 288'], access: [{ stop: '1', name: 'Mars Rd' }] }
   const g = gymFromKnown(k)
   assert.deepEqual(g.lines, ['bus 288'])
-  assert.deepEqual(g.access, [{ stop: '1', name: 'Mars Rd', walk_s: 90 }])
+  assert.deepEqual(g.access, [{ stop: '1', name: 'Mars Rd' }])
   assert.equal(g.ref, 'lanecove')
   assert.ok(g.id.length > 0)
   assert.notEqual(g.lines, k.lines, 'must be a copy')
@@ -105,7 +107,7 @@ test('activeHome falls back to the first home', () => {
 })
 
 test('settings link round-trips through the fragment, compressed', async () => {
-  const big = { ...sample, homes: [{ ...sample.homes[0], access: Array.from({ length: 8 }, (_, i) => ({ stop: `21212${i}`, name: 'Central Station', walk_s: 1140 })) }] }
+  const big = { ...sample, homes: [{ ...sample.homes[0], access: Array.from({ length: 8 }, (_, i) => ({ stop: `21212${i}`, name: 'Central Station' })) }] }
   const link = await settingsLink('https://gym.example.com', big)
   assert.ok(link.startsWith('https://gym.example.com/#z='))
   assert.ok(link.length < JSON.stringify(big).length, 'compressed link should be shorter than the JSON')
@@ -150,23 +152,14 @@ test('load/save survive broken storage', () => {
   assert.equal(save({ setItem: () => { throw new Error('quota') } }, sample), false)
 })
 
-test('requests carry curated access and preferences', () => {
-  assert.deepEqual(placeRequest(sample.homes[0]), { lat: -33.8, lon: 151.1, access: [{ stop: '2077', walk_s: 600 }] })
+test('requests carry the chosen stops and preferences', () => {
+  assert.deepEqual(placeRequest(sample.homes[0]), { lat: -33.8, lon: 151.1, access: ['2077'] })
   assert.deepEqual(placeRequest({ ...sample.homes[0], access: [] }), { lat: -33.8, lon: 151.1 })
-  assert.deepEqual(prefs(sample), {
-    walk_speed_mps: 1.4, risk: { safe_s: 120, tight_s: 30 },
-    transfers: [{ from: '2121', to: '2121', secs: 150 }],
-  })
-  // No pace set: the one the timed, traced walks show (about 700 m in 500 s), else the server's default.
+  assert.deepEqual(prefs(sample), { walk_speed_mps: 1.4, risk: { safe_s: 120, tight_s: 30 } })
+  // No pace set: none is sent, and the server uses its default.
   const { walkSpeedMps: _, ...unset } = sample
-  const traced = { kind: 'access' as const, place: 'home:h1', stop: ['2077'], label: 'x', times: [500], trace: [[151.1, -33.8], [151.1, -33.8063]] as [number, number][] }
-  assert.equal(prefs({ ...unset, walks: [traced] }).walk_speed_mps, 1.4)
-  assert.equal(prefs({ ...sample, walks: [traced] }).walk_speed_mps, 1.4, 'a pace set in Settings wins (it is 1.4 too)')
-  assert.equal(prefs({ ...sample, walkSpeedMps: 1.1, walks: [traced] }).walk_speed_mps, 1.1)
-  assert.equal(prefs({ ...unset, walks: [] }).walk_speed_mps, undefined)
-  // A home's timed walks go with it; suggestions (placeRequest) never carry them.
-  assert.deepEqual(planPlace('home', sample.homes[0], sample.walks).walks, [{ stop: '2077', walk_s: 510 }])
-  assert.equal(planPlace('gym', { ...sample.gyms[0], ref: 'lane-cove' }, sample.walks).walks, undefined)
+  assert.equal(prefs(unset).walk_speed_mps, undefined)
+  assert.equal(prefs({ ...sample, walkSpeedMps: 1.1 }).walk_speed_mps, 1.1)
 })
 
 test('formatting', () => {
@@ -224,7 +217,7 @@ test('gyms are listed most used first, otherwise as added', () => {
 })
 
 test('a dismissed longer walk notice stays away for that walk, whichever gym the trip is to', () => {
-  // The walk is kept as a timed walk is: the place, and the stop (a station for a rail platform). No gym in it.
+  // The walk is kept by the place and the stop (a station for a rail platform). No gym in it.
   assert.equal(walkDismissed(sample, 'home:h1', '212110'), false)
   let s = dismissWalk(sample, 'home:h1', '212110')
   assert.equal(walkDismissed(s, 'home:h1', '212110'), true)

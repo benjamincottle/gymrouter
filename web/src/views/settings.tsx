@@ -3,10 +3,8 @@ import { encode } from 'uqr'
 import { dismissedWalks, emptySettings, MAX_GYMS, resetGymOrder, sanitize, settingsLink, showDismissedWalks, type Gym, type Home, type Settings } from '../settings.ts'
 import type { ComponentChildren } from 'preact'
 import { PaceTest } from './pacetest.tsx'
-import { DeleteButton, EditButton, IconColour, IconDevices, IconGym, IconHome, IconPhone, IconRisk, IconTimer, IconWalk } from './icons.tsx'
+import { DeleteButton, EditButton, IconColour, IconDevices, IconGym, IconHome, IconPhone, IconRisk, IconWalk } from './icons.tsx'
 import type { DefaultsResponse } from '../types.ts'
-import { mmss } from '../walkmeasure.ts'
-import { learnedPace, walkSecs } from '../walks.ts'
 import { GymChooser, newGym, newHome, PlaceEditor, type EditorKind } from './places.tsx'
 import { BrandLogo } from './brand.tsx'
 import { Button, Callout, Confirm, ConfirmSheet, Field, Row, Section, Segmented, TextButton, type Tone } from './ui.tsx'
@@ -31,11 +29,10 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
     settings.homes.length === 0 ? editNew('home') : settings.gyms.length === 0 ? { kind: 'choose-gyms' } : null,
   )
   const [warning, setWarning] = useState('')
-  const [deleting, setDeleting] = useState<string | null>(null) // the row asking to be deleted: "home:<id>", "gym:<id>", "walk:<index>"
+  const [deleting, setDeleting] = useState<string | null>(null) // the row asking to be deleted: "home:<id>", "gym:<id>"
   const [paceTest, setPaceTest] = useState(false)
   const [resetting, setResetting] = useState(false)
   const d = server?.defaults
-  const learned = learnedPace(settings.walks) // from timed, traced walks; a speed typed in below wins
   const dismissed = dismissedWalks(settings).length // "Longer walk" notices
   const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
   // Connection risk: one threshold changed (undefined: back to its default). Safe can't be below tight, so the other
@@ -86,7 +83,6 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
         isNew={editing.isNew}
         token={settings.token!}
         homes={settings.homes}
-        walks={settings.walks}
         maxWalkM={settings.maxWalkM}
         onAuthError={onAuthError}
         onCancel={() => setEditing(null)}
@@ -116,7 +112,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
               <Confirm
                 as="li"
                 question={`Delete ${h.name}?`}
-                detail="Its stops and timed walks to them go with it."
+                detail="Its stops go with it."
                 confirm="Delete"
                 onKeep={() => setDeleting(null)}
                 onConfirm={() => {
@@ -193,10 +189,9 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
         <NumberField
           label="Walking speed (km/h)"
           value={settings.walkSpeedMps !== undefined ? round1(settings.walkSpeedMps * 3.6) : undefined}
-          fallback={learned !== null ? round1(learned * 3.6) : d && round1(d.walk_speed_mps * 3.6)}
-          fallbackIs={learned !== null ? 'your pace on timed walks' : undefined}
+          fallback={d && round1(d.walk_speed_mps * 3.6)}
           step="0.1"
-          about="Used for walks you haven't timed."
+          about="Every walk is worked out at this pace, along its route on the street map."
           extra={
             !paceTest && (
               <TextButton quiet onClick={() => setPaceTest(true)}>
@@ -264,64 +259,6 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
         />
       </Section>
 
-      <Section
-        title="Timed walks"
-        icon={<IconTimer />}
-        intro={'Walks and changes you\'ve timed during trips (tap "Time my walk" while travelling). They\'re used whenever the same walk comes up, either way round, and the route you walked is drawn on the map.'}
-      >
-        {settings.walks.length === 0 ? (
-          <p class="meta">None yet.</p>
-        ) : (
-          <ul class="rows">
-            {settings.walks.map((w, i) =>
-              deleting === `walk:${i}` ? (
-                <Confirm
-                  as="li"
-                  question={`Delete ${w.label}?`}
-                  detail="The street map's estimate is used again."
-                  confirm="Delete"
-                  onKeep={() => setDeleting(null)}
-                  onConfirm={() => {
-                    setSettings({ ...settings, walks: settings.walks.filter((x) => x !== w) })
-                    setDeleting(null)
-                  }}
-                />
-              ) : (
-                <Row
-                  main={w.label}
-                  meta={`${mmss(walkSecs(w))}${w.times.length > 1 ? `, average of ${w.times.length}` : ''}${w.trace ? ', traced' : ''}`}
-                >
-                  <span class="row-actions">
-                    <DeleteButton label={`Delete the timed walk ${w.label}`} onClick={() => setDeleting(`walk:${i}`)} />
-                  </span>
-                </Row>
-              ),
-            )}
-          </ul>
-        )}
-        <fieldset class="choice">
-          <legend>Timing a walk again</legend>
-          <label class="check">
-            <input
-              type="radio"
-              name="retime"
-              checked={(settings.retime ?? 'average') === 'average'}
-              onChange={() => setSettings({ ...settings, retime: 'average' })}
-            />
-            <span>Average it with the last few walks</span>
-          </label>
-          <label class="check">
-            <input
-              type="radio"
-              name="retime"
-              checked={settings.retime === 'replace'}
-              onChange={() => setSettings({ ...settings, retime: 'replace' })}
-            />
-            <span>Replace the earlier time</span>
-          </label>
-        </fieldset>
-      </Section>
-
       <Section title="Appearance" icon={<IconColour />}>
         <Segmented
           label="Light or dark"
@@ -333,7 +270,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
 
       <Backup settings={settings} setSettings={setSettings} />
 
-      <Section title="This device" icon={<IconPhone />} intro="Removes this device's access, homes, gyms and timed walks. Backups and other devices keep theirs.">
+      <Section title="This device" icon={<IconPhone />} intro="Removes this device's access, homes and gyms. Backups and other devices keep theirs.">
         <Button variant="danger" onClick={() => setResetting(true)}>
           Reset this device
         </Button>
@@ -364,11 +301,10 @@ function round1(v: number) {
  * A number setting. Empty means "use the default", and the hint says what that is; a changed value offers the default
  * back. Changes save as you go, and say so briefly.
  */
-function NumberField({ label, value, fallback, fallbackIs = 'the default', step, about, extra, onChange }: {
+function NumberField({ label, value, fallback, step, about, extra, onChange }: {
   label: string
   value: number | undefined // undefined: the default
   fallback: number | undefined // the default, once the server has said
-  fallbackIs?: string // what an empty field uses, when it isn't the server's default
   step: string
   about?: string
   extra?: ComponentChildren
@@ -391,13 +327,13 @@ function NumberField({ label, value, fallback, fallbackIs = 'the default', step,
         <span aria-live="polite">
           {about && `${about} `}
           {value === undefined ? (
-            def && `Empty uses ${fallbackIs}, ${def}. `
+            def && `Empty uses the default, ${def}. `
           ) : (
             <>
               Your setting.{' '}
               {def && (
                 <TextButton quiet onClick={() => change(undefined)}>
-                  Use {fallbackIs} ({def})
+                  Use the default ({def})
                 </TextButton>
               )}{' '}
             </>
@@ -522,10 +458,10 @@ function Backup({ settings, setSettings }: { settings: Settings; setSettings: (s
   )
 }
 
-/** "1 home, 3 gyms and 4 timed walks" */
+/** "1 home and 3 gyms" */
 function counts(s: Settings): string {
   const n = (k: number, one: string) => (k === 0 ? '' : `${k} ${one}${k === 1 ? '' : 's'}`)
-  const parts = [n(s.homes.length, 'home'), n(s.gyms.length, 'gym'), n(s.walks.length, 'timed walk')].filter(Boolean)
+  const parts = [n(s.homes.length, 'home'), n(s.gyms.length, 'gym')].filter(Boolean)
   return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts.join('')
 }
 

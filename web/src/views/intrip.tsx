@@ -4,10 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, spare, statusTime } from '../format.ts'
 import { useNow, useVisible, useWide } from '../hooks.ts'
-import { assess, changesNote, focusLegs, instruction, keepFrom, phaseAt, replanOrigin, replanTime, spareToBoard, suggestionKey, tripsFrom, USABLE_M, type Assessment, type Missed, type Phase, type Position } from '../intrip.ts'
+import { assess, changesNote, focusLegs, instruction, keepFrom, phaseAt, replanOrigin, replanTime, spareToBoard, stopKey, suggestionKey, tripsFrom, USABLE_M, type Assessment, type Missed, type Phase, type Position } from '../intrip.ts'
 import type { Option, PlanRequest } from '../types.ts'
-import type { Walk } from '../walkmeasure.ts'
-import { existing, legTrace, segments, stopKey, type PlaceRef, type Retime, type Segment, type TimedWalk } from '../walks.ts'
+import type { PlaceRef } from '../settings.ts'
 import { MapPane, MapSheet, TripRow } from './board.tsx'
 import { BoardStrip, RideCountdown, Timeline, type Tracking } from './option.tsx'
 import { callPlaces, stopsPassed, type RideProgress } from '../countdown.ts'
@@ -15,7 +14,6 @@ import { position, rows } from '../options.ts'
 import { advance, phaseOf, rowLines, shapeKey, walkLeftS, walkTo, type At, type LonLat } from '../progress.ts'
 import { boarding, type Fix, type Sighting } from '../boarding.ts'
 import { vehicleOf, type Doing } from './icons.tsx'
-import { WalkTimer } from './walktimer.tsx'
 import { ActionBar, Button, Callout, Confirm, TextButton } from './ui.tsx'
 
 /** Everything needed to resume a trip after a reload; kept on this device only. */
@@ -23,7 +21,7 @@ export interface ActiveTrip {
   option: Option // the option as currently committed (updated with live times)
   plannedArrive: string
   request: PlanRequest // the original request (from/to/prefs)
-  ends: { start: PlaceRef; end: PlaceRef } // the home or gym at each end, for timing walks to and from them
+  ends: { start: PlaceRef; end: PlaceRef } // the home or gym at each end
   title: string
   origin: [number, number]
   destination: [number, number]
@@ -42,13 +40,10 @@ const HISTORY_MS = 180_000 // your recent fixes, kept to compare with the vehicl
 const STALE_MS = 20_000 // a fix older than this isn't where you are now
 const LOST_MS = 90_000 // no fix for this long (a tunnel, an underground platform): the clock says where you are
 
-export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd, onAuthError }: {
+export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   trip: ActiveTrip
   token: string
-  walks: TimedWalk[]
-  retime: Retime
   onUpdate: (t: ActiveTrip) => void
-  onSaveWalk: (s: Segment, w: Walk, replace: boolean) => void
   onEnd: () => void
   onAuthError: () => void
 }) {
@@ -63,10 +58,6 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   const [mapOpen, setMapOpen] = useState(false)
   const [ending, setEnding] = useState(false)
   const wide = useWide()
-  const [timing, setTiming] = useState<Segment | null>(null)
-  const [saved, setSaved] = useState('')
-  const timerRef = useRef<HTMLDivElement>(null)
-  useEffect(() => timerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), [timing])
   const o = trip.option
   const phaseRef = useRef<Phase>(phaseAt(o, now))
   const tripRef = useRef(trip) // the trip as it is now, for a re-check that started before it last changed
@@ -97,11 +88,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
     }
   }, [rides.map(shapeKey).join(',')])
   const steps = useMemo(() => rows(o, true), [o])
-  // A walk you've timed and traced is followed along your own route, as on the map.
-  const stepLines = useMemo(
-    () => rowLines(steps, o, trip.origin, trip.destination, shapes, (i) => legTrace(walks, o, i, trip.ends.start.key, trip.ends.end.key)),
-    [steps, shapes, walks],
-  )
+  const stepLines = useMemo(() => rowLines(steps, o, trip.origin, trip.destination, shapes), [steps, shapes])
   // On your vehicle? Your fixes moving with its live reports say so (boarding.ts); polled while you wait for it or ride it.
   const history = useRef<Fix[]>([])
   const sightings = useRef<Record<string, Sighting[]>>({})
@@ -306,8 +293,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
   const countdownStrip = ride && onLeg ? <RideCountdown leg={onLeg} ride={ride} /> : null
   // The train you're getting to or waiting for, when the server has said where to board it.
   const catching = phase.kind === 'before' && o.legs[phase.ride]?.board ? phase.ride : null
-  // The trip's description: you on its rail, and its walks to time (from the map, timing goes back to this screen).
-
+  // The trip's description, with you on its rail.
   const track: Tracking = {
     now,
     at,
@@ -315,12 +301,6 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
     ride,
     opened,
     onOpen: (key, open) => setOpened((cur) => ({ ...cur, [key]: open })),
-    segs: segments(o, trip.ends.start, trip.ends.end),
-    onTime: (s) => {
-      setMapOpen(false)
-      setSaved('')
-      setTiming(s)
-    },
   }
   const lateBy = check && check.status !== 'missed' ? check.lateBy : 0
   const spareS = nextRide ? spareToBoard(nextRide, here, now, trip.walkSpeedMps, leftS) : null
@@ -431,29 +411,6 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
         </section>
       )}
 
-      {timing ? (
-        <div ref={timerRef}>
-          <WalkTimer
-            from={timing.from}
-            to={timing.to}
-            earlier={existing(walks, timing)?.times ?? []}
-            estimateS={timing.estimateS}
-            retime={retime}
-            onSave={(w, replace) => {
-              onSaveWalk(timing, w, replace)
-              setSaved(`Saved: ${timing.label}. It's used from now on.`)
-              setTiming(null)
-            }}
-            onCancel={() => setTiming(null)}
-          />
-        </div>
-      ) : null}
-      {saved && !timing && (
-        <Callout role="status" onDismiss={() => setSaved('')}>
-          {saved}
-        </Callout>
-      )}
-
       <p class="meta status-line">
         {locState === 'on' && (here ? `Location on (±${Math.round(here.accuracy)} m). ` : pos ? 'No location just now; following the timetable. ' : 'Finding your location… ')}
         {locState === 'denied' && 'Location unavailable; following the timetable. '}
@@ -468,7 +425,7 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
       </p>
 
       <section class="steps" aria-label="The trip">
-        <Timeline option={o} ends={trip.ends} walks={walks} track={track} />
+        <Timeline option={o} ends={trip.ends} track={track} />
       </section>
 
       {!wide && (
@@ -483,8 +440,6 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           me={where}
           doing={doing}
           aboard={riding}
-          walks={walks}
-          places={{ start: trip.ends.start.key, end: trip.ends.end.key }}
           origin={trip.origin}
           destination={trip.destination}
           option={o}
@@ -502,8 +457,6 @@ export function InTrip({ trip, token, walks, retime, onUpdate, onSaveWalk, onEnd
           me={where}
           doing={doing}
           aboard={riding}
-          walks={walks}
-          places={{ start: trip.ends.start.key, end: trip.ends.end.key }}
           origin={trip.origin}
           destination={trip.destination}
           title={trip.title}

@@ -1,15 +1,14 @@
 // Device-side settings: everything personal lives here, never on the server.
 
 import type { KnownGym, PlaceRequest, PlanRequest, SuggestResult } from './types.ts'
-import { changeTimes, learnedPace, placeKey, placeWalks, sanitizeWalks, type PlaceRef, type Retime, type TimedWalk } from './walks.ts'
 
+/** A stop chosen for a place. How long the walk to it takes isn't kept: the server works that out from the street map. */
 export interface AccessStop {
   stop: string
   name: string
-  walk_s: number // the street map's walking time (a walk timed during a trip beats it; see walks.ts)
 }
 
-/** A place on the map: curated stops with measured walk times (empty = every stop within the walking limit). */
+/** A place on the map, and the stops chosen for it (empty = every stop within the walking limit). */
 export interface Place {
   id: string
   name: string
@@ -29,10 +28,23 @@ export interface Gym extends Place {
   uses?: number // how many times it has been chosen to plan a trip: the most used are listed first
 }
 
-/** A "Longer walk" notice that was dismissed: the walk between a place and its nearest stop, as a timed walk is kept. */
+/** A "Longer walk" notice that was dismissed: the walk between a place and its nearest stop. */
 export interface DismissedWalk {
   place: string // the end the walk is from (see placeKey)
-  stop: string // the stop or station it's to (see stopKey)
+  stop: string // the stop it's to, as the server names it (`stretched_walk`: a rail platform by its station)
+}
+
+/** Identifies a home or gym across edits; a built-in gym by what it was added from, so removing and re-adding it keeps what's remembered about it. */
+export function placeKey(kind: 'home' | 'gym', p: { id: string; ref?: string }): string {
+  return kind === 'home' ? `home:${p.id}` : `gym:${p.ref ?? p.id}`
+}
+
+/** A home or gym as one end of a trip. */
+export interface PlaceRef {
+  key: string // see placeKey
+  name: string
+  lat: number
+  lon: number
 }
 
 export interface Settings {
@@ -46,8 +58,6 @@ export interface Settings {
   maxWalkM?: number
   leaveBufferS?: number
   risk?: { safe_s: number; tight_s: number }
-  walks: TimedWalk[] // walks and changes timed during trips
-  retime?: Retime // timing a walk again: average with the earlier ones (default) or replace them
   dismissedWalks?: DismissedWalk[] // "Longer walk" notices not to show again
   theme?: 'light' | 'dark' // unset: follow the system
 }
@@ -56,7 +66,7 @@ export interface Settings {
 export const STORAGE_KEY = 'gymrouter.settings'
 
 export function emptySettings(): Settings {
-  return { version: 1, homes: [], gyms: [], walks: [] }
+  return { version: 1, homes: [], gyms: [] }
 }
 
 const isNum = (v: unknown, min: number, max: number): v is number =>
@@ -85,9 +95,7 @@ function sanitizePlace(input: unknown): Place | null {
   if (Array.isArray(r.access)) {
     for (const a of r.access.slice(0, 20)) {
       const x = a as Record<string, unknown>
-      if (x && isStr(x.stop, 40) && isStr(x.name, 120) && isNum(x.walk_s, 0, 3600)) {
-        access.push({ stop: x.stop, name: x.name, walk_s: Math.round(x.walk_s) })
-      }
+      if (x && isStr(x.stop, 40) && x.stop !== '' && isStr(x.name, 120)) access.push({ stop: x.stop, name: x.name })
     }
   }
   return { id: r.id, name: r.name, lat: r.lat, lon: r.lon, access }
@@ -99,7 +107,6 @@ export function sanitize(input: unknown): Settings {
   if (typeof input !== 'object' || input === null) return out
   const s = input as Record<string, unknown>
   if (isStr(s.token, 200) && /^[A-Za-z0-9_-]{32,}$/.test(s.token)) out.token = s.token
-  out.walks = sanitizeWalks(s.walks)
   if (Array.isArray(s.homes)) {
     for (const h of s.homes.slice(0, 10)) {
       const p = sanitizePlace(h)
@@ -134,7 +141,6 @@ export function sanitize(input: unknown): Settings {
       out.risk = { safe_s: Math.round(r.safe_s), tight_s: Math.round(r.tight_s) }
     }
   }
-  if (s.retime === 'average' || s.retime === 'replace') out.retime = s.retime
   if (Array.isArray(s.dismissedWalks)) {
     const ds: DismissedWalk[] = []
     for (const d of s.dismissedWalks.slice(0, MAX_DISMISSED)) {
@@ -251,12 +257,12 @@ export function applyFragment(cur: Settings, f: FragmentData): Settings {
 
 /**
  * Whether a link would change this device's token or replace what's saved on it. Then the app asks first: anyone can
- * send a link to this origin, and one opened by mistake mustn't log the device out or wipe its homes, gyms and walks.
+ * send a link to this origin, and one opened by mistake mustn't log the device out or wipe its homes and gyms.
  */
 export function importNeedsConfirm(cur: Settings, f: FragmentData): boolean {
   const token = f.kind === 'token' ? f.token : f.settings.token
   if (cur.token && token && token !== cur.token) return true
-  return f.kind === 'settings' && (cur.homes.length > 0 || cur.gyms.length > 0 || cur.walks.length > 0)
+  return f.kind === 'settings' && (cur.homes.length > 0 || cur.gyms.length > 0)
 }
 
 const count = (n: number, one: string) => (n === 0 ? '' : `${n} ${one}${n === 1 ? '' : 's'}`)
@@ -271,7 +277,7 @@ export function importQuestion(cur: Settings, f: FragmentData): string {
   if (f.kind === 'token') {
     return "This link changes this device's access token. Only use it if it came from your own server."
   }
-  const have = [count(cur.homes.length, 'home'), count(cur.gyms.length, 'gym'), count(cur.walks.length, 'timed walk')].filter(Boolean)
+  const have = [count(cur.homes.length, 'home'), count(cur.gyms.length, 'gym')].filter(Boolean)
   const token = f.settings.token && cur.token && f.settings.token !== cur.token ? ' and its access token' : ''
   const what = have.length > 0 ? ` (${have.join(', ')})` : ''
   return `This link replaces everything saved on this device${what}${token}. Only use it if you made it.`
@@ -279,27 +285,20 @@ export function importQuestion(cur: Settings, f: FragmentData): string {
 
 // --- Requests ---
 
+/** A home or gym as one end of a trip: where it is, and the stops chosen for it. */
 export function placeRequest(h: Place): PlaceRequest {
   const p: PlaceRequest = { lat: h.lat, lon: h.lon }
-  if (h.access.length > 0) p.access = h.access.map((a) => ({ stop: a.stop, walk_s: a.walk_s }))
+  if (h.access.length > 0) p.access = h.access.map((a) => a.stop)
   return p
-}
-
-/** A home or gym as one end of a trip: its stops, plus the walks to stops timed from it. */
-export function planPlace(kind: 'home' | 'gym', p: Place & { ref?: string }, walks: TimedWalk[]): PlaceRequest {
-  const r = placeRequest(p)
-  const w = placeWalks(walks, placeKey(kind, p))
-  if (w.length > 0) r.walks = w
-  return r
 }
 
 export function placeRef(kind: 'home' | 'gym', p: Place & { ref?: string }): PlaceRef {
   return { key: placeKey(kind, p), name: p.name, lat: p.lat, lon: p.lon }
 }
 
-/** The pace walks are planned at: the one set in Settings, else the one your timed walks show, else the server's default (undefined). */
-export function walkSpeed(s: Pick<Settings, 'walkSpeedMps' | 'walks'>): number | undefined {
-  return s.walkSpeedMps ?? learnedPace(s.walks) ?? undefined
+/** The pace walks are planned at: the one set in Settings, else the server's default (undefined). */
+export function walkSpeed(s: Pick<Settings, 'walkSpeedMps'>): number | undefined {
+  return s.walkSpeedMps
 }
 
 export function prefs(s: Settings): PlanRequest['prefs'] {
@@ -310,8 +309,6 @@ export function prefs(s: Settings): PlanRequest['prefs'] {
   if (s.maxWalkM !== undefined) p.max_walk_m = s.maxWalkM
   if (s.leaveBufferS !== undefined) p.leave_buffer_s = s.leaveBufferS
   if (s.risk) p.risk = s.risk
-  const transfers = changeTimes(s.walks)
-  if (transfers.length > 0) p.transfers = transfers
   return p
 }
 
@@ -359,11 +356,11 @@ export function newId(): string {
   return Math.random().toString(36).slice(2, 10)
 }
 
-/** Adds a built-in gym to this device, with its curated lines and walks. */
+/** Adds a built-in gym to this device, with its lines and any stops chosen for it. */
 export function gymFromKnown(k: KnownGym): Gym {
   return {
     id: newId(), name: k.name, address: k.address, lat: k.lat, lon: k.lon, lines: [...k.lines], ref: k.id,
-    access: (k.access ?? []).map((a) => ({ stop: a.stop, name: a.name, walk_s: a.walk_s })),
+    access: (k.access ?? []).map((a) => ({ stop: a.stop, name: a.name })),
   }
 }
 

@@ -8,7 +8,6 @@ import { SettingsView } from './views/settings.tsx'
 import { IconSettings } from './views/icons.tsx'
 import { InTrip, TRIP_KEY, type ActiveTrip } from './views/intrip.tsx'
 import { ServerStatusLine } from './views/serverstatus.tsx'
-import { record } from './walks.ts'
 import { applyTheme } from './theme.ts'
 import { Button, Callout, ConfirmSheet, IconButton } from './views/ui.tsx'
 
@@ -133,10 +132,7 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
         <InTrip
           trip={trip}
           token={settings.token}
-          walks={settings.walks}
-          retime={settings.retime ?? 'average'}
           onUpdate={setTrip}
-          onSaveWalk={(seg, w, replace) => setSettings({ ...settings, walks: record(settings.walks, seg, w, replace ? 'replace' : 'average') })}
           onEnd={() => setTrip(null)}
           onAuthError={onAuthError}
         />

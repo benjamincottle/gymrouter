@@ -9,7 +9,7 @@ export interface KnownGym {
   lat: number
   lon: number
   lines: string[] // the lines that serve the gym end
-  access?: { stop: string; name: string; walk_s: number }[] // measured walks from the door
+  access?: { stop: string; name: string }[] // the stops to use there, when it isn't every stop in reach
 }
 
 export interface Defaults {
@@ -104,7 +104,7 @@ export interface PlanResponse {
   trackwork?: Trackwork[] // lines that buses stand in for during the search
   /**
    * Set when an end had no stop within the longest walk, so the nearest ones were used: the walk to the nearest (m),
-   * and that stop as timed walks know it (a rail platform by its station).
+   * and that stop by the ID the server keys walks by (a rail platform by its station).
    */
   stretched_walk?: { from_m?: number; from_stop?: string; to_m?: number; to_stop?: string }
   kept?: Kept // the answer to a request's `keep`
@@ -149,8 +149,8 @@ export interface GeocodeResult {
 export interface PlaceRequest {
   lat?: number
   lon?: number
-  access?: { stop: string; walk_s: number }[]
-  walks?: { stop: string; walk_s: number }[] // timed walks (stop or station IDs); beat everything else
+  access?: string[] // the stops chosen for the place, by ID; the server times the walk to each
+  walks?: { stop: string; walk_s: number }[] // during a trip: the walking left to a stop (stop or station ID), which beats the server's own time for it
   on_trip?: { trip_id: string; from_stop: string }
 }
 
@@ -168,7 +168,6 @@ export interface PlanRequest {
     max_walk_m?: number
     leave_buffer_s?: number
     risk?: { safe_s: number; tight_s: number }
-    transfers?: { from: string; to: string; secs: number }[]
   }
 }
 
