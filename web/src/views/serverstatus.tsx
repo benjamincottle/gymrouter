@@ -3,6 +3,7 @@ import { api, problem } from '../api.ts'
 import { statusTime } from '../format.ts'
 import { usePolling, useVisible } from '../hooks.ts'
 import { details, outdated, summarise } from '../serverstatus.ts'
+import { resetGymOrder, type Settings } from '../settings.ts'
 import type { ServerStatus } from '../types.ts'
 import { TextButton } from './ui.tsx'
 
@@ -23,7 +24,12 @@ const Chevron = () => (
  * to everything the status call returned), then the version. It's for whoever runs the server, so `quiet` (the trip
  * screen) shows it only when there's something to act on: the server isn't OK, or the app is out of date.
  */
-export function ServerStatusLine({ token, quiet }: { token: string; quiet?: boolean }) {
+export function ServerStatusLine({ token, settings, setSettings, quiet }: {
+  token: string
+  settings: Settings
+  setSettings: (s: Settings) => void
+  quiet?: boolean
+}) {
   const visible = useVisible()
   const status = usePolling(token, (signal) => api.status(token, signal), CHECK_MS, visible)
   const [open, setOpen] = useState(false)
@@ -57,7 +63,7 @@ export function ServerStatusLine({ token, quiet }: { token: string; quiet?: bool
         ))}
         {open && (
           <div id="server-detail" class="server-detail">
-            {status.data ? <Detail status={status.data} token={token} refresh={status.refresh} /> : <p>{s.state === 'error' ? 'Nothing to show until the server answers.' : 'Asking the server…'}</p>}
+            {status.data ? <Detail status={status.data} token={token} refresh={status.refresh} settings={settings} setSettings={setSettings} /> : <p>{s.state === 'error' ? 'Nothing to show until the server answers.' : 'Asking the server…'}</p>}
           </div>
         )}
         {version &&
@@ -75,9 +81,16 @@ export function ServerStatusLine({ token, quiet }: { token: string; quiet?: bool
 
 /**
  * The status in full: a row for each thing the server reported, then its reply as it came. The street map's row can
- * ask the server to download it again (`refresh` then asks for the status, which says it's updating).
+ * ask the server to download it again (`refresh` then asks for the status, which says it's updating). The last row is
+ * this device's own: how many gyms it holds, and the way to list them as added again.
  */
-function Detail({ status, token, refresh }: { status: ServerStatus; token: string; refresh: () => void }) {
+function Detail({ status, token, refresh, settings, setSettings }: {
+  status: ServerStatus
+  token: string
+  refresh: () => void
+  settings: Settings
+  setSettings: (s: Settings) => void
+}) {
   const [raw, setRaw] = useState(false)
   const [asking, setAsking] = useState(false)
   const [failed, setFailed] = useState('')
@@ -114,6 +127,21 @@ function Detail({ status, token, refresh }: { status: ServerStatus; token: strin
             </dd>
           </div>
         ))}
+        <div>
+          <dt>Gyms</dt>
+          <dd>
+            {settings.gyms.length} on this device
+            {/* Only while there's an order to reset: once it's gone, they're listed as added. */}
+            {settings.gyms.some((g) => g.uses) && (
+              <>
+                {' '}
+                <TextButton quiet onClick={() => setSettings(resetGymOrder(settings))}>
+                  Reset order
+                </TextButton>
+              </>
+            )}
+          </dd>
+        </div>
       </dl>
       <button class="status-toggle" aria-expanded={raw} aria-controls="server-raw" onClick={() => setRaw(!raw)}>
         The server's reply

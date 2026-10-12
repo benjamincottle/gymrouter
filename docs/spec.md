@@ -858,3 +858,8 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   "Live data, updated 09:31" (or "Timetable only, …") as before, and the countdown sits under its hairline again.
 - 2026-10-12: **Where to board sits above when the train leaves** in Now: the carriages and "Board the 6th carriage
   from the front." come straight under the instruction, then "T1 leaves 19:27 …" and the time to spare.
+- 2026-10-12: **The gyms' order can be reset again, from the status** (supersedes "and with it the way to reset the
+  order", above: removing the reset was a misreading of "remove 6", which meant leave it off the list of fixes). The
+  line in Settings' Gyms section stays gone. The opened server status ends with a row "Gyms: 7 on this device" and a
+  quiet "Reset order", shown while any gym has been chosen: out of the way, with the other things only its owner looks
+  at.

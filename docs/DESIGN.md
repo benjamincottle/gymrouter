@@ -388,6 +388,10 @@ Field, Callout, Row, RowAction, ActionBar, Confirm, ConfirmSheet, plus `useDialo
     5 s while it's open, until the row is back to "Ready, built 8 s ago": the new age is the confirmation. If the
     server can't be asked, the row says why in `--missed` under the action (wording from `problem()`); a download
     that fails is the row's usual `--tight` problem, with Update now to try again.
+  - **Gyms** (the last row, and the only one about this device rather than the server): "7 on this device", then
+    **Reset order** on the same line, a quiet text action. It forgets how often each gym has been chosen, so the trip
+    screen lists them as added again. It's offered only while a gym has been chosen at least once; once tapped it's
+    gone, which is the confirmation. No confirm: nothing but the order is lost.
   - Under the rows, "The server's reply" opens the same way to the reply as it came: JSON on `--panel`, the one place a
     monospace face is used (the system's).
 - **Version** (the footer, last): `Version 87692b5`, the first seven characters of the commit the server was built

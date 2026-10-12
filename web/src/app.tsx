@@ -210,7 +210,7 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
         )}
       </main>
       {linkSheet}
-      <ServerStatusLine token={settings.token} quiet={view !== 'settings'} />
+      <ServerStatusLine token={settings.token} settings={settings} setSettings={setSettings} quiet={view !== 'settings'} />
     </div>
   )
 }
