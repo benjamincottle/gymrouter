@@ -162,6 +162,112 @@ Investigate are recorded only, not started.
   wrong advice is worse than none.
   **Next, when asked:** a time-boxed prototype that only prints its advice for trips we know, with no interface;
   build it for real only if that advice turns out right.
+  **How it would look, chosen from mock-ups (2026-10-12), not built:**
+  - In Now, from "Get to the station" until you're on board, and nowhere else (not on the ride's step, not while
+    planning): the train as a strip heading right, a piece for each carriage, the front one with a raked driver's
+    cab. Every carriage is a hairline-grey outline but yours, which is a thin outline in the line's colour. Under it
+    the runner from the gym rows and one sentence with no reason given: "Board the 4th carriage from the front."
+  - On the map: the platform you board from has a faint fill in the line's colour. Where the spot to stand is known,
+    the runner sits on it in the "you" marker's disc at 45% strength. It never reacts to where you are: no "you're
+    there", and your own marker simply passes over it.
+  - The carriage can be named from the destination platform alone. The spot can only be named where the train fills
+    the platform you board from: Hornsby's 2 and 3 are 77 m longer than an 8-carriage train, and where a train stops
+    along them isn't published. There, the strip shows and the map has no marker.
+  - Nothing shows when the carriage isn't known (a short train, a platform with no stairs in the data).
+  - It shows whenever the carriage is known: every train ride, with no test for whether it's worth it.
+  - It only ever aims for stairs or escalators, never a lift.
+  **The prototype (2026-10-12):** a script outside the repo that only prints. Over 102 real plans between a neutral
+  start at Hornsby station and the 17 built-in gyms, both ways, it met 220 different train and metro rides, getting
+  off at 70 platforms.
+  - How it decides: the way on is the quickest way by the timetable's station pathways (lifts left out) from the
+    platform to the next platform, or out of the station and on to the next stop or the place. The carriage is where
+    that way off sits along the platform's outline, from the end the train leaves by, in 20.4 m carriages (22 m on
+    the metro). A platform longer than the train is tried with the train stopped at each end of its room: if the two
+    answers differ, it says nothing. The spot to wait needs the boarding platform within 10 m of the train's length.
+  - What came out: a carriage for 111 rides (the way on is stairs for 86, escalators for 12, a way off on the level
+    for 13), and a spot to wait for 64 of those. It can't say for 89, always because the platform is longer than the
+    train: the long platforms built for intercity trains (Hornsby 2 to 4, Strathfield, Epping, Lidcombe, Granville,
+    Penrith, Central 14) and most of the metro. Nothing to say for 20 (the next train is at the same platform or
+    across it).
+  - Not checked on the ground. The two answers that could be tested hold (Redfern's Lawson St stairs at the city
+    end, Central's main concourse at the north end of 16 to 23).
+  - Decided since (2026-10-12): on a platform longer than the train, don't stay quiet: take the train as stopped
+    in the middle of its room, for the carriage and for the spot on the map alike. It's the right end of the train
+    at least. And a close call is no reason to hold back: pick the best way on even when the second best is within
+    seconds (31 answers, beside a different carriage for 25).
+  - Where trains stop turned out to be in data we already download. The street map (the same Geofabrik extract)
+    marks a stopping point on the track at each platform, tagged with the platform's timetable ID (`ref`), and on 553
+    of the 591 train and metro stopping points in the area it carries `exit:carriages:forward`: one entry a
+    carriage, saying which way off is beside it (Hornsby 3: `no|no|lift|steps|no|no|no|no`). 477 lists are for 8
+    carriages, 30 for 6, 26 for 10. Which end is the front has to be worked out (the tag follows the track's
+    direction in the map): the prototype turns the list whichever way fits the measured stairs and lifts better.
+  - Second run, with that list used first, measuring second and the middle last: every ride that needs a carriage
+    gets one. 153 from the map, 20 measured, 27 by the middle (platforms with no list, or a list for another length
+    of train: Penrith, Eastwood, Epping, Central 14, Strathfield 1, part of the metro), 20 with nothing to say. The
+    spot to wait comes from the boarding platform's list for 180 of the 200.
+  - The map and measuring disagree more often than not: the same carriage for 48 of the 153, one out for 87, two out
+    for 18. The map is the likelier to be right (recorded per staircase; measuring depends on where an outline ends
+    and where the timetable puts the top of the stairs), but it's volunteers' work and unchecked by us. **To check
+    on the ground**, the map's Hornsby, front carriage first: platform 1 leaving for the city, stairs and lift at
+    the front; platform 3 leaving towards Strathfield, lift at the 3rd and steps at the 4th; arriving, platform 1
+    stairs and lift at the back, platform 2 stairs at the 7th and lift at the 8th, platform 4 stairs at the 6th and
+    lift at the 7th.
+  - Ways off on the level count as targets: the ramps at Strathfield, the walk off the end of Central 14, the links
+    to the concourse at Sydenham and Gadigal (the map lists them as `flat` or `ramp`). A way off that is only a
+    lift is skipped whatever kind of path the timetable calls it (Meadowbank's "LFT Railway Rd" is a "walkway").
+  - The metro says where it stops. Its trains report "stopped at" with a position in the live feed. Ten minutes of
+    collecting at one poll every 10 s, on top of an earlier sparser sample, gave a position for 40 of its 42
+    platforms; at 39 a second train reported the same position to the last digit (at Barangaroo 1 a third train
+    was 10 m further on). The two without are rarely used (Sydenham 2, Tallawong 3). That position is the train's
+    front: at 34 of the 40 it's where the front of a train stopped in the middle of the platform would be (3.4 m
+    out on average, spread 5.5 m), so the middle rule is the metro's real rule. The other six (Epping 5, Martin
+    Place 3 and 4, Central 26 and 27, Sydenham 1) are platforms whose outlines in the map are wrong: there the
+    reported position stands in for the outline.
+  - Which end of the map's list is the front comes from the track: the list runs front carriage first for a train
+    going the way the track is drawn in the map (`:forward`). Wherever the stairs could settle it themselves, the
+    track agreed, 219 times out of 219. Fitting the list to the stairs alone flips on near-symmetric platforms
+    (Macquarie Park went from the 5th carriage to the 2nd), so the track's direction has to be read.
+  - Why the map and measuring differ: probably the timetable marks the top of the stairs, by the concourse, and the
+    map where they land on the platform. On the metro, where the two name different carriages the map's is the one
+    further from the middle of the train 42 times out of 56. So the map's lists are the ones to trust, and
+    measuring is good to a carriage where there's no list. Not confirmed on the ground.
+  - Fourth run, with all of that: 225 rides; the carriage comes from the map's list for 152, from the metro's
+    reported stop for 28, from measuring for 11 and from the middle rule for 12 (trains only: Penrith, Eastwood,
+    Epping, Central 14, Strathfield 1); 22 have nothing to say. On the trains the map and measuring name the same
+    carriage for 46 of 142, one out for 79, two out for 17.
+  - Dead ends: ordinary trains' live positions sit on a fixed point per platform, too coarse. The carriage tables in
+    the Sydney Trains bundle (`vehicle_boardings.txt`) say which carriages reach a platform shorter than the train,
+    not where a train stops on a longer one; still worth using, so it never names a carriage whose doors stay shut.
+  - **Pending field tests** (the approach looks solid; these are what only standing on a platform can settle):
+    the map's lists at Hornsby, platforms 1 to 4 (above); at a station where the map and measuring name different
+    carriages, which one the stairs are really beside; on the metro, that the front of the train stops where the
+    collected position says; and on a long platform with no list (Epping, Eastwood, Strathfield 1), how far out the
+    middle rule is.
+  - To build it: the street network's build would have to keep these stopping points, their tags and the direction
+    of the track through each (the reader doesn't keep a node's tags today); and the metro's stopping points would
+    be either a small built-in table (40 positions) or learned by the server from the live feed it already polls.
+
+## To decide
+
+- [ ] **Timed walks filed by platform, not by station?** Raised over Central (2026-10-10); discussed, not decided,
+      nothing built. Today a timed walk to a train, metro or light-rail platform is filed under its station ("any
+      platform counts: they're inside, a minute apart"), which is a weak assumption at Central:
+  - walks to the station: the time measured to one platform is used for every platform there, and retiming
+    averages timings to different platforms together;
+  - changes inside the station (the worse of the two): "Change at Central" is one time for every pair of
+    platforms and beats the timetable's own times for each pair, so a one-minute cross-platform change says
+    platform 1 to platform 24 takes a minute too.
+  The proposal: file a walk under the platform walked to, and give the station's untimed platforms the mean of the
+  timed ones until they're timed; apply a timed change only to the pair of platforms walked, with nothing
+  station-wide, so other pairs keep the timetable's times. Mostly an app change: the server already looks for a
+  time on the stop itself before its station.
+  To decide first:
+  - walks already timed can't be put to a platform: drop them and time again (greenfield, no migrations), or keep
+    them as the station's time;
+  - Settings would list "Home – Central Station, Platform 16", several rows for a busy station: needs a rule in
+    `docs/DESIGN.md`;
+  - the time for untimed platforms: the mean (simplest), or the longest timed (cautious: too short a walk is what
+    misses a train).
 
 # TODO: field reports (2026-10-10)
 
