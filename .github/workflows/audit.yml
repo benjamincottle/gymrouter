@@ -41,7 +41,9 @@ jobs:
         with:
           go-version-file: go.mod
           # go.mod names an exact patch release, so that's the one audited: a standard-library advisory
-          # fails this job until the go directive is bumped, and that push rebuilds the image.
+          # fails this job until the go directive is bumped, and that push rebuilds the image. The Dockerfile
+          # pins the golang image by digest, so Dependabot's bump of that pin has to be merged first: the
+          # build fails on a Go older than the directive.
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 

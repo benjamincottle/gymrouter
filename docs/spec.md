@@ -907,3 +907,15 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   block ran straight into the links above the options. The countdown now sits between two hairlines: the one under
   the gym's row and this one. Rejected: the heavy rule that starts a section (as above "Now" during a trip), a
   stronger break than this screen has anywhere else, close under the risk line.
+- 2026-10-13: **The build images are pinned by digest, and Dependabot looks daily** (supersedes the hardening
+  review's choice of 2026-10-05, to fold the `golang` and `node` digests into the scheduled rebuild check). The
+  gap: `build.yml` only watched the distroless base, so a Go standard-library fix shipped with the next code
+  push; the binary is static, and the fix is in it, not in the base. `golang` and `node` are now named by digest
+  in the Dockerfile, as pmtiles was, and Dependabot's docker updates run daily instead of weekly: a Go patch
+  release arrives as a pull request, CI builds on it, and merging it publishes the image. What's built only
+  changes with a commit, so a build can be repeated. The cost is a merge for each new image, and an order: the
+  `go` directive in `go.mod` can't be bumped ahead of the pinned image (the build fails on an older Go), so
+  Dependabot's pull request goes first. Rejected: the automatic rebuild within a day (built, then dropped the
+  same day: it publishes whatever the tag points at with no CI run first, and a person deploys by hand anyway),
+  a blind weekly rebuild, and a different runtime base (the fix isn't there). The scheduled check stays for the
+  images still taken by tag, which it reads from the Dockerfile's `FROM` lines: today the distroless base.

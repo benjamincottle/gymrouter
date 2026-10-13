@@ -26,20 +26,21 @@ unauthenticated requests look like a 404, strict CSP and headers, bounded bodies
 bodies never logged, distroless non-root read-only container, pinned actions, govulncheck and npm audit
 clean today). Roughly in order of value.
 
-- [ ] **Images don't pick up Go security fixes.** `build.yml` rebuilds on a schedule only when the distroless
-      digest changes, so a Go standard-library fix (the binary is static, built on `golang:1.27-trixie`)
-      only ships with the next code push. `audit.yml` runs govulncheck with `check-latest: true`, so it
-      checks the newest Go, not the one the published image was built with: it can't see this gap.
-      **Decided (2026-10-05): fold the `golang` and `node` image digests into the scheduled change check**,
-      so a Go patch release produces a new image within a day (rather than a blind weekly rebuild).
+- [x] **Images don't pick up Go security fixes.** `build.yml` rebuilt on a schedule only when the distroless
+      digest changed, so a Go standard-library fix (the binary is static, built on `golang:1.27-trixie`)
+      only shipped with the next code push. Decided 2026-10-05: fold the `golang` and `node` image digests
+      into the scheduled check. Superseded 2026-10-13 by pinning them (below): Dependabot now looks daily
+      and a Go patch release arrives as a pull request, which rebuilds the image when it's merged. The
+      scheduled check reads the floating tags from the Dockerfile, which leaves the distroless base.
       Changing the runtime base wouldn't help: the fix lives in the binary, and `distroless/static:nonroot`
       is already the right base (`scratch` and Chainguard `static` are equivalent at best). The bundled
       `pmtiles` binary has its own Go and only updates with upstream releases; the image scan covers it.
 - [ ] **Deploy a fixed image, not `:latest`.** `deploy/compose.example.yaml` pulls `:latest`. Deploy by the
       `:<sha>` tag or a digest (Ansible variable), so a deploy is reproducible and can be rolled back;
       optionally check the build provenance with `gh attestation verify` / cosign before rolling out.
-- [ ] **Pin the build images by digest.** `node:26-trixie-slim` and `golang:1.27-trixie` are floating tags
-      (the pmtiles image is already pinned by digest). Dependabot's docker ecosystem would keep them current.
+- [x] **Pin the build images by digest.** `node:26-trixie-slim` and `golang:1.27-trixie` were floating tags
+      (the pmtiles image was already pinned by digest). Both are pinned now, and Dependabot's docker
+      ecosystem keeps them current, daily rather than weekly.
 - [x] **HSTS.** Neither the app nor the compose labels set `Strict-Transport-Security`. Add a Traefik headers
       middleware (`stsSeconds`, `stsIncludeSubdomains`), or set it in `securityHeaders` when
       `server.public_url` is https.
