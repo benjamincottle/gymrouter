@@ -120,7 +120,7 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   - Nothing else.
 - **Lines:**
   - `--heavy` (3px ink) starts a section: Settings sections, Now, sheet bars. The hero on the trip screen has no rule
-    of its own: the hairline under the gym's row is above it.
+    of its own: it sits between two hairlines, the one under the gym's row and the one above Earlier/Later.
   - `--hair` (1px rule) separates rows.
   - `--bar` (4px) is the side bar of a callout and of the selected row.
   - Control outlines are 1.5px `--edge` (fields) or 1.5px ink (buttons and segmented controls).
@@ -284,6 +284,9 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
   change at North Ryde Station, 22 s spare"; with several changes, the tightest: "Tight tightest change at Central
   Station, 1 min spare"; with none, "Safe no changes". The word sits beside the number it qualifies, and teaches what
   the squares in the rows mean.
+- **Earlier/Later** (trip screen, between the hero and the options): "Earlier trips" on the left and "Later trips"
+  on the right, quiet text actions in 14px, under a hairline that parts the countdown's block from the options
+  (`--s4` above the line, `--s3` under it). With no options there's no countdown above them, and no line.
 - **Options board:** one row per option: leave, tape strip, arrive, risk mark, compact duration.
   - The selected row gets a `--panel` fill and an inset 4px ink bar. Its content doesn't move.
   - The rows share their columns: the times and the duration are as wide as their widest entry, the duration is

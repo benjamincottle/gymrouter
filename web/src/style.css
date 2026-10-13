@@ -1310,6 +1310,12 @@ details > summary {
   font-size: var(--fs-small);
 }
 
+/* under the countdown, a hairline parts it from the options: the countdown sits between this and the gym's row's */
+.board > .shift {
+  padding-top: var(--s3);
+  border-top: var(--hair);
+}
+
 /* ---- the options board: every option as tape across its row ---- */
 
 /* the rows share their columns (subgrid): the times and the door-to-door column are as wide as their widest entry,
