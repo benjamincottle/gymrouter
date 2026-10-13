@@ -1,7 +1,10 @@
 # syntax=docker/dockerfile:1
 
+# The build images are pinned by digest (Dependabot keeps them current), so what's built only changes with a
+# commit: a new Go or Node arrives as a pull request, and CI builds on it before anything is published.
+
 # --- Frontend: built once on the build platform (the output is platform-independent) ---
-FROM --platform=$BUILDPLATFORM node:26-trixie-slim AS web
+FROM --platform=$BUILDPLATFORM node:26-trixie-slim@sha256:193fe51b64e77981119c98c2002c9e32a70e2f006fb4d25068ce0558998917f0 AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 # --ignore-scripts: no dependency gets to run install scripts.
@@ -11,7 +14,7 @@ COPY web/ ./
 RUN npm run build
 
 # --- Server: cross-compiled from the build platform (fast on any runner) ---
-FROM --platform=$BUILDPLATFORM golang:1.27-trixie AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-trixie@sha256:2f84bc93ecfb2689f782b153fdcd368b5a7ab96c1386c65cdaccf35e726d6a44 AS build
 ARG TARGETOS TARGETARCH
 # The commit being built (CI passes github.sha); the footer shows it. The context has no .git to read it from.
 ARG REVISION=""

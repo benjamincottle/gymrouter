@@ -41,10 +41,12 @@ updates:
         update-types:
           - "version-update:semver-major"
 
+  # Daily: the Go and Node build images are pinned by digest, so a Go patch release only reaches the
+  # published image through this pull request.
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "daily"
     groups:
       docker:
         patterns:
