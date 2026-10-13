@@ -865,6 +865,12 @@ details > summary {
   background: var(--safe);
 }
 
+/* newer times are on their way: a ring, not yet a dot */
+.live-dot.pending {
+  border: 1.5px solid var(--pencil);
+  background: none;
+}
+
 /* ---- frame ---- */
 
 .app {
@@ -1252,13 +1258,23 @@ details > summary {
   grid-template-columns: 1fr auto;
   align-items: end;
   column-gap: var(--s4);
-  margin-top: var(--s4);
+  margin-top: var(--s1);
   padding-top: var(--s3);
-  border-top: var(--hair);
 }
 
+/* the label, and at the row's right end whether the times are live (LiveTag) */
 .hero > .label {
   grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s3);
+}
+
+.live-tag {
+  font-size: var(--fs-small);
+  font-weight: 400;
+  white-space: nowrap;
 }
 
 .hero-time {
@@ -2149,21 +2165,6 @@ details > summary {
 
 .intrip .hero {
   margin-top: var(--s2);
-  border-top: 0;
-}
-
-/* whether the trip's times are live, at the end of the Arrive label's row */
-.intrip .hero > .label {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--s3);
-}
-
-.live-tag {
-  font-size: var(--fs-small);
-  font-weight: 400;
-  white-space: nowrap;
 }
 
 .intrip > .callout {

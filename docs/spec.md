@@ -896,3 +896,10 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   - **A gym without a logo has the shoe** where its logo would be, in ink. Rejected: its initials on an ink tile; a
     colour for the shoe, chosen (a setting for telling two of your own gyms apart, which their names do) or given by
     the app.
+- 2026-10-13: **The trip screen says "Live" or "Timetabled" beside "Leave in"** (supersedes "The status line is back
+  under the gym's row", 2026-10-12, and settles the wording left alone earlier today): the tag a trip has beside
+  Arrive, at the right end of the countdown's label row. The line under the gym's row goes, with the time the plan
+  was updated and the hero's hairline, and the countdown moves up about 40px. While a newer plan is slow to arrive
+  the tag reads "Updating…" beside a pencil ring. An orange dot was considered and rejected: orange and yellow mean
+  something is tight or needs a look, and a refresh is neither. The line stays for what the tag can't say: "Planning…", "Finding
+  the fastest trip…", and that walks are estimates.

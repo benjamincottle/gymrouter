@@ -16,6 +16,7 @@ const ms = (iso: string) => Date.parse(iso)
 interface Props {
   options: Option[]
   live: boolean
+  tag?: ComponentChildren // whether the times are live, for the end of the countdown's label row (LiveTag)
   serviceDate: string
   token: string
   origin: [number, number]
@@ -67,7 +68,7 @@ export function Board(p: Props) {
 
   return (
     <div class="board">
-      <Hero option={sel} live={p.live} now={now} />
+      <Hero option={sel} live={p.live} now={now} tag={p.tag} />
       <WindowShift shift={p.onShift} />
       <ol class="strips" role="radiogroup" aria-label="Options" onKeyDown={onRadioKeys}>
         {opts.map((o, i) => (
@@ -127,7 +128,7 @@ function firstRide(o: Option): Leg | undefined {
   return o.legs.find((l) => l.kind === 'ride')
 }
 
-function Hero({ option: o, live, now }: { option: Option; live: boolean; now: number }) {
+function Hero({ option: o, live, now, tag }: { option: Option; live: boolean; now: number; tag?: ComponentChildren }) {
   const ride = firstRide(o)
   const cd = countdown(o.leave_at, now) // "in 18 min", "now", "left 3 min ago"
   const day = dayOf(o.leave_at, now)
@@ -140,7 +141,10 @@ function Hero({ option: o, live, now }: { option: Option; live: boolean; now: nu
         : ['Leave', cd]
   return (
     <section class="hero" aria-live="polite">
-      <p class="label">{label}</p>
+      <p class="label">
+        {label}
+        {tag}
+      </p>
       <p class="hero-time num">{value}</p>
       <p class="hero-arrive">
         Arrive <span class="num">{clock(o.arrive)}</span>
