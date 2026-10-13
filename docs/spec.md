@@ -903,3 +903,7 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   the tag reads "Updating…" beside a pencil ring. An orange dot was considered and rejected: orange and yellow mean
   something is tight or needs a look, and a refresh is neither. The line stays for what the tag can't say: "Planning…", "Finding
   the fastest trip…", and that walks are estimates.
+- 2026-10-13: **A hairline above "Earlier trips" and "Later trips".** With the status line gone, the countdown's
+  block ran straight into the links above the options. The countdown now sits between two hairlines: the one under
+  the gym's row and this one. Rejected: the heavy rule that starts a section (as above "Now" during a trip), a
+  stronger break than this screen has anywhere else, close under the risk line.
