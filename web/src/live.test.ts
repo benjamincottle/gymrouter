@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createLive, type LiveNews, type Open } from './live.ts'
+import { createLive, every, type LiveNews, type Open } from './live.ts'
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
@@ -74,4 +74,24 @@ test('another token opens another stream', async () => {
   assert.deepEqual(srv.opened.map((o) => [o.token, o.signal.aborted]), [['one', true], ['two', false]])
   off1()
   off2()
+})
+
+test('a fetch runs now and after each wait; retiming counts the new wait from the last run', async () => {
+  let runs = 0
+  let wait = 1000
+  const e = every(() => runs++, () => wait)
+  e.retime() // before the first run: nothing to do
+  assert.equal(runs, 0)
+  e.run()
+  assert.equal(runs, 1)
+  wait = 20 // the stream dropped: the pending run comes sooner
+  e.retime()
+  await new Promise((r) => setTimeout(r, 60))
+  assert.ok(runs >= 2)
+  wait = 1000 // connected again: the next one waits the longer time from the last run
+  e.retime()
+  const n = runs
+  await new Promise((r) => setTimeout(r, 60))
+  assert.equal(runs, n)
+  e.stop()
 })

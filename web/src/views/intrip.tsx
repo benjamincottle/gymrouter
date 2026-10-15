@@ -13,6 +13,7 @@ import { callPlaces, stopsPassed, type RideProgress } from '../countdown.ts'
 import { position, rideIsLive, rows } from '../options.ts'
 import { advance, phaseOf, rowLines, shapeKey, walkLeftS, walkTo, type At, type LonLat } from '../progress.ts'
 import { boarding, type Fix, type Sighting } from '../boarding.ts'
+import { every } from '../live.ts'
 import { vehicleOf, type Doing } from './icons.tsx'
 import { ActionBar, Button, Callout, Confirm, LiveTag, TextButton } from './ui.tsx'
 
@@ -105,13 +106,12 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   const heard = useRef({ realtime: events.realtime, connected: events.connected })
   const connectedRef = useRef(events.connected)
   connectedRef.current = events.connected
-  const checkVehicle = useRef<() => void>(() => undefined)
+  const vehicleChecks = useRef<ReturnType<typeof every> | null>(null)
   useEffect(() => {
     const l = watching
     if (!l?.trip_id || !l.from || !l.to || !l.line || locState !== 'on') return
     let live = true
     let gone = 0 // the report time a "left without you" was last acted on
-    let timer: ReturnType<typeof setTimeout> | undefined
     const tick = () =>
       api
         .vehicles(token, [`${l.line!.mode} ${l.line!.name}`], [`${l.trip_id}|${l.from!.id}|${l.to!.id}`])
@@ -132,22 +132,19 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
         })
         .catch(() => undefined)
     // Now, and again after a while unless new positions come in first (the wait starts again from each check).
-    const check = () => {
-      clearTimeout(timer)
-      tick()
-      timer = setTimeout(check, connectedRef.current ? VEHICLE_MS : VEHICLE_UNHEARD_MS)
-    }
-    checkVehicle.current = check
-    check()
+    const checks = every(tick, () => (connectedRef.current ? VEHICLE_MS : VEHICLE_UNHEARD_MS))
+    vehicleChecks.current = checks
+    checks.run()
     return () => {
       live = false
-      clearTimeout(timer)
-      checkVehicle.current = () => undefined
+      checks.stop()
+      vehicleChecks.current = null
     }
   }, [watching?.trip_id, locState])
   useEffect(() => {
-    if (events.vehicles > 0) checkVehicle.current()
+    if (events.vehicles > 0) vehicleChecks.current?.run()
   }, [events.vehicles])
+  useEffect(() => vehicleChecks.current?.retime(), [events.connected]) // the wait changes with it
   const onVehicle = (ride: number) => aboard.has(o.legs[ride]?.trip_id ?? '')
 
   // Where you are and what you're doing, from your location: the marker, Now / Then and the re-checks all use this.

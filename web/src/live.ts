@@ -74,3 +74,28 @@ export function createLive(open: Open, stopAfter: (e: unknown) => boolean, pause
     },
   }
 }
+
+/**
+ * Runs `fn` now (`run`) and again `wait()` ms after each run, for a fetch that's also run as soon as the server says
+ * there's something new: each run starts the wait again. `retime` reads `wait()` afresh for the run that's pending,
+ * counted from the last run, as when the stream connects or drops and the wait changes.
+ */
+export function every(fn: () => void, wait: () => number) {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let last = 0
+  const run = () => {
+    clearTimeout(timer)
+    last = Date.now()
+    fn()
+    timer = setTimeout(run, wait())
+  }
+  return {
+    run,
+    retime: () => {
+      if (last === 0) return // not started: the first run sets the wait
+      clearTimeout(timer)
+      timer = setTimeout(run, Math.max(0, last + wait() - Date.now()))
+    },
+    stop: () => clearTimeout(timer),
+  }
+}

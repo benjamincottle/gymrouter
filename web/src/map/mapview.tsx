@@ -10,6 +10,7 @@ import { ApiError, api } from '../api.ts'
 import { LAST_STOPS, type RideProgress } from '../countdown.ts'
 import { splitAt } from '../progress.ts'
 import { useLiveEvents, useVisible } from '../hooks.ts'
+import { every } from '../live.ts'
 import { isDark } from '../theme.ts'
 import type { Leg, Option, Vehicle } from '../types.ts'
 import { INK, lineColour, textOn, token, WHITE } from '../colour.ts'
@@ -543,10 +544,9 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
   const events = useLiveEvents(token, visible && rides.length > 0)
   const connectedRef = useRef(events.connected)
   connectedRef.current = events.connected
-  const fetchVehicles = useRef<() => void>(() => undefined)
+  const vehicleFetches = useRef<ReturnType<typeof every> | null>(null)
   useEffect(() => {
     let live = true
-    let timer: ReturnType<typeof setTimeout> | undefined
     const tick = (force = false) => {
       const m = map.current
       if (!m || rides.length === 0 || (!force && document.visibilityState !== 'visible')) return
@@ -565,23 +565,28 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
           if (e instanceof ApiError) setError(e.message)
         })
     }
-    // Now, and again after a while unless new positions come in first (the wait starts again from each fetch).
-    const check = (force = false) => {
-      clearTimeout(timer)
+    // Once the map is ready: now, and again after a while unless new positions come in first (the wait starts again
+    // from each fetch).
+    let force = true // the first fetch goes whether or not the page is in view
+    const fetches = every(() => {
       tick(force)
-      timer = setTimeout(check, connectedRef.current ? VEHICLES_MS : VEHICLES_UNHEARD_MS)
-    }
-    fetchVehicles.current = () => map.current && check()
-    whenReady(map, el, () => check(true))
+      force = false
+    }, () => (connectedRef.current ? VEHICLES_MS : VEHICLES_UNHEARD_MS))
+    whenReady(map, el, () => {
+      if (!live) return
+      vehicleFetches.current = fetches
+      fetches.run()
+    })
     return () => {
       live = false
-      clearTimeout(timer)
-      fetchVehicles.current = () => undefined
+      fetches.stop()
+      vehicleFetches.current = null
     }
   }, [token, ridesKey])
   useEffect(() => {
-    if (events.vehicles > 0) fetchVehicles.current()
+    if (events.vehicles > 0) vehicleFetches.current?.run()
   }, [events.vehicles])
+  useEffect(() => vehicleFetches.current?.retime(), [events.connected]) // the wait changes with it
 
   // You, as the location updates.
   useEffect(() => {
