@@ -48,6 +48,7 @@ func (s *syncBuffer) String() string { s.mu.Lock(); defer s.mu.Unlock(); return 
 
 type harness struct {
 	env *enginetest.Env
+	srv *api.Server
 	h   http.Handler
 	log *syncBuffer
 }
@@ -79,7 +80,7 @@ func newHarnessWith(t *testing.T, web fs.FS, mk func(*syncBuffer) *enginetest.En
 		t.Fatal(err)
 	}
 	srv := api.New(env.Engine, auth, slog.New(slog.NewJSONHandler(logs, nil)), web)
-	return &harness{env: env, h: srv.Handler(), log: logs}
+	return &harness{env: env, srv: srv, h: srv.Handler(), log: logs}
 }
 
 func (h *harness) do(t *testing.T, method, path, auth string, body any) *httptest.ResponseRecorder {
@@ -474,6 +475,73 @@ func TestStatus(t *testing.T) {
 	}
 	if h.env.Engine.Health().PollingActive {
 		t.Error("checking the server's state shouldn't start polling TfNSW")
+	}
+}
+
+func TestEventsSayWhenLiveDataChanges(t *testing.T) {
+	h := newHarness(t)
+	ts := httptest.NewUnstartedServer(h.h)
+	// The stream outlives the server's timeouts for ordinary requests.
+	ts.Config.ReadTimeout, ts.Config.WriteTimeout = time.Second, time.Second
+	ts.Start()
+	defer ts.Close()
+	req, _ := http.NewRequest("GET", ts.URL+"/api/events", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 || res.Header.Get("Content-Type") != "text/event-stream" {
+		t.Fatalf("events: %d %q", res.StatusCode, res.Header.Get("Content-Type"))
+	}
+	// Listening isn't using the app: on its own it doesn't start realtime polling.
+	if h.env.Engine.Health().PollingActive {
+		t.Error("the event stream activated polling")
+	}
+	lines := make(chan string)
+	go func() {
+		buf := make([]byte, 4096)
+		var acc string
+		for {
+			n, err := res.Body.Read(buf)
+			acc += string(buf[:n])
+			for {
+				i := strings.Index(acc, "\n\n")
+				if i < 0 {
+					break
+				}
+				lines <- acc[:i]
+				acc = acc[i+2:]
+			}
+			if err != nil {
+				close(lines)
+				return
+			}
+		}
+	}()
+	time.Sleep(1500 * time.Millisecond)
+	for range 2 { // every time, not just the first
+		h.env.Engine.PollOnce(context.Background())
+		h.env.Clock.Advance(31 * time.Second) // the next poll fetches again
+		select {
+		case ev := <-lines:
+			if !strings.HasPrefix(ev, "event: realtime\ndata: {\"realtime_at\":\"2026-10-03T") {
+				t.Fatalf("event: %q", ev)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("no event after live data was applied")
+		}
+	}
+	// Shutting down ends the stream.
+	h.srv.StopStreams()
+	select {
+	case _, ok := <-lines:
+		if ok {
+			t.Error("unexpected event after StopStreams")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the stream didn't end on shutdown")
 	}
 }
 

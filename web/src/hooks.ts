@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
+import { api, AuthError } from './api.ts'
 
 /** Current time, updated every `ms` milliseconds. */
 export function useNow(ms = 1000): number {
@@ -34,10 +35,6 @@ export function useVisible(): boolean {
   return visible
 }
 
-/**
- * Runs `fn` as soon as `key` changes, then every `ms` while `visible` (and once more when the page
- * becomes visible again). Changing `key` aborts the previous request. A null key does nothing.
- */
 /** The value once it has stopped changing for ms (the first value at once; every value at once while ms is 0).
  * Compare by value: pass a string. */
 export function useSettled<T extends string | number | boolean>(value: T, ms: number): T {
@@ -50,11 +47,17 @@ export function useSettled<T extends string | number | boolean>(value: T, ms: nu
   return ms === 0 ? value : settled
 }
 
+/**
+ * Runs `fn` as soon as `key` changes, then every `ms` while `visible` (and once more when the page
+ * becomes visible again), and at once whenever `trigger` changes (the count starts again from there).
+ * Changing `key` aborts the previous request. A null key does nothing.
+ */
 export function usePolling<T>(
   key: string | null,
   fn: (signal: AbortSignal) => Promise<T>,
   ms: number,
   visible: boolean,
+  trigger = 0,
 ): { data: T | null; error: unknown; loading: boolean; updatedAt: number; refresh: () => void } {
   const [state, setState] = useState<{ data: T | null; error: unknown; loading: boolean; updatedAt: number }>({
     data: null, error: null, loading: false, updatedAt: 0,
@@ -87,13 +90,56 @@ export function usePolling<T>(
     return () => ctrl.current?.abort()
   }, [key])
 
+  // Asked for now (the server has newer data): before the timer below, which then counts from this run.
+  useEffect(() => {
+    if (trigger !== 0 && key !== null && visible) run()
+  }, [trigger])
+
   // Background refresh only while visible; catch up immediately when the page comes back.
   useEffect(() => {
     if (key === null || !visible) return
     if (Date.now() - lastRun.current >= ms) run()
     const id = setInterval(run, ms)
     return () => clearInterval(id)
-  }, [key, ms, visible])
+  }, [key, ms, visible, trigger])
 
   return { ...state, refresh: run }
+}
+
+/**
+ * Listens for the server saying its live data has changed (GET /api/events) while `on` (open the stream only while
+ * the page is visible and there's something to re-plan). `tick` counts the changes, for usePolling's trigger;
+ * `connected` says whether the stream is open, so the timer can be slower while it is. A dropped stream is opened
+ * again: at once after the server closed it, then backing off to 30 s while it can't connect.
+ */
+export function useLiveEvents(token: string | undefined, on: boolean): { tick: number; connected: boolean } {
+  const [tick, setTick] = useState(0)
+  const [connected, setConnected] = useState(false)
+  useEffect(() => {
+    if (!token || !on) return
+    const c = new AbortController()
+    const pause = (ms: number) => new Promise<void>((r) => {
+      const id = setTimeout(r, ms)
+      c.signal.addEventListener('abort', () => (clearTimeout(id), r()))
+    })
+    void (async () => {
+      for (let failures = 0; !c.signal.aborted; ) {
+        try {
+          await api.events(token, c.signal, () => ((failures = 0), setConnected(true)), (name) => {
+            if (name === 'realtime') setTick((n) => n + 1)
+          })
+        } catch (e) {
+          if (e instanceof AuthError) break // the plans say so
+          failures++
+        }
+        setConnected(false)
+        await pause(failures === 0 ? 1000 : Math.min(30_000, 1000 * 2 ** failures))
+      }
+    })()
+    return () => {
+      c.abort()
+      setConnected(false)
+    }
+  }, [token, on])
+  return { tick, connected }
 }

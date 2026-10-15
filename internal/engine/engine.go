@@ -126,6 +126,8 @@ type Engine struct {
 	stations   atomic.Pointer[stationsOf] // the day's stations, indexed for boarding advice
 	lastActive atomic.Int64               // unix nanos
 	wake       chan struct{}
+	liveMu     sync.Mutex
+	liveCh     chan struct{} // closed when new live data is applied (LiveChanged)
 
 	loadMu     sync.Mutex // serialises timetable loads
 	cacheMu    sync.Mutex
@@ -708,7 +710,29 @@ func (e *Engine) applyRealtime() {
 	s := &Snapshot{Date: static.Date, Midnight: static.Midnight, Day: day, Net: raptor.Build(day, e.snapshotOptions()),
 		Realtime: true, RealtimeAt: oldest, Stats: st, Static: static}
 	// Only publish if today hasn't been replaced meanwhile.
-	e.today.CompareAndSwap(cur, s)
+	if e.today.CompareAndSwap(cur, s) {
+		e.liveChanged()
+	}
+}
+
+// LiveChanged returns a channel that's closed the next time new live data is applied to today's timetable, so a
+// client can plan again straight away instead of on a timer.
+func (e *Engine) LiveChanged() <-chan struct{} {
+	e.liveMu.Lock()
+	defer e.liveMu.Unlock()
+	if e.liveCh == nil {
+		e.liveCh = make(chan struct{})
+	}
+	return e.liveCh
+}
+
+func (e *Engine) liveChanged() {
+	e.liveMu.Lock()
+	defer e.liveMu.Unlock()
+	if e.liveCh != nil {
+		close(e.liveCh)
+		e.liveCh = nil
+	}
 }
 
 // ErrBusy is returned when geocoding is requested too often.
