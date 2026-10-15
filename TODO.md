@@ -19,6 +19,16 @@ For the common case, nothing else needs to change: append a [[gym]] block, rebui
 - Docs: the spec's places section describes the built-in gyms in general terms, so it only needs a decision-log line if the change is notable.
 
 
+# TODO: live data (2026-10-15)
+
+- [ ] **Vehicle positions over the events stream.** Plans now re-plan when `GET /api/events` says live data changed;
+      the map's vehicles are still polled (`/api/vehicles`, every 10 s in a trip, 15 s on the map). The server could
+      send a `vehicles` event after each positions fetch (every 15 s while the app is in use) and the app fetch then,
+      so a vehicle moves as soon as its report is in and no request is wasted between reports.
+- [ ] **Check the stream through Traefik on p4**: that it stays open past a minute (Traefik 3's entry points have a
+      60 s read timeout by default), and how often the app reconnects if not. A reconnect costs little, and the
+      app polls every 30 s while it's down, but an always-dropping stream is only polling.
+
 # Security and hardening review (2026-10-05)
 
 For review: the unticked items are still open. The baseline is already good (256-bit token compared as a digest,

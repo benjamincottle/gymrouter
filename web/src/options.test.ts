@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { changesAndStops, fastest, position, reselect, riskReason, rows, stopCount, tape, tripKey } from './options.ts'
+import { changesAndStops, fastest, position, reselect, rideIsLive, riskReason, rows, stopCount, tape, tripKey } from './options.ts'
 import type { Leg, Option } from './types.ts'
 
 const iso = (hhmm: string) => `2026-10-08T${hhmm}:00+11:00`
@@ -111,4 +111,12 @@ test('the line under the countdown names the change and its time to spare, the t
     transfers: [{ from_leg: 1, to_leg: 2, walk_s: 120, slack_s: 240, risk: 'safe' }, { from_leg: 2, to_leg: 3, walk_s: 60, slack_s: 95, risk: 'tight' }],
   }
   assert.equal(riskReason(two), 'tightest change at Central Station, 1 min spare')
+})
+
+test("a ride's times are live when live data predicts them, or the ride only exists in live data", () => {
+  const r = ride('t1', 'A', '08:05', '08:30')
+  assert.equal(rideIsLive({ ...r, status: 'predicted' }), true)
+  assert.equal(rideIsLive({ ...r, status: 'added' }), true)
+  assert.equal(rideIsLive({ ...r, status: 'scheduled' }), false)
+  assert.equal(rideIsLive(r), false)
 })

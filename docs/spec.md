@@ -116,7 +116,8 @@ Non-goals (v1)
   to the platform it uses) with the stops passed as small
   outlined dots, walking legs as the traced or street route, **the vehicles running your rides** (colour, size, label)
   while they're within about 3 stops of the part you ride, and, during a trip, you.
-- Vehicle positions refresh by client polling (~10–15 s) from the server cache.
+- Vehicle positions refresh by client polling (~10–15 s) from the server cache. (Plans re-plan when the server says
+  live data changed, `GET /api/events`; vehicles could follow later.)
 
 ## 8. UI / UX
 - Visual design, components and UX conventions: see [DESIGN.md](DESIGN.md).
@@ -148,6 +149,7 @@ Non-goals (v1)
   - `POST /api/suggest-lines` — {from, to: [places]} → a job id; `GET /api/suggest-lines/{job}` → progress, then per destination the candidate lines with how often they appear in the best options.
   - `GET  /api/vehicles?lines=<list>&rides=<list>` — live vehicles running your rides, near the part ridden.
   - `GET  /api/shape?…` — one ride's path and the stops it passes, for drawing.
+  - `GET  /api/events` — a stream of events, one each time new live data is applied (the app re-plans).
   - `GET  /api/status` — detailed health (auth). Implemented API: see `docs/api.md`.
   - `GET  /healthz` — liveness, feed ages, config warnings (no sensitive detail).
 
@@ -919,3 +921,25 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   same day: it publishes whatever the tag points at with no CI run first, and a person deploys by hand anyway),
   a blind weekly rebuild, and a different runtime base (the fix isn't there). The scheduled check stays for the
   images still taken by tag, which it reads from the Dockerfile's `FROM` lines: today the distroless base.
+- 2026-10-15: **"Live" or "Timetabled" is the trip's, not the server's** (refines the trip screen's tag of
+  2026-10-13). The tag said whether the server had fresh live data, so a trip whose first service had no predictions
+  still read "Live". It now says whether the ride that matters has live times (`predicted`, or `added`: an extra
+  service only live data knows about). On the trip screen that's the highlighted trip's first ride, the one the
+  countdown beside it counts to, and it changes as another trip is chosen. During a trip it's the ride you're on, or
+  the one you're on your way to (a change included). A trip that's only walking has no tag. Later rides keep saying
+  their own state in the steps. The server status's footer still speaks for the server as a whole. Rejected: "Live"
+  only when every ride has live times (TfNSW predicts a vehicle once it's about to run, so a two-ride trip would read
+  "Timetabled" until well under way), and a third "Partly live" state.
+- 2026-10-15: **The server says when live data has changed, and the app asks again at once** (until now each screen
+  re-planned every 30 s, at times unrelated to the server's own 30 s fetches: new times reached the screen up to
+  30 s late). `GET /api/events` is a stream (server-sent events, read with `fetch` so the token goes in the header,
+  never in the URL) that carries one short event whenever new live data has been applied. The trip screen and a
+  trip under way re-plan as it arrives; they still re-plan every 60 s without one ("Leave now" moves on with the
+  clock), and every 30 s, as before, while the stream isn't connected. The stream is open only while the app is
+  visible, and holding it open doesn't count as using the app: the re-plans it sets off do, so a forgotten tab
+  doesn't keep the server fetching. Found after waking the server: its first plan is timetabled (the live data had
+  gone stale), live data arrives a second or two later, and the screen used to say "Timetabled" until the next 30 s
+  refresh. Now that event re-plans it. Rejected: answering the first plan only once fresh live data is in (slower,
+  and for nothing when the trip's services have no predictions), and a hint in the plan's reply to ask again soon
+  (fixes only the waking, not the 30 s lag). Vehicle positions on the map are still polled (every 10–15 s); they
+  could use the same stream later (TODO.md).

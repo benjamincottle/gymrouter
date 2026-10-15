@@ -120,6 +120,53 @@ async function suggestLines(
   }
 }
 
+/**
+ * Listens to the server's events (GET /api/events, server-sent events) until the stream ends or `signal` aborts.
+ * Read with fetch rather than EventSource, so the token goes in a header and never in the URL. `onOpen` is called once
+ * it's connected, `onEvent` with each event's name. Resolves when the server closes the stream; rejects like the
+ * other calls when it can't connect.
+ */
+async function events(t: string, signal: AbortSignal, onOpen: () => void, onEvent: (name: string) => void): Promise<void> {
+  const res = await send('/api/events', {
+    headers: { Authorization: `Bearer ${t}`, Accept: 'text/event-stream' },
+    signal,
+    cache: 'no-store',
+    credentials: 'omit',
+    referrerPolicy: 'no-referrer',
+  })
+  if (!res.ok || !res.body) {
+    await read(res) // the same errors as any other call
+    throw new ApiError(res.status, 'no event stream')
+  }
+  onOpen()
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
+  let rest = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) return
+    const [names, more] = takeEvents(rest + value)
+    rest = more
+    names.forEach(onEvent)
+  }
+}
+
+/**
+ * The names of the complete events at the start of a server-sent event stream (an event without a name is
+ * "message"; comments, such as keep-alives, are none), and what's left over: the start of the next one.
+ */
+export function takeEvents(buf: string): [string[], string] {
+  const blocks = buf.replace(/\r\n?/g, '\n').split('\n\n')
+  const rest = blocks.pop() ?? ''
+  const names: string[] = []
+  for (const b of blocks) {
+    const lines = b.split('\n').filter((l) => l !== '' && !l.startsWith(':'))
+    if (lines.length === 0) continue
+    const named = lines.find((l) => l.startsWith('event:'))
+    names.push(named ? named.slice(6).trim() : 'message')
+  }
+  return [names, rest]
+}
+
 /** How often a line search is asked how far it is; the bar glides from one answer to the next (style.css). */
 const SUGGEST_POLL_MS = 1000
 
@@ -151,6 +198,7 @@ export const api = {
   /** Asks the server to download the street map again now; the status says when it's done (`walk_updating`). */
   updateStreetMap: (t: string) => call<object>(t, 'POST', '/api/street-map/update'),
   plan: (t: string, req: PlanRequest, signal?: AbortSignal) => call<PlanResponse>(t, 'POST', '/api/plan', req, signal),
+  events,
   /** Asks the server to load these lines in the background, so the first search naming them doesn't wait. */
   loadLines: (t: string, lines: string[]) => call<object>(t, 'POST', '/api/lines', { lines }),
   /** The lines' colours (hex, no '#'), whether or not the server has loaded them. A line without one is left out. */

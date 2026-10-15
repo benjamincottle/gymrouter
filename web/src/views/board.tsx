@@ -6,9 +6,9 @@ import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, shortDu
 import { useNow, useWide } from '../hooks.ts'
 import type { Leg, Option } from '../types.ts'
 import { Timeline, type Ends, type Tracking } from './option.tsx'
-import { changesAndStops, reselect, riskReason, tape, tripKey } from '../options.ts'
+import { changesAndStops, reselect, rideIsLive, riskReason, tape, tripKey } from '../options.ts'
 import type { MapViewProps } from '../map/mapview.tsx'
-import { ActionBar, Button, Callout, onRadioKeys, TextButton, useDialog } from './ui.tsx'
+import { ActionBar, Button, Callout, LiveTag, onRadioKeys, TextButton, useDialog } from './ui.tsx'
 import { lineColour, textOn } from '../colour.ts'
 
 const ms = (iso: string) => Date.parse(iso)
@@ -16,7 +16,7 @@ const ms = (iso: string) => Date.parse(iso)
 interface Props {
   options: Option[]
   live: boolean
-  tag?: ComponentChildren // whether the times are live, for the end of the countdown's label row (LiveTag)
+  updating?: boolean // a newer plan is slow to arrive: the countdown's tag says so (LiveTag)
   serviceDate: string
   token: string
   origin: [number, number]
@@ -68,7 +68,7 @@ export function Board(p: Props) {
 
   return (
     <div class="board">
-      <Hero option={sel} live={p.live} now={now} tag={p.tag} />
+      <Hero option={sel} live={p.live} now={now} updating={p.updating} />
       <WindowShift shift={p.onShift} />
       <ol class="strips" role="radiogroup" aria-label="Options" onKeyDown={onRadioKeys}>
         {opts.map((o, i) => (
@@ -128,7 +128,7 @@ function firstRide(o: Option): Leg | undefined {
   return o.legs.find((l) => l.kind === 'ride')
 }
 
-function Hero({ option: o, live, now, tag }: { option: Option; live: boolean; now: number; tag?: ComponentChildren }) {
+function Hero({ option: o, live, now, updating }: { option: Option; live: boolean; now: number; updating?: boolean }) {
   const ride = firstRide(o)
   const cd = countdown(o.leave_at, now) // "in 18 min", "now", "left 3 min ago"
   const day = dayOf(o.leave_at, now)
@@ -143,7 +143,8 @@ function Hero({ option: o, live, now, tag }: { option: Option; live: boolean; no
     <section class="hero" aria-live="polite">
       <p class="label">
         {label}
-        {tag}
+        {/* Whether the ride the countdown counts to has live times; a trip that's only walking has none to have. */}
+        {ride && <LiveTag live={rideIsLive(ride)} updating={updating} />}
       </p>
       <p class="hero-time num">{value}</p>
       <p class="hero-arrive">
