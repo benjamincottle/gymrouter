@@ -1,6 +1,7 @@
 import type {
   DefaultsResponse, GeocodeResult, NearStop, PlaceRequest, PlanRequest, PlanResponse, ServerStatus, SuggestResponse, Vehicle,
 } from './types.ts'
+import * as sim from './sim.ts'
 
 export class AuthError extends Error {}
 
@@ -197,7 +198,9 @@ export const api = {
   status: (t: string, signal?: AbortSignal) => call<ServerStatus>(t, 'GET', '/api/status', undefined, signal),
   /** Asks the server to download the street map again now; the status says when it's done (`walk_updating`). */
   updateStreetMap: (t: string) => call<object>(t, 'POST', '/api/street-map/update'),
-  plan: (t: string, req: PlanRequest, signal?: AbortSignal) => call<PlanResponse>(t, 'POST', '/api/plan', req, signal),
+  /** A plan; on the timetable alone while the simulator is on (sim.ts), so a simulated trip is planned as it's followed. */
+  plan: (t: string, req: PlanRequest, signal?: AbortSignal) =>
+    call<PlanResponse>(t, 'POST', '/api/plan', sim.wanted() || sim.current() ? { ...req, sim: true } : req, signal),
   events,
   /** Asks the server to load these lines in the background, so the first search naming them doesn't wait. */
   loadLines: (t: string, lines: string[]) => call<object>(t, 'POST', '/api/lines', { lines }),
@@ -206,11 +209,13 @@ export const api = {
     call<{ colors: Record<string, string> }>(t, 'GET', `/api/lines?lines=${encodeURIComponent(lines.join(','))}`, undefined, signal),
   stopsNear: (t: string, lat: number, lon: number, radius_m: number) =>
     call<{ stops: NearStop[] }>(t, 'POST', '/api/stops/near', { lat, lon, radius_m }),
-  /** Vehicles running the given rides (<trip>|<from stop>|<to stop>) while near the part ridden. */
+  /** Vehicles running the given rides (<trip>|<from stop>|<to stop>) while near the part ridden (simulated ones in a simulation). */
   vehicles: (t: string, lines: string[], rides: string[]) =>
-    call<{ vehicles: Vehicle[] }>(
-      t, 'GET', `/api/vehicles?lines=${encodeURIComponent(lines.join(','))}&rides=${encodeURIComponent(rides.join(','))}`,
-    ),
+    sim.current()
+      ? Promise.resolve({ vehicles: sim.vehicles(rides) })
+      : call<{ vehicles: Vehicle[] }>(
+        t, 'GET', `/api/vehicles?lines=${encodeURIComponent(lines.join(','))}&rides=${encodeURIComponent(rides.join(','))}`,
+      ),
   suggestLines,
   geocode: (t: string, q: string) => call<{ results: GeocodeResult[] }>(t, 'POST', '/api/geocode', { q }),
 }

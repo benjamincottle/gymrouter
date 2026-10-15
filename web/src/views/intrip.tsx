@@ -16,6 +16,8 @@ import { boarding, type Fix, type Sighting } from '../boarding.ts'
 import { every } from '../live.ts'
 import { vehicleOf, type Doing } from './icons.tsx'
 import { ActionBar, Button, Callout, Confirm, LiveTag, TextButton } from './ui.tsx'
+import * as appClock from '../clock.ts'
+import * as sim from '../sim.ts'
 
 /** Everything needed to resume a trip after a reload; kept on this device only. */
 export interface ActiveTrip {
@@ -31,6 +33,7 @@ export interface ActiveTrip {
   tightS: number // the "tight" setting: a warning that's showing clears once there's this much to spare again
   dismissed?: string[] // "faster way" notices dismissed on this trip (suggestionKey): not offered again
   mapTall?: boolean // the phone's map is pulled down over the steps: it stays as you left it
+  sim?: boolean // simulated (sim.ts): the simulator's clock, location and vehicles, and the timetable only
 }
 
 export const TRIP_KEY = 'gymrouter.trip'
@@ -54,9 +57,10 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
 }) {
   const now = useNow(1000)
   const visible = useVisible()
+  const geo = trip.sim ? sim.geolocation() : navigator.geolocation
   const [pos, setPos] = useState<Position | null>(null)
   // Location is on for the whole trip (it's what makes the map and "time to spare" useful); it stays on this device.
-  const [locState, setLocState] = useState<'on' | 'denied'>(() => (navigator.geolocation ? 'on' : 'denied'))
+  const [locState, setLocState] = useState<'on' | 'denied'>(() => (geo ? 'on' : 'denied'))
   const [check, setCheck] = useState<Assessment | null>(null)
   const [error, setError] = useState('')
   const [checked, setChecked] = useState(false) // the last re-check worked, so the rides ahead have its times
@@ -94,6 +98,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   }, [rides.map(shapeKey).join(',')])
   const steps = useMemo(() => rows(o, true), [o])
   const stepLines = useMemo(() => rowLines(steps, o, trip.origin, trip.destination, shapes), [steps, shapes])
+  if (trip.sim) sim.see({ option: o, rows: steps, lines: stepLines, shapes, stops: shapeStops, destination: trip.destination, walkSpeedMps: trip.walkSpeedMps })
   // On your vehicle? Your fixes moving with its live reports say so (boarding.ts); polled while you wait for it or ride it.
   const history = useRef<Fix[]>([])
   const sightings = useRef<Record<string, Sighting[]>>({})
@@ -211,17 +216,17 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
 
   // Location stays on this device; it's only sent as the origin of a re-plan.
   useEffect(() => {
-    if (locState !== 'on' || !navigator.geolocation) return
-    const id = navigator.geolocation.watchPosition(
+    if (locState !== 'on' || !geo) return
+    const id = geo.watchPosition(
       (p) => {
-        const f = { lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy, t: p.timestamp || Date.now() }
+        const f = { lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy, t: p.timestamp || appClock.now() }
         setPos(f)
         history.current = [...history.current.filter((h) => h.t > f.t - HISTORY_MS), f]
       },
       (e) => e.code === e.PERMISSION_DENIED && setLocState('denied'),
       { enableHighAccuracy: true, maximumAge: 10_000, timeout: 30_000 },
     )
-    return () => navigator.geolocation.clearWatch(id)
+    return () => geo.clearWatch(id)
   }, [locState])
 
   // Re-check the trip straight away, then each time the server's live data changes, and on a timer, while the screen
@@ -229,16 +234,18 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   useEffect(() => {
     let live = true
     const run = async () => {
-      const nowMs = Date.now()
+      const nowMs = appClock.now()
       const ph = phaseRef.current
       const from = replanOrigin(trip.option, ph, posRef.current, trip.request.from, nowMs, leftRef.current)
       if (!from || (ph.kind !== 'before' && ph.kind !== 'riding')) return
       const time = from.on_trip ? undefined : replanTime(trip.option, ph, nowMs)
+      // Simulated: at the simulator's time, since the server's clock isn't it (api.plan asks for the timetable alone).
+      const simulated = trip.sim ? { time: time ?? new Date(nowMs).toISOString() } : {}
       try {
         // The rides still ahead are checked as they stand (keep); the search is for something better, or something else.
         const res = await api.plan(token, {
           from, to: trip.request.to, lines: trip.request.lines, time, window_min: 45, prefs: trip.request.prefs,
-          keep: keepFrom(trip.option, ph.ride),
+          keep: keepFrom(trip.option, ph.ride), ...simulated,
         })
         if (!live) return
         const a = assess(tripsFrom(trip.option, ph.ride), res.kept, res.options, trip.plannedArrive, { missed: held.current, clearS: trip.tightS })
@@ -262,10 +269,11 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
     heard.current = { realtime: events.realtime, connected: events.connected }
     if (!onlyHeard && (visible || !checkedRef.current)) run()
     checkedRef.current = true
-    const id = visible ? setInterval(run, events.connected ? REPLAN_MS : REPLAN_UNHEARD_MS) : undefined
+    // On the app's clock, so a simulation re-checks as often as a trip would (but not more than every 3 s of real time).
+    const stop = visible ? appClock.repeat(events.connected ? REPLAN_MS : REPLAN_UNHEARD_MS, run, 3000) : undefined
     return () => {
       live = false
-      clearInterval(id)
+      stop?.()
     }
   }, [visible, trip.plannedArrive, tripsFrom(trip.option, 0).join(','), events.realtime, events.connected])
 
@@ -449,7 +457,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
           {lostLocation && 'No location just now; following the timetable. '}
           {locState === 'denied' && 'Location unavailable; following the timetable. '}
           {error}
-          {locState === 'denied' && navigator.geolocation && (
+          {locState === 'denied' && geo && (
             <>
               {' '}
               <TextButton onClick={() => setLocState('on')}>Try my location again</TextButton>

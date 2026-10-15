@@ -76,6 +76,9 @@ type planReq struct {
 	// Keep is the trip the traveller is on: the rides still ahead of them, in order. It's checked as it stands
 	// (planResp.Kept), whatever the search returns.
 	Keep []keepReq `json:"keep,omitempty"`
+	// Sim is the app's trip simulator (temporary, for testing): the timetable only, never live data, and a time is
+	// taken with on_trip, since the simulator's clock isn't the server's.
+	Sim bool `json:"sim,omitempty"`
 }
 
 // keepReq is one ride of a trip being followed: a vehicle from one of its stops to a later one.
@@ -242,7 +245,7 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 		return nil, badf("on_trip is only valid for the origin")
 	}
 	onboard := req.From.OnTrip != nil
-	if onboard && (req.ArriveBy || req.Time != nil) {
+	if onboard && (req.ArriveBy || (req.Time != nil && !req.Sim)) {
 		return nil, badf("on_trip plans from now; time and arrive_by don't apply")
 	}
 	if req.ArriveBy && req.Time == nil {
@@ -276,6 +279,9 @@ func (s *Server) runPlan(req planReq) (*planResp, error) {
 	snap, err := s.eng.SnapshotFor(leave)
 	if err != nil {
 		return nil, err
+	}
+	if req.Sim && snap.Static != nil {
+		snap = snap.Static
 	}
 	opts := s.eng.RoutingOptions()
 	if req.Prefs.WalkSpeedMps > 0 {
