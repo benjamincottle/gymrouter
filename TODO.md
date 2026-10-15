@@ -21,10 +21,11 @@ For the common case, nothing else needs to change: append a [[gym]] block, rebui
 
 # TODO: live data (2026-10-15)
 
-- [ ] **Vehicle positions over the events stream.** Plans now re-plan when `GET /api/events` says live data changed;
-      the map's vehicles are still polled (`/api/vehicles`, every 10 s in a trip, 15 s on the map). The server could
-      send a `vehicles` event after each positions fetch (every 15 s while the app is in use) and the app fetch then,
-      so a vehicle moves as soon as its report is in and no request is wasted between reports.
+- [x] **Vehicle positions over the events stream.** Plans re-plan when `GET /api/events` says live data changed;
+      the map's vehicles and a trip's check for your vehicle were still polled every 10 s. The server now sends a
+      `vehicles` event after each positions fetch (every 15 s while the app is in use) and both fetch then, so a
+      vehicle moves as soon as its report is in and no request is wasted between reports. One stream serves the
+      whole app (`web/src/live.ts`).
 - [x] **Check the stream through Traefik on p4**: that it stays open past a minute (Traefik 3's entry points have a
       60 s read timeout by default). Checked 2026-10-15 against the live app (Traefik 3.7.14): open for 200 s over
       HTTP/2 and 100 s over HTTP/1.1, an event about every 30 s and a keep-alive every 20 s, never dropped. The read

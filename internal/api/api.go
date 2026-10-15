@@ -36,6 +36,7 @@ type Engine interface {
 	Health() engine.Health
 	Touch()
 	LiveChanged() <-chan struct{}
+	VehiclesChanged() <-chan struct{}
 	Now() time.Time
 	RoutingOptions() raptor.Options
 	Config() *config.Config

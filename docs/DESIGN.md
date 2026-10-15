@@ -534,8 +534,10 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
 ### Refreshing
 
 The app refreshes itself: a plan as soon as the server says its live data has changed (about every 30 s while the
-app is in use), else every 60 s (every 30 s while it can't hear from the server); the server status every 5 minutes;
-and both at once when the app comes back to the foreground. So there's no pull-to-refresh (`overscroll-behavior-y: contain` on the page), and no refresh
+app is in use), else every 60 s (every 30 s while it can't hear from the server); the map's vehicles as soon as the
+server has new positions (about every 15 s), else every 30 s (10 s while it can't hear from the server); the server
+status every 5 minutes; and all of them at once when the app comes back to the foreground. So there's no
+pull-to-refresh (`overscroll-behavior-y: contain` on the page), and no refresh
 button. The one thing that needs a reload is a new version of the app, and the footer offers it (see Version).
 
 What the server keeps for itself refreshes on its own schedule too. The one thing that can be asked for early is the

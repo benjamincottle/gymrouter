@@ -36,7 +36,10 @@ export const TRIP_KEY = 'gymrouter.trip'
 
 const REPLAN_MS = 60_000 // without word from the server that its live data changed (useLiveEvents)
 const REPLAN_UNHEARD_MS = 30_000 // while that word can't be heard
-const VEHICLE_MS = 10_000 // how often your vehicle's position is checked while you wait for it or ride it
+// Your vehicle's position is checked as soon as the server says new positions are in (about every 15 s), while you
+// wait for it or ride it; else every 30 s, or every 10 s while the server can't be heard (useLiveEvents).
+const VEHICLE_MS = 30_000
+const VEHICLE_UNHEARD_MS = 10_000
 const HISTORY_MS = 180_000 // your recent fixes, kept to compare with the vehicle's reports
 const STALE_MS = 20_000 // a fix older than this isn't where you are now
 const LOST_MS = 90_000 // no fix for this long (a tunnel, an underground platform): the clock says where you are
@@ -96,14 +99,19 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   const [aboard, setAboard] = useState<Set<string>>(new Set()) // trip IDs you've been seen on
   const recheck = useRef<() => void>(() => undefined)
   const watching = phaseRef.current.kind === 'before' || phaseRef.current.kind === 'riding' ? o.legs[phaseRef.current.ride] : undefined
-  // While there's a service ahead, the server says when its live data changes, and the trip is checked again then.
+  // While there's a service ahead, the server says when its live data changes (the trip is checked again then) and
+  // when new vehicle positions are in (yours is looked for then).
   const events = useLiveEvents(token, visible && watching !== undefined)
-  const heard = useRef({ tick: events.tick, connected: events.connected })
+  const heard = useRef({ realtime: events.realtime, connected: events.connected })
+  const connectedRef = useRef(events.connected)
+  connectedRef.current = events.connected
+  const checkVehicle = useRef<() => void>(() => undefined)
   useEffect(() => {
     const l = watching
     if (!l?.trip_id || !l.from || !l.to || !l.line || locState !== 'on') return
     let live = true
     let gone = 0 // the report time a "left without you" was last acted on
+    let timer: ReturnType<typeof setTimeout> | undefined
     const tick = () =>
       api
         .vehicles(token, [`${l.line!.mode} ${l.line!.name}`], [`${l.trip_id}|${l.from!.id}|${l.to!.id}`])
@@ -123,13 +131,23 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
           }
         })
         .catch(() => undefined)
-    tick()
-    const id = setInterval(tick, VEHICLE_MS)
+    // Now, and again after a while unless new positions come in first (the wait starts again from each check).
+    const check = () => {
+      clearTimeout(timer)
+      tick()
+      timer = setTimeout(check, connectedRef.current ? VEHICLE_MS : VEHICLE_UNHEARD_MS)
+    }
+    checkVehicle.current = check
+    check()
     return () => {
       live = false
-      clearInterval(id)
+      clearTimeout(timer)
+      checkVehicle.current = () => undefined
     }
   }, [watching?.trip_id, locState])
+  useEffect(() => {
+    if (events.vehicles > 0) checkVehicle.current()
+  }, [events.vehicles])
   const onVehicle = (ride: number) => aboard.has(o.legs[ride]?.trip_id ?? '')
 
   // Where you are and what you're doing, from your location: the marker, Now / Then and the re-checks all use this.
@@ -243,8 +261,8 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
     }
     recheck.current = run
     // The stream connecting or dropping only changes the timer: no re-check for that alone.
-    const onlyHeard = heard.current.connected !== events.connected && heard.current.tick === events.tick
-    heard.current = { tick: events.tick, connected: events.connected }
+    const onlyHeard = heard.current.connected !== events.connected && heard.current.realtime === events.realtime
+    heard.current = { realtime: events.realtime, connected: events.connected }
     if (!onlyHeard && (visible || !checkedRef.current)) run()
     checkedRef.current = true
     const id = visible ? setInterval(run, events.connected ? REPLAN_MS : REPLAN_UNHEARD_MS) : undefined
@@ -252,7 +270,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
       live = false
       clearInterval(id)
     }
-  }, [visible, trip.plannedArrive, tripsFrom(trip.option, 0).join(','), events.tick, events.connected])
+  }, [visible, trip.plannedArrive, tripsFrom(trip.option, 0).join(','), events.realtime, events.connected])
 
   const switchTo = (s: Option) => {
     const ph = phaseRef.current

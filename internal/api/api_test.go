@@ -478,7 +478,7 @@ func TestStatus(t *testing.T) {
 	}
 }
 
-func TestEventsSayWhenLiveDataChanges(t *testing.T) {
+func TestEventsSayWhenLiveDataAndVehiclesChange(t *testing.T) {
 	h := newHarness(t)
 	ts := httptest.NewUnstartedServer(h.h)
 	// The stream outlives the server's timeouts for ordinary requests.
@@ -524,13 +524,22 @@ func TestEventsSayWhenLiveDataChanges(t *testing.T) {
 	for range 2 { // every time, not just the first
 		h.env.Engine.PollOnce(context.Background())
 		h.env.Clock.Advance(31 * time.Second) // the next poll fetches again
-		select {
-		case ev := <-lines:
-			if !strings.HasPrefix(ev, "event: realtime\ndata: {\"realtime_at\":\"2026-10-03T") {
-				t.Fatalf("event: %q", ev)
+		// A poll that fetched both says both, in either order: new live data, and new vehicle positions.
+		var realtime, vehicles bool
+		for !realtime || !vehicles {
+			select {
+			case ev := <-lines:
+				switch {
+				case strings.HasPrefix(ev, "event: realtime\ndata: {\"realtime_at\":\"2026-10-03T") && !realtime:
+					realtime = true
+				case ev == "event: vehicles\ndata: {}" && !vehicles:
+					vehicles = true
+				default:
+					t.Fatalf("event: %q", ev)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatalf("after a poll: realtime event %v, vehicles event %v", realtime, vehicles)
 			}
-		case <-time.After(5 * time.Second):
-			t.Fatal("no event after live data was applied")
 		}
 	}
 	// Shutting down ends the stream.

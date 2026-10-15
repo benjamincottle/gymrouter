@@ -11,8 +11,9 @@ import (
 // keepAliveEvery is how often a quiet event stream sends a comment, so nothing on the way closes it as idle.
 const keepAliveEvery = 20 * time.Second
 
-// events streams one event each time new live data is applied (server-sent events; see docs/api.md), so the app
-// plans again at once instead of on a timer. It runs until the client goes or the server shuts down (StopStreams).
+// events streams one event each time new live data is applied, and one each time vehicle positions come in
+// (server-sent events; see docs/api.md), so the app plans again, or fetches the vehicles, at once instead of on a
+// timer. It runs until the client goes or the server shuts down (StopStreams).
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	rc := http.NewResponseController(w)
 	// The server's read and write timeouts are for ordinary requests; this one stays open.
@@ -28,7 +29,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	}
 	tick := time.NewTicker(keepAliveEvery)
 	defer tick.Stop()
-	changed := s.eng.LiveChanged()
+	changed, moved := s.eng.LiveChanged(), s.eng.VehiclesChanged()
 	for {
 		var err error
 		select {
@@ -49,6 +50,9 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			}
 			b, _ := json.Marshal(ev)
 			_, err = fmt.Fprintf(w, "event: realtime\ndata: %s\n\n", b)
+		case <-moved:
+			moved = s.eng.VehiclesChanged()
+			_, err = io.WriteString(w, "event: vehicles\ndata: {}\n\n")
 		}
 		if err != nil || rc.Flush() != nil {
 			return

@@ -210,8 +210,16 @@ event: realtime
 data: {"realtime_at": "2026-10-15T06:34:29+11:00"}
 ```
 
-(`realtime_at` left out when there's no fresh live data), and a comment line (`: keep-alive`) every 20 s so nothing
-on the way closes it as idle. The app re-plans when an event arrives. Holding the stream open doesn't count as
+(`realtime_at` left out when there's no fresh live data); each time new vehicle positions have come in (about every
+15 s while the app is in use)
+
+```
+event: vehicles
+data: {}
+```
+
+and a comment line (`: keep-alive`) every 20 s so nothing on the way closes it as idle. The app re-plans on
+`realtime` and fetches `/api/vehicles` again on `vehicles`. Holding the stream open doesn't count as
 using the app, so it doesn't keep realtime polling going on its own. It ends when the server shuts down; reconnect.
 
 ## `POST /api/street-map/update`
