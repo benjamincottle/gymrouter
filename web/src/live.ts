@@ -2,6 +2,8 @@
 // screen, a trip under way and the map each want to hear about new live data or new vehicle positions, and one
 // connection does for all of them. It's open while anything listens, and opened again after a drop.
 
+import * as clock from './clock.ts'
+
 /** What the server says has changed: live data (re-plan) or vehicle positions (fetch them again). */
 export type LiveKind = 'realtime' | 'vehicles'
 
@@ -81,21 +83,21 @@ export function createLive(open: Open, stopAfter: (e: unknown) => boolean, pause
  * counted from the last run, as when the stream connects or drops and the wait changes.
  */
 export function every(fn: () => void, wait: () => number) {
-  let timer: ReturnType<typeof setTimeout> | undefined
+  let cancel = () => {}
   let last = 0
   const run = () => {
-    clearTimeout(timer)
-    last = Date.now()
+    cancel()
+    last = clock.now()
     fn()
-    timer = setTimeout(run, wait())
+    cancel = clock.after(wait(), run, 1000)
   }
   return {
     run,
     retime: () => {
       if (last === 0) return // not started: the first run sets the wait
-      clearTimeout(timer)
-      timer = setTimeout(run, Math.max(0, last + wait() - Date.now()))
+      cancel()
+      cancel = clock.after(Math.max(0, last + wait() - clock.now()), run, 1000)
     },
-    stop: () => clearTimeout(timer),
+    stop: () => cancel(),
   }
 }

@@ -2695,3 +2695,71 @@ details > summary {
     50% { opacity: 0.3; }
   }
 }
+
+/* ---- the trip simulator (temporary: sim.ts, docs/DESIGN.md, Simulator) ---- */
+
+.sim-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: grid;
+  gap: var(--s2);
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: var(--s3) var(--s3) calc(var(--s3) + env(safe-area-inset-bottom));
+  border-top: var(--heavy);
+  background: var(--panel);
+}
+
+.sim-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.sim-head strong {
+  font-weight: 600;
+}
+
+.sim-head .num {
+  flex: 1;
+  font-size: var(--fs-strong);
+  font-weight: 700;
+  font-stretch: var(--narrow);
+}
+
+.sim-skips {
+  display: flex;
+  gap: var(--s4);
+}
+
+.sim-rows {
+  border-top: var(--hair);
+}
+
+.sim-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-height: 56px;
+  padding: var(--s1) 0;
+  border-bottom: var(--hair);
+  font-weight: 400;
+}
+
+.sim-row .select {
+  width: 9rem;
+}
+
+@media (min-width: 1024px) {
+  .sim-panel {
+    left: calc(var(--pane-w) + var(--s3));
+    right: auto;
+    bottom: var(--s3);
+    width: 20rem;
+    padding-bottom: var(--s3);
+  }
+}

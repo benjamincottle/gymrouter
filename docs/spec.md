@@ -951,3 +951,20 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   before, while the stream isn't connected). The app keeps one stream for everything listening (the trip screen,
   a trip, the map), so opening the map doesn't open a second. Rejected: sending the positions themselves in the
   event (each map wants only the vehicles running its own rides, near the part ridden, which the request says).
+- 2026-10-16: **A trip simulator, temporary, for testing at a desk** (field tests take a real trip each, and most of
+  what they check is how the in-trip screen follows you, which can be tried without going anywhere). With `?sim` in
+  the address, every trip started is simulated, and a panel over the map drives it. It runs on the timetable at a
+  speed you choose (paused, 1×, 5×, 20×, 60×, or skipped ahead a minute, five, or to the next step), with a
+  simulated you who walks the trip's walks at your pace (or a share of it) and rides its rides, its vehicles where
+  the timetable has them, and the location a phone would report (good, poor or none). You can stay put (not set off,
+  not walk on, not board) and make any ride late; that's enough for a missed connection, a vehicle that leaves
+  without you, a tunnel, and the switches the screen offers then, which the simulated you follows. It stands in at
+  four places only: the app's clock (`clock.ts`: what reads the time, and the timers a trip runs on), your location,
+  the vehicles' reports, and the plans, which send `sim: true` (the server plans on the timetable alone, and
+  takes a `time` with `on_trip`, since the simulator's clock isn't the server's): the trip screen's too while `?sim`
+  is on, so a trip is planned on the same timetable it's followed by. Live data and the events stream are left out. A late ride shows on its vehicle and on you, but not in the re-checks, which keep to the timetable:
+  injecting delays on the server is the next step if that turns out to matter. A simulation survives a reload,
+  paused where it was. To be removed once the field behaviour it stands for has settled: delete `sim.ts`,
+  `views/simpanel.tsx` and their few call sites, and the server's `sim` flag; `clock.ts` can stay. Rejected: faking
+  the browser's whole clock and location from outside the app (it also speeds up the map's animations and the
+  network's timeouts), and replaying recorded trips (worth adding later: it shows real GPS, which this can't).

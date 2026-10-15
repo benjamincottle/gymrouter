@@ -61,6 +61,8 @@ the stops to use at the gym end, when it shouldn't be every stop within the walk
   search returns (a search only lists the best trips, and a good trip can drop out of them). With `on_trip`, the first
   ride kept must be that trip from `from_stop`, and the stop it's kept to stays reachable for the search once the
   vehicle's time there has passed. Not allowed with `arrive_by`.
+- `"sim": true` is the app's trip simulator (temporary; spec, 2026-10-16): the plan uses the timetable alone, never
+  live data, and `time` is allowed with `on_trip` (the simulator's clock isn't the server's).
 
 Response:
 ```json

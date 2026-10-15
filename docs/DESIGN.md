@@ -446,6 +446,19 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     loaded (a deploy while the app stayed open), the line becomes "This app is out of date. Reload to get version
     87692b5.", with Reload a text action that reloads the page. Opening the app afresh always loads the newest, so
     this only shows in an app left open.
+- **Simulator** (temporary, for testing: only with `?sim` in the address; spec, 2026-10-16). It's a tool, not part of
+  the app, so it's plain and stays out of the way:
+  - On the trip screen, a neutral callout under the header: "Simulator on: trips you start are simulated."
+  - During a simulated trip, a panel (`SimPanel`): on desktop over the map's bottom left, `--s3` in from its edges,
+    20rem wide; on a phone across the bottom of the screen. A `--panel` fill under a `--heavy` rule, padded `--s3`,
+    no shadow. Its first line: "Simulation" (600), the simulated time (narrow numerals; the one clock with seconds,
+    `17:42:10`, with the day before it when it isn't today), and Hide (Show when hidden), a quiet text action. Hidden,
+    that line is all there is.
+  - Then: the speed (Segmented: Pause, 1×, 5×, 20×, 60×); "+1 min", "+5 min" and "Next step", quiet text actions;
+    what the simulated you is doing, in 14px pencil; then rows between hairlines, a name on the left and its control
+    on the right, as Number settings: Walking pace (Select, 50% to 150%), Stay where you are (tick box), Location
+    (Segmented: Good, Poor, Off), and for each ride its line chip and the time it leaves, with how late it runs
+    (Select: On time, 1 min late to 15 min late).
 - **Status text** for a service:
   - on time (or under a minute late): `--safe`;
   - 1 min late: `--tight`;

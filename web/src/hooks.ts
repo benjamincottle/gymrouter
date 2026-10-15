@@ -1,14 +1,20 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { api, AuthError } from './api.ts'
 import { createLive } from './live.ts'
+import * as clock from './clock.ts'
 
-/** Current time, updated every `ms` milliseconds. */
+/** Current time by the app's clock (clock.ts), updated every `ms` milliseconds (more often in a fast simulation). */
 export function useNow(ms = 1000): number {
-  const [now, setNow] = useState(Date.now())
+  const [now, setNow] = useState(clock.now())
+  const every = clock.simulating() ? Math.min(ms, 250) : ms
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), ms)
-    return () => clearInterval(id)
-  }, [ms])
+    const id = setInterval(() => setNow(clock.now()), every)
+    const off = clock.onChange(() => setNow(clock.now())) // a skip shows at once
+    return () => {
+      clearInterval(id)
+      off()
+    }
+  }, [every])
   return now
 }
 
@@ -118,7 +124,7 @@ const live = createLive(api.events, (e) => e instanceof AuthError) // a revoked 
 export function useLiveEvents(token: string | undefined, on: boolean): { realtime: number; vehicles: number; connected: boolean } {
   const [s, setS] = useState({ realtime: 0, vehicles: 0, connected: false })
   useEffect(() => {
-    if (!token || !on) return
+    if (!token || !on || clock.simulating()) return // a simulation has no live data (sim.ts)
     const off = live.listen(token, (n) =>
       setS((cur) => ('kind' in n ? { ...cur, [n.kind]: cur[n.kind] + 1 } : cur.connected === n.connected ? cur : { ...cur, connected: n.connected })),
     )

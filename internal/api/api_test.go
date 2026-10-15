@@ -960,6 +960,43 @@ func TestPlanFromOnboard(t *testing.T) {
 	}
 }
 
+// The simulator plans on the timetable alone, and from a vehicle at its own time rather than the server's.
+func TestPlanSim(t *testing.T) {
+	h := newHarness(t)
+	h.env.Engine.PollOnce(context.Background())
+	req := map[string]any{"from": eppingToLaneCove["from"], "to": laneCove, "lines": laneCoveLines, "sim": true}
+	rec := h.do(t, "POST", "/api/plan", token, req)
+	var p simplePlan
+	_ = json.Unmarshal(rec.Body.Bytes(), &p)
+	if rec.Code != 200 || len(p.Options) == 0 || strings.Contains(rec.Body.String(), `"realtime":true`) {
+		t.Fatalf("sim plan: %d %s", rec.Code, rec.Body)
+	}
+	var ride rideLeg
+	for _, l := range p.Options[0].Legs {
+		if l.Kind == "ride" {
+			ride = l
+			break
+		}
+	}
+	dep, _ := time.Parse(time.RFC3339, ride.Dep)
+	onboard := map[string]any{
+		"from":  map[string]any{"on_trip": map[string]any{"trip_id": ride.TripID, "from_stop": ride.From.ID}},
+		"to":    laneCove,
+		"lines": laneCoveLines,
+		"time":  dep.Add(2 * time.Minute).Format(time.RFC3339), // two minutes after boarding, by the simulator's clock
+		"sim":   true,
+	}
+	rec = h.do(t, "POST", "/api/plan", token, onboard)
+	var after simplePlan
+	_ = json.Unmarshal(rec.Body.Bytes(), &after)
+	if rec.Code != 200 || len(after.Options) == 0 {
+		t.Fatalf("sim onboard plan: %d %s", rec.Code, rec.Body)
+	}
+	if first := after.Options[0].Legs[0]; first.Kind != "ride" || first.TripID != ride.TripID {
+		t.Errorf("first leg should be the trip we're on: %+v", first)
+	}
+}
+
 // keptPlan is a plan response with the trip being followed.
 type keptPlan struct {
 	simplePlan

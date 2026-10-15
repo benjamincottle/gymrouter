@@ -162,6 +162,7 @@ export interface PlanRequest {
   arrive_by?: boolean
   window_min?: number
   keep?: KeepRide[] // during a trip: the rides still ahead, to be checked as they stand (PlanResponse.kept)
+  sim?: boolean // the trip simulator's (sim.ts): the timetable only, and `time` taken with on_trip
   prefs: {
     walk_speed_mps?: number
     min_change_s?: number

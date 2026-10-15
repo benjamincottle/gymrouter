@@ -10,6 +10,8 @@ import { InTrip, TRIP_KEY, type ActiveTrip } from './views/intrip.tsx'
 import { ServerStatusLine } from './views/serverstatus.tsx'
 import { applyTheme } from './theme.ts'
 import { Button, Callout, ConfirmSheet, IconButton } from './views/ui.tsx'
+import { SimPanel } from './views/simpanel.tsx'
+import * as sim from './sim.ts'
 
 function loadTrip(storage: Storage | undefined): ActiveTrip | null {
   try {
@@ -45,7 +47,11 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
   const [notice, setNotice] = useState(imported ? 'Settings saved on this device.' : '')
   const [restarts, setRestarts] = useState(0) // bumping this starts the trip screen afresh
   const [storageOk, setStorageOk] = useState(true)
-  const [trip, setTripState] = useState<ActiveTrip | null>(() => loadTrip(storage))
+  const [trip, setTripState] = useState<ActiveTrip | null>(() => {
+    const t = loadTrip(storage)
+    if (t?.sim) sim.resume(t.origin, t.option.leave_at) // the simulator's clock before the trip reads it
+    return t
+  })
   const setTrip = useCallback(
     (t: ActiveTrip | null) => {
       setTripState(t)
@@ -133,9 +139,13 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
           trip={trip}
           token={settings.token}
           onUpdate={setTrip}
-          onEnd={() => setTrip(null)}
+          onEnd={() => {
+            if (trip.sim) sim.end()
+            setTrip(null)
+          }}
           onAuthError={onAuthError}
         />
+        {trip.sim && <SimPanel option={trip.option} />}
       </div>
     )
   }
@@ -173,6 +183,7 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
           {notice}
         </Callout>
       )}
+      {sim.wanted() && <Callout>Simulator on: trips you start are simulated.</Callout>}
       {serverError && (
         <Callout tone="bad" role="alert" action={<Button onClick={() => setRetries((n) => n + 1)}>Try again</Button>}>
           <strong>Couldn't load your trips.</strong> {serverError}
@@ -192,7 +203,11 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
             server={server}
             onAuthError={onAuthError}
             goToSettings={() => setView('settings')}
-            onStartTrip={setTrip}
+            onStartTrip={(t) => {
+              if (!sim.wanted()) return setTrip(t)
+              sim.start(t.origin, t.option.leave_at)
+              setTrip({ ...t, sim: true })
+            }}
             serverError={!!serverError}
           />
         ) : (
