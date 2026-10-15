@@ -102,7 +102,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
     (signal) => api.plan(settings.token!, request!, signal),
     events.connected ? REFRESH_MS : REFRESH_UNHEARD_MS,
     visible,
-    events.tick,
+    events.realtime,
   )
   // "Updating…" once a newer plan has been on its way for a moment: a refresh usually lands before it shows,
   // so the word is for a refresh that's slow (a weak signal), not a blink every half minute. (A changed search

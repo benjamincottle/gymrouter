@@ -116,8 +116,8 @@ Non-goals (v1)
   to the platform it uses) with the stops passed as small
   outlined dots, walking legs as the traced or street route, **the vehicles running your rides** (colour, size, label)
   while they're within about 3 stops of the part you ride, and, during a trip, you.
-- Vehicle positions refresh by client polling (~10–15 s) from the server cache. (Plans re-plan when the server says
-  live data changed, `GET /api/events`; vehicles could follow later.)
+- Vehicle positions are fetched from the server cache as soon as it says new ones are in (`GET /api/events`, about
+  every 15 s while the app is in use), else every 30 s (10 s while the app can't hear the server).
 
 ## 8. UI / UX
 - Visual design, components and UX conventions: see [DESIGN.md](DESIGN.md).
@@ -149,7 +149,8 @@ Non-goals (v1)
   - `POST /api/suggest-lines` — {from, to: [places]} → a job id; `GET /api/suggest-lines/{job}` → progress, then per destination the candidate lines with how often they appear in the best options.
   - `GET  /api/vehicles?lines=<list>&rides=<list>` — live vehicles running your rides, near the part ridden.
   - `GET  /api/shape?…` — one ride's path and the stops it passes, for drawing.
-  - `GET  /api/events` — a stream of events, one each time new live data is applied (the app re-plans).
+  - `GET  /api/events` — a stream of events: new live data was applied (the app re-plans), new vehicle positions
+    came in (the app fetches them).
   - `GET  /api/status` — detailed health (auth). Implemented API: see `docs/api.md`.
   - `GET  /healthz` — liveness, feed ages, config warnings (no sensitive detail).
 
@@ -943,3 +944,10 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   and for nothing when the trip's services have no predictions), and a hint in the plan's reply to ask again soon
   (fixes only the waking, not the 30 s lag). Vehicle positions on the map are still polled (every 10–15 s); they
   could use the same stream later (TODO.md).
+- 2026-10-15: **Vehicle positions follow the events stream too** (the follow-up left open with the stream this
+  morning). The map and a trip's check for your vehicle polled `/api/vehicles` every 10 s, while the server fetches
+  positions every 15 s: two requests in three found nothing new, and a new report waited up to 10 s. The server now
+  sends a `vehicles` event after each positions fetch, and both fetch then; without one, every 30 s (every 10 s, as
+  before, while the stream isn't connected). The app keeps one stream for everything listening (the trip screen,
+  a trip, the map), so opening the map doesn't open a second. Rejected: sending the positions themselves in the
+  event (each map wants only the vehicles running its own rides, near the part ridden, which the request says).

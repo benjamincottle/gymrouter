@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { api, AuthError } from './api.ts'
+import { createLive } from './live.ts'
 
 /** Current time, updated every `ms` milliseconds. */
 export function useNow(ms = 1000): number {
@@ -106,40 +107,25 @@ export function usePolling<T>(
   return { ...state, refresh: run }
 }
 
+// The app's one stream of the server's events (live.ts), shared by every useLiveEvents.
+const live = createLive(api.events, (e) => e instanceof AuthError) // a revoked token: the plans say so
+
 /**
- * Listens for the server saying its live data has changed (GET /api/events) while `on` (open the stream only while
- * the page is visible and there's something to re-plan). `tick` counts the changes, for usePolling's trigger;
- * `connected` says whether the stream is open, so the timer can be slower while it is. A dropped stream is opened
- * again: at once after the server closed it, then backing off to 30 s while it can't connect.
+ * Listens for the server saying what has changed (GET /api/events, shared: live.ts) while `on` (only while the page is
+ * visible and there's something to update). `realtime` and `vehicles` count the changes heard, for usePolling's
+ * trigger or an effect's; `connected` says whether the stream is open, so a timer can be slower while it is.
  */
-export function useLiveEvents(token: string | undefined, on: boolean): { tick: number; connected: boolean } {
-  const [tick, setTick] = useState(0)
-  const [connected, setConnected] = useState(false)
+export function useLiveEvents(token: string | undefined, on: boolean): { realtime: number; vehicles: number; connected: boolean } {
+  const [s, setS] = useState({ realtime: 0, vehicles: 0, connected: false })
   useEffect(() => {
     if (!token || !on) return
-    const c = new AbortController()
-    const pause = (ms: number) => new Promise<void>((r) => {
-      const id = setTimeout(r, ms)
-      c.signal.addEventListener('abort', () => (clearTimeout(id), r()))
-    })
-    void (async () => {
-      for (let failures = 0; !c.signal.aborted; ) {
-        try {
-          await api.events(token, c.signal, () => ((failures = 0), setConnected(true)), (name) => {
-            if (name === 'realtime') setTick((n) => n + 1)
-          })
-        } catch (e) {
-          if (e instanceof AuthError) break // the plans say so
-          failures++
-        }
-        setConnected(false)
-        await pause(failures === 0 ? 1000 : Math.min(30_000, 1000 * 2 ** failures))
-      }
-    })()
+    const off = live.listen(token, (n) =>
+      setS((cur) => ('kind' in n ? { ...cur, [n.kind]: cur[n.kind] + 1 } : cur.connected === n.connected ? cur : { ...cur, connected: n.connected })),
+    )
     return () => {
-      c.abort()
-      setConnected(false)
+      off()
+      setS((cur) => ({ ...cur, connected: false }))
     }
   }, [token, on])
-  return { tick, connected }
+  return s
 }
