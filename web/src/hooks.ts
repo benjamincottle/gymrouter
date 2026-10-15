@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
+import { api, AuthError } from './api.ts'
+import { createLive } from './live.ts'
 
 /** Current time, updated every `ms` milliseconds. */
 export function useNow(ms = 1000): number {
@@ -34,10 +36,6 @@ export function useVisible(): boolean {
   return visible
 }
 
-/**
- * Runs `fn` as soon as `key` changes, then every `ms` while `visible` (and once more when the page
- * becomes visible again). Changing `key` aborts the previous request. A null key does nothing.
- */
 /** The value once it has stopped changing for ms (the first value at once; every value at once while ms is 0).
  * Compare by value: pass a string. */
 export function useSettled<T extends string | number | boolean>(value: T, ms: number): T {
@@ -50,11 +48,17 @@ export function useSettled<T extends string | number | boolean>(value: T, ms: nu
   return ms === 0 ? value : settled
 }
 
+/**
+ * Runs `fn` as soon as `key` changes, then every `ms` while `visible` (and once more when the page
+ * becomes visible again), and at once whenever `trigger` changes (the count starts again from there).
+ * Changing `key` aborts the previous request. A null key does nothing.
+ */
 export function usePolling<T>(
   key: string | null,
   fn: (signal: AbortSignal) => Promise<T>,
   ms: number,
   visible: boolean,
+  trigger = 0,
 ): { data: T | null; error: unknown; loading: boolean; updatedAt: number; refresh: () => void } {
   const [state, setState] = useState<{ data: T | null; error: unknown; loading: boolean; updatedAt: number }>({
     data: null, error: null, loading: false, updatedAt: 0,
@@ -87,13 +91,41 @@ export function usePolling<T>(
     return () => ctrl.current?.abort()
   }, [key])
 
+  // Asked for now (the server has newer data): before the timer below, which then counts from this run.
+  useEffect(() => {
+    if (trigger !== 0 && key !== null && visible) run()
+  }, [trigger])
+
   // Background refresh only while visible; catch up immediately when the page comes back.
   useEffect(() => {
     if (key === null || !visible) return
     if (Date.now() - lastRun.current >= ms) run()
     const id = setInterval(run, ms)
     return () => clearInterval(id)
-  }, [key, ms, visible])
+  }, [key, ms, visible, trigger])
 
   return { ...state, refresh: run }
+}
+
+// The app's one stream of the server's events (live.ts), shared by every useLiveEvents.
+const live = createLive(api.events, (e) => e instanceof AuthError) // a revoked token: the plans say so
+
+/**
+ * Listens for the server saying what has changed (GET /api/events, shared: live.ts) while `on` (only while the page is
+ * visible and there's something to update). `realtime` and `vehicles` count the changes heard, for usePolling's
+ * trigger or an effect's; `connected` says whether the stream is open, so a timer can be slower while it is.
+ */
+export function useLiveEvents(token: string | undefined, on: boolean): { realtime: number; vehicles: number; connected: boolean } {
+  const [s, setS] = useState({ realtime: 0, vehicles: 0, connected: false })
+  useEffect(() => {
+    if (!token || !on) return
+    const off = live.listen(token, (n) =>
+      setS((cur) => ('kind' in n ? { ...cur, [n.kind]: cur[n.kind] + 1 } : cur.connected === n.connected ? cur : { ...cur, connected: n.connected })),
+    )
+    return () => {
+      off()
+      setS((cur) => ({ ...cur, connected: false }))
+    }
+  }, [token, on])
+  return s
 }

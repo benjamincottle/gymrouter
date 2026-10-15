@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/benjamincottle/gymrouter/internal/config"
@@ -34,6 +35,8 @@ type Engine interface {
 	Vehicles(set lines.Set) []engine.Vehicle
 	Health() engine.Health
 	Touch()
+	LiveChanged() <-chan struct{}
+	VehiclesChanged() <-chan struct{}
 	Now() time.Time
 	RoutingOptions() raptor.Options
 	Config() *config.Config
@@ -67,11 +70,14 @@ type Server struct {
 	log  *slog.Logger
 	web  fs.FS // static frontend; may be nil
 	jobs jobStore
+
+	closing   chan struct{} // closed on shutdown: the event streams end (StopStreams)
+	closeOnce sync.Once
 }
 
 // New returns the API server.
 func New(eng Engine, auth *Auth, log *slog.Logger, web fs.FS) *Server {
-	return &Server{eng: eng, auth: auth, log: log, web: web}
+	return &Server{eng: eng, auth: auth, log: log, web: web, closing: make(chan struct{})}
 }
 
 // Handler returns the full HTTP handler with middleware.
@@ -87,6 +93,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/suggest-lines/{id}", s.suggestStatus)
 	api.HandleFunc("GET /api/vehicles", s.vehicles)
 	api.HandleFunc("GET /api/status", s.status)
+	api.HandleFunc("GET /api/events", s.events)
 	api.HandleFunc("POST /api/street-map/update", s.updateStreetMap)
 	api.HandleFunc("POST /api/geocode", s.geocode)
 	api.HandleFunc("GET /api/shape", s.legShape)
@@ -134,7 +141,9 @@ func (n noDirs) Open(name string) (fs.File, error) {
 
 func (s *Server) touch(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/status" { // the app checks the server's state now and then: that isn't using it
+		// The app checks the server's state now and then, and listens for live data while it's open: neither is
+		// using it (the plans an event sets off are).
+		if r.URL.Path != "/api/status" && r.URL.Path != "/api/events" {
 			s.eng.Touch()
 		}
 		h.ServeHTTP(w, r)

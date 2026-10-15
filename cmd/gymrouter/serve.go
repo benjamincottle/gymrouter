@@ -60,15 +60,17 @@ func serve(args []string) error {
 	if err := eng.Start(ctx); err != nil {
 		return err
 	}
+	apiSrv := api.New(eng, auth, log, webFS())
 	srv := &http.Server{
 		Addr:              cfg.Server.Listen,
-		Handler:           api.New(eng, auth, log, webFS()).Handler(),
+		Handler:           apiSrv.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       90 * time.Second,
 		MaxHeaderBytes:    16 << 10,
 	}
+	srv.RegisterOnShutdown(apiSrv.StopStreams) // the event streams never end on their own
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
 	log.Info("listening", "addr", cfg.Server.Listen)

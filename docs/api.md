@@ -111,7 +111,8 @@ while the street network is still being prepared.
 `calls` are those stops in order, ending with the one you get off at: each one's `name` (and its `station`, for a
 platform) and when the ride gets there (`arr`, by live data when the trip has it; left out for a stop the trip skips).
 They're in the same order as the stops `/api/shape` places on the ride's line.
-`status` is `scheduled`, `predicted` (live data) or `added` (a realtime-only trip). `risk` is `safe`, `tight`,
+`realtime` says the server had fresh live data for the plan (`realtime_at`: from when); whether one ride has live
+times is its own `status`: `scheduled`, `predicted` (live data) or `added` (a realtime-only trip). `risk` is `safe`, `tight`,
 `at-risk` or `missed`. `fallback_dep` is the next service of the onward line from the same stop.
 
 ## `POST /api/lines`
@@ -200,6 +201,27 @@ call at a station of a loaded line, so the app needs updating), and
 `data`: whether the street network and basemap are ready, their age and any error from the last attempt to fetch them.
 `data.walk_updating` is there (and true) while the street network is being downloaded and rebuilt, or is about to be.
 
+## `GET /api/events`
+A stream of server-sent events (`text/event-stream`) that stays open. Each time new live data has been applied it
+sends
+
+```
+event: realtime
+data: {"realtime_at": "2026-10-15T06:34:29+11:00"}
+```
+
+(`realtime_at` left out when there's no fresh live data); each time new vehicle positions have come in (about every
+15 s while the app is in use)
+
+```
+event: vehicles
+data: {}
+```
+
+and a comment line (`: keep-alive`) every 20 s so nothing on the way closes it as idle. The app re-plans on
+`realtime` and fetches `/api/vehicles` again on `vehicles`. Holding the stream open doesn't count as
+using the app, so it doesn't keep realtime polling going on its own. It ends when the server shuts down; reconnect.
+
 ## `POST /api/street-map/update`
 No body. Asks the server to download the street map and rebuild the street network now, instead of when it's next due
 (every 35 days). `202 {}` at once: the work happens in the background, the network in use stays in use until the new
@@ -208,5 +230,5 @@ Asking while one is under way changes nothing. A failed update is tried again af
 `409` when the server doesn't download a street map (`data.auto_download` off, or no `walk_source`).
 Geofabrik rebuilds its extract daily, so an edit to OpenStreetMap is usually there to fetch the next day.
 
-Any authenticated API request counts as activity: realtime polling runs while the app was used in the last
-`realtime.active_for` (default 10 min).
+Any authenticated API request but `/api/status` and `/api/events` counts as activity: realtime polling runs while
+the app was used in the last `realtime.active_for` (default 10 min).

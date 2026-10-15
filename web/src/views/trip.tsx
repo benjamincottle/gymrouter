@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
 import { addDays, dayLabel, distance, fromLocalInput, orList, roundUp, statusTime, toLocalInput } from '../format.ts'
-import { usePolling, useSettled, useVisible, useWide } from '../hooks.ts'
+import { useLiveEvents, usePolling, useSettled, useVisible, useWide } from '../hooks.ts'
 import { byUse, dismissWalk, placeRef, placeRequest, prefs, usedGym, walkDismissed, walkSpeed, type Gym, type Settings } from '../settings.ts'
 import { fastest } from '../options.ts'
 import type { DefaultsResponse, Option, PlanRequest } from '../types.ts'
@@ -10,11 +10,14 @@ import { BrandLogo } from './brand.tsx'
 import { DirectionGlyph, IconHurry } from './icons.tsx'
 import type { ActiveTrip } from './intrip.tsx'
 import { LineChip } from './option.tsx'
-import { Button, Callout, IconButton, LiveTag, Segmented, Select } from './ui.tsx'
+import { Button, Callout, IconButton, Segmented, Select } from './ui.tsx'
 
 type Direction = 'to-gym' | 'home'
 
-const REFRESH_MS = 30_000
+// A plan is asked for again as soon as the server says its live data changed (about every 30 s while the app is in
+// use); the timer is for the clock moving on ("Leave now"), and stands in for the events while they can't be heard.
+const REFRESH_MS = 60_000
+const REFRESH_UNHEARD_MS = 30_000
 const UPDATING_AFTER_MS = 400 // a newer plan slower than this says "Updating…"
 const WINDOW_MIN = 45
 const SHIFT_MS = 30 * 60_000
@@ -93,13 +96,15 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   }
 
   const key = request ? JSON.stringify(request) : null
+  const events = useLiveEvents(settings.token, visible && key !== null)
   const plan = usePolling(
     key,
     (signal) => api.plan(settings.token!, request!, signal),
-    REFRESH_MS,
+    events.connected ? REFRESH_MS : REFRESH_UNHEARD_MS,
     visible,
+    events.realtime,
   )
-  // "Updating…" once a newer plan has been on its way for a moment: the 30 s refresh usually lands before it shows,
+  // "Updating…" once a newer plan has been on its way for a moment: a refresh usually lands before it shows,
   // so the word is for a refresh that's slow (a weak signal), not a blink every half minute. (A changed search
   // doesn't keep the old plan on screen: it starts again from "Planning…".)
   const [updating, setUpdating] = useState(false)
@@ -276,7 +281,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
                   options={[...plan.data.options].sort((a, b) => Date.parse(a.leave_at) - Date.parse(b.leave_at))}
                   preferLatest={plannedWhen === 'arrive'}
                   live={leaveAt === null}
-                  tag={<LiveTag live={plan.data.realtime} updating={updating} />}
+                  updating={updating}
                   serviceDate={plan.data.service_date}
                   token={settings.token!}
                   origin={direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat]}

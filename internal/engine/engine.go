@@ -121,11 +121,13 @@ type Engine struct {
 	pending     lines.Set
 	prefetching bool
 
-	today      atomic.Pointer[Snapshot]
-	shapes     atomic.Pointer[shapeSet]
-	stations   atomic.Pointer[stationsOf] // the day's stations, indexed for boarding advice
-	lastActive atomic.Int64               // unix nanos
-	wake       chan struct{}
+	today       atomic.Pointer[Snapshot]
+	shapes      atomic.Pointer[shapeSet]
+	stations    atomic.Pointer[stationsOf] // the day's stations, indexed for boarding advice
+	lastActive  atomic.Int64               // unix nanos
+	wake        chan struct{}
+	liveSig     signal // new live data was applied (LiveChanged)
+	vehiclesSig signal // new vehicle positions came in (VehiclesChanged)
 
 	loadMu     sync.Mutex // serialises timetable loads
 	cacheMu    sync.Mutex
@@ -597,7 +599,7 @@ func (e *Engine) pollLoop(ctx context.Context) {
 // new trip updates. It's exported for tests.
 func (e *Engine) PollOnce(ctx context.Context) {
 	now := e.now()
-	tripsChanged := false
+	tripsChanged, vehiclesChanged := false, false
 	e.rtMu.Lock()
 	feeds := append([]*feedState(nil), e.feeds...)
 	e.rtMu.Unlock()
@@ -622,12 +624,16 @@ func (e *Engine) PollOnce(ctx context.Context) {
 					e.rtMu.Lock()
 					fs.vehicles, fs.vehiclesAt = f.Vehicles, now
 					e.rtMu.Unlock()
+					vehiclesChanged = true
 				}
 			}
 		}
 	}
 	if tripsChanged {
 		e.applyRealtime()
+	}
+	if vehiclesChanged {
+		e.vehiclesSig.fire()
 	}
 }
 
@@ -708,7 +714,41 @@ func (e *Engine) applyRealtime() {
 	s := &Snapshot{Date: static.Date, Midnight: static.Midnight, Day: day, Net: raptor.Build(day, e.snapshotOptions()),
 		Realtime: true, RealtimeAt: oldest, Stats: st, Static: static}
 	// Only publish if today hasn't been replaced meanwhile.
-	e.today.CompareAndSwap(cur, s)
+	if e.today.CompareAndSwap(cur, s) {
+		e.liveSig.fire()
+	}
+}
+
+// LiveChanged returns a channel that's closed the next time new live data is applied to today's timetable, so a
+// client can plan again straight away instead of on a timer.
+func (e *Engine) LiveChanged() <-chan struct{} { return e.liveSig.wait() }
+
+// VehiclesChanged returns a channel that's closed the next time vehicle positions come in, so a client can fetch
+// them as soon as they're new instead of on a timer.
+func (e *Engine) VehiclesChanged() <-chan struct{} { return e.vehiclesSig.wait() }
+
+// signal tells whoever is waiting that something changed: each wait gets a channel that's closed at the next change.
+type signal struct {
+	mu sync.Mutex
+	ch chan struct{}
+}
+
+func (s *signal) wait() <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ch == nil {
+		s.ch = make(chan struct{})
+	}
+	return s.ch
+}
+
+func (s *signal) fire() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ch != nil {
+		close(s.ch)
+		s.ch = nil
+	}
 }
 
 // ErrBusy is returned when geocoding is requested too often.

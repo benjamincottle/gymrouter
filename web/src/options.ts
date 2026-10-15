@@ -13,6 +13,14 @@ export function tripKey(o: Option): string {
     .join('|')
 }
 
+/**
+ * Whether a ride's times are live (docs/DESIGN.md, Live or timetabled): predicted by live data, or an extra service
+ * that only live data knows about.
+ */
+export function rideIsLive(l: Leg): boolean {
+  return l.status === 'predicted' || l.status === 'added'
+}
+
 /** Finds a chosen option again in a refreshed list. */
 export function reselect(opts: Option[], trips: string, leave: number): number {
   const i = opts.findIndex((o) => tripKey(o) === trips)

@@ -9,6 +9,8 @@ import { layers, namedFlavor } from '@protomaps/basemaps'
 import { ApiError, api } from '../api.ts'
 import { LAST_STOPS, type RideProgress } from '../countdown.ts'
 import { splitAt } from '../progress.ts'
+import { useLiveEvents, useVisible } from '../hooks.ts'
+import { every } from '../live.ts'
 import { isDark } from '../theme.ts'
 import type { Leg, Option, Vehicle } from '../types.ts'
 import { INK, lineColour, textOn, token, WHITE } from '../colour.ts'
@@ -139,6 +141,9 @@ const fc = (features: Feature[]) => ({ type: 'FeatureCollection' as const, featu
 
 /** A filter no stop passes: the layers for your stop draw nothing until you're on a ride. */
 const NO_STOP: maplibregl.FilterSpecification = ['==', ['get', 'leg'], -1]
+
+const VEHICLES_MS = 30_000 // without word from the server that new positions are in (useLiveEvents)
+const VEHICLES_UNHEARD_MS = 10_000 // while that word can't be heard
 
 export interface MapViewProps {
   token: string
@@ -533,7 +538,13 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
     if (map.current) drawVehicles(map.current)
   }, [riding])
 
-  // Live vehicles every 10 s; this also keeps the server's realtime polling active.
+  // Live vehicles as soon as the server says new positions are in (about every 15 s), else every 30 s, or every 10 s
+  // while the server can't be heard. Fetching them also keeps the server's realtime polling going.
+  const visible = useVisible()
+  const events = useLiveEvents(token, visible && rides.length > 0)
+  const connectedRef = useRef(events.connected)
+  connectedRef.current = events.connected
+  const vehicleFetches = useRef<ReturnType<typeof every> | null>(null)
   useEffect(() => {
     let live = true
     const tick = (force = false) => {
@@ -554,13 +565,28 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
           if (e instanceof ApiError) setError(e.message)
         })
     }
-    whenReady(map, el, () => tick(true))
-    const id = setInterval(tick, 10_000)
+    // Once the map is ready: now, and again after a while unless new positions come in first (the wait starts again
+    // from each fetch).
+    let force = true // the first fetch goes whether or not the page is in view
+    const fetches = every(() => {
+      tick(force)
+      force = false
+    }, () => (connectedRef.current ? VEHICLES_MS : VEHICLES_UNHEARD_MS))
+    whenReady(map, el, () => {
+      if (!live) return
+      vehicleFetches.current = fetches
+      fetches.run()
+    })
     return () => {
       live = false
-      clearInterval(id)
+      fetches.stop()
+      vehicleFetches.current = null
     }
   }, [token, ridesKey])
+  useEffect(() => {
+    if (events.vehicles > 0) vehicleFetches.current?.run()
+  }, [events.vehicles])
+  useEffect(() => vehicleFetches.current?.retime(), [events.connected]) // the wait changes with it
 
   // You, as the location updates.
   useEffect(() => {

@@ -268,11 +268,16 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
 - **Live or timetabled** (`LiveTag`; at the right end of the row that labels the big number: "Leave in" on the trip
   screen, "Arrive" during a trip, so it costs no height): in 14px pencil, a `--safe` dot and "Live", or a pencil dot
   and "Timetabled". No time beside it. Nothing about live data goes in the gym's row.
-  - **On the trip screen** it's the plan's. While a refresh of the same search has been on its way for 400 ms (a
+  - **It speaks for one ride**, not the server: "Live" when that ride has live times (predicted, or an extra service
+    only live data knows about), otherwise "Timetabled". A trip that's only walking has no tag. Whether the server
+    has live data at all is the footer's to say (Server status).
+  - **On the trip screen** it's the highlighted trip's first ride, the one the countdown counts to; choosing another
+    trip changes it. While a refresh of the same search has been on its way for 400 ms (a
     weak signal, or coming back to the app) it reads "Updating…" beside a pencil ring (the dot, not yet filled), so
-    the times under it are known to be the last ones; the 30 s refresh usually lands sooner and shows nothing. A
+    the times under it are known to be the last ones; a refresh usually lands sooner and shows nothing. A
     changed search doesn't keep the old plan: it starts again from "Planning…". The ring is pencil, not a status colour: nothing is wrong.
-  - **During a trip** it's what the last re-check said. A re-check that fails gets the status line under Then, and
+  - **During a trip** it's the ride you're on, or the one you're on your way to (a change included), as the last
+    re-check left it. A re-check that fails gets the status line under Then, and
     the word goes until one works again. It shows while there's still a service ahead (not on the last walk, nor once
     you've arrived).
 - **Status line** (trip screen, under the route row, in 14px pencil): only while there's something to say that the
@@ -528,8 +533,11 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
 
 ### Refreshing
 
-The app refreshes itself: plans every 30 s, the server status every 5 minutes, and both at once when the app comes
-back to the foreground. So there's no pull-to-refresh (`overscroll-behavior-y: contain` on the page), and no refresh
+The app refreshes itself: a plan as soon as the server says its live data has changed (about every 30 s while the
+app is in use), else every 60 s (every 30 s while it can't hear from the server); the map's vehicles as soon as the
+server has new positions (about every 15 s), else every 30 s (10 s while it can't hear from the server); the server
+status every 5 minutes; and all of them at once when the app comes back to the foreground. So there's no
+pull-to-refresh (`overscroll-behavior-y: contain` on the page), and no refresh
 button. The one thing that needs a reload is a new version of the app, and the footer offers it (see Version).
 
 What the server keeps for itself refreshes on its own schedule too. The one thing that can be asked for early is the

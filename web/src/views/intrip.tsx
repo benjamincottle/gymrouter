@@ -1,18 +1,19 @@
-// In-trip mode: follows the chosen option, re-checks it against live data every 30 s from wherever
-// you are (or the vehicle you're on), and suggests a switch when something slips.
+// In-trip mode: follows the chosen option, re-checks it against live data whenever the server has new data (else
+// every 60 s) from wherever you are (or the vehicle you're on), and suggests a switch when something slips.
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
 import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, spare } from '../format.ts'
-import { useNow, useVisible, useWide } from '../hooks.ts'
+import { useLiveEvents, useNow, useVisible, useWide } from '../hooks.ts'
 import { assess, changesNote, focusLegs, instruction, keepFrom, phaseAt, replanOrigin, replanTime, spareToBoard, stopKey, suggestionKey, tripsFrom, USABLE_M, type Assessment, type Missed, type Phase, type Position } from '../intrip.ts'
 import type { Option, PlanRequest } from '../types.ts'
 import type { PlaceRef } from '../settings.ts'
 import { MapPane, MapSheet, TripRow } from './board.tsx'
 import { BoardStrip, RideCountdown, Timeline, type Tracking } from './option.tsx'
 import { callPlaces, stopsPassed, type RideProgress } from '../countdown.ts'
-import { position, rows } from '../options.ts'
+import { position, rideIsLive, rows } from '../options.ts'
 import { advance, phaseOf, rowLines, shapeKey, walkLeftS, walkTo, type At, type LonLat } from '../progress.ts'
 import { boarding, type Fix, type Sighting } from '../boarding.ts'
+import { every } from '../live.ts'
 import { vehicleOf, type Doing } from './icons.tsx'
 import { ActionBar, Button, Callout, Confirm, LiveTag, TextButton } from './ui.tsx'
 
@@ -34,8 +35,12 @@ export interface ActiveTrip {
 
 export const TRIP_KEY = 'gymrouter.trip'
 
-const REPLAN_MS = 30_000
-const VEHICLE_MS = 10_000 // how often your vehicle's position is checked while you wait for it or ride it
+const REPLAN_MS = 60_000 // without word from the server that its live data changed (useLiveEvents)
+const REPLAN_UNHEARD_MS = 30_000 // while that word can't be heard
+// Your vehicle's position is checked as soon as the server says new positions are in (about every 15 s), while you
+// wait for it or ride it; else every 30 s, or every 10 s while the server can't be heard (useLiveEvents).
+const VEHICLE_MS = 30_000
+const VEHICLE_UNHEARD_MS = 10_000
 const HISTORY_MS = 180_000 // your recent fixes, kept to compare with the vehicle's reports
 const STALE_MS = 20_000 // a fix older than this isn't where you are now
 const LOST_MS = 90_000 // no fix for this long (a tunnel, an underground platform): the clock says where you are
@@ -54,7 +59,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   const [locState, setLocState] = useState<'on' | 'denied'>(() => (navigator.geolocation ? 'on' : 'denied'))
   const [check, setCheck] = useState<Assessment | null>(null)
   const [error, setError] = useState('')
-  const [liveData, setLiveData] = useState<boolean | null>(null) // whether the last re-check had live times
+  const [checked, setChecked] = useState(false) // the last re-check worked, so the rides ahead have its times
   const [mapOpen, setMapOpen] = useState(false)
   const [ending, setEnding] = useState(false)
   const wide = useWide()
@@ -95,6 +100,13 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   const [aboard, setAboard] = useState<Set<string>>(new Set()) // trip IDs you've been seen on
   const recheck = useRef<() => void>(() => undefined)
   const watching = phaseRef.current.kind === 'before' || phaseRef.current.kind === 'riding' ? o.legs[phaseRef.current.ride] : undefined
+  // While there's a service ahead, the server says when its live data changes (the trip is checked again then) and
+  // when new vehicle positions are in (yours is looked for then).
+  const events = useLiveEvents(token, visible && watching !== undefined)
+  const heard = useRef({ realtime: events.realtime, connected: events.connected })
+  const connectedRef = useRef(events.connected)
+  connectedRef.current = events.connected
+  const vehicleChecks = useRef<ReturnType<typeof every> | null>(null)
   useEffect(() => {
     const l = watching
     if (!l?.trip_id || !l.from || !l.to || !l.line || locState !== 'on') return
@@ -119,13 +131,20 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
           }
         })
         .catch(() => undefined)
-    tick()
-    const id = setInterval(tick, VEHICLE_MS)
+    // Now, and again after a while unless new positions come in first (the wait starts again from each check).
+    const checks = every(tick, () => (connectedRef.current ? VEHICLE_MS : VEHICLE_UNHEARD_MS))
+    vehicleChecks.current = checks
+    checks.run()
     return () => {
       live = false
-      clearInterval(id)
+      checks.stop()
+      vehicleChecks.current = null
     }
   }, [watching?.trip_id, locState])
+  useEffect(() => {
+    if (events.vehicles > 0) vehicleChecks.current?.run()
+  }, [events.vehicles])
+  useEffect(() => vehicleChecks.current?.retime(), [events.connected]) // the wait changes with it
   const onVehicle = (ride: number) => aboard.has(o.legs[ride]?.trip_id ?? '')
 
   // Where you are and what you're doing, from your location: the marker, Now / Then and the re-checks all use this.
@@ -205,7 +224,8 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
     return () => navigator.geolocation.clearWatch(id)
   }, [locState])
 
-  // Re-check the trip straight away, then every 30 s while the screen is visible.
+  // Re-check the trip straight away, then each time the server's live data changes, and on a timer, while the screen
+  // is visible.
   useEffect(() => {
     let live = true
     const run = async () => {
@@ -224,7 +244,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
         const a = assess(tripsFrom(trip.option, ph.ride), res.kept, res.options, trip.plannedArrive, { missed: held.current, clearS: trip.tightS })
         held.current = a.status === 'missed' ? a.missed : null
         setCheck(a)
-        setLiveData(res.realtime)
+        setChecked(true)
         setError('')
         // The same trip: take the live times for what's still ahead (also when a change in it has gone).
         if (a.current) onUpdate({ ...tripRef.current, option: merge(trip.option, ph.ride, a.current) })
@@ -232,19 +252,22 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
         if (e instanceof AuthError) onAuthError()
         else if (live) {
           setError(`Couldn't re-check the trip: ${problem(e)}`)
-          setLiveData(null) // unknown until a check works again; the line below says why
+          setChecked(false) // unknown until a check works again; the line below says why
         }
       }
     }
     recheck.current = run
-    if (visible || !checkedRef.current) run()
+    // The stream connecting or dropping only changes the timer: no re-check for that alone.
+    const onlyHeard = heard.current.connected !== events.connected && heard.current.realtime === events.realtime
+    heard.current = { realtime: events.realtime, connected: events.connected }
+    if (!onlyHeard && (visible || !checkedRef.current)) run()
     checkedRef.current = true
-    const id = visible ? setInterval(run, REPLAN_MS) : undefined
+    const id = visible ? setInterval(run, events.connected ? REPLAN_MS : REPLAN_UNHEARD_MS) : undefined
     return () => {
       live = false
       clearInterval(id)
     }
-  }, [visible, trip.plannedArrive, tripsFrom(trip.option, 0).join(',')])
+  }, [visible, trip.plannedArrive, tripsFrom(trip.option, 0).join(','), events.realtime, events.connected])
 
   const switchTo = (s: Option) => {
     const ph = phaseRef.current
@@ -336,8 +359,8 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
       <section class="hero">
         <p class="label">
           {phase.kind === 'arrived' ? 'Arrived' : 'Arrive'}
-          {/* Whether the last re-check had live times, while there's still a service ahead to have them for. */}
-          {liveData !== null && (phase.kind === 'before' || phase.kind === 'riding') && <LiveTag live={liveData} />}
+          {/* Whether the ride you're on, or on your way to, has live times, as the last re-check left them. */}
+          {checked && (phase.kind === 'before' || phase.kind === 'riding') && <LiveTag live={rideIsLive(o.legs[phase.ride])} />}
         </p>
         <p class="hero-time num">{clock(o.arrive)}</p>
         <p class="hero-arrive">
