@@ -14,7 +14,7 @@ COPY web/ ./
 RUN npm run build
 
 # --- Server: cross-compiled from the build platform (fast on any runner) ---
-FROM --platform=$BUILDPLATFORM golang:1.27-trixie@sha256:2f84bc93ecfb2689f782b153fdcd368b5a7ab96c1386c65cdaccf35e726d6a44 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-trixie@sha256:47667934874913a449b96faa7ef4777fa285d9ec29126ee80ed61c45b7cccf0e AS build
 ARG TARGETOS TARGETARCH
 # The commit being built (CI passes github.sha); the footer shows it. The context has no .git to read it from.
 ARG REVISION=""
