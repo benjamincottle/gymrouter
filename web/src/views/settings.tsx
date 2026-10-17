@@ -471,7 +471,8 @@ function Backup({ settings, setSettings }: { settings: Settings; setSettings: (s
           }}
         >
           <p>
-            The backup has {counts(incoming) || 'nothing saved'}. It replaces {counts(settings) ? `the ${counts(settings)}` : 'everything'} on this device.
+            The backup has {counts(incoming) || 'nothing saved'}. It replaces {counts(settings) ? `the ${counts(settings)}` : 'everything'} on this device
+            {incoming.token && settings.token && incoming.token !== settings.token ? ', and its access token' : ''}.
           </p>
         </ConfirmSheet>
       )}

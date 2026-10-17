@@ -1,15 +1,15 @@
 # TODO: from the codebase review before the UI overhaul (2026-10-17)
 
-Small things found reading the app end to end; to be picked up during the overhaul.
+Small things found reading the app end to end; fixed after the overhaul (2026-10-17).
 
-- [ ] **The map's vehicle errors show the server's own words.** `web/src/map/mapview.tsx` puts `e.message` from a
+- [x] **The map's vehicle errors show the server's own words.** `web/src/map/mapview.tsx` puts `e.message` from a
       failed `/api/vehicles` straight into its callout. Every other error goes through `problem()` (`web/src/api.ts`),
       as DESIGN.md's Errors section says: never a raw server string.
-- [ ] **An open map keeps the theme it opened with.** The map's style (light or dark basemap, and the colours read
+- [x] **An open map keeps the theme it opened with.** The map's style (light or dark basemap, and the colours read
       from the CSS tokens: walks, outlines, the "you" blue) is set once when the map is made, so switching Light/Dark
       in Settings (or the system switching under Auto) leaves an open map in the old theme until it's opened again.
       On desktop, where the map pane stays open, that's the whole session.
-- [ ] **Importing a backup doesn't say it changes the access token.** A backup file whose token differs from the
+- [x] **Importing a backup doesn't say it changes the access token.** A backup file whose token differs from the
       device's replaces it, but the confirm sheet only counts homes and gyms ("It replaces the 1 home and 3 gyms on
       this device"). A link with a different token says so ("…and its access token", `importQuestion` in
       `web/src/settings.ts`); the file import should too.

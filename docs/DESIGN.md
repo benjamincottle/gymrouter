@@ -61,10 +61,13 @@ no casing. Walks are round 4.5px ink dots every 8px along the street route (a do
 image placed along the line, never a dashed line, which MapLibre stretches between zoom levels). A ride's stops (where you get on and
 off, and those passed on the way) sit on the line's centre (the server places them on the shape): white dots with a
 1.5px ink outline, 10px across, so they stand a little proud of the 6px line.
-The home and the gym at the trip's ends are drawn as on the rail: the house or the shoe (18px, in ink; the shoe's
-sole the dark part in either theme) in a 30px `--wall` disc inside a 2px ink ring, a gym with its name beside it in
-13px ink haloed in the wall. Before there's a trip to draw (desktop), your home and all your gyms, a gym chosen with a
-click.
+The home and the gym at the trip's ends are drawn as on the rail: the house (18px, in ink) in a 30px `--wall` disc
+inside a 2px ink ring. A gym is its brand's logo, as in the lists (24px and whole, in a 36px disc and ring), or the
+shoe for a gym without one, with its name beside it in 13px ink haloed in the wall. Before there's a trip to draw
+(desktop), your home and all your gyms, a gym chosen with a click, framed to take in the area the app covers too:
+Blaxland in the west to Manly in the east.
+The map is made afresh when the page turns light or dark (Settings, or the system under Auto), so it's always in the
+page's theme. A failure to fetch its vehicles is said in `problem()`'s words, as every other error is.
 Vehicles are discs in the line's colour, 20px inside a 2.5px ink outline, with the mode's glyph from the rail (train, bus
 or ferry) in ink or white: all one size whatever the line is called, since the colour and the trip say which line it is.
 You are a `--you` disc, 22px inside a 3px white border (28px across, as on the trip's rail) with a soft dark edge so

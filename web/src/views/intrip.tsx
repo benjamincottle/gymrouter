@@ -359,7 +359,7 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
 
   const map = {
     serviceDate: trip.serviceDate, token, me: where, doing, aboard: riding, option: o, focus, progress: ride, catching,
-    places: [trip.ends.start, trip.ends.end].map((p) => ({ kind: p.key.startsWith('home:') ? ('home' as const) : ('gym' as const), lon: p.lon, lat: p.lat })),
+    places: [trip.ends.start, trip.ends.end].map((p) => ({ kind: p.key.startsWith('home:') ? ('home' as const) : ('gym' as const), lon: p.lon, lat: p.lat, brand: p.brand })),
     // On the phone the panel lies over the map's foot: the map fits the trip above it (read when it fits, so dragging
     // the panel doesn't move the map).
     coveredBelow: wide ? undefined : () => panelRef.current?.offsetHeight ?? 0,
