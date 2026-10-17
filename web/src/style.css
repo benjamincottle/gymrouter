@@ -55,6 +55,7 @@
   --control: 44px;
   --hair: 1px solid var(--rule);
   --heavy: 3px solid var(--ink);
+  --frame: 2px solid var(--pencil); /* the rules above and below a map: quieter than an ink rule */
   --bar: 4px;
 
   /* desktop */
@@ -404,8 +405,10 @@ select {
   border-left: 1.5px solid var(--ink);
 }
 
-/* the chosen option: a bar along its bottom in the control's own ink, part of its frame */
+/* the chosen option, as the chosen row on the options board: a --panel fill, and a bar along its bottom in the
+   control's own ink, part of its frame */
 .segmented button[aria-checked='true'] {
+  background: var(--panel);
   box-shadow: inset 0 calc(-1 * var(--bar)) 0 var(--ink);
 }
 
@@ -628,9 +631,21 @@ details > summary {
 
 /* ---- sections and rows ---- */
 
+/* a hairline starts a section: Settings is long, and seven heavy rules down it were loud for a screen seldom visited */
 .section {
-  padding-top: var(--s3);
-  border-top: var(--heavy);
+  padding-top: var(--s4);
+  border-top: var(--hair);
+}
+
+/* Settings' own sections start with their titles and the space above them, no rule (its editors keep theirs) */
+.unruled > .section {
+  border-top: 0;
+}
+
+/* and its lists end without a closing hairline: hairlines part the rows, and the space parts the sections */
+.unruled .setting-rows > .setting:last-child,
+.unruled .rows > li:last-child {
+  border-bottom: 0;
 }
 
 /* the top of Settings and its editors needs no rule: the header is right above it */
@@ -756,7 +771,7 @@ details > summary {
 
 .setting {
   display: grid;
-  grid-template-columns: 1fr 5.5rem;
+  grid-template-columns: 1fr 7.5rem;
   align-items: center;
   column-gap: var(--s3);
   min-height: 56px;
@@ -769,8 +784,35 @@ details > summary {
   display: block;
 }
 
-.setting input {
+/* the field holds the number and its unit after it ("5.5 km/h"); the unit is pencil, the number ink */
+.unit-field {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  min-height: var(--control);
+  padding: 0 var(--s3);
+  border: 1.5px solid var(--edge);
+  border-radius: var(--r-control);
+  background: var(--panel);
+}
+
+.unit-field:focus-within {
+  border-color: var(--ink);
+}
+
+.setting .unit-field input[type='number'] {
+  flex: 1;
+  min-width: 0;
+  min-height: calc(var(--control) - 3px);
+  padding: 0;
+  border: 0;
+  background: none;
   text-align: right;
+}
+
+.unit-field .unit {
+  flex: none;
+  color: var(--pencil);
 }
 
 .setting-rows > .pace {
@@ -929,24 +971,20 @@ details > summary {
   cursor: pointer;
 }
 
-.home-link img {
+/* the app's icon, as in the header: on the trip screen's and in a trip's */
+.app-icon {
   flex: none;
   box-shadow: 0 0 0 1px var(--icon-edge, transparent);
   border-radius: 7px; /* the icon's own corner, kept crisp at this size */
 }
 
+span.home-link {
+  cursor: default;
+}
+
 .topbar .icon-btn {
   border-radius: 0;
   color: var(--pencil);
-}
-
-/* the screen you're on: its icon is ink, with no underline */
-.topbar .icon-btn.active {
-  color: var(--ink);
-}
-
-.topbar .icon-btn.active:hover {
-  background: none;
 }
 
 .app > .callout {
@@ -1204,7 +1242,9 @@ details > summary {
   grid-column: 3;
 }
 
-.gym-name {
+/* a home's or gym's name, wherever it's listed: the trip screen, Settings, the gym chooser */
+.gym-name,
+.place-name {
   font-size: var(--fs-strong);
   font-weight: 800;
   font-stretch: var(--semi);
@@ -1293,16 +1333,6 @@ details > summary {
   color: var(--ink);
 }
 
-.hero-sub {
-  grid-column: 1 / -1;
-  margin-top: var(--s2);
-}
-
-/* how sure the chosen trip is: its badge, then why */
-.hero-sub.hero-risk {
-  margin-top: var(--s1);
-}
-
 .shift {
   display: flex;
   justify-content: space-between;
@@ -1350,7 +1380,8 @@ details > summary {
   cursor: pointer;
 }
 
-.strips > li.selected > .strip-row {
+/* the chosen option: its fill and bar take in the line under its row */
+.strips > li.selected {
   background: var(--panel);
   box-shadow: inset var(--bar) 0 0 var(--ink);
 }
@@ -1422,21 +1453,30 @@ details > summary {
   background-repeat: round no-repeat;
 }
 
-.alt-note {
+/* under the chosen option's row, in its fill: door to door, changes and stops */
+.strip-note {
   grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid; /* the row's own columns, padded as the row is: the line starts where the tape does */
   margin: 0;
-  padding: 0 var(--s2) var(--s2) calc(var(--s2) + var(--bar));
+  padding: 0 var(--s2) var(--s2);
   font-size: var(--fs-small);
   color: var(--pencil);
-  background: var(--panel);
 }
 
-.summary {
-  margin-top: var(--s5);
+.strip-note > span {
+  grid-column: 2 / -1;
 }
 
-.summary strong {
-  font-weight: 800;
+.strip-note .note-line {
+  display: block;
+}
+
+/* without a countdown above them (leaving at a set time), Earlier and Later sit straight under the gym's row */
+.board > .shift:first-child {
+  margin-top: var(--s2);
+  padding-top: 0;
+  border-top: 0;
 }
 
 /* ---- the trip's steps ---- */
@@ -1886,13 +1926,16 @@ details > summary {
 
 /* ---- where to board a train: each carriage an outline, yours in the line's colour, the front one with a cab ---- */
 
+/* in a ride's step, between where it goes and its stops line */
 .board-strip {
-  margin-top: var(--s3);
+  margin: var(--s2) 0;
 }
 
+/* 80% of the column, from its left: each carriage a fifth narrower than a full-width train's */
 .board-strip .carriages {
   display: flex;
   gap: var(--s1);
+  width: 80%;
   height: 22px;
   color: var(--rule);
 }
@@ -1933,24 +1976,29 @@ details > summary {
   stroke-width: 1.5;
 }
 
+/* in the step's 14px pencil, like the lines around it */
 .board-say {
   display: flex;
   align-items: center;
-  gap: var(--s2);
+  gap: var(--s1);
   margin-top: var(--s2);
+  font-size: var(--fs-small);
+  color: var(--pencil);
 }
 
 .board-say .icon {
   flex: none;
 }
 
-/* the runner beside regular text: as light as the carriages' outlines */
+/* the runner at the size of the words beside it, its lines a little heavier so they hold at 16px */
 .board-say .icon.hurry {
-  stroke-width: 1.5;
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
 }
 
 .board-say .icon.hurry .streaks {
-  stroke-width: 1.2;
+  stroke-width: 1.5;
 }
 
 /* ---- the map: a sheet on phones, a pane beside the trip on desktop ---- */
@@ -1970,11 +2018,15 @@ details > summary {
   gap: var(--s3);
   min-height: 56px;
   padding: env(safe-area-inset-top) var(--s3) 0;
-  border-bottom: var(--heavy);
+  border-bottom: var(--frame);
 }
 
 .sheet-bar .btn {
   padding-left: var(--s3);
+}
+
+.sheet-bar > .text-btn {
+  margin-right: var(--s1);
 }
 
 .sheet-title {
@@ -2018,14 +2070,15 @@ details > summary {
   align-items: center;
   column-gap: var(--s4);
   padding: var(--s3) var(--s4) calc(var(--s3) + env(safe-area-inset-bottom));
-  border-top: var(--heavy);
+  border-top: var(--frame);
 }
 
 .sheet-summary > div {
   min-width: 0;
 }
 
-.sheet-summary p {
+/* the leave or arrive line (only it: not the lines of the steps under it) */
+.sheet-summary > div > p {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
@@ -2035,71 +2088,6 @@ details > summary {
 
 .sheet-leave {
   font-size: var(--fs-lead);
-}
-
-/* during a trip: a handle on the rule under the map. Dragged down (or tapped), the map takes the steps' room; dragged
-   back up, they return */
-.sheet-summary.pull {
-  padding-top: 0;
-}
-
-.sheet-handle {
-  grid-column: 1 / -1;
-  position: relative;
-  width: 100%;
-  z-index: 3; /* its hit area reaches up over the map's bottom edge */
-  height: var(--s4);
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: grab;
-  touch-action: none;
-}
-
-.sheet-handle::before {
-  content: '';
-  position: absolute;
-  top: 5px;
-  left: calc(50% - 20px);
-  width: 40px;
-  height: 4px;
-  border-radius: var(--r-mark);
-  background: var(--ink);
-}
-
-/* 44px to take hold of, clear of the map's attribution in the corner */
-.sheet-handle::after {
-  content: '';
-  position: absolute;
-  inset: -14px var(--s7);
-}
-
-/* with the map pulled down, what to do now stays under it */
-.sheet-now {
-  grid-column: 1 / -1;
-}
-
-.sheet-summary .sheet-now p {
-  display: block;
-  margin: 0;
-}
-
-.sheet-now p:first-child {
-  font-weight: 600;
-}
-
-/* during a trip the description sits under the map, scrolling on its own */
-.sheet-steps {
-  grid-column: 1 / -1;
-  max-height: 38vh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  margin: 0 calc(-1 * var(--s4));
-  padding: 0 var(--s4);
-}
-
-.sheet-steps .timeline {
-  margin-top: var(--s1);
 }
 
 /* MapLibre's controls in the app's terms: square, outlined, no shadow */
@@ -2118,6 +2106,22 @@ details > summary {
 
 .maplibregl-ctrl-group button + button {
   border-top: var(--hair);
+}
+
+/* back to the trip: drawn in ink like the app's own icons */
+.maplibregl-ctrl-group.recentre svg {
+  display: block;
+  margin: auto;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.maplibregl-ctrl-group.recentre circle {
+  fill: var(--ink);
+  stroke: none;
 }
 
 [data-theme='dark'] .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
@@ -2150,59 +2154,121 @@ details > summary {
   display: none;
 }
 
-/* ---- in a trip ---- */
+/* ---- in a trip: the map, with the trip in a panel under it (desktop: the panel is the left pane) ---- */
 
+.intrip {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: var(--wall);
+}
+
+/* the header's rule runs edge to edge, as the panel's does under the map */
 .trip-bar {
   display: flex;
   align-items: center;
   gap: var(--s3);
   min-height: 56px;
-  padding-top: env(safe-area-inset-top);
-  border-bottom: var(--heavy);
+  padding: env(safe-area-inset-top) var(--s4) 0;
+  border-bottom: var(--frame);
 }
 
 .trip-bar .sheet-title {
   flex: 1;
 }
 
-.intrip > .confirm {
-  margin-top: var(--s2);
+/* End trip's question lies over what's under the header (the map), so nothing moves */
+.trip-top {
+  position: relative;
+  z-index: 5;
 }
 
-.intrip .hero {
-  margin-top: var(--s2);
+.trip-top > .confirm {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
 }
 
-.intrip > .callout {
-  margin-top: var(--s4);
+.trip-panel {
+  min-height: 0;
+  border-top: var(--frame);
 }
 
-.now {
-  margin-top: var(--s4);
-  padding: var(--s3) 0;
-  border-top: var(--heavy);
+/* all of the panel but its handle: it scrolls when there's more than fits */
+.trip-panel-body {
+  max-height: 75dvh;
+  overflow-y: auto;
+  padding: 0 var(--s4) calc(var(--s3) + env(safe-area-inset-bottom));
 }
 
-.now-main {
-  margin: var(--s1) 0 var(--s2);
+/* a handle on the rule under the map. Dragged down (or tapped), the map takes the steps' room; dragged back up,
+   they return */
+.sheet-handle {
+  position: relative;
+  display: block;
+  width: 100%;
+  z-index: 3; /* its hit area reaches up over the map's bottom edge */
+  height: var(--s4);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sheet-handle::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: calc(50% - 20px);
+  width: 40px;
+  height: 3px;
+  border-radius: var(--r-mark);
+  background: var(--pencil);
+}
+
+/* 44px to take hold of, clear of the map's attribution in the corner */
+.sheet-handle::after {
+  content: '';
+  position: absolute;
+  inset: -14px var(--s7);
+}
+
+/* when you get there, and whether the ride that matters has live times */
+.trip-arrive {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s3);
+}
+
+.trip-arrive .num {
   font-size: var(--fs-lead);
-  font-weight: 800;
-  font-stretch: var(--semi);
-  line-height: 1.15;
 }
 
-.now p + p {
-  margin-top: var(--s1);
+.trip-arrive .meta {
+  display: flex;
+  gap: var(--s3);
 }
 
-/* when the train leaves, under where to board it */
-.now .board-strip + p {
-  margin-top: var(--s3);
+.trip-panel > .callout {
+  margin-top: var(--s2);
 }
 
-.next {
-  padding: var(--s3) 0;
-  border-top: var(--hair);
+/* what to do now */
+.trip-now {
+  margin-top: var(--s2);
+}
+
+.trip-now p {
+  margin: 0;
+}
+
+.trip-now-main {
+  font-weight: 600;
 }
 
 .spare {
@@ -2220,12 +2286,50 @@ details > summary {
   color: var(--missed);
 }
 
-.intrip .status-line {
-  margin-top: var(--s3);
+.trip-status {
+  margin-top: var(--s2);
 }
 
-.intrip .steps {
-  margin-top: var(--s2);
+/* the steps, scrolling on their own */
+.trip-steps {
+  max-height: 38vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: var(--s2) calc(-1 * var(--s4)) 0;
+  padding: 0 var(--s4);
+}
+
+.trip-steps .timeline {
+  margin-top: var(--s1);
+}
+
+@media (min-width: 1024px) {
+  .intrip {
+    position: static;
+    display: block;
+  }
+
+  .trip-bar {
+    padding-inline: 0;
+  }
+
+
+  .trip-panel {
+    border-top: 0;
+  }
+
+  .trip-panel-body {
+    max-height: none;
+    overflow: visible;
+    padding: var(--s3) 0 var(--s5);
+  }
+
+  .trip-steps {
+    max-height: none;
+    overflow: visible;
+    margin-inline: 0;
+    padding: 0;
+  }
 }
 
 /* ---- measuring a pace ---- */
@@ -2465,6 +2569,7 @@ details > summary {
 
   .map-pane {
     position: fixed;
+    margin: 0; /* never a stack's gap: it's fixed beside the trip */
     top: var(--header-h);
     left: var(--pane-w);
     right: 0;
@@ -2485,13 +2590,6 @@ details > summary {
   .map-pane .map-wrap > .callout.subtle {
     right: auto;
     max-width: calc(100% - 2 * var(--s3));
-  }
-
-  .map-pane > .empty-map {
-    place-self: center;
-    max-width: 22rem;
-    text-align: center;
-    color: var(--pencil);
   }
 
   .action-bar {
@@ -2709,22 +2807,28 @@ details > summary {
   max-height: 70vh;
   overflow-y: auto;
   padding: var(--s3) var(--s3) calc(var(--s3) + env(safe-area-inset-bottom));
-  border-top: var(--heavy);
-  background: var(--panel);
+  border-top: var(--hair);
+  background: color-mix(in srgb, var(--panel) 65%, transparent); /* the map and the trip show through */
 }
 
+/* "Simulation" and the time in the middle, Hide (or Show) at the right */
 .sim-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto auto 1fr;
   align-items: center;
   gap: var(--s3);
 }
 
 .sim-head strong {
+  grid-column: 2;
   font-weight: 600;
 }
 
+.sim-head .text-btn {
+  justify-self: end;
+}
+
 .sim-head .num {
-  flex: 1;
   font-size: var(--fs-strong);
   font-weight: 700;
   font-stretch: var(--narrow);
@@ -2762,4 +2866,14 @@ details > summary {
     width: 20rem;
     padding-bottom: var(--s3);
   }
+}
+
+/* hidden, it's only its first line: as little padding as keeps it clear of the rule */
+.sim-panel.hidden {
+  padding-top: var(--s1);
+  padding-bottom: calc(var(--s1) + env(safe-area-inset-bottom));
+}
+
+.sim-panel.hidden .sim-head {
+  line-height: 1.15;
 }

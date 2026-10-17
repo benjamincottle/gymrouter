@@ -52,8 +52,10 @@ export function ServerStatusLine({ token, settings, setSettings, quiet }: {
       <div class="server-status">
         <button class="status-toggle" aria-expanded={open} aria-controls="server-detail" onClick={toggle}>
           <span class="status-dot" data-state={s.state} aria-hidden="true" />
+          {/* One line: how the server is, the version it (and this app) came from, and when it was asked. */}
           <span role="status">
             {s.title}
+            {version && !stale && `, version ${version}`}
             {status.updatedAt > 0 && s.state !== 'error' && `, checked ${statusTime(status.updatedAt)}`}
           </span>
           <Chevron />
@@ -66,14 +68,11 @@ export function ServerStatusLine({ token, settings, setSettings, quiet }: {
             {status.data ? <Detail status={status.data} token={token} refresh={status.refresh} settings={settings} setSettings={setSettings} /> : <p>{s.state === 'error' ? 'Nothing to show until the server answers.' : 'Asking the server…'}</p>}
           </div>
         )}
-        {version &&
-          (stale ? (
-            <p role="status">
-              This app is out of date. <TextButton onClick={() => location.reload()}>Reload</TextButton> to get version {version}.
-            </p>
-          ) : (
-            <p>Version {version}</p>
-          ))}
+        {stale && (
+          <p role="status">
+            This app is out of date. <TextButton onClick={() => location.reload()}>Reload</TextButton> to get version {version}.
+          </p>
+        )}
       </div>
     </footer>
   )

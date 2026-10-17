@@ -5,7 +5,8 @@ import { useLiveEvents, usePolling, useSettled, useVisible, useWide } from '../h
 import { byUse, dismissWalk, placeRef, placeRequest, prefs, usedGym, walkDismissed, walkSpeed, type Gym, type Settings } from '../settings.ts'
 import { fastest } from '../options.ts'
 import type { DefaultsResponse, Option, PlanRequest } from '../types.ts'
-import { Board, WindowShift, type Shift } from './board.tsx'
+import { Board, MapPane, WindowShift, type Shift } from './board.tsx'
+import type { MapPlace } from '../map/mapview.tsx'
 import { BrandLogo } from './brand.tsx'
 import { DirectionGlyph, IconHurry } from './icons.tsx'
 import type { ActiveTrip } from './intrip.tsx'
@@ -143,6 +144,11 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
     const o = plan.data && fastest(plan.data.options, Date.now())
     if (o) start(o)
   }, [quick, plan.data, plan.error])
+
+  // The map's places: the trip's two ends; before a gym is chosen, your home and every gym (tap one to choose it).
+  const homePlace: MapPlace | null = home ? { kind: 'home', lon: home.lon, lat: home.lat } : null
+  const gymPlace = (g: Gym): MapPlace => ({ kind: 'gym', lon: g.lon, lat: g.lat, id: g.id, name: g.name })
+  const tripPlaces = homePlace && gym ? (direction === 'to-gym' ? [homePlace, gymPlace(gym)] : [gymPlace(gym), homePlace]) : null
 
   if (!server) return serverError ? null : <GymsSkeleton />
   if (!home || settings.gyms.length === 0) {
@@ -284,10 +290,8 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
                   updating={updating}
                   serviceDate={plan.data.service_date}
                   token={settings.token!}
-                  origin={direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat]}
-                  destination={direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat]}
+                  places={tripPlaces!}
                   title={title!}
-                  ends={ends!}
                   onShift={shift}
                   onStart={start}
                 />
@@ -296,10 +300,9 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
           )}
         </section>
       )}
+      {/* Until there's a trip to show: your home and the gyms (or the one chosen), each gym chosen with a tap. */}
       {wide && (quick || !(gym && plan.data && plan.data.options.length > 0)) && (
-        <aside class="map-pane">
-          <p class="empty-map">{gym ? 'The map shows a trip once there is one.' : 'Choose a gym and the trip shows here on the map.'}</p>
-        </aside>
+        <MapPane token={settings.token!} places={tripPlaces ?? [homePlace!, ...settings.gyms.map(gymPlace)]} onPlace={gym ? undefined : (id) => chooseGym(id)} />
       )}
     </div>
   )

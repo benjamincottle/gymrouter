@@ -1,23 +1,18 @@
-# Random thought, leave this please
+# TODO: from the codebase review before the UI overhaul (2026-10-17)
 
-❯ Could you give a very high level (bullet point steps high level) idea of what needs to change apart from gyms.toml in order to add another gym
+Small things found reading the app end to end; to be picked up during the overhaul.
 
-  Ran 2 shell commands
-
-For the common case, nothing else needs to change: append a [[gym]] block, rebuild and deploy. Devices are offered the new gym in the gym chooser, and they add it themselves. The rest is only needed in some cases:
-
-- Pick the lines: gymrouter suggest-lines finds the lines worth listing for the gym end, from a few varied starting points.
-- Curated walks (optional): add [[gym.access]] entries only for stops where the street routing is wrong.
-- New brand (only if it isn't 9 Degrees or ClimbFit):
-  - Add the logo to web/public/brands/<brand>.png.
-  - Add the brand to Brands in internal/gyms/gyms.go:58, or validation rejects it.
-- Outside the current area (only if the gym isn't in Sydney):
-  - The walking network only covers BBBike's Sydney extract (walk_source).
-  - The basemap is cut to mapBBox in internal/engine/provision.go:20 (lon 150.55–151.35, lat −34.15 to −33.45).
-  - Both would need widening.
-- Tests (optional): TestBuiltInGymsAreValid in internal/gyms/gyms_test.go checks a list of gym IDs. Adding the new one keeps it from being dropped by accident; validation runs either way.
-- Docs: the spec's places section describes the built-in gyms in general terms, so it only needs a decision-log line if the change is notable.
-
+- [ ] **The map's vehicle errors show the server's own words.** `web/src/map/mapview.tsx` puts `e.message` from a
+      failed `/api/vehicles` straight into its callout. Every other error goes through `problem()` (`web/src/api.ts`),
+      as DESIGN.md's Errors section says: never a raw server string.
+- [ ] **An open map keeps the theme it opened with.** The map's style (light or dark basemap, and the colours read
+      from the CSS tokens: walks, outlines, the "you" blue) is set once when the map is made, so switching Light/Dark
+      in Settings (or the system switching under Auto) leaves an open map in the old theme until it's opened again.
+      On desktop, where the map pane stays open, that's the whole session.
+- [ ] **Importing a backup doesn't say it changes the access token.** A backup file whose token differs from the
+      device's replaces it, but the confirm sheet only counts homes and gyms ("It replaces the 1 home and 3 gyms on
+      this device"). A link with a different token says so ("…and its access token", `importQuestion` in
+      `web/src/settings.ts`); the file import should too.
 
 # TODO: live data (2026-10-15)
 

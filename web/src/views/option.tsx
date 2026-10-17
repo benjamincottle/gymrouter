@@ -1,7 +1,6 @@
 import { boardText, clock, delay, placeName, platform, riskLabel, spare } from '../format.ts'
 import type { ComponentChildren } from 'preact'
-import { useState } from 'preact/hooks'
-import { LAST_STOPS, stopsToGo, type RideProgress } from '../countdown.ts'
+import { stopsToGo, type RideProgress } from '../countdown.ts'
 import type { PlaceRef } from '../settings.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 import { position, rows, type Row } from '../options.ts'
@@ -25,8 +24,8 @@ export interface Tracking {
   at?: { row: number; frac: number } | null // where your location puts you on the steps (else the clock decides)
   riding?: boolean // on a vehicle: you're drawn as it on its step (else on foot: walking, or waiting at the stop)
   ride?: RideProgress | null // the ride you're on, counted in stops (when its stops are known)
-  opened?: Record<string, boolean> // rides whose stops you've opened or closed yourself (rideKey): your tap wins
-  onOpen?: (ride: string, open: boolean) => void
+  opened: Record<string, boolean> // rides whose stops you've opened (rideKey); the rest are closed
+  onOpen: (ride: string, open: boolean) => void
 }
 
 /** A ride, for remembering whether its stops are open: the vehicle and where you get on it. */
@@ -41,28 +40,25 @@ export interface Ends {
 const placeKind = (p: PlaceRef) => (p.key.startsWith('home:') ? 'home' : 'gym')
 
 /**
- * The trip's description: a line down the middle in each leg's colours, from the home or gym it starts at to the one
- * it ends at. During a trip (`track`) you're on the line.
+ * The trip's steps, during a trip: a line down the middle in each leg's colours, from the home or gym it starts at to
+ * the one it ends at, with you on it.
  */
 export function Timeline({
   option: o, ends, track,
 }: {
   option: Option
   ends: Ends
-  track?: Tracking
+  track: Tracking
 }) {
   const rs = rows(o, true)
-  const me = track && (track.at ?? position(rs, track.now))
-  // A ride's stops: opened or closed by a tap on its stops line (while planning, kept here), or by themselves for
-  // the last few stops of the ride you're on.
-  const [own, setOwn] = useState<Record<string, boolean>>({})
-  const opened = track?.opened ?? own
-  const setOpen = track?.onOpen ?? ((ride: string, open: boolean) => setOwn((cur) => ({ ...cur, [ride]: open })))
+  const me = track.at ?? position(rs, track.now)
+  // A ride's stops: closed until a tap on its stops line opens them, and only ever opened or closed that way.
+  const { opened, onOpen: setOpen } = track
   const rail = (r: Row, k: number) => (
     <Rail
       kind={r.kind === 'start' || r.kind === 'arrive' ? r.kind : 'walk'}
       place={placeKind(r.kind === 'arrive' ? ends.end : ends.start)}
-      me={me && me.row === k ? me.frac : undefined}
+      me={me.row === k ? me.frac : undefined}
     />
   )
   return (
@@ -90,12 +86,14 @@ export function Timeline({
           return <TransferRow t={r.t} from={r.from} to={r.to} rail={rail(r, k)} />
         }
         if (r.leg.kind === 'ride') {
-          const ride = track?.ride?.leg === r.i ? track.ride : undefined
+          const ride = track.ride?.leg === r.i ? track.ride : undefined
           const key = rideKey(r.leg)
           const known = !!r.leg.calls?.length
+          // Where to board, until you're on board: rides still ahead, and the one you're waiting for.
+          const boarding = me.row < k || (me.row === k && !track.riding && me.frac < 0.5)
           return (
-            <RideRow leg={r.leg} me={me && me.row === k ? me.frac : undefined} riding={!!track?.riding && me?.row === k} ride={ride}
-              open={known && (opened[key] ?? (!!ride && ride.total - ride.passed <= LAST_STOPS))}
+            <RideRow leg={r.leg} me={me.row === k ? me.frac : undefined} riding={!!track.riding && me.row === k} ride={ride} boarding={boarding}
+              open={known && !!opened[key]}
               onOpen={known ? (open) => setOpen(key, open) : undefined} />
           )
         }
@@ -176,14 +174,14 @@ function LegRow({ leg, last, destination, rail }: {
 }
 
 /**
- * A ride. Closed, it's one step: where it's from and to, and how many stops. Open (a tap on the stops line, or by
- * itself for the last few stops of the ride you're on), it runs on into a row for each stop still ahead, the last
- * yours. On the ride you're on (`ride`), the stops behind you fold into a count and the line behind you is dimmed.
+ * A ride. Closed, it's one step: where it's from and to, and how many stops. Open (a tap on the stops line), it runs
+ * on into a row for each stop still ahead, the last yours. On the ride you're on (`ride`), the stops behind you fold into a count and the line behind you is dimmed.
  */
-function RideRow({ leg, me, riding, ride, open, onOpen }: {
+function RideRow({ leg, me, riding, ride, boarding, open, onOpen }: {
   leg: Leg
   me?: number // you're on this step, this far down it
   riding?: boolean // and on the vehicle (else waiting where you get on, or just off it)
+  boarding: boolean // not on board yet: where to board shows, when the server has said
   ride?: RideProgress // how far through it you are, in stops, when they're known
   open: boolean
   onOpen?: (open: boolean) => void // its stops are known, so they can be shown
@@ -253,6 +251,7 @@ function RideRow({ leg, me, riding, ride, open, onOpen }: {
           <span class="meta">
             to {placeName(leg.to)} at {clock(leg.arr)}
           </span>
+          {boarding && <BoardStrip leg={leg} />}
           {stopsLine}
         </div>
       </li>
@@ -279,6 +278,7 @@ function RideRow({ leg, me, riding, ride, open, onOpen }: {
         )}
         <div>
           {head}
+          {boarding && <BoardStrip leg={leg} />}
           {stopsLine}
         </div>
       </li>

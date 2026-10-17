@@ -1,21 +1,21 @@
 // In-trip mode: follows the chosen option, re-checks it against live data whenever the server has new data (else
 // every 60 s) from wherever you are (or the vehicle you're on), and suggests a switch when something slips.
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
+import { useEffect, useMemo, useRef, useState, type MutableRef } from 'preact/hooks'
 import { api, AuthError, problem } from '../api.ts'
-import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, spare } from '../format.ts'
+import { clock, countdown, delay, duration, placeName, platform, spare } from '../format.ts'
 import { useLiveEvents, useNow, useVisible, useWide } from '../hooks.ts'
 import { assess, changesNote, focusLegs, instruction, keepFrom, phaseAt, replanOrigin, replanTime, spareToBoard, stopKey, suggestionKey, tripsFrom, USABLE_M, type Assessment, type Missed, type Phase, type Position } from '../intrip.ts'
 import type { Option, PlanRequest } from '../types.ts'
 import type { PlaceRef } from '../settings.ts'
-import { MapPane, MapSheet, TripRow } from './board.tsx'
-import { BoardStrip, RideCountdown, Timeline, type Tracking } from './option.tsx'
+import { MapPane, TripMap, TripRow } from './board.tsx'
+import { RideCountdown, Timeline, type Tracking } from './option.tsx'
 import { callPlaces, stopsPassed, type RideProgress } from '../countdown.ts'
 import { position, rideIsLive, rows } from '../options.ts'
 import { advance, phaseOf, rowLines, shapeKey, walkLeftS, walkTo, type At, type LonLat } from '../progress.ts'
 import { boarding, type Fix, type Sighting } from '../boarding.ts'
 import { every } from '../live.ts'
 import { vehicleOf, type Doing } from './icons.tsx'
-import { ActionBar, Button, Callout, Confirm, LiveTag, TextButton } from './ui.tsx'
+import { Button, Callout, Confirm, LiveTag, TextButton } from './ui.tsx'
 import * as appClock from '../clock.ts'
 import * as sim from '../sim.ts'
 
@@ -64,7 +64,6 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   const [check, setCheck] = useState<Assessment | null>(null)
   const [error, setError] = useState('')
   const [checked, setChecked] = useState(false) // the last re-check worked, so the rides ahead have its times
-  const [mapOpen, setMapOpen] = useState(false)
   const [ending, setEnding] = useState(false)
   const wide = useWide()
   const o = trip.option
@@ -317,11 +316,13 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   const ins = instruction(o, phase, trip.ends.end.name, ride ? ride.total - ride.passed : undefined)
   // The line under it: when the ride you're heading for leaves, or when you get off the one you're on.
   const d = ins.detail
+  const pf = d && platform(d.from) // "Platform 1", when the stop is one of a station's
+  const from = pf ? ` from ${pf[0].toLowerCase()}${pf.slice(1)}` : ''
   const nowDetail = !d ? null
     : phase.kind === 'before'
       ? (Date.parse(d.dep) < now - 30_000
-          ? `${d.line?.name} was due ${clock(d.dep)} (${countdown(d.dep, now).replace(/^left /, '')})`
-          : `${d.line?.name} leaves ${clock(d.dep)} (${countdown(d.dep, now)})`) + (d.status === 'predicted' ? `, ${delay(d.delay_s)}` : '')
+          ? `${d.line?.name} was due ${clock(d.dep)}${from} (${countdown(d.dep, now).replace(/^left /, '')})`
+          : `${d.line?.name} leaves ${clock(d.dep)}${from} (${countdown(d.dep, now)})`) + (d.status === 'predicted' ? `, ${delay(d.delay_s)}` : '')
       // The strip under the instruction names the stops, so the line only says when.
       : phase.kind === 'riding' ? `Get off at ${clock(d.arr)} (${countdown(d.arr, now)})${ride ? '' : `, ${placeName(d.to)}`}` : null
   const countdownStrip = ride && onLeg ? <RideCountdown leg={onLeg} ride={ride} /> : null
@@ -336,184 +337,134 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
     opened,
     onOpen: (key, open) => setOpened((cur) => ({ ...cur, [key]: open })),
   }
-  const lateBy = check && check.status !== 'missed' ? check.lateBy : 0
   const spareS = nextRide ? spareToBoard(nextRide, here, now, trip.walkSpeedMps, leftS) : null
-  // The next change: the one after the ride you're on or heading for.
-  const upcoming = o.transfers.find((t) => (phase.kind === 'riding' || phase.kind === 'before') && t.from_leg === phase.ride)
-  const start = Date.parse(o.leave_at)
   const lostLocation = locState === 'on' && !here && !!pos // there was a fix, and now there isn't
+
+  // The steps open with the step you're on in view, again once your location first places you (until then it's the
+  // clock's guess), and when they come back from under the map.
+  const stepsRef = useRef<HTMLDivElement>(null)
+  const located = here !== null
+  useEffect(() => {
+    // Only the steps scroll for it: scrollIntoView would scroll the panel too, and the handle with it.
+    const box = stepsRef.current
+    const you = box?.querySelector('.you')
+    if (box && you) box.scrollTop += you.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientHeight / 2
+  }, [trip.mapTall, located])
+  const handle = usePullHandle(stepsRef, !!trip.mapTall, (tall) => onUpdate({ ...tripRef.current, mapTall: tall }))
+  const tall = !wide && !!trip.mapTall // the phone's map pulled down over the steps
+
+  const map = {
+    serviceDate: trip.serviceDate, token, me: where, doing, aboard: riding, option: o, focus, progress: ride, catching,
+    places: [trip.ends.start, trip.ends.end].map((p) => ({ kind: p.key.startsWith('home:') ? ('home' as const) : ('gym' as const), lon: p.lon, lat: p.lat })),
+  }
 
   return (
     <div class="intrip">
-      <header class="trip-bar">
-        <span class="sheet-title">{trip.title}</span>
-        {!ending && (
-          <TextButton quiet onClick={() => setEnding(true)}>
-            End trip
-          </TextButton>
-        )}
-      </header>
-      {ending && (
-        <Confirm
-          question="End this trip?"
-          detail="Live tracking and re-checks stop."
-          keep="Keep going"
-          confirm="End trip"
-          onKeep={() => setEnding(false)}
-          onConfirm={onEnd}
-        />
-      )}
-
-      <section class="hero">
-        <p class="label">
-          {phase.kind === 'arrived' ? 'Arrived' : 'Arrive'}
-          {/* Whether the ride you're on, or on your way to, has live times, as the last re-check left them. */}
-          {checked && (phase.kind === 'before' || phase.kind === 'riding') && <LiveTag live={rideIsLive(o.legs[phase.ride])} />}
-        </p>
-        <p class="hero-time num">{clock(o.arrive)}</p>
-        <p class="hero-arrive">
-          {check?.status === 'missed'
-            ? 'if the plan still worked'
-            : lateBy >= 60
-              ? `${Math.round(lateBy / 60)} min later than planned`
-              : lateBy <= -60
-                ? `${Math.round(-lateBy / 60)} min earlier`
-                : 'as planned'}
-        </p>
-      </section>
-
-      {check?.status === 'missed' && (
-        <Callout
-          tone="bad"
-          role="alert"
-          detail={check.suggestion && <div class="trip-row"><TripRow option={check.suggestion} /></div>}
-          action={
-            check.suggestion && (
-              <Button variant="commit" onClick={() => switchTo(check.suggestion!)}>
-                Switch to this
-              </Button>
-            )
-          }
-        >
-          <strong>{missedText(check.missed)}</strong>{' '}
-          {check.suggestion ? `Next best, ${changesNote(check.suggestion)}:` : "There's no other way on these lines right now."}
-        </Callout>
-      )}
-      {faster && (
-        <Callout
-          tone="good"
-          role="status"
-          detail={<div class="trip-row"><TripRow option={faster.suggestion} /></div>}
-          onDismiss={() => onUpdate({ ...trip, dismissed: [...(trip.dismissed ?? []), suggestionKey(o, faster.suggestion)] })}
-          action={
-            <Button variant="commit" onClick={() => switchTo(faster.suggestion)}>
-              Switch to this
-            </Button>
-          }
-        >
-          <strong>A faster way just opened up:</strong>{' '}
-          {duration((Date.parse(faster.current.arrive) - Date.parse(faster.suggestion.arrive)) / 1000)} sooner, {changesNote(faster.suggestion)}.
-        </Callout>
-      )}
-
-      <section class="now">
-        <p class="label">Now</p>
-        <p class="now-main">{ins.now}</p>
-        {steps[at.row]?.kind === 'start' && now < start - 60_000 && (
-          <p>
-            Leave {dayOf(o.leave_at, now) && `${dayOf(o.leave_at, now)} `}at <strong>{clock(o.leave_at)}</strong> ({countdown(o.leave_at, now)})
-          </p>
-        )}
-        {/* Where to board comes before when it leaves: it's what you act on as you reach the platform. */}
-        {catching !== null && <BoardStrip leg={o.legs[catching]} />}
-        {nowDetail && phase.kind === 'before' && (
-          <p>
-            {nowDetail}
-            {spareS !== null && !(phase.kind === 'before' && phase.waiting) && (
-              <span class={spareS < 0 ? 'spare bad' : spareS < 60 ? 'spare tight' : 'spare'}>
-                {spareS < 0 ? `You need to hurry: ${Math.ceil(-spareS / 60)} min short at walking pace.` : `${spare(spareS)} from here.`}
-              </span>
-            )}
-          </p>
-        )}
-        {countdownStrip}
-        {nowDetail && phase.kind === 'riding' && <p>{nowDetail}</p>}
-      </section>
-
-      {upcoming && (
-        <section class="next">
-          <p class="label">Then</p>
-          <p>
-            <span class={`badge risk-${upcoming.risk}`}>{riskLabel(upcoming.risk)}</span> Change at {placeName(o.legs[upcoming.from_leg].to)}:{' '}
-            {Math.max(1, Math.round(upcoming.walk_s / 60))} min walk, {spare(upcoming.slack_s)}.
-            {upcoming.fallback_dep && ` If missed, the next one is at ${clock(upcoming.fallback_dep)}.`}
-          </p>
-        </section>
-      )}
-
-      {/* Only when something is off: with location on and the last check good, there's nothing to say. */}
-      {(lostLocation || locState === 'denied' || error) && (
-        <p class="meta status-line">
-          {lostLocation && 'No location just now; following the timetable. '}
-          {locState === 'denied' && 'Location unavailable; following the timetable. '}
-          {error}
-          {locState === 'denied' && geo && (
-            <>
-              {' '}
-              <TextButton onClick={() => setLocState('on')}>Try my location again</TextButton>
-            </>
+      <div class="trip-top">
+        <header class="trip-bar">
+          <img class="app-icon" src="/icon.svg" alt="" width={28} height={28} />
+          <span class="sheet-title">{trip.title}</span>
+          {/* Quiet, and at the right: it never looks like a way back. */}
+          {!ending && (
+            <TextButton quiet onClick={() => setEnding(true)}>
+              End trip
+            </TextButton>
           )}
-        </p>
-      )}
+        </header>
+        {ending && <EndTripConfirm onKeep={() => setEnding(false)} onConfirm={onEnd} />}
+      </div>
 
-      <section class="steps" aria-label="The trip">
-        <Timeline option={o} ends={trip.ends} track={track} />
+      {wide ? <MapPane {...map} /> : <TripMap {...map} />}
+
+      <section class="trip-panel" aria-label="The trip">
+        {/* Outside what scrolls, so it's always there on the rule under the map. */}
+        {!wide && (
+          <button class="sheet-handle" aria-expanded={!tall} aria-label={tall ? "Show the trip's steps" : 'Show more of the map'} {...handle.props} />
+        )}
+        <div class="trip-panel-body">
+          <p class="trip-arrive">
+            <span class="num">
+              {phase.kind === 'arrived' ? 'Arrived' : 'Arrive'} {clock(o.arrive)}
+            </span>
+            <span class="meta">
+              {phase.kind !== 'arrived' && countdown(o.arrive, now).replace(/^left .*/, '')}
+              {/* Whether the ride you're on, or on your way to, has live times, as the last re-check left them. */}
+              {checked && (phase.kind === 'before' || phase.kind === 'riding') && <LiveTag live={rideIsLive(o.legs[phase.ride])} />}
+            </span>
+          </p>
+
+          {check?.status === 'missed' && (
+            <Callout
+              tone="bad"
+              role="alert"
+              detail={check.suggestion && <div class="trip-row"><TripRow option={check.suggestion} /></div>}
+              action={
+                check.suggestion && (
+                  <Button variant="commit" onClick={() => switchTo(check.suggestion!)}>
+                    Switch to this
+                  </Button>
+                )
+              }
+            >
+              <strong>{missedText(check.missed)}</strong>{' '}
+              {check.suggestion ? `Next best, ${changesNote(check.suggestion)}:` : "There's no other way on these lines right now."}
+            </Callout>
+          )}
+          {faster && (
+            <Callout
+              tone="good"
+              role="status"
+              detail={<div class="trip-row"><TripRow option={faster.suggestion} /></div>}
+              onDismiss={() => onUpdate({ ...trip, dismissed: [...(trip.dismissed ?? []), suggestionKey(o, faster.suggestion)] })}
+              action={
+                <Button variant="commit" onClick={() => switchTo(faster.suggestion)}>
+                  Switch to this
+                </Button>
+              }
+            >
+              <strong>A faster way just opened up:</strong>{' '}
+              {duration((Date.parse(faster.current.arrive) - Date.parse(faster.suggestion.arrive)) / 1000)} sooner, {changesNote(faster.suggestion)}.
+            </Callout>
+          )}
+
+          <div class="trip-now" aria-live="polite">
+            <p class="trip-now-main">{ins.now}</p>
+            {nowDetail && phase.kind === 'before' && (
+              <p class="meta">
+                {nowDetail}
+                {spareS !== null && !phase.waiting && (
+                  <span class={spareS < 0 ? 'spare bad' : spareS < 60 ? 'spare tight' : 'spare'}>
+                    {spareS < 0 ? `You need to hurry: ${Math.ceil(-spareS / 60)} min short at walking pace.` : `${spare(spareS)} from here.`}
+                  </span>
+                )}
+              </p>
+            )}
+            {/* On a ride whose stops are known, the strip names them, in place of the line under the instruction. */}
+            {countdownStrip ?? (nowDetail && phase.kind === 'riding' && <p class="meta">{nowDetail}</p>)}
+          </div>
+
+          {/* Only when something is off: with location on and the last check good, there's nothing to say. */}
+          {(lostLocation || locState === 'denied' || error) && (
+            <p class="meta trip-status">
+              {lostLocation && 'No location just now; following the timetable. '}
+              {locState === 'denied' && 'Location unavailable; following the timetable. '}
+              {error}
+              {locState === 'denied' && geo && (
+                <>
+                  {' '}
+                  <TextButton onClick={() => setLocState('on')}>Try my location again</TextButton>
+                </>
+              )}
+            </p>
+          )}
+
+          {(!tall || handle.pull !== null) && (
+            <div class="trip-steps" ref={stepsRef} style={handle.pull === null ? undefined : { height: `${handle.pull}px`, overflow: 'hidden' }}>
+              <Timeline option={o} ends={trip.ends} track={track} />
+            </div>
+          )}
+        </div>
       </section>
-
-      {!wide && (
-        <ActionBar>
-          <Button onClick={() => setMapOpen(true)}>Show on map</Button>
-        </ActionBar>
-      )}
-      {wide && (
-        <MapPane
-          serviceDate={trip.serviceDate}
-          token={token}
-          me={where}
-          doing={doing}
-          aboard={riding}
-          origin={trip.origin}
-          destination={trip.destination}
-          option={o}
-          focus={focus}
-          progress={ride}
-          catching={catching}
-        />
-      )}
-
-      {!wide && mapOpen && (
-        <MapSheet
-          live
-          serviceDate={trip.serviceDate}
-          token={token}
-          me={where}
-          doing={doing}
-          aboard={riding}
-          origin={trip.origin}
-          destination={trip.destination}
-          title={trip.title}
-          option={o}
-          focus={focus}
-          progress={ride}
-          catching={catching}
-          now={now}
-          onClose={() => setMapOpen(false)}
-          steps={{
-            ends: trip.ends, track, now: { main: ins.now, detail: nowDetail, strip: countdownStrip },
-            tall: !!trip.mapTall, onTall: (tall) => onUpdate({ ...trip, mapTall: tall }),
-          }}
-        />
-      )}
     </div>
   )
 }
@@ -549,4 +500,60 @@ function merge(o: Option, fromLeg: number, fresh: Option): Option {
         .map((t) => ({ ...t, from_leg: t.from_leg + offset, to_leg: t.to_leg + offset })),
     ],
   }
+}
+
+/** Asks before ending the trip, under the header with End trip in it. */
+function EndTripConfirm({ onKeep, onConfirm }: { onKeep: () => void; onConfirm: () => void }) {
+  return (
+    <Confirm
+      question="End this trip?"
+      detail="Live tracking and re-checks stop."
+      keep="Keep going"
+      confirm="End trip"
+      onKeep={onKeep}
+      onConfirm={onConfirm}
+    />
+  )
+}
+
+/** How far the handle has to be dragged to move the map (less is a tap, or a change of mind). */
+const PULL_PX = 24
+
+/**
+ * The handle on the rule under the phone's map: drag it down and the map takes the steps' room, up and they come
+ * back; a tap does either. `pull` is the steps' height while it's being dragged.
+ */
+function usePullHandle(steps: MutableRef<HTMLDivElement | null>, tall: boolean, onTall: (tall: boolean) => void) {
+  const [pull, setPull] = useState<number | null>(null)
+  const grip = useRef<{ y: number; h: number; moved: boolean } | null>(null)
+  const dragged = useRef(false)
+  const props = {
+    onPointerDown: (e: PointerEvent) => {
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+      grip.current = { y: e.clientY, h: tall ? 0 : (steps.current?.offsetHeight ?? 0), moved: false }
+    },
+    onPointerMove: (e: PointerEvent) => {
+      const g = grip.current
+      if (!g) return
+      if (Math.abs(e.clientY - g.y) > 4) g.moved = true
+      if (g.moved) setPull(Math.max(0, g.h - (e.clientY - g.y)))
+    },
+    onPointerUp: (e: PointerEvent) => {
+      const g = grip.current
+      grip.current = null
+      setPull(null)
+      if (!g?.moved) return
+      dragged.current = true // the click that follows a drag isn't a tap
+      if (Math.abs(e.clientY - g.y) >= PULL_PX) onTall(e.clientY > g.y)
+    },
+    onPointerCancel: () => {
+      grip.current = null
+      setPull(null)
+    },
+    onClick: () => {
+      if (!dragged.current) onTall(!tall)
+      dragged.current = false
+    },
+  }
+  return { props, pull }
 }

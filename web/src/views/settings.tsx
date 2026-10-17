@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
+import { useEffect, useMemo, useRef, useState, type MutableRef } from 'preact/hooks'
 import { encode } from 'uqr'
 import { dismissedWalks, emptySettings, MAX_GYMS, sanitize, settingsLink, showDismissedWalks, type Gym, type Home, type Settings } from '../settings.ts'
 import type { ComponentChildren } from 'preact'
@@ -10,6 +10,7 @@ import { BrandLogo } from './brand.tsx'
 import { Button, Callout, Confirm, ConfirmSheet, Row, RowAction, Section, Segmented, TextButton, type Tone } from './ui.tsx'
 
 interface Props {
+  backRef: MutableRef<(() => boolean) | null> // the header's Back: closes an open editor (true), else does nothing
   settings: Settings
   setSettings: (s: Settings) => void
   server: DefaultsResponse | null
@@ -23,7 +24,7 @@ type Editing =
 
 const editNew = (kind: EditorKind): Editing => ({ kind, place: kind === 'home' ? { ...newHome(), lines: [] } : newGym(), isNew: true })
 
-export function SettingsView({ settings, setSettings, server, onAuthError, onSetUp }: Props) {
+export function SettingsView({ backRef, settings, setSettings, server, onAuthError, onSetUp }: Props) {
   // First run: add a home, then choose gyms. Two steps, and nothing to cancel back to.
   const [setup] = useState(settings.homes.length === 0)
   const [editing, setEditing] = useState<Editing | null>(
@@ -34,6 +35,12 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
   const [paceTest, setPaceTest] = useState(false)
   const [resetting, setResetting] = useState(false)
   const d = server?.defaults
+  backRef.current = editing
+    ? () => {
+        setEditing(null)
+        return true
+      }
+    : null
   const dismissed = dismissedWalks(settings).length // "Longer walk" notices
   const home = settings.homes.find((h) => h.id === settings.activeHome) ?? settings.homes[0]
   // Connection risk: one threshold changed (undefined: back to its default). Safe can't be below tight, so the other
@@ -92,7 +99,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
         onCancel={() => setEditing(null)}
         onSave={(g) => {
           if (editing.kind === 'home') {
-            const h: Home = { id: g.id, name: g.name, lat: g.lat, lon: g.lon, access: g.access }
+            const h: Home = { id: g.id, name: g.name, address: g.address, lat: g.lat, lon: g.lon, access: g.access }
             const homes = settings.homes.some((x) => x.id === h.id) ? settings.homes.map((x) => (x.id === h.id ? h : x)) : [...settings.homes, h]
             setSettings({ ...settings, homes, activeHome: settings.activeHome ?? h.id })
             setEditing(settings.gyms.length === 0 ? { kind: 'choose-gyms' } : null)
@@ -108,7 +115,8 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
   }
 
   return (
-    <div class="stack settings">
+    // Settings' sections start with their titles and the space between them, no rules.
+    <div class="stack settings unruled">
       <Section title="Homes" icon={<IconHome />} intro="Your homes and gyms are stored only on this device.">
         <ul class="rows">
           {settings.homes.map((h) =>
@@ -126,7 +134,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
                 }}
               />
             ) : (
-              <Row main={h.name} meta={stopCount(h)}>
+              <Row main={<span class="place-name">{h.name}</span>} meta={stopCount(h)}>
                 <span class="row-actions">
                   <EditButton label={`Edit ${h.name}`} onClick={() => setEditing({ kind: 'home', place: { ...h, lines: [] }, isNew: false })} />
                   <DeleteButton label={`Delete ${h.name}`} onClick={() => setDeleting(`home:${h.id}`)} />
@@ -142,7 +150,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
         </ul>
       </Section>
 
-      <Section title="Gyms" icon={<IconGym />} intro="Each keeps the lines used to get to it.">
+      <Section title="Gyms" icon={<IconGym />}>
         {warning && (
           <Callout tone="caution" role="status" onDismiss={() => setWarning('')}>
             {warning}
@@ -165,8 +173,8 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
             ) : (
               <Row
                 lead={<BrandLogo brand={server?.gyms.find((k) => k.id === g.ref)?.brand} />}
-                main={g.name}
-                meta={`${g.lines.length} line${g.lines.length === 1 ? '' : 's'}${!g.homeId && home ? `, none near ${home.name} yet` : ''}`}
+                main={<span class="place-name">{g.name}</span>}
+                meta={`${g.lines.length} line${g.lines.length === 1 ? '' : 's'}${!g.homeId && home ? `, none from ${home.name} yet` : ''}`}
               >
                 <span class="row-actions">
                   <EditButton label={`Edit ${g.name}`} onClick={() => setEditing({ kind: 'gym', place: g, isNew: false })} />
@@ -186,7 +194,8 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
       <Section title="Walking and changes" icon={<IconWalk />}>
         <div class="setting-rows">
           <NumberField
-            label="Walking speed (km/h)"
+            label="Walking speed"
+            unit="km/h"
             value={settings.walkSpeedMps !== undefined ? round1(settings.walkSpeedMps * 3.6) : undefined}
             fallback={d && round1(d.walk_speed_mps * 3.6)}
             step="0.1"
@@ -209,14 +218,16 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
             />
           )}
           <NumberField
-            label="Change buffer at the same stop (min)"
+            label="Change buffer at the same stop"
+            unit="min"
             value={settings.minChangeS !== undefined ? settings.minChangeS / 60 : undefined}
             fallback={d && d.min_change_s / 60}
             step="0.5"
             onChange={(v) => setSettings({ ...settings, minChangeS: v === undefined ? undefined : Math.round(v * 60) })}
           />
           <NumberField
-            label="Leave buffer (min)"
+            label="Leave buffer"
+            unit="min"
             value={settings.leaveBufferS !== undefined ? settings.leaveBufferS / 60 : undefined}
             fallback={0}
             step="1"
@@ -224,7 +235,8 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
             onChange={(v) => setSettings({ ...settings, leaveBufferS: v === undefined ? undefined : Math.round(v * 60) })}
           />
           <NumberField
-            label="Longest walk to a stop (m)"
+            label="Longest walk to a stop"
+            unit="m"
             value={settings.maxWalkM}
             fallback={d?.max_walk_m}
             step="50"
@@ -244,14 +256,16 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
       <Section title="Connection risk" icon={<IconRisk />} intro={'How much spare time a change needs to count as safe or tight. Below "tight" it\'s at risk.'}>
         <div class="setting-rows">
           <NumberField
-            label="Safe from (min)"
+            label="Safe from"
+            unit="min"
             value={settings.risk && settings.risk.safe_s !== (d?.risk.safe_s ?? 180) ? settings.risk.safe_s / 60 : undefined}
             fallback={d && d.risk.safe_s / 60}
             step="0.5"
             onChange={(v) => setRisk('safe', v === undefined ? undefined : Math.round(v * 60))}
           />
           <NumberField
-            label="Tight from (min)"
+            label="Tight from"
+            unit="min"
             value={settings.risk && settings.risk.tight_s !== (d?.risk.tight_s ?? 60) ? settings.risk.tight_s / 60 : undefined}
             fallback={d && d.risk.tight_s / 60}
             step="0.5"
@@ -284,7 +298,7 @@ export function SettingsView({ settings, setSettings, server, onAuthError, onSet
           </ConfirmSheet>
         )}
       </Section>
-      <p class="credits">Contains Transport for NSW data (CC BY 4.0). Map data © OpenStreetMap contributors.</p>
+      <p class="credits">Contains Transport for NSW data (CC BY 4.0). Map data © OpenStreetMap contributors. Basemap by Protomaps.</p>
     </div>
   )
 }
@@ -303,8 +317,9 @@ function round1(v: number) {
  * its placeholder. A line under the name only when there's something to say: what it's for, the way back to the
  * default once it's changed, and that a change was saved.
  */
-function NumberField({ label, value, fallback, step, about, extra, onChange }: {
+function NumberField({ label, unit, value, fallback, step, about, extra, onChange }: {
   label: string
+  unit: string // in the field, after the number: "km/h", "min", "m"
   value: number | undefined // undefined: the default
   fallback: number | undefined // the default, once the server has said
   step: string
@@ -326,6 +341,7 @@ function NumberField({ label, value, fallback, step, about, extra, onChange }: {
     <label class="setting">
       <span class="main">
         {label}
+        <span class="sr-only"> ({unit})</span>
         <span class="meta" aria-live="polite">
           {about && <span>{about}</span>}
           {value !== undefined && def && (
@@ -339,19 +355,22 @@ function NumberField({ label, value, fallback, step, about, extra, onChange }: {
           {saved && <strong class="saved">Saved.</strong>}
         </span>
       </span>
-      <input
-        type="number"
-        inputMode="decimal"
-        min="0"
-        step={step}
-        value={value ?? ''}
-        placeholder={def}
-        onChange={(e) => {
-          const raw = (e.target as HTMLInputElement).value.trim()
-          const v = raw === '' ? undefined : Number(raw)
-          change(v !== undefined && Number.isFinite(v) && v >= 0 ? v : undefined)
-        }}
-      />
+      <span class="unit-field">
+        <input
+          type="number"
+          inputMode="decimal"
+          min="0"
+          step={step}
+          value={value ?? ''}
+          placeholder={def}
+          onChange={(e) => {
+            const raw = (e.target as HTMLInputElement).value.trim()
+            const v = raw === '' ? undefined : Number(raw)
+            change(v !== undefined && Number.isFinite(v) && v >= 0 ? v : undefined)
+          }}
+        />
+        <span class="unit" aria-hidden="true">{unit}</span>
+      </span>
     </label>
   )
 }

@@ -228,10 +228,14 @@ export function Confirm({ question, detail, confirm, keep = 'Keep', onConfirm, o
   as?: 'div' | 'li'
 }) {
   const keepRef = useRef<HTMLButtonElement>(null)
-  useEffect(() => keepRef.current?.focus(), [])
+  useEffect(() => focusQuietly(keepRef.current), [])
   const El = as
   return (
-    <El class="confirm" role="group" aria-label={typeof question === 'string' ? question : undefined} onKeyDown={(e: KeyboardEvent) => e.key === 'Escape' && onKeep()}>
+    <El class="confirm" role="group" aria-label={typeof question === 'string' ? question : undefined} onKeyDown={(e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation() // Escape is Keep, not also closing a sheet it's in
+      onKeep()
+    }}>
       <span class="main">
         <strong>{question}</strong>
         {detail && <span class="meta">{detail}</span>}
@@ -248,6 +252,15 @@ export function Confirm({ question, detail, confirm, keep = 'Keep', onConfirm, o
   )
 }
 
+/**
+ * Whether the last thing done was with a pointer (a tap, a click) rather than the keyboard. Focus moved by the app
+ * (into a dialog, onto Keep) shows its ring only after the keyboard, as a tap on a control doesn't show one either.
+ */
+let pointing = false
+document.addEventListener('pointerdown', () => (pointing = true), true)
+document.addEventListener('keydown', () => (pointing = false), true)
+export const focusQuietly = (el: HTMLElement | null | undefined) => el?.focus({ focusVisible: !pointing } as FocusOptions)
+
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 /**
@@ -261,17 +274,18 @@ export function useDialog(ref: MutableRef<HTMLElement | null>, onClose: () => vo
     const el = ref.current
     if (!el) return
     const opener = document.activeElement as HTMLElement | null
-    // Everything else on the page, from the dialog up: inert while it's open.
+    // Everything else on the page, from the dialog up: inert while it's open (but for a tool that stays on top of
+    // everything, marked data-over-dialogs: the simulator's panel).
     const others: HTMLElement[] = []
     for (let n: HTMLElement | null = el; n && n !== document.body; n = n.parentElement) {
       for (const sib of n.parentElement?.children ?? []) {
-        if (sib !== n && sib instanceof HTMLElement && !sib.inert) {
+        if (sib !== n && sib instanceof HTMLElement && !sib.inert && !sib.hasAttribute('data-over-dialogs')) {
           sib.inert = true
           others.push(sib)
         }
       }
     }
-    ;(first?.current ?? el.querySelector<HTMLElement>(FOCUSABLE) ?? el).focus()
+    focusQuietly(first?.current ?? el.querySelector<HTMLElement>(FOCUSABLE) ?? el)
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
@@ -293,7 +307,7 @@ export function useDialog(ref: MutableRef<HTMLElement | null>, onClose: () => vo
     return () => {
       el.removeEventListener('keydown', onKey)
       for (const o of others) o.inert = false
-      opener?.focus?.()
+      if (opener) focusQuietly(opener)
     }
   }, [])
 }

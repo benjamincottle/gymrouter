@@ -47,6 +47,9 @@ export function PlaceEditor({ kind, place, isNew, token, homes, maxWalkM, walkLi
   const [error, setError] = useState('')
   const hasLocation = Number.isFinite(p.lat) && Number.isFinite(p.lon)
   const gym = kind === 'gym'
+  // A home's or a built-in gym's name and place stay as they were set (a home that moves is deleted and added again):
+  // only its stops, and a gym's lines, are yours to change. A gym you added yourself keeps its fields.
+  const fixed = !isNew && (!gym || !!place.ref)
 
   const fail = (e: unknown) => {
     setBusy('')
@@ -129,41 +132,45 @@ export function PlaceEditor({ kind, place, isNew, token, homes, maxWalkM, walkLi
   return (
     <div class="stack settings">
       <Section
-        title={firstRun ? 'Where do you start from?' : isNew ? `Add ${kind}` : `Edit ${kind}`}
-        intro={firstRun && 'Step 1 of 2. Next: the gyms you climb at.'}
+        title={firstRun ? 'Where do you start from?' : fixed ? p.name : isNew ? `Add ${kind}` : `Edit ${kind}`}
+        intro={firstRun ? 'Step 1 of 2. Next: the gyms you climb at.' : fixed && p.address}
       >
-        <Field label="Name">
-          <input
-            value={p.name}
-            maxLength={60}
-            placeholder={gym ? 'e.g. 9 Degrees Lane Cove' : ''}
-            onInput={(e) => setP({ ...p, name: (e.target as HTMLInputElement).value })}
-          />
-        </Field>
-        <form onSubmit={search} class="row-form">
-          <Field label="Address">
-            <input type="search" value={query} placeholder="Street address or place" onInput={(e) => setQuery((e.target as HTMLInputElement).value)} />
-          </Field>
-          <Button type="submit" disabled={query.trim().length < 3}>
-            Search
-          </Button>
-        </form>
-        {results.length > 0 && (
-          <ul class="rows pick" aria-label="Places found">
-            {results.map((r) => (
-              <li>
-                <button class="pick-row" onClick={() => setLocation(r.lat, r.lon, r.name)}>
-                  {r.name}
-                </button>
-              </li>
-            ))}
-          </ul>
+        {!fixed && (
+          <>
+            <Field label="Name">
+              <input
+                value={p.name}
+                maxLength={60}
+                placeholder={gym ? 'e.g. 9 Degrees Lane Cove' : ''}
+                onInput={(e) => setP({ ...p, name: (e.target as HTMLInputElement).value })}
+              />
+            </Field>
+            <form onSubmit={search} class="row-form">
+              <Field label="Address">
+                <input type="search" value={query} placeholder="Street address or place" onInput={(e) => setQuery((e.target as HTMLInputElement).value)} />
+              </Field>
+              <Button type="submit" disabled={query.trim().length < 3}>
+                Search
+              </Button>
+            </form>
+            {results.length > 0 && (
+              <ul class="rows pick" aria-label="Places found">
+                {results.map((r) => (
+                  <li>
+                    <button class="pick-row" onClick={() => setLocation(r.lat, r.lon, r.name)}>
+                      {r.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!gym && <p class="meta">Your address isn't stored on the server.</p>}
+            <div class="actions place-actions">
+              <Button onClick={useMyLocation}>Use my current location</Button>
+            </div>
+            {hasLocation && <p class="meta place-set">{p.address ? `Location set: ${p.address}.` : 'Location set.'}</p>}
+          </>
         )}
-        {!gym && <p class="meta">Your address isn't stored on the server.</p>}
-        <div class="actions place-actions">
-          <Button onClick={useMyLocation}>Use my current location</Button>
-        </div>
-        {hasLocation && <p class="meta place-set">{p.address ? `Location set: ${p.address}.` : 'Location set.'}</p>}
         {busy && <p class="meta">{busy}</p>}
         {error && (
           <Callout tone="bad" role="alert">
@@ -521,7 +528,7 @@ export function GymChooser({ known, have, firstRun, home, token, maxWalkM, onAut
                   <input type="checkbox" checked={sel.has(k.id)} disabled={busy || (full && !sel.has(k.id))} onChange={() => toggle(k.id)} />
                   <BrandLogo brand={k.brand} />
                   <span class="main">
-                    {k.name}
+                    <span class="place-name">{k.name}</span>
                     {k.address && <span class="meta">{k.address}</span>}
                   </span>
                 </label>

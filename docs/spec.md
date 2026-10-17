@@ -968,3 +968,73 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   `views/simpanel.tsx` and their few call sites, and the server's `sim` flag; `clock.ts` can stay. Rejected: faking
   the browser's whole clock and location from outside the app (it also speeds up the map's animations and the
   network's timeouts), and replaying recorded trips (worth adding later: it shows real GPS, which this can't).
+- 2026-10-17: **The trip screen no longer shows the chosen trip's steps** (the start of a UI overhaul aimed at
+  simplifying: keep what works, drop what doesn't earn its place). Under "1 h 3 min door to door, 2 changes, 12 stops"
+  the screen listed every step of the highlighted option, the rail and each ride's stops included. Those details
+  matter on a trip, where they stay (with you on the rail), not while choosing one: the countdown, the board's tape
+  and the map say enough to choose, and the list pushed Start trip a long way down.
+- 2026-10-17: **"Door to door" moves under the chosen option's row**, in the 14px pencil line that said "A different
+  route, a little slower than the best." for an alternative, which goes: the tape already shows a different route.
+  The summary under the board is gone with it, so Start trip follows the board. The line starts where the tape
+  does, and the chosen option's fill and ink bar now take in the line as well as the row.
+- 2026-10-17: **Where to board moves from Now into the ride's step** (in a trip: the steps, and the steps under the
+  phone's map), between where the ride goes and its stops line. In Now it sat between the instruction and when the
+  train leaves, two lines of graphic and text at the top of the screen for every walk to a station. In the step it's
+  read with the ride it belongs to, and every train ride not yet boarded shows its own, so a change's carriage can be
+  read before you get there. It goes once you're on board, as before; the map's platform and spot are unchanged.
+  It's quieter there: the train across 80% of the column, and the runner (16px) and "Board the 4th carriage from
+  the front." in the step's 14px pencil.
+- 2026-10-17: **A trip under way is one screen: the map, with the trip in a panel under it.** Start trip goes straight
+  there; the summary screen (the arrive hero, Now, Then, the steps, and "Show on map" to reach the map) is gone. The
+  map screen had become the one in use: the map, what to do now and the steps fit one screen. The panel under the map
+  holds the arrive line (with the countdown and the Live tag), the warning with its "Switch to this" when there is
+  one, what to do now (with the platform it leaves from and the time to spare to the stop), the status line when
+  something's off, and the steps; the handle still pulls the map down over the steps. End trip is in its header,
+  where "Back to trip" was. Dropped: the leave time before you set off (the steps' first row says it) and Then, the
+  next change (the steps show it, with its risk); and with the hero, "3 min later than planned". On desktop the same
+  panel is the left pane beside the map. The planning screen's map sheet is unchanged, minus what it had for trips.
+- 2026-10-17: **A ride's stops open only when asked** (supersedes, from 2026-10-11, the ride you're on opening by
+  itself for its last three stops, and "your tap wins"). Every ride's step starts closed and stays as you leave it;
+  open, its stops look as before. The app doesn't decide when you want to see them. Nor does the map close in on what's
+  left of a ride for its last three stops any more: it fits the step you're on, whole, to its end.
+- 2026-10-17: Around the one trip screen: its header has the app's icon before the title; End trip's question lies
+  over the map rather than pushing it down; the map's frame (the rules above and below it, and the handle) is a 2px
+  pencil line rather than heavy ink; the line under what to do now names the platform ("T9 leaves 13:27 from platform
+  1 (in 15 min)"). The map, once moved by hand, used to fit itself again only when it was next opened; now that it's
+  always open, a re-centre control (shown only while the map isn't following) hands the view back to the trip.
+- 2026-10-17: **A design review of the whole app, and what came of it.** Every screen was captured from the running
+  app (phone and desktop, light and dark) and judged as it is, not only against DESIGN.md. Taken up:
+  - **The trip screen says the chosen trip once.** The hero is the countdown and the arrive time only, and only
+    leaving now (with a set time the row's leave time is the number). The chosen row's note says where the first ride
+    leaves from and when (how late it runs), then the risk badge, why, and the stops; "24 min door to door" went, as
+    the row's last column says it. Before, the hero, the row and its note said the trip three times.
+  - **The map draws the home and the gym** at the trip's ends, the house and the shoe as on the rail. A trip's line
+    began and ended in the streets.
+  - **Desktop shows a map before there's a trip**: your home and your gyms, a gym chosen with a click, where the pane
+    was a blank wall with a sentence.
+  - **Settings says where you are, and how back**: its header reads "Settings" where it says "Gym Router", with
+    Back where the cog is, a quiet text link like End trip (it closes an open editor first). The trip
+    screen's header keeps the icon and the name, with the cog; setting up shows the icon and the name, and no cog.
+    Settings was left by tapping the app's name.
+  - **Both maps have one frame**, a 2px pencil rule above and below (`--frame`); the planning sheet's were heavy ink.
+  - **Names are set one way** in every list (18px/800/semi): Settings and the gym chooser had them at regular weight.
+  - **A segmented control's chosen option has the panel fill** of the board's chosen row, as well as its bar.
+  - **Focus the app moves shows its ring only after the keyboard**: a tap that opened the map sheet or a confirm
+    left a blue ring on Back or Keep.
+  - **Settings' sections have no rules**: each starts with its title and the space above it, and its lists end
+    without a closing hairline (there were seven heavy rules down a screen seldom visited). The editors opened from
+    it start their sections with a hairline.
+  - **Number settings carry their unit in the field** ("5.5 km/h"), not in the name.
+  - **"Your services appear here once they're a few stops away" is gone** from the map: it covered the trip's end,
+    and the map shows vehicles as they come.
+  - **Copy**: "none from Home yet" (was "none near Home yet"); the Gyms section loses its intro.
+  - **Editing a home or a built-in gym** shows its name and address as text; only its stops (and a gym's lines)
+    change. A home that moves is deleted and added again. Homes now keep the address they were found by (on the
+    device, as their coordinates already were).
+  - **The trip's steps scroll to your step again once your location first places you** (they went by the clock's
+    guess before it, which could be the end of the trip).
+  Not taken up: a new bus drawing (bus and train are near alike at small sizes), reordering or folding Settings'
+  sections, the grey tape on the gym rows.
+- 2026-10-17: **The map's locate button is gone.** MapLibre's own control drew a second blue dot of its own and
+  followed it; during a trip the app already draws you (what you're doing, from the same location), and the
+  re-centre control hands the view back to the trip. Before a trip, where you are isn't part of planning one.

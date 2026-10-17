@@ -12,6 +12,7 @@ export interface AccessStop {
 export interface Place {
   id: string
   name: string
+  address?: string // as it was found when the place was set: shown in its editor, which can't change it
   lat: number
   lon: number
   access: AccessStop[]
@@ -21,7 +22,6 @@ export type Home = Place
 
 /** A destination, with the lines that could matter for getting there from home. */
 export interface Gym extends Place {
-  address?: string
   lines: string[] // e.g. "bus 288", "train T9"
   ref?: string // the built-in gym this was added from
   homeId?: string // the home whose nearby lines were last suggested for it
@@ -98,7 +98,7 @@ function sanitizePlace(input: unknown): Place | null {
       if (x && isStr(x.stop, 40) && x.stop !== '' && isStr(x.name, 120)) access.push({ stop: x.stop, name: x.name })
     }
   }
-  return { id: r.id, name: r.name, lat: r.lat, lon: r.lon, access }
+  return { id: r.id, name: r.name, ...(isStr(r.address, 200) && r.address ? { address: r.address } : {}), lat: r.lat, lon: r.lon, access }
 }
 
 /** Validates untrusted settings (from storage, an import file or a link), dropping anything malformed. */
@@ -121,7 +121,6 @@ export function sanitize(input: unknown): Settings {
       const ls = Array.isArray(r.lines) ? r.lines.filter(isLine).slice(0, MAX_LINES) : []
       out.gyms.push({
         ...p,
-        ...(isStr(r.address, 200) && r.address ? { address: r.address } : {}),
         lines: [...new Set(ls)],
         ...(isStr(r.ref, 40) && r.ref ? { ref: r.ref } : {}),
         ...(isStr(r.homeId, 40) && r.homeId ? { homeId: r.homeId } : {}),

@@ -35,7 +35,7 @@ export function SimPanel({ option }: { option: Option }) {
   const rides = option.legs.filter((l) => l.kind === 'ride' && l.trip_id && l.line)
 
   return (
-    <aside class={hidden ? 'sim-panel hidden' : 'sim-panel'} aria-label="Simulation">
+    <aside class={hidden ? 'sim-panel hidden' : 'sim-panel'} aria-label="Simulation" data-over-dialogs>
       <p class="sim-head">
         <strong>Simulation</strong>
         <span class="num">{day && `${day} `}{secs.format(t)}</span>

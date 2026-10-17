@@ -50,13 +50,17 @@ raw colour, size or spacing value in a component. Use a token, or add one here f
 Line colours come from the feed. Text on a line colour is ink or white, whichever contrasts better; it is computed, never
 taken from the feed's `text_color`. A line without a colour uses one fallback grey, `#5e6670`, everywhere.
 
-The map's own paint (casing, walk lines, stop dots) and the MapLibre controls (zoom, locate, attribution) use these
+The map's own paint (casing, walk lines, stop dots) and the MapLibre controls (zoom, attribution) use these
 tokens too, in both themes. Controls are square, 44px, edge-outlined, and have no shadow. The attribution is a
 `--panel` box with the same outline and `--r-control` corners, never a pill. Ride lines are the line colour only, with
 no casing. Walks are round 4.5px ink dots every 8px along the street route (a dot
 image placed along the line, never a dashed line, which MapLibre stretches between zoom levels). A ride's stops (where you get on and
 off, and those passed on the way) sit on the line's centre (the server places them on the shape): white dots with a
 1.5px ink outline, 10px across, so they stand a little proud of the 6px line.
+The home and the gym at the trip's ends are drawn as on the rail: the house or the shoe (18px, in ink; the shoe's
+sole the dark part in either theme) in a 30px `--wall` disc inside a 2px ink ring, a gym with its name beside it in
+13px ink haloed in the wall. Before there's a trip to draw (desktop), your home and all your gyms, a gym chosen with a
+click.
 Vehicles are discs in the line's colour, 20px inside a 2.5px ink outline, with the mode's glyph from the rail (train, bus
 or ferry) in ink or white: all one size whatever the line is called, since the colour and the trip say which line it is.
 You are a `--you` disc, 22px inside a 3px white border (28px across, as on the trip's rail) with a soft dark edge so
@@ -78,12 +82,14 @@ phone's location on a platform is out by about a carriage, so anything that reac
 you're on board.
 
 **What the map fits.** The whole trip, with the vehicle you'll catch first once it's near. During a trip, once you've
-set off (the "you" marker has left the trip's first step: by your location, or by the leave time without one), it
-fits the step you're on instead, whole, with you in it: the walk, the ride from where you get on to where you get off,
-the change. At the stop waiting, that's the ride you're waiting for, with its vehicle once it's near. The view moves
-on to each new step by itself. With three stops to go on a ride (or fewer) it closes in on what's left of it: from the
-last stop behind you to yours. Once you've zoomed or moved the map yourself it's left alone, by all of this and by
-live updates alike, until the map is next opened.
+set off (the "you" marker has left the trip's first step: by your location, or by the leave time without one), it fits
+the step you're on instead, whole, with you in it: the walk, the ride from where you get on to where you get off, the
+change. At the stop waiting, that's the ride you're waiting for, with its vehicle once it's near. The view moves on to
+each new step by itself, and stays on the whole step to its end (it doesn't close in on a ride's last stops). Once
+you've zoomed or moved the map yourself it's left alone, by all of this and by live updates alike, and a **re-centre**
+control appears under the zoom buttons: the same square control, holding four corners of a frame around a dot, drawn
+in ink ("Back to the trip"). A tap fits the view again and hands it back to the trip; the control goes until you next
+move the map.
 
 ### Type
 
@@ -93,7 +99,7 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
 |---|---|---|
 | `--fs-display` | `clamp(56px, 17vw, 80px)` | the countdown hero, the walk timer and pace clocks |
 | `--fs-num` | 32px | the big secondary number (arrive time in the hero) |
-| `--fs-lead` | 24px | the in-trip "Now" instruction, the map footer's leave time |
+| `--fs-lead` | 24px | the arrive time in a trip's panel, the map footer's leave time |
 | `--fs-title` | 20px | section and screen titles |
 | `--fs-strong` | 18px | times in lists and on the board (700, narrow), gym names (800, semi) |
 | `--fs-body` | 16px | reading text, buttons, fields, list rows |
@@ -119,9 +125,12 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   - the app icon keeps its own 7px corner.
   - Nothing else.
 - **Lines:**
-  - `--heavy` (3px ink) starts a section: Settings sections, Now, sheet bars. The hero on the trip screen has no rule
-    of its own: it sits between two hairlines, the one under the gym's row and the one above Earlier/Later.
-  - `--hair` (1px rule) separates rows.
+  - `--hair` (1px rule) separates rows and starts a section (Settings, its editors). The hero on the trip screen
+    has no rule of its own: it sits between two hairlines, the one under the gym's row and the one above
+    Earlier/Later.
+  - `--frame` (2px `--pencil`) is the rule above and below a map: the trip screen's header and panel, the planning
+    map sheet's bar and footer. Quieter than ink, so the map, not its frame, is what you see.
+  - `--heavy` (3px ink) is left for the dialog sheet's top.
   - `--bar` (4px) is the side bar of a callout and of the selected row.
   - Control outlines are 1.5px `--edge` (fields) or 1.5px ink (buttons and segmented controls).
 - **Shadows:** none. The only exceptions are the "you" marker's soft edge and pulse (on the rail and the map) and the
@@ -132,14 +141,18 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
 ## Layout
 
 - **Phone (below 1024px):** one column, at most 34rem wide, with `--s4` gutters. The header is sticky, with no rule.
-  Nothing in it is underlined: the Settings icon is ink while you're on Settings and pencil otherwise, and "Gym
-  Router" is always ink.
+- **The header** says where you are, three ways:
+  - planning trips: the app's icon and "Gym Router" (together, a button back to the trip screen's start) on the left,
+    the Settings cog (pencil) on the right;
+  - on Settings and the screens opened from it: the same header, "Settings" in place of "Gym Router" (not a button),
+    and Back where the cog is, a quiet text action like End trip in a trip's header. Back closes an editor if one is open (as its Cancel), else
+    goes back to trips;
+  - setting up for the first time: the icon and "Gym Router", nothing else (nowhere else to go yet).
 - **Desktop (1024px and up):** the header spans the page (fixed, `--header-h`) over two panes. The trip pane on the
   left is `--pane-w` (460px) and scrolls with the page; the map (`.map-pane`, fixed) fills the rest and always shows the
-  selected option, or says what will appear there before there is one. There's no "Show on map" button on desktop.
-  - In-trip uses the same split: Now/Then and the steps on the left, the map on the right.
-  - The map's own note ("Your services appear here…") sits at the bottom left, only as wide as its text; on the phone's
-    map sheet it spans the sheet.
+  selected option. Before there's one (no gym chosen yet, or no trip found) it shows your home and your gyms, each gym
+  a shoe with its name beside it; a click on a gym chooses it. There's no "Show on map" button on desktop.
+  - A trip under way uses the same split: the trip's panel on the left, the map on the right (see A trip under way).
   - Settings and the editors use a single readable column, max 40rem, centred. So does the trip screen until there
     is a home and a gym (the "Get started" empty state): there's nothing for a map to show yet.
 - **The commit action lives in the action bar.** The screen's main action ("Start trip", "Save gym") sits in a bar
@@ -157,9 +170,9 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   4. hero;
   5. Earlier/Later;
   6. options board;
-  7. summary;
-  8. steps;
-  9. action bar.
+  7. action bar.
+  - No steps: they're for a trip under way (Timeline), not for choosing one. The board and the map say enough to
+    choose.
 
 ## Components
 
@@ -191,17 +204,19 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     (`Chevron`), and says which with `aria-expanded`. A ride's stops line is the one that does.
 - **Icon button:** 44×44, no outline, `--panel` on hover, ink. Always has an `aria-label`. A row's bin is ink like
   its pencil: red arrives with the question (see Destructive actions), not before.
-- **Segmented control:** one size (16px/600, 44px), a radio group (one tab stop, arrow keys). The chosen option has
-  a 4px ink bar along its bottom (inset), the same ink as the control's outline so it reads as part of the frame;
-  the others stay ink, never greyed (grey means disabled).
+- **Segmented control:** one size (16px/600, 44px), a radio group (one tab stop, arrow keys). The chosen option is
+  marked as the chosen row of the options board is: a `--panel` fill, and a 4px ink bar along its bottom (inset), the
+  same ink as the control's outline so it reads as part of the frame. The others stay ink, never greyed (grey means
+  disabled).
 - **Field:** a label (600) above, then a 44px input in `--panel` with a 1.5px `--edge` outline that turns ink on focus,
   then an optional hint (14px pencil, 400).
   - **A choice from a list** is the system's picker drawn as a field (`Select`): no system arrow, the app's 16px
     chevron at its end. **A tick box** is drawn as a field too: 22px, edge outline on panel, `--r-control`; ticked,
     it fills with ink and its tick is `--wall`.
   - **Number settings** are one line each, rows between hairlines (`NumberField` in Settings): the name on the left,
-    a short field (5.5rem, its number right-aligned) on the right. An empty field means "use the default" and shows
-    the default as its placeholder; nothing under it says so. A second line under the name, in 14px pencil, only when
+    a short field (7.5rem) on the right holding the number, right-aligned, and its unit after it in pencil ("5.5
+    km/h", "1 min", "1000 m"); the unit is never in the name. An empty field means "use the default" and shows the
+    default as its placeholder; nothing under it says so. A second line under the name, in 14px pencil, only when
     there's something to say: what the setting is for when its name doesn't ("Extra time to get out the door: shoes,
     keys."), "Use the default (3)" once it's changed, and "Saved." for two seconds after a change.
 - **Callout:** a `--panel` fill with a 4px left bar. Tones:
@@ -213,8 +228,13 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
   - A callout that suggests a trip shows it under its text as a row from the options board (`TripRow`: leave, tape,
     arrive, risk mark, compact duration), and its text leaves out what the row says.
   - Panels with their own job (the pace test) are sections, not callouts.
-- **Section:** a heavy top rule (except the first section on Settings and the screens opened from it, right under the header), then a title (20px/800/semi) with an optional 24px icon (ink lines, one part filled).
-  An intro line in 14px pencil may follow.
+- **Section:** a hairline on top (except the first section on Settings and the screens opened from it, right under the
+  header), then a title (20px/800/semi) with an optional 24px icon (ink lines, one part filled). An intro line in 14px
+  pencil may follow. Settings' own sections have no rule at all: each starts with its title and the space above it
+  (the editors opened from it keep their hairlines). Its lists end without a closing hairline too: hairlines
+  part the rows, and the space parts the sections.
+- **A home's or gym's name in a list** (the trip screen's gym rows, Settings, the gym chooser): 18px/800/semi, its
+  details (address, lines) under it in 14px pencil. A name is set the same wherever it's listed.
 - **Pick rows:** a search result is a whole-row button with a `›` at the end, not a link.
 - **Rows:** a hairline-separated list, min 56px tall. The main text sits on line 1 and details on a second 14px pencil
   line. **Never join details with middle dots.** Actions (icon buttons) go on the right.
@@ -265,8 +285,8 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
   - There's no runner with "Leave at" or "Arrive by": a trip that starts, starts now.
 - **Route row** (trip screen): an ink tape, the gym's logo, the gym's name (18px/800/semi, a button that changes
   the gym, with a chevron), and "from Home" (or "to Home") beneath it. The direction toggle above reverses the trip.
-- **Live or timetabled** (`LiveTag`; at the right end of the row that labels the big number: "Leave in" on the trip
-  screen, "Arrive" during a trip, so it costs no height): in 14px pencil, a `--safe` dot and "Live", or a pencil dot
+- **Live or timetabled** (`LiveTag`; at the right end of a row it costs no height on: the "Leave in" row on the trip
+  screen, the arrive line during a trip, after its countdown): in 14px pencil, a `--safe` dot and "Live", or a pencil dot
   and "Timetabled". No time beside it. Nothing about live data goes in the gym's row.
   - **It speaks for one ride**, not the server: "Live" when that ride has live times (predicted, or an extra service
     only live data knows about), otherwise "Timetabled". A trip that's only walking has no tag. Whether the server
@@ -277,23 +297,28 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     the times under it are known to be the last ones; a refresh usually lands sooner and shows nothing. A
     changed search doesn't keep the old plan: it starts again from "Planning…". The ring is pencil, not a status colour: nothing is wrong.
   - **During a trip** it's the ride you're on, or the one you're on your way to (a change included), as the last
-    re-check left it. A re-check that fails gets the status line under Then, and
+    re-check left it. A re-check that fails gets the trip's status line, and
     the word goes until one works again. It shows while there's still a service ahead (not on the last walk, nor once
     you've arrived).
 - **Status line** (trip screen, under the route row, in 14px pencil): only while there's something to say that the
   tag can't. "Planning…" (or "Finding the fastest trip…") while the first plan loads, before there's a countdown;
   "Walks are rough estimates until the server has prepared the street map." while it's true; "Updating…" when a newer
   plan is on its way and there are no options, so no countdown to say it beside.
-- **Hero** (trip screen): "Leave in" (with the tag at the row's end) and the countdown, the arrive time, then "for the M1 at 15:20 from Epping
-  Station (on time)", then **how sure the chosen trip is**: its risk badge and why, in the steps' words. "At risk
-  change at North Ryde Station, 22 s spare"; with several changes, the tightest: "Tight tightest change at Central
-  Station, 1 min spare"; with none, "Safe no changes". The word sits beside the number it qualifies, and teaches what
-  the squares in the rows mean.
+- **Hero** (trip screen, leaving now only): "Leave in" (with the tag at the row's end), the countdown, and the arrive
+  time. Nothing else: the chosen row says the rest. With "Leave at" or "Arrive by" there's no hero: the chosen row's
+  leave time is the number, and it's already there.
 - **Earlier/Later** (trip screen, between the hero and the options): "Earlier trips" on the left and "Later trips"
   on the right, quiet text actions in 14px, under a hairline that parts the countdown's block from the options
-  (`--s4` above the line, `--s3` under it). With no options there's no countdown above them, and no line.
+  (`--s4` above the line, `--s3` under it). With no countdown above them (no options, or a set time) there's no line.
 - **Options board:** one row per option: leave, tape strip, arrive, risk mark, compact duration.
   - The selected row gets a `--panel` fill and an inset 4px ink bar. Its content doesn't move.
+  - Under the selected row, inside its fill and bar, starting where the tape starts, two 14px pencil lines: where its
+    first ride leaves from and when, with how it runs ("271 at 14:49 from Clarence St After Market St, 4 min late";
+    "timetabled" without live times), then **how sure the trip is**: its risk badge and why, in the steps' words, and
+    its stops ("At risk change at North Ryde Station, 22 s spare, 12 stops"; with several changes the tightest:
+    "Tight tightest change at Central Station, 1 min spare"; with none, "Safe no changes, 2 stops"). The badge
+    teaches what the rows' squares mean. Door to door isn't repeated: it's the row's last column. There's no summary
+    under the board, and nothing says an option is an alternative route.
   - The rows share their columns: the times and the duration are as wide as their widest entry, the duration is
     right-aligned, and the risk mark sits evenly between the arrive time and the duration (`--s3` either side).
   - **The tape** fills its row on the trip's own scale; there is no time axis shared between rows (the times either
@@ -309,7 +334,7 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
       rather than run into the arrive time.
     - A ride running 2 min or more late has a 2px `--missed` outline.
   - The board is one tab stop; arrow keys move between options (radio group).
-- **Timeline:** time | rail | description, sharing columns through subgrid.
+- **Timeline** (the steps, during a trip only): time | rail | description, sharing columns through subgrid.
   - Rides: a thick line in the line colour that fills its row, stopping about 2px short of the rules above and below,
     with the mode disc at its top (where you get on) and a dot inside its bottom end (where you get off).
   - A ride's description: line chip, headsign and status; "from" the stop (and platform); "to" the stop at its
@@ -319,14 +344,13 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     through them all, each with its time (14px/600 pencil, narrow), a dot on the line and its name. The last is yours:
     its time and name in the step's own weights (18px/700, 800), "Get off" after the name, and on the line a larger
     white dot with the stop's dot in it (18px, `--stop-ink`). The line ends a little past it (5px). Open, the "to"
-    line goes: the last row says it. A tap on the stops line closes it again. It works while planning too.
+    line goes: the last row says it. A tap on the stops line closes it again.
     - **On the ride you're on** the stops line counts down, `10 of 19 stops to go`, and the part of the line behind
       you is dimmed (the line's colour under 62% of the wall), closed or open. Open, the stops behind you fold into
       one pencil line, `3 stops passed`, you sit in a row of your own under it, and the next stop has "Next" after its
       name.
-    - **It opens by itself** with three stops to go, or fewer: so a ride of three stops or fewer is open from the
-      moment you're on it. Before that it stays the short step it always was.
-    - **Your tap wins.** A ride you've opened stays open; one you've closed stays closed, even for its last stops.
+    - **It only opens when asked.** Every ride starts closed and stays as you leave it: nothing opens by itself, not
+      even for the last stops of the ride you're on.
     - "Next" and "Get off" are stop tags: 12px/800 on `--r-mark`, wall on ink.
   - Walks: whole round dots (4.5px, about 10px apart, spaced out to fit; never cut off), stopping as short of the rules
     as a ride does. A walk or change step has a walker (heading right) in the middle instead of a dot. From the house,
@@ -355,7 +379,7 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
 - **Trackwork:** a `caution` callout above the board for each line whose trains the options replace with buses: the
   line's chip, "**Trackwork:** buses replace some trains. Their signs say 20T4 or 23T4." The buses keep their own names
   and colour everywhere (chip, tape, map): they're the names on the buses' signs.
-- **In-trip warnings** (above Now, at most one at a time):
+- **In-trip warnings** (in the trip's panel, under the arrive line, at most one at a time):
   - `bad`, when the trip can't be made as it stands. It says what won't be made, then the next best with how sure its
     changes are, that trip's row, and offers the switch: "**You won't make the change at North Ryde Station: the 288
     leaves at 12:34.** Next best, with no changes:", the row, [Switch to this]. The other openings: "You won't make
@@ -370,7 +394,7 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
       way is the fastest.
   - The row is the suggested trip from where you are now: it leaves when you'd have to set off from here (now, on a
     vehicle).
-  - **The ride you're on, as a strip** (in Now while you ride, when the server has sent the ride's stops; `RideCountdown`):
+  - **The ride you're on, as a strip** (under the instruction in the trip's panel while you ride, when the server has sent the ride's stops; `RideCountdown`):
     the line diagram above a train's doors. A 14px line in the line's colour across the section: where you got on at
     its left end (the mode's disc, dimmed), a dot for every stop, evenly spaced however far apart they are, and yours
     at the right end as the larger white dot with the stop's dot in it. You ride along it as the "you" marker, and
@@ -382,21 +406,20 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     - How many stops are behind you comes from where you are along the ride's line (your location, or your
       vehicle's when yours has gone quiet); with nothing to place you by, from the times it calls at them. It never
       goes back a stop.
-  - **Where to board, as a strip** (in Now while you're getting to a train or waiting for it, when the server says
-    which carriage; `BoardStrip`): the train, heading right like everything else on a trip. A piece for each
-    carriage, 22px tall with `--s1` between, each an outline only: 1.5px `--rule` with `--r-mark` corners. The front
-    carriage (the right-hand one) has a driver's cab, its top front corner swept down to the nose. Your carriage's
-    outline is the line's colour instead, at the same weight. No carriage is filled and none is numbered.
-    - Under it, the runner from the gym rows (`IconHurry`, at its own 24px) and the instruction at the body's own
-      weight, not bold: "Board the 4th carriage from the front." ("Board the front carriage.", "Board the back
-      carriage."). The strip above it is the emphasis, so the runner is lighter here than on a gym's row, to sit
-      with regular text and the carriages' outlines: drawn 1.5px, its speed lines 1.2px. On a gym's row the
-      runner starts the fastest trip; here it marks the quick way off the train. It doesn't say why (which stairs it's
-      for): short wins on a platform.
-    - It sits straight under the instruction, above when the train leaves ("T1 leaves 19:27 (in 16 min), on time")
-      and how much time you have, with `--s3` between.
-    - It's in Now from "Get to …" through "Wait for …", and nowhere else: not on the ride's step, not while planning,
-      not under the pulled-down map. It goes once you're on board.
+  - **Where to board, as a strip** (in a train ride's step during a trip, when the server says which carriage;
+    `BoardStrip`): the train, heading right like everything else on a trip, across 80% of the step's column from its
+    left. A piece for each carriage, 22px tall with `--s1` between, each an outline only: 1.5px `--rule` with `--r-mark` corners. The front carriage (the
+    right-hand one) has a driver's cab, its top front corner swept down to the nose. Your carriage's outline is the
+    line's colour instead, at the same weight. No carriage is filled and none is numbered.
+    - Under it, the runner from the gym rows (`IconHurry`, at 16px, its lines 2 and its speed lines 1.5 in its 24
+      box) and the instruction in 14px pencil, like the step's other lines: "Board the 4th carriage from the
+      front." ("Board the front carriage.", "Board the back carriage."). The strip above it is the emphasis. On a
+      gym's row the runner starts the fastest trip; here it marks the quick way off the train. It doesn't say why
+      (which stairs it's for): short wins on a platform.
+    - It sits in the ride's step, under where the ride goes and above its stops line, `--s2` either side: in the
+      trip's steps only: not with what to do now, and not on the trip screen.
+    - It shows on every train ride you haven't boarded yet (those ahead, and the one you're getting to or waiting
+      for), so a change's carriage can be read in advance. It goes from a ride once you're on board.
     - It shows whenever the server says which carriage, with no test for whether it's worth it. It never aims for a
       lift. Nothing shows when the server doesn't say: a bus, a train of unknown length, a platform the street map
       doesn't have, the next train at the same platform.
@@ -411,12 +434,13 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     whichever gym and either way round, until the place's nearest stop is a different one.
   - Settings, under "Longest walk to a stop" and only while there are any: "You've dismissed 2 "Longer walk" notices.
     Show them again" (a quiet text action; "Show it again" for one).
-- **Footer:** a hairline, then the server status and the version. It's for whoever runs the server, so it shows:
+- **Footer:** a hairline, then the server status (with the version in its line). It's for whoever runs the server, so it shows:
   - on Settings, always, at the bottom edge of the screen when the content is shorter than the screen;
   - on the trip screen, only when there's something to act on: the server isn't OK, or the app is out of date.
-  - The data credits ("Contains Transport for NSW data…") are only on Settings, at the end, above the footer.
-- **Server status** (the footer): a status dot and one short line, so a problem on the server
-  gets noticed without anyone checking it. The dot uses the status colours: `--safe` "Server OK", `--tight-fill` "Server
+  - The data credits are only on Settings, at the end, above the footer: "Contains Transport for NSW data (CC BY
+    4.0). Map data © OpenStreetMap contributors. Basemap by Protomaps."
+- **Server status** (the footer): a status dot and one short line, "Server OK, version 87692b5, checked 09:31", so a
+  problem on the server gets noticed without anyone checking it. The dot uses the status colours: `--safe` "Server OK", `--tight-fill` "Server
   working, needs a look", `--missed` "Server can't plan" or "Can't reach the server". Each issue follows on its own line
   in plain words. Only what's actionable and usually absent turns it orange (not lines that don't run on a weekend).
   Checked on opening and every 5 minutes while the app is open; checking doesn't count as using the app.
@@ -438,22 +462,24 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     gone, which is the confirmation. No confirm: nothing but the order is lost.
   - Under the rows, "The server's reply" opens the same way to the reply as it came: JSON on `--panel`, the one place a
     monospace face is used (the system's).
-- **Version** (the footer, last): `Version 87692b5`, the first seven characters of the commit the server was built
-  from (`dev` for an unstamped local build, a trailing `+` for one with uncommitted changes), in `--pencil` like the
-  rest of the footer. Shown once the server has answered; the app is built into the same binary, so it's the app's
-  version too.
+- **Version** (in the server status's line, after the verdict: "version 87692b5"): the first seven characters of the
+  commit the server was built from (`dev` for an unstamped local build, a trailing `+` for one with uncommitted
+  changes). Shown once the server has answered; the app is built into the same binary, so it's the app's version
+  too.
   - **Out of date:** when the server starts reporting a different version from the one it reported when the page
-    loaded (a deploy while the app stayed open), the line becomes "This app is out of date. Reload to get version
-    87692b5.", with Reload a text action that reloads the page. Opening the app afresh always loads the newest, so
+    loaded (a deploy while the app stayed open), the status line drops its version and a line under it says "This app
+    is out of date. Reload to get version 87692b5.", with Reload a text action that reloads the page. Opening the app afresh always loads the newest, so
     this only shows in an app left open.
 - **Simulator** (temporary, for testing: only with `?sim` in the address; spec, 2026-10-16). It's a tool, not part of
   the app, so it's plain and stays out of the way:
   - On the trip screen, a neutral callout under the header: "Simulator on: trips you start are simulated."
-  - During a simulated trip, a panel (`SimPanel`): on desktop over the map's bottom left, `--s3` in from its edges,
-    20rem wide; on a phone across the bottom of the screen. A `--panel` fill under a `--heavy` rule, padded `--s3`,
-    no shadow. Its first line: "Simulation" (600), the simulated time (narrow numerals; the one clock with seconds,
-    `17:42:10`, with the day before it when it isn't today), and Hide (Show when hidden), a quiet text action. Hidden,
-    that line is all there is.
+  - During a simulated trip, a panel (`SimPanel`): on desktop over the map's bottom left, `--s3` in from its
+    edges, 20rem wide; on a phone across the bottom of the screen. A `--panel` fill at 65%, so what's under it
+    shows through, under a `--hair` rule, padded `--s3`, no shadow. It stays live over the phone's map sheet
+    (it's outside the sheet, so the sheet's dialog leaves it out of what it makes inert: `data-over-dialogs`). Its
+    first line: "Simulation" (600) and the simulated time (narrow numerals; the one clock with seconds,
+    `17:42:10`, with the day before it when it isn't today) together in the middle, and Hide (Show when hidden), a
+    quiet text action, at the right. Hidden, that line is all there is, padded only `--s1` top and bottom.
   - Then: the speed (Segmented: Pause, 1×, 5×, 20×, 60×); "+1 min", "+5 min" and "Next step", quiet text actions;
     what the simulated you is doing, in 14px pencil; then rows between hairlines, a name on the left and its control
     on the right, as Number settings: Walking pace (Select, 50% to 150%), Stay where you are (tick box), Location
@@ -465,22 +491,43 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
   - 2 min or more late: `--missed`;
   - no live data, "timetabled": `--pencil`.
   - The word and the colour always agree.
-- **In-trip status line** (under Then): only when something is off. "No location just now; following the
+- **In-trip status line** (in the trip's panel, under what to do now): only when something is off. "No location just now; following the
   timetable.", "Location unavailable; following the timetable." with "Try my location again", and "Couldn't re-check
   the trip: …". With location on and the last check good there is no line.
 - **Inline confirm:** see Destructive actions.
 - **Dialog sheet:** a scrim at 45%, then a sheet on the wall colour with a heavy top rule. It rises from the bottom on
   phones and is centred on desktop. A title says what will happen; the body lists exactly what is lost; actions are
   Cancel, then the danger action.
-- **Map sheet (phone):** a full-screen dialog. The header leads with "‹ Back to trip" (or "‹ Back"), then the title.
-  - **The handle** (during a trip): a 40 × 4px ink bar, `--r-mark`, centred just under the rule between the map and
-    the steps, with a 44px hit area that reaches up over the map's bottom edge (and stops short of the attribution in
-    the corner). Dragged down 24px or more, the map takes the steps' room; dragged back up, they return; a tap does
-    either. Two positions, nothing in between. It's a button ("Show more of the map" / "Show the trip's steps").
-  - With the map pulled down, the arrive line stays under it with what to do now: the Now instruction (16px/600) and
-    its line beneath in 14px pencil ("T1 leaves 13:48 (in 27 min), on time", "Get off at 14:28 (in 6 min), Wynyard
-    Station"). On a ride whose stops are known, the strip and its two labels take that line's place.
-  - It stays as you left it for the rest of the trip, however often the map is opened.
+- **Map sheet (phone, while planning):** a full-screen dialog. The header leads with "‹ Back", then the title. Under
+  the map: the leave time (24px) and the arrive time, the option's tape, and Start trip.
+- **A trip under way** (`InTrip`): one screen, the map with the trip in a panel under it. Started trips go straight
+  to it; there's no separate summary screen and no "Show on map".
+  - The header: the app's icon (28px, as in the trip screen's header), the trip's title, then End trip at the
+    right (see Destructive actions), under a 2px `--pencil` rule.
+  - The map fills what the panel leaves. The panel starts with a 2px `--pencil` rule (the map's frame is pencil,
+    quieter than an ink rule) and holds, in order:
+    - **the arrive line**: "Arrive 14:28" (24px narrow numerals; "Arrived" once you're there) on the left; on the
+      right, in 14px pencil, the countdown to it ("in 52 min") and the Live tag;
+    - **a warning**, when there is one (see In-trip warnings);
+    - **what to do now**: the instruction (16px/600, "Get to Town Hall Station for the T1", "Wait for…", "On the T9:
+      get off at…") and its line beneath in 14px pencil ("T1 leaves 13:48 from platform 1 (in 27 min), on time",
+      naming the platform when the stop is one of a station's; "Get off at 14:28 (in 6 min), Wynyard Station"), with
+      the time to spare to the stop under it while you're walking to it ("2 min spare from here.", `--safe`,
+      `--tight` under a minute, `--missed` "You need to hurry: …"). On a ride whose stops are known, the strip and
+      its two labels take that line's place;
+    - **the status line**, only when something is off;
+    - **the steps** (Timeline), scrolling on their own (at most 38% of the screen's height), the step you're on
+      scrolled into view (again once your location first places you: until then it's the
+      clock's guess).
+  - Not shown: the leave time before you set off (the steps' first row has it), and the next change ("Then": the
+    steps show it with its risk).
+  - **The handle** (phone): a 40 × 3px `--pencil` bar, `--r-mark`, centred just under the rule between the map and
+    the panel, with a 44px hit area that reaches up over the map's bottom edge (and stops short of the attribution
+    in the corner). Dragged down 24px or more, the map takes the steps' room; dragged back up, they return; a tap
+    does either. Two positions, nothing in between. It's a button ("Show more of the map" / "Show the trip's
+    steps"). The rest of the panel stays. It stays as you left it for the rest of the trip.
+  - **Desktop:** the panel is the left pane, under the header, and the map the right; no handle, and the steps
+    scroll with the page.
 
 ## UX conventions
 
@@ -511,8 +558,8 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
   then [Keep] [Delete].
 - **End trip** gets an **inline confirm bar** under the trip header: "End this trip? Live tracking and re-checks stop."
   then [Keep going] [End trip].
-  - End trip is a quiet text action on the right of the trip header. It never sits where the map's "Back to trip" sits,
-    and never looks like it.
+  - End trip is a quiet text action on the right of the trip's header. Its confirm bar lies over what's under the
+    header (the map; on desktop the panel), so nothing moves. It never looks like a way back.
 - **Whole-device actions** get a **dialog sheet**. These are: Reset this device, Import backup, and a link that would
   replace saved settings or change the access token.
 
@@ -533,6 +580,12 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
 - **First run** is two steps, each a question: "Where do you start from?" with "Step 1 of 2. Next: the gyms you climb
   at." under it, then "Which gyms do you climb at?" with "Step 2 of 2." leading its intro. Neither has Cancel: there's
   nothing to go back to.
+- **Editing a home or a built-in gym:** its name as the title and its address under it, as plain text: they stay as
+  they were set (a built-in gym's are the app's; a home that moves is deleted and added again). Only its stops, and
+  a gym's lines, can be changed. Adding a home, and a gym you added yourself, have the Name and Address fields. A
+  home keeps the address it was found by, on the device only.
+- **A gym without lines from your home** (Settings' list): "13 lines, none from Home yet". Its pencil is right beside
+  it.
 - **Stops for a place** (the home and gym editors) are closed until asked for: "Using every stop within a 1 km walk."
   then "Choose stops", a text action with a chevron that opens the list. A place with stops already ticked opens with
   the list showing.
@@ -560,6 +613,9 @@ the person who mapped a path knows there's something new to fetch.
 ### Keyboard and focus
 
 - Every interactive element shows the 3px `--focus` ring with a 2px offset.
+- Focus the app moves itself (into a dialog, onto Keep in a confirm, back to what opened a dialog) shows its ring only
+  when the last thing done was with the keyboard (`focusQuietly`): after a tap there's no ring, as a tapped control has
+  none.
 - Dialogs (map sheet, dialog sheet) use `useDialog`, which does all of this:
   - move focus into the dialog on open;
   - keep focus inside;
