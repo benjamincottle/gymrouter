@@ -416,7 +416,8 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
 - **Footer:** a hairline, then the server status and the version. It's for whoever runs the server, so it shows:
   - on Settings, always, at the bottom edge of the screen when the content is shorter than the screen;
   - on the trip screen, only when there's something to act on: the server isn't OK, or the app is out of date.
-  - The data credits ("Contains Transport for NSW data…") are only on Settings, at the end, above the footer.
+  - The data credits are only on Settings, at the end, above the footer: "Contains Transport for NSW data (CC BY
+    4.0). Map data © OpenStreetMap contributors. Basemap by Protomaps."
 - **Server status** (the footer): a status dot and one short line, so a problem on the server
   gets noticed without anyone checking it. The dot uses the status colours: `--safe` "Server OK", `--tight-fill` "Server
   working, needs a look", `--missed` "Server can't plan" or "Can't reach the server". Each issue follows on its own line
