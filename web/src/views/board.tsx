@@ -260,14 +260,13 @@ export function MapSheet({ option, now, onClose, onStart, title, live, ...p }: M
   useDialog(sheetRef, onClose) // focus starts on Back; Escape closes; the page behind is inert
   return (
     <div ref={sheetRef} class="sheet" role="dialog" aria-modal="true" aria-label={`Map: ${title}`}>
-      <header class="sheet-bar">
-        <Button onClick={onClose}>
-          <svg class="icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path d="M15 5l-7 7 7 7" />
-          </svg>
-          Back
-        </Button>
+      {/* As a trip's header: the icon and the title, and the way out a quiet link at the right. */}
+      <header class="trip-bar">
+        <img class="app-icon" src="/icon.svg" alt="" width={28} height={28} />
         <span class="sheet-title">{title}</span>
+        <TextButton quiet onClick={onClose}>
+          Back
+        </TextButton>
       </header>
       <MapBody {...p} option={option} {...map} />
       <footer class="sheet-summary">

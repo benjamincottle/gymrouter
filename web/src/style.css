@@ -52,6 +52,7 @@
   /* shape and lines */
   --r-mark: 2px;
   --r-control: 4px;
+  --r-sheet: 16px; /* the top corners of the panel pulled up over a trip's map */
   --control: 44px;
   --hair: 1px solid var(--rule);
   --heavy: 3px solid var(--ink);
@@ -2012,22 +2013,8 @@ span.home-link {
   background: var(--wall);
 }
 
-.sheet-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--s3);
-  min-height: 56px;
-  padding: env(safe-area-inset-top) var(--s3) 0;
-  border-bottom: var(--frame);
-}
 
-.sheet-bar .btn {
-  padding-left: var(--s3);
-}
 
-.sheet-bar > .text-btn {
-  margin-right: var(--s1);
-}
 
 .sheet-title {
   flex: 1;
@@ -2161,11 +2148,41 @@ span.home-link {
   inset: 0;
   z-index: 10;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: 1fr auto;
   background: var(--wall);
 }
 
-/* the header's rule runs edge to edge, as the panel's does under the map */
+/* no header: the map runs to the top of the screen, its controls clear of the phone's status bar */
+.intrip .maplibregl-ctrl-top-right {
+  top: env(safe-area-inset-top);
+}
+
+/* End trip, over the map's top left; its question drops in under it, across the map */
+.trip-end {
+  position: absolute;
+  z-index: 5;
+  top: calc(env(safe-area-inset-top) + 10px); /* in line with the zoom buttons */
+  left: 10px;
+  right: 10px;
+  pointer-events: none;
+}
+
+.trip-end > * {
+  pointer-events: auto;
+}
+
+/* a text action on the map, drawn as the map's controls are: panel fill, edge outline, square corners, 44px */
+.map-chip {
+  min-height: var(--control);
+  padding: 0 var(--s3);
+  border: 1.5px solid var(--edge);
+  border-radius: var(--r-control);
+  background: var(--panel);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* the planning map sheet's header: the icon, the title, and Back at the right */
 .trip-bar {
   display: flex;
   align-items: center;
@@ -2179,22 +2196,20 @@ span.home-link {
   flex: 1;
 }
 
-/* End trip's question lies over what's under the header (the map), so nothing moves */
-.trip-top {
-  position: relative;
-  z-index: 5;
-}
-
-.trip-top > .confirm {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-}
-
+/* pulled up over the map's foot: no rule, top corners rounded, the map running on behind them */
 .trip-panel {
+  position: relative;
+  z-index: 3;
   min-height: 0;
-  border-top: var(--frame);
+  margin-top: calc(-1 * var(--r-sheet));
+  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+  background: var(--wall);
+}
+
+/* the map's attribution clear of the panel over its foot */
+.intrip .maplibregl-ctrl-bottom-right,
+.intrip .maplibregl-ctrl-bottom-left {
+  bottom: var(--r-sheet);
 }
 
 /* all of the panel but its handle: it scrolls when there's more than fits */
@@ -2309,19 +2324,30 @@ span.home-link {
     display: block;
   }
 
-  .trip-bar {
-    padding-inline: 0;
+  /* over the map pane's top left */
+  .trip-end {
+    position: fixed;
+    top: 10px;
+    left: calc(var(--pane-w) + 10px);
+    right: auto;
+    width: 24rem;
   }
 
 
   .trip-panel {
-    border-top: 0;
+    margin-top: 0;
+    border-radius: 0;
+  }
+
+  .intrip .maplibregl-ctrl-bottom-right,
+  .intrip .maplibregl-ctrl-bottom-left {
+    bottom: 0;
   }
 
   .trip-panel-body {
     max-height: none;
     overflow: visible;
-    padding: var(--s3) 0 var(--s5);
+    padding: var(--s5) 0;
   }
 
   .trip-steps {

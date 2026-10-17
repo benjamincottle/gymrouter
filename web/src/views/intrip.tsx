@@ -359,22 +359,20 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   }
 
   return (
-    <div class="intrip">
-      <div class="trip-top">
-        <header class="trip-bar">
-          <img class="app-icon" src="/icon.svg" alt="" width={28} height={28} />
-          <span class="sheet-title">{trip.title}</span>
-          {/* Quiet, and at the right: it never looks like a way back. */}
-          {!ending && (
-            <TextButton quiet onClick={() => setEnding(true)}>
-              End trip
-            </TextButton>
-          )}
-        </header>
-        {ending && <EndTripConfirm onKeep={() => setEnding(false)} onConfirm={onEnd} />}
-      </div>
-
+    <div class="intrip" aria-label={trip.title}>
       {wide ? <MapPane {...map} /> : <TripMap {...map} />}
+
+      {/* No header: the map is the screen. End trip floats over its top left, as the map's own controls do over its
+          right, and its question drops in under it, over the map. */}
+      <div class="trip-end">
+        {ending ? (
+          <EndTripConfirm onKeep={() => setEnding(false)} onConfirm={onEnd} />
+        ) : (
+          <button class="map-chip" onClick={() => setEnding(true)}>
+            End trip
+          </button>
+        )}
+      </div>
 
       <section class="trip-panel" aria-label="The trip">
         {/* Outside what scrolls, so it's always there on the rule under the map. */}

@@ -31,6 +31,35 @@ function registerTiles(token: string): string {
   return `pmtiles://${url}`
 }
 
+/**
+ * The dark map in the colours of Google Maps' night style, over Protomaps' dark flavour (which is near black): slate
+ * navy land, deep navy water, slate roads with warm highways, and warm place names.
+ */
+const NIGHT: Partial<ReturnType<typeof namedFlavor>> = {
+  background: '#17263c', water: '#17263c', ocean_label: '#515c6d',
+  earth: '#242f3e', buildings: '#2b3748', pedestrian: '#2b3646', pier: '#2f3948', runway: '#38414e',
+  park_a: '#263c3f', park_b: '#263c3f', wood_a: '#24383a', wood_b: '#24383a', scrub_a: '#263a3c', scrub_b: '#263a3c',
+  zoo: '#263c3f', hospital: '#2a3446', school: '#2a3446', industrial: '#283445', military: '#283445', aerodrome: '#283445',
+  beach: '#2c3646', sand: '#2c3646', glacier: '#2e3a4c',
+  other: '#2f3948', minor_service: '#2f3948', minor_a: '#38414e', minor_b: '#38414e', link: '#38414e', major: '#45505f',
+  highway: '#746855',
+  minor_service_casing: '#212a37', minor_casing: '#212a37', link_casing: '#212a37', major_casing_early: '#212a37',
+  major_casing_late: '#212a37', highway_casing_early: '#1f2835', highway_casing_late: '#1f2835',
+  tunnel_other: '#2c3542', tunnel_minor: '#2c3542', tunnel_link: '#2c3542', tunnel_major: '#2c3542', tunnel_highway: '#4a4538',
+  tunnel_other_casing: '#1f2835', tunnel_minor_casing: '#1f2835', tunnel_link_casing: '#1f2835', tunnel_major_casing: '#1f2835',
+  tunnel_highway_casing: '#1f2835',
+  bridges_other: '#2f3948', bridges_minor: '#38414e', bridges_link: '#38414e', bridges_major: '#45505f', bridges_highway: '#746855',
+  bridges_other_casing: '#212a37', bridges_minor_casing: '#212a37', bridges_link_casing: '#212a37', bridges_major_casing: '#212a37',
+  bridges_highway_casing: '#1f2835',
+  railway: '#3b4658', boundaries: '#4b6878',
+  roads_label_minor: '#9ca5b3', roads_label_minor_halo: '#212a37', roads_label_major: '#9ca5b3', roads_label_major_halo: '#212a37',
+  subplace_label: '#d59563', subplace_label_halo: '#242f3e', city_label: '#d59563', city_label_halo: '#242f3e',
+  state_label: '#746855', state_label_halo: '#242f3e', country_label: '#9ca5b3', address_label: '#746855', address_label_halo: '#242f3e',
+  landcover: {
+    grassland: '#263c3f', barren: '#2a3446', urban_area: '#283445', farmland: '#263a3c', glacier: '#2e3a4c', scrub: '#263a3c', forest: '#24383a',
+  },
+}
+
 function style(token: string, dark: boolean): StyleSpecification {
   const flavor = dark ? 'dark' : 'light'
   return {
@@ -44,7 +73,7 @@ function style(token: string, dark: boolean): StyleSpecification {
         attribution: '<a href="https://openstreetmap.org/copyright">© OpenStreetMap</a>',
       },
     },
-    layers: layers('protomaps', namedFlavor(flavor), { lang: 'en' }),
+    layers: layers('protomaps', dark ? { ...namedFlavor('dark'), ...NIGHT } : namedFlavor(flavor), { lang: 'en' }),
   }
 }
 
