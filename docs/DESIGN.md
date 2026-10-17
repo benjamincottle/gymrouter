@@ -281,6 +281,9 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     narrow for both (under about 340px) the toggle wraps onto a line of its own, still at the right.
   - Its label says which way and what a tap does: "From Home to a gym: reverse", "From 9 Degrees Chatswood to Home:
     reverse". The arrow is a drawing between two drawings, not a symbol standing in for a word (see Copy).
+- **Day and time** (trip screen, under the When row, with "Leave at" or "Arrive by"): the day, hour and minute pickers
+  slide down into place as either is chosen (220ms: their height opens and they fade in), and back up for "Leave
+  now", so the screen doesn't jump. With reduced motion they simply appear. Closed, they take no room.
 - **Gym rows** (trip screen, before a gym is chosen): a `--rule` tape, the gym's logo (or the shoe, for a gym
   without one: see The shoe), its name (18px/800/semi) and its address beneath in 14px pencil. The row is a button that chooses the gym and shows its options.
   - **The runner** (with "Leave now" only): an icon button at the far right of the row, someone running with speed

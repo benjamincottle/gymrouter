@@ -1126,7 +1126,15 @@ span.home-link {
 
 .when {
   display: grid;
-  gap: var(--s3);
+}
+
+.when > * + * {
+  margin-top: var(--s3);
+}
+
+/* the day and time keep the gap above them inside what slides (see .reveal) */
+.when > .reveal {
+  margin-top: 0;
 }
 
 /* when, then which way: the direction toggle ends the row, above the runners. On a screen too narrow for both
@@ -1155,6 +1163,51 @@ span.home-link {
 
 .btn.direction .icon {
   stroke-width: 2;
+}
+
+/* something that slides down into place when it's wanted, and back up when it isn't (the day and time) */
+.reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 220ms ease, opacity 220ms ease;
+}
+
+.reveal.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+/* clipped while it slides; once open, not (so a focus ring isn't cut off) */
+.reveal > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.reveal.open > div {
+  animation: reveal-done 0s 220ms forwards;
+}
+
+@keyframes reveal-done {
+  to {
+    overflow: visible;
+  }
+}
+
+/* the gap above it is inside what slides, so it opens with it */
+.reveal > div > * {
+  margin-top: var(--s3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    transition: none;
+  }
+
+  .reveal.open > div {
+    animation: none;
+    overflow: visible;
+  }
 }
 
 .daytime {

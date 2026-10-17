@@ -203,7 +203,12 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
             <DirectionGlyph toGym={direction === 'to-gym'} />
           </Button>
         </div>
-        {when !== 'now' && <DayTime value={at} onChange={setAt} label={when === 'arrive' ? 'Arrive by' : 'Leave at'} />}
+        {/* The day and time slide down under the When row as "Leave at" or "Arrive by" is chosen, and back up. */}
+        <div class={when === 'now' ? 'reveal' : 'reveal open'} inert={when === 'now'}>
+          <div>
+            <DayTime value={at} onChange={setAt} label={when === 'arrive' ? 'Arrive by' : 'Leave at'} />
+          </div>
+        </div>
       </div>
 
       {gym ? (

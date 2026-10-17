@@ -1063,3 +1063,5 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   The three findings parked from the codebase review are fixed: the map's vehicle errors are worded by `problem()`;
   an open map is made afresh when the page turns light or dark; and importing a backup with another access token says
   so ("…, and its access token").
+- 2026-10-17: **The day and time slide down** under the When row when "Leave at" or "Arrive by" is chosen (and back up
+  for "Leave now"), where they appeared at once and pushed the screen down.
