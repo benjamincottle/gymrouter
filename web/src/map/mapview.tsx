@@ -259,6 +259,7 @@ export interface MapViewProps {
   serviceDate?: string
   places?: MapPlace[] // the home and the gym at the trip's ends, or your home and gyms before one is chosen
   onPlace?: (id: string) => void // a gym tapped on the map
+  coveredBelow?: () => number // how much of the map's foot something lies over (the phone's trip panel), read when it fits
   me?: { lat: number; lon: number; accuracy: number } | null // where you are, during a trip
   doing?: Doing // and what you're doing: you're drawn as a walker, or as the vehicle you're on
   aboard?: string // the trip you're riding: with you on the map, its vehicle isn't drawn as well
@@ -272,12 +273,14 @@ export interface MapViewProps {
  * they're near your part of the trip, you, and the home and gym at its ends. The view fits the whole trip, or during
  * one the step you're on (`focus`). Without an option it draws the places alone, and fits them.
  */
-export function MapView({ token, option, serviceDate, places = [], onPlace, me, doing = 'walk', aboard, focus, progress, catching }: MapViewProps) {
+export function MapView({ token, option, serviceDate, places = [], onPlace, coveredBelow, me, doing = 'walk', aboard, focus, progress, catching }: MapViewProps) {
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const [error, setError] = useState('')
   const onPlaceRef = useRef(onPlace)
   onPlaceRef.current = onPlace
+  const coveredBelowRef = useRef(coveredBelow)
+  coveredBelowRef.current = coveredBelow
   const placesKey = JSON.stringify(places)
   const routeBounds = useRef<maplibregl.LngLatBounds | null>(null)
   const legBounds = useRef<(maplibregl.LngLatBounds | undefined)[]>([]) // each leg's own, by its place in the option
@@ -324,8 +327,9 @@ export function MapView({ token, option, serviceDate, places = [], onPlace, me, 
       b.extend(v)
       vehicleFramed.current = viewKeyRef.current
     }
-    // The trip fills the map: just enough room for the zoom buttons on the right.
-    m.fitBounds(b, { padding: { top: 36, bottom: 36, left: 28, right: 64 }, maxZoom: 16, duration: animate ? 600 : 0 })
+    // The trip fills the map: just enough room for the zoom buttons on the right, and above whatever lies over its foot.
+    const below = Math.min(coveredBelowRef.current?.() ?? 0, m.getContainer().clientHeight * 0.75)
+    m.fitBounds(b, { padding: { top: 36, bottom: 36 + below, left: 28, right: 64 }, maxZoom: 16, duration: animate ? 600 : 0 })
   }
   // The rides, as the vehicles endpoint wants them: <trip>|<board stop>|<alight stop>.
   const rides = (option?.legs ?? [])

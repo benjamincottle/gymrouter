@@ -515,8 +515,10 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     as the map's controls are (44px, `--panel` fill, 1.5px `--edge` outline, `--r-control` corners, 600 ink). Its
     confirm takes its place there, over the map (see Destructive actions). On desktop it's over the map pane's top
     left.
-  - The map fills the screen behind the panel. The panel is pulled up over the map's foot: no rule, its top corners
-    rounded (`--r-sheet`), the map running on behind them (the attribution lifted clear). It holds, in order:
+  - The map fills the screen and stays put. The panel is pulled up over it: no rule, its top corners rounded
+    (`--r-sheet`), at most the screen less 72px (the map's top and End trip stay in sight). The map's attribution
+    sits under End trip, where the panel can't cover it. When the map fits the trip it fits it above the panel, as
+    tall as the panel is then; moving the panel never moves the map. It holds, in order:
     - **the arrive line**: "Arrive 14:28" (24px narrow numerals; "Arrived" once you're there) on the left; on the
       right, in 14px pencil, the countdown to it ("in 52 min") and the Live tag;
     - **a warning**, when there is one (see In-trip warnings);
@@ -532,10 +534,11 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
       clock's guess).
   - Not shown: the leave time before you set off (the steps' first row has it), and the next change ("Then": the
     steps show it with its risk).
-  - **The handle** (phone): a 40 × 3px `--pencil` bar, `--r-mark`, centred at the top of the panel, with a 44px hit area that reaches up over the map's bottom edge (and stops short of the attribution
-    in the corner). Dragged down 24px or more, the map takes the steps' room; dragged back up, they return; a tap
-    does either. Two positions, nothing in between. It's a button ("Show more of the map" / "Show the trip's
-    steps"). The rest of the panel stays. It stays as you left it for the rest of the trip.
+  - **The handle** (phone): a 40 × 3px `--pencil` bar, `--r-mark`, centred at the top of the panel, with a 44px hit
+    area. Dragged, the panel follows to any height, over the map; let go within 48px of its foot (what to do now
+    showing, and no steps), it settles there. No other position is held for it: where it's let go, it stays. A tap
+    takes it down to its foot, or back up as it opened (the steps at most 38% of the screen). It's a button ("Show
+    more of the map" / "Show the trip's steps"). The panel stays as you left it for the rest of the trip.
   - **Desktop:** the panel is the left pane, from the top of the page (no header there either), and the map the
     right; no handle, and the steps scroll with the page.
 

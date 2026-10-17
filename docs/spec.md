@@ -1052,3 +1052,8 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   with amber-brown motorways, teal parks, warm place names), over Protomaps' dark flavour, which is near black and
   hardly parts water from land. Tried first and rejected: the dark flavour lifted evenly toward white (by 8 to 24%),
   and the light map in either theme (bright against the dark panel). The app's own dark greys stay neutral for now.
+- 2026-10-17: **The trip's panel drags to any height, over a map that stays put** (supersedes its two positions,
+  2026-10-11). The map fills the screen and never moves or resizes as the panel does; the panel follows the handle to
+  wherever it's let go, settling only at its foot (what to do now, no steps) when let go near it. A tap still takes it
+  down, or back up as it opened. The map fits the trip above the panel as tall as it is when the map fits (a new
+  step, Back to the trip), not while it's dragged. The attribution moves under End trip, out of the panel's way.

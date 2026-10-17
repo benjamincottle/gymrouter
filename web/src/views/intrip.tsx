@@ -32,7 +32,7 @@ export interface ActiveTrip {
   walkSpeedMps: number
   tightS: number // the "tight" setting: a warning that's showing clears once there's this much to spare again
   dismissed?: string[] // "faster way" notices dismissed on this trip (suggestionKey): not offered again
-  mapTall?: boolean // the phone's map is pulled down over the steps: it stays as you left it
+  panel?: number | 'down' // the phone's panel over the map: dragged to a height (px), or down to its foot; unset, as it opens
   sim?: boolean // simulated (sim.ts): the simulator's clock, location and vehicles, and the timetable only
 }
 
@@ -349,13 +349,20 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
     const box = stepsRef.current
     const you = box?.querySelector('.you')
     if (box && you) box.scrollTop += you.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientHeight / 2
-  }, [trip.mapTall, located])
-  const handle = usePullHandle(stepsRef, !!trip.mapTall, (tall) => onUpdate({ ...tripRef.current, mapTall: tall }))
-  const tall = !wide && !!trip.mapTall // the phone's map pulled down over the steps
+  }, [trip.panel === 'down', located])
+  // The phone's panel: dragged anywhere by its handle, over a map that stays put; down at its foot it shows only
+  // what to do now.
+  const panelRef = useRef<HTMLElement>(null)
+  const drag = usePanelDrag(panelRef, stepsRef, trip.panel, (panel) => onUpdate({ ...tripRef.current, panel }))
+  const down = !wide && trip.panel === 'down' && drag.height === null
+  const panelHeight = wide ? undefined : (drag.height ?? (typeof trip.panel === 'number' ? trip.panel : undefined))
 
   const map = {
     serviceDate: trip.serviceDate, token, me: where, doing, aboard: riding, option: o, focus, progress: ride, catching,
     places: [trip.ends.start, trip.ends.end].map((p) => ({ kind: p.key.startsWith('home:') ? ('home' as const) : ('gym' as const), lon: p.lon, lat: p.lat })),
+    // On the phone the panel lies over the map's foot: the map fits the trip above it (read when it fits, so dragging
+    // the panel doesn't move the map).
+    coveredBelow: wide ? undefined : () => panelRef.current?.offsetHeight ?? 0,
   }
 
   return (
@@ -374,10 +381,15 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
         )}
       </div>
 
-      <section class="trip-panel" aria-label="The trip">
-        {/* Outside what scrolls, so it's always there on the rule under the map. */}
+      <section
+        ref={panelRef}
+        class={panelHeight !== undefined ? 'trip-panel sized' : 'trip-panel'}
+        style={panelHeight !== undefined ? { height: `${panelHeight}px` } : undefined}
+        aria-label="The trip"
+      >
+        {/* Outside what scrolls, so it's always there at the panel's top. */}
         {!wide && (
-          <button class="sheet-handle" aria-expanded={!tall} aria-label={tall ? "Show the trip's steps" : 'Show more of the map'} {...handle.props} />
+          <button class="sheet-handle" aria-expanded={!down} aria-label={down ? "Show the trip's steps" : 'Show more of the map'} {...drag.props} />
         )}
         <div class="trip-panel-body">
           <p class="trip-arrive">
@@ -456,8 +468,8 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
             </p>
           )}
 
-          {(!tall || handle.pull !== null) && (
-            <div class="trip-steps" ref={stepsRef} style={handle.pull === null ? undefined : { height: `${handle.pull}px`, overflow: 'hidden' }}>
+          {!down && (
+            <div class="trip-steps" ref={stepsRef}>
               <Timeline option={o} ends={trip.ends} track={track} />
             </div>
           )}
@@ -514,44 +526,60 @@ function EndTripConfirm({ onKeep, onConfirm }: { onKeep: () => void; onConfirm: 
   )
 }
 
-/** How far the handle has to be dragged to move the map (less is a tap, or a change of mind). */
-const PULL_PX = 24
+/** Moved less than this, the handle was tapped, not dragged. */
+const TAP_PX = 4
+/** Let go within this of the panel's foot (only what to do now showing), it settles there. */
+const SNAP_PX = 48
+/** The most of the screen the panel takes: the map's top (and End trip) stay in sight. */
+const TOP_ROOM_PX = 72
 
 /**
- * The handle on the rule under the phone's map: drag it down and the map takes the steps' room, up and they come
- * back; a tap does either. `pull` is the steps' height while it's being dragged.
+ * The handle at the top of the phone's panel. Dragged, the panel follows to any height, over a map that stays put;
+ * let go near its foot, it settles there, with only what to do now showing. A tap takes it down to its foot, or back
+ * up as it opened. `height` is the panel's height while it's being dragged.
  */
-function usePullHandle(steps: MutableRef<HTMLDivElement | null>, tall: boolean, onTall: (tall: boolean) => void) {
-  const [pull, setPull] = useState<number | null>(null)
-  const grip = useRef<{ y: number; h: number; moved: boolean } | null>(null)
+function usePanelDrag(
+  panel: MutableRef<HTMLElement | null>,
+  steps: MutableRef<HTMLDivElement | null>,
+  state: ActiveTrip['panel'],
+  onChange: (s: ActiveTrip['panel']) => void,
+) {
+  const [height, setHeight] = useState<number | null>(null)
+  const grip = useRef<{ y: number; h: number; foot: number; max: number; moved: boolean } | null>(null)
   const dragged = useRef(false)
   const props = {
     onPointerDown: (e: PointerEvent) => {
+      const el = panel.current
+      if (!el) return
       ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-      grip.current = { y: e.clientY, h: tall ? 0 : (steps.current?.offsetHeight ?? 0), moved: false }
+      const h = el.offsetHeight
+      const foot = h - (steps.current?.offsetHeight ?? 0) // the panel without its steps
+      const max = (el.parentElement?.clientHeight ?? window.innerHeight) - TOP_ROOM_PX
+      grip.current = { y: e.clientY, h, foot, max: Math.max(foot, max), moved: false }
     },
     onPointerMove: (e: PointerEvent) => {
       const g = grip.current
       if (!g) return
-      if (Math.abs(e.clientY - g.y) > 4) g.moved = true
-      if (g.moved) setPull(Math.max(0, g.h - (e.clientY - g.y)))
+      if (Math.abs(e.clientY - g.y) > TAP_PX) g.moved = true
+      if (g.moved) setHeight(Math.min(g.max, Math.max(g.foot, g.h - (e.clientY - g.y))))
     },
     onPointerUp: (e: PointerEvent) => {
       const g = grip.current
       grip.current = null
-      setPull(null)
+      setHeight(null)
       if (!g?.moved) return
       dragged.current = true // the click that follows a drag isn't a tap
-      if (Math.abs(e.clientY - g.y) >= PULL_PX) onTall(e.clientY > g.y)
+      const h = Math.min(g.max, Math.max(g.foot, g.h - (e.clientY - g.y)))
+      onChange(h < g.foot + SNAP_PX ? 'down' : Math.round(h))
     },
     onPointerCancel: () => {
       grip.current = null
-      setPull(null)
+      setHeight(null)
     },
     onClick: () => {
-      if (!dragged.current) onTall(!tall)
+      if (!dragged.current) onChange(state === 'down' ? undefined : 'down')
       dragged.current = false
     },
   }
-  return { props, pull }
+  return { props, height }
 }
