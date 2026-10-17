@@ -413,13 +413,13 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     whichever gym and either way round, until the place's nearest stop is a different one.
   - Settings, under "Longest walk to a stop" and only while there are any: "You've dismissed 2 "Longer walk" notices.
     Show them again" (a quiet text action; "Show it again" for one).
-- **Footer:** a hairline, then the server status and the version. It's for whoever runs the server, so it shows:
+- **Footer:** a hairline, then the server status (with the version in its line). It's for whoever runs the server, so it shows:
   - on Settings, always, at the bottom edge of the screen when the content is shorter than the screen;
   - on the trip screen, only when there's something to act on: the server isn't OK, or the app is out of date.
   - The data credits are only on Settings, at the end, above the footer: "Contains Transport for NSW data (CC BY
     4.0). Map data © OpenStreetMap contributors. Basemap by Protomaps."
-- **Server status** (the footer): a status dot and one short line, so a problem on the server
-  gets noticed without anyone checking it. The dot uses the status colours: `--safe` "Server OK", `--tight-fill` "Server
+- **Server status** (the footer): a status dot and one short line, "Server OK, version 87692b5, checked 09:31", so a
+  problem on the server gets noticed without anyone checking it. The dot uses the status colours: `--safe` "Server OK", `--tight-fill` "Server
   working, needs a look", `--missed` "Server can't plan" or "Can't reach the server". Each issue follows on its own line
   in plain words. Only what's actionable and usually absent turns it orange (not lines that don't run on a weekend).
   Checked on opening and every 5 minutes while the app is open; checking doesn't count as using the app.
@@ -441,13 +441,13 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     gone, which is the confirmation. No confirm: nothing but the order is lost.
   - Under the rows, "The server's reply" opens the same way to the reply as it came: JSON on `--panel`, the one place a
     monospace face is used (the system's).
-- **Version** (the footer, last): `Version 87692b5`, the first seven characters of the commit the server was built
-  from (`dev` for an unstamped local build, a trailing `+` for one with uncommitted changes), in `--pencil` like the
-  rest of the footer. Shown once the server has answered; the app is built into the same binary, so it's the app's
-  version too.
+- **Version** (in the server status's line, after the verdict: "version 87692b5"): the first seven characters of the
+  commit the server was built from (`dev` for an unstamped local build, a trailing `+` for one with uncommitted
+  changes). Shown once the server has answered; the app is built into the same binary, so it's the app's version
+  too.
   - **Out of date:** when the server starts reporting a different version from the one it reported when the page
-    loaded (a deploy while the app stayed open), the line becomes "This app is out of date. Reload to get version
-    87692b5.", with Reload a text action that reloads the page. Opening the app afresh always loads the newest, so
+    loaded (a deploy while the app stayed open), the status line drops its version and a line under it says "This app
+    is out of date. Reload to get version 87692b5.", with Reload a text action that reloads the page. Opening the app afresh always loads the newest, so
     this only shows in an app left open.
 - **Simulator** (temporary, for testing: only with `?sim` in the address; spec, 2026-10-16). It's a tool, not part of
   the app, so it's plain and stays out of the way:
