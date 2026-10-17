@@ -1057,3 +1057,19 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   wherever it's let go, settling only at its foot (what to do now, no steps) when let go near it. A tap still takes it
   down, or back up as it opened. The map fits the trip above the panel as tall as it is when the map fits (a new
   step, Back to the trip), not while it's dragged. The attribution moves under End trip, out of the panel's way.
+- 2026-10-17: **The desktop's map before a gym is chosen takes in the area the app covers**, Blaxland to Manly,
+  rather than fitting the gyms tightly. (Gyms drawn as their logos was tried and dropped: the shoe reads better on the
+  map.)
+  The three findings parked from the codebase review are fixed: the map's vehicle errors are worded by `problem()`;
+  an open map is made afresh when the page turns light or dark; and importing a backup with another access token says
+  so ("…, and its access token").
+- 2026-10-17: **The day and time slide down** under the When row when "Leave at" or "Arrive by" is chosen (and back up
+  for "Leave now"), where they appeared at once and pushed the screen down.
+- 2026-10-17: **Settings opens with where it's all kept**, above Homes rather than as its intro, and for every
+  setting rather than homes and gyms alone: "All settings are stored on this device only." Checked against §4 and §10: everything on Settings (homes, gyms, walking and
+  risk settings, appearance, the access token) lives in the browser's storage; requests carry what a plan needs in
+  their bodies, which the server neither stores nor logs; the only thing it keeps is the names of the lines requests
+  have named (`lines.json`), which aren't tied to any place. Backups and setup links are copies the person makes.
+- 2026-10-17: **Settings' sections are evenly and more tightly spaced.** Without their rules the gaps had come apart
+  (40 to 60 px from the end of one to the next title): the stack's gap, padding left from the rules, list margins, and
+  a 56 px last row each added their part. Now it's one gap (about 28 px seen) everywhere.

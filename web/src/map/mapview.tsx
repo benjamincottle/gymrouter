@@ -6,7 +6,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { FetchSource, PMTiles, Protocol } from 'pmtiles'
 import { layers, namedFlavor } from '@protomaps/basemaps'
-import { ApiError, api } from '../api.ts'
+import { ApiError, api, problem } from '../api.ts'
 import type { RideProgress } from '../countdown.ts'
 import { splitAt } from '../progress.ts'
 import { useLiveEvents, useVisible } from '../hooks.ts'
@@ -260,6 +260,7 @@ export interface MapViewProps {
   places?: MapPlace[] // the home and the gym at the trip's ends, or your home and gyms before one is chosen
   onPlace?: (id: string) => void // a gym tapped on the map
   coveredBelow?: () => number // how much of the map's foot something lies over (the phone's trip panel), read when it fits
+  frameAlso?: [number, number][] // places ([lon, lat]) the view takes in as well as the places (the gyms map's wider view)
   me?: { lat: number; lon: number; accuracy: number } | null // where you are, during a trip
   doing?: Doing // and what you're doing: you're drawn as a walker, or as the vehicle you're on
   aboard?: string // the trip you're riding: with you on the map, its vehicle isn't drawn as well
@@ -273,7 +274,7 @@ export interface MapViewProps {
  * they're near your part of the trip, you, and the home and gym at its ends. The view fits the whole trip, or during
  * one the step you're on (`focus`). Without an option it draws the places alone, and fits them.
  */
-export function MapView({ token, option, serviceDate, places = [], onPlace, coveredBelow, me, doing = 'walk', aboard, focus, progress, catching }: MapViewProps) {
+export function MapView({ token, option, serviceDate, places = [], onPlace, coveredBelow, frameAlso = [], me, doing = 'walk', aboard, focus, progress, catching }: MapViewProps) {
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const [error, setError] = useState('')
@@ -534,6 +535,7 @@ export function MapView({ token, option, serviceDate, places = [], onPlace, cove
       const destination = ends[ends.length - 1]
       const bounds = new maplibregl.LngLatBounds(origin ?? [151.2093, -33.8688], origin ?? [151.2093, -33.8688])
       for (const p of ends) bounds.extend(p)
+      if (!option) for (const p of frameAlso) bounds.extend(p)
       const perLeg: (maplibregl.LngLatBounds | undefined)[] = []
       const lines: ([number, number][] | undefined)[] = []
       const platforms: ([number, number][] | undefined)[] = []
@@ -695,7 +697,7 @@ export function MapView({ token, option, serviceDate, places = [], onPlace, cove
           if (b && vehicleInView(b) && vehicleFramed.current !== viewKeyRef.current) frame(m, true)
         })
         .catch((e) => {
-          if (e instanceof ApiError) setError(e.message)
+          if (e instanceof ApiError) setError(problem(e))
         })
     }
     // Once the map is ready: now, and again after a while unless new positions come in first (the wait starts again

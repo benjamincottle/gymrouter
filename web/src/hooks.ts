@@ -135,3 +135,18 @@ export function useLiveEvents(token: string | undefined, on: boolean): { realtim
   }, [token, on])
   return s
 }
+
+/**
+ * Whether the page is dark now (theme.ts sets <html data-theme>), following it as it changes: the Settings choice, or
+ * the system's under Auto.
+ */
+export function useDarkPage(): boolean {
+  const read = () => document.documentElement.dataset.theme === 'dark'
+  const [dark, setDark] = useState(read)
+  useEffect(() => {
+    const watch = new MutationObserver(() => setDark(read()))
+    watch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => watch.disconnect()
+  }, [])
+  return dark
+}

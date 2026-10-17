@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { ComponentType } from 'preact'
 import { clock, countdown, dayOf, delay, placeName, riskLabel, shortDuration } from '../format.ts'
-import { useNow, useWide } from '../hooks.ts'
+import { useDarkPage, useNow, useWide } from '../hooks.ts'
 import type { Leg, Option } from '../types.ts'
 import { reselect, rideIsLive, riskReason, stopCount, tape, tripKey } from '../options.ts'
 import type { MapPlace, MapViewProps } from '../map/mapview.tsx'
@@ -214,6 +214,7 @@ function useMapView(): { View: ComponentType<MapViewProps> | null; failed: boole
 export type MapProps = MapViewProps
 
 function MapBody({ View, failed, ...p }: MapProps & { View: ComponentType<MapViewProps> | null; failed: boolean }) {
+  const dark = useDarkPage()
   if (failed) {
     return (
       <div class="map-wrap">
@@ -228,7 +229,8 @@ function MapBody({ View, failed, ...p }: MapProps & { View: ComponentType<MapVie
       </div>
     )
   }
-  return <View {...p} />
+  // Made afresh when the page's theme changes: the map's style and its own colours are set as it's made.
+  return <View key={dark ? 'dark' : 'light'} {...p} />
 }
 
 /** The map, loading first: on the phone's trip screen, and inside the desktop's pane. */

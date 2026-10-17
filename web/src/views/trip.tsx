@@ -119,6 +119,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
   }, [plan.error, onAuthError])
 
   const gym = settings.gyms.find((g) => g.id === gymId)
+  const brandRef = (g: Gym) => server?.gyms.find((k) => k.id === g.ref)?.brand
   const ends = gym && home && (direction === 'to-gym' ? { start: placeRef('home', home), end: placeRef('gym', gym) } : { start: placeRef('gym', gym), end: placeRef('home', home) })
   const title = gym && home && (direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`)
   const start = (o: Option) => {
@@ -164,7 +165,6 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
 
   const reverse = () => setDirection(direction === 'to-gym' ? 'home' : 'to-gym')
   const way = direction === 'to-gym' ? `From ${home.name} to ${gym?.name ?? 'a gym'}` : `From ${gym?.name ?? 'a gym'} to ${home.name}`
-  const brandOf = (g: Gym) => server.gyms.find((k) => k.id === g.ref)?.brand
   // Ends whose nearest stop is beyond the longest walk (on foot), which the server planned from anyway.
   const sw = plan.data?.stretched_walk
   // Each is the walk between a place and its nearest stop, so one that's dismissed stays away on every trip with that
@@ -203,13 +203,18 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
             <DirectionGlyph toGym={direction === 'to-gym'} />
           </Button>
         </div>
-        {when !== 'now' && <DayTime value={at} onChange={setAt} label={when === 'arrive' ? 'Arrive by' : 'Leave at'} />}
+        {/* The day and time slide down under the When row as "Leave at" or "Arrive by" is chosen, and back up. */}
+        <div class={when === 'now' ? 'reveal' : 'reveal open'} inert={when === 'now'}>
+          <div>
+            <DayTime value={at} onChange={setAt} label={when === 'arrive' ? 'Arrive by' : 'Leave at'} />
+          </div>
+        </div>
       </div>
 
       {gym ? (
         // The chosen gym leads: tap its name to choose another (the toggle above reverses the trip).
         <div class="route">
-          <BrandLogo brand={brandOf(gym)} />
+          <BrandLogo brand={brandRef(gym)} />
           <button class="to" aria-label={`${gym.name}: choose a different gym`} onClick={() => chooseGym(null)}>
             {gym.name}
             <svg class="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
@@ -223,7 +228,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
           {[...settings.gyms].sort((a, b) => rank(a.id) - rank(b.id)).map((g) => (
             <div class="gym-row">
               <button class="gym" onClick={() => chooseGym(g.id)}>
-                <BrandLogo brand={brandOf(g)} />
+                <BrandLogo brand={brandRef(g)} />
                 <span class="gym-name">{g.name}</span>
                 {g.address && <span class="gym-address">{g.address}</span>}
               </button>
@@ -302,11 +307,19 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
       )}
       {/* Until there's a trip to show: your home and the gyms (or the one chosen), each gym chosen with a tap. */}
       {wide && (quick || !(gym && plan.data && plan.data.options.length > 0)) && (
-        <MapPane token={settings.token!} places={tripPlaces ?? [homePlace!, ...settings.gyms.map(gymPlace)]} onPlace={gym ? undefined : (id) => chooseGym(id)} />
+        <MapPane
+          token={settings.token!}
+          places={tripPlaces ?? [homePlace!, ...settings.gyms.map(gymPlace)]}
+          onPlace={gym ? undefined : (id) => chooseGym(id)}
+          frameAlso={gym ? undefined : AREA}
+        />
       )}
     </div>
   )
 }
+
+/** Before a gym is chosen the map takes in the area the app covers, Blaxland in the west to Manly in the east. */
+const AREA: [number, number][] = [[150.611, -33.747], [151.287, -33.797]]
 
 const DAYS_AHEAD = 7 // about a week: as far ahead as the timetable reaches
 const pad = (n: number) => String(n).padStart(2, '0')

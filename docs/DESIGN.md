@@ -63,8 +63,11 @@ off, and those passed on the way) sit on the line's centre (the server places th
 1.5px ink outline, 10px across, so they stand a little proud of the 6px line.
 The home and the gym at the trip's ends are drawn as on the rail: the house or the shoe (18px, in ink; the shoe's
 sole the dark part in either theme) in a 30px `--wall` disc inside a 2px ink ring, a gym with its name beside it in
-13px ink haloed in the wall. Before there's a trip to draw (desktop), your home and all your gyms, a gym chosen with a
-click.
+13px ink haloed in the wall. Before there's a trip to draw
+(desktop), your home and all your gyms, a gym chosen with a click, framed to take in the area the app covers too:
+Blaxland in the west to Manly in the east.
+The map is made afresh when the page turns light or dark (Settings, or the system under Auto), so it's always in the
+page's theme. A failure to fetch its vehicles is said in `problem()`'s words, as every other error is.
 Vehicles are discs in the line's colour, 20px inside a 2.5px ink outline, with the mode's glyph from the rail (train, bus
 or ferry) in ink or white: all one size whatever the line is called, since the colour and the trip say which line it is.
 You are a `--you` disc, 22px inside a 3px white border (28px across, as on the trip's rail) with a soft dark edge so
@@ -237,7 +240,12 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
   header), then a title (20px/800/semi) with an optional 24px icon (ink lines, one part filled). An intro line in 14px
   pencil may follow. Settings' own sections have no rule at all: each starts with its title and the space above it
   (the editors opened from it keep their hairlines). Its lists end without a closing hairline too: hairlines
-  part the rows, and the space parts the sections.
+  part the rows, and the space parts the sections. That space is one size, tighter than elsewhere: `--s4` between
+  sections, no padding above a title, a list's last row only 44px tall, and a section that ends in something other
+  than a list given at its foot what a list's last row leaves under its words (number settings `--s1`, Light/Dark and
+  Reset `--s3`), so the gap from the end of one to the next title looks the same everywhere.
+- **Settings opens with where it's all kept**, in 14px pencil above Homes: "All settings are stored on this device
+  only." Said once, for everything on the screen.
 - **A home's or gym's name in a list** (the trip screen's gym rows, Settings, the gym chooser): 18px/800/semi, its
   details (address, lines) under it in 14px pencil. A name is set the same wherever it's listed.
 - **Pick rows:** a search result is a whole-row button with a `›` at the end, not a link.
@@ -278,6 +286,9 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     narrow for both (under about 340px) the toggle wraps onto a line of its own, still at the right.
   - Its label says which way and what a tap does: "From Home to a gym: reverse", "From 9 Degrees Chatswood to Home:
     reverse". The arrow is a drawing between two drawings, not a symbol standing in for a word (see Copy).
+- **Day and time** (trip screen, under the When row, with "Leave at" or "Arrive by"): the day, hour and minute pickers
+  slide down into place as either is chosen (220ms: their height opens and they fade in), and back up for "Leave
+  now", so the screen doesn't jump. With reduced motion they simply appear. Closed, they take no room.
 - **Gym rows** (trip screen, before a gym is chosen): a `--rule` tape, the gym's logo (or the shoe, for a gym
   without one: see The shoe), its name (18px/800/semi) and its address beneath in 14px pencil. The row is a button that chooses the gym and shows its options.
   - **The runner** (with "Leave now" only): an icon button at the far right of the row, someone running with speed

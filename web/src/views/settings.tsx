@@ -117,7 +117,9 @@ export function SettingsView({ backRef, settings, setSettings, server, onAuthErr
   return (
     // Settings' sections start with their titles and the space between them, no rules.
     <div class="stack settings unruled">
-      <Section title="Homes" icon={<IconHome />} intro="Your homes and gyms are stored only on this device.">
+      {/* Where everything on this screen is kept, said once, before any of it. */}
+      <p class="meta">All settings are stored on this device only.</p>
+      <Section title="Homes" icon={<IconHome />}>
         <ul class="rows">
           {settings.homes.map((h) =>
             deleting === `home:${h.id}` ? (
@@ -285,7 +287,7 @@ export function SettingsView({ backRef, settings, setSettings, server, onAuthErr
 
       <Backup settings={settings} setSettings={setSettings} />
 
-      <Section title="This device" icon={<IconPhone />} intro="Removes this device's access, homes and gyms. Backups and other devices keep theirs.">
+      <Section title="This device" icon={<IconPhone />} intro="Remove this device's access and stored settings. Backups and other devices are unaffected.">
         <Button variant="danger" onClick={() => setResetting(true)}>
           Reset this device
         </Button>
@@ -413,7 +415,7 @@ function Backup({ settings, setSettings }: { settings: Settings; setSettings: (s
   }
 
   return (
-    <Section title="Backup and other devices" icon={<IconDevices />} intro="Backups and setup links include your access token and homes. Treat them like a password.">
+    <Section title="Backup and other devices" icon={<IconDevices />} intro="Backups include your settings and access token. Treat them like a password.">
       <ul class="rows">
         <li class="action">
           <RowAction kind="open" open={showShare} onClick={() => setShowShare(!showShare)}>
@@ -471,7 +473,8 @@ function Backup({ settings, setSettings }: { settings: Settings; setSettings: (s
           }}
         >
           <p>
-            The backup has {counts(incoming) || 'nothing saved'}. It replaces {counts(settings) ? `the ${counts(settings)}` : 'everything'} on this device.
+            The backup has {counts(incoming) || 'nothing saved'}. It replaces {counts(settings) ? `the ${counts(settings)}` : 'everything'} on this device
+            {incoming.token && settings.token && incoming.token !== settings.token ? ', and its access token' : ''}.
           </p>
         </ConfirmSheet>
       )}
