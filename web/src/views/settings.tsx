@@ -415,7 +415,7 @@ function Backup({ settings, setSettings }: { settings: Settings; setSettings: (s
   }
 
   return (
-    <Section title="Backup and other devices" icon={<IconDevices />} intro="Backups and setup links include your access token and homes. Treat them like a password.">
+    <Section title="Backup and other devices" icon={<IconDevices />} intro="Backups include your settings and access token. Treat them like a password.">
       <ul class="rows">
         <li class="action">
           <RowAction kind="open" open={showShare} onClick={() => setShowShare(!showShare)}>
