@@ -1065,9 +1065,9 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   so ("…, and its access token").
 - 2026-10-17: **The day and time slide down** under the When row when "Leave at" or "Arrive by" is chosen (and back up
   for "Leave now"), where they appeared at once and pushed the screen down.
-- 2026-10-17: **Settings opens with where your places are kept**, above Homes rather than as its intro: "Your homes and
-  gyms are stored only on this device. Each trip is planned by sending them to the server, which doesn't keep them."
-  Checked against §4 and §10: they live in the browser's storage; plans, line suggestions and nearby stops carry them
-  in request bodies, which the server neither stores nor logs; the only thing it keeps is the names of the lines
-  requests have named (`lines.json`), which aren't tied to any place. Backups and setup links are copies the person
-  makes themselves.
+- 2026-10-17: **Settings opens with where it's all kept**, above Homes rather than as its intro, and for every
+  setting rather than homes and gyms alone: "All your settings are stored only on this device. The server uses them to
+  plan your trips and doesn't keep them." Checked against §4 and §10: everything on Settings (homes, gyms, walking and
+  risk settings, appearance, the access token) lives in the browser's storage; requests carry what a plan needs in
+  their bodies, which the server neither stores nor logs; the only thing it keeps is the names of the lines requests
+  have named (`lines.json`), which aren't tied to any place. Backups and setup links are copies the person makes.
