@@ -231,7 +231,11 @@ export function Confirm({ question, detail, confirm, keep = 'Keep', onConfirm, o
   useEffect(() => keepRef.current?.focus(), [])
   const El = as
   return (
-    <El class="confirm" role="group" aria-label={typeof question === 'string' ? question : undefined} onKeyDown={(e: KeyboardEvent) => e.key === 'Escape' && onKeep()}>
+    <El class="confirm" role="group" aria-label={typeof question === 'string' ? question : undefined} onKeyDown={(e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation() // Escape is Keep, not also closing a sheet it's in
+      onKeep()
+    }}>
       <span class="main">
         <strong>{question}</strong>
         {detail && <span class="meta">{detail}</span>}

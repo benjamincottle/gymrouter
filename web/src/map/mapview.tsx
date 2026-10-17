@@ -7,7 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { FetchSource, PMTiles, Protocol } from 'pmtiles'
 import { layers, namedFlavor } from '@protomaps/basemaps'
 import { ApiError, api } from '../api.ts'
-import { LAST_STOPS, type RideProgress } from '../countdown.ts'
+import type { RideProgress } from '../countdown.ts'
 import { splitAt } from '../progress.ts'
 import { useLiveEvents, useVisible } from '../hooks.ts'
 import { every } from '../live.ts'
@@ -137,6 +137,39 @@ function dot(diameter: number, [r, g, b]: [number, number, number]) {
   return { width: size, height: size, data }
 }
 
+/**
+ * Hands the view back to the trip once you've moved the map yourself: a map control (square, like the zoom and
+ * locate buttons) that shows only while the map isn't following the trip.
+ */
+class RecentreControl implements maplibregl.IControl {
+  private el = document.createElement('div')
+
+  constructor(onClick: () => void) {
+    this.el.className = 'maplibregl-ctrl maplibregl-ctrl-group recentre'
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.title = 'Back to the trip'
+    b.setAttribute('aria-label', 'Back to the trip')
+    // Four corners of a frame around a dot: the trip, fitted to the map.
+    b.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><circle cx="12" cy="12" r="2.5"/></svg>'
+    b.addEventListener('click', onClick)
+    this.el.append(b)
+    this.show(false)
+  }
+
+  show(on: boolean) {
+    this.el.style.display = on ? '' : 'none'
+  }
+
+  onAdd() {
+    return this.el
+  }
+
+  onRemove() {
+    this.el.remove()
+  }
+}
+
 const fc = (features: Feature[]) => ({ type: 'FeatureCollection' as const, features })
 
 /** A filter no stop passes: the layers for your stop draw nothing until you're on a ride. */
@@ -177,8 +210,7 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
   }, [vehicleCount === 0])
   const routeBounds = useRef<maplibregl.LngLatBounds | null>(null)
   const legBounds = useRef<(maplibregl.LngLatBounds | undefined)[]>([]) // each leg's own, by its place in the option
-  const legLines = useRef<([number, number][] | undefined)[]>([]) // each ride's line, and the stops along it before the last
-  const legStops = useRef<([number, number][] | undefined)[]>([])
+  const legLines = useRef<([number, number][] | undefined)[]>([]) // each ride's line
   const legPlatforms = useRef<([number, number][] | undefined)[]>([]) // the outline of the platform each train is boarded from
   const vehicles = useRef<Vehicle[]>([]) // as last reported
   const vehicleFramed = useRef<string | null>(null) // the view (viewKey) last fitted with its vehicle in it
@@ -187,9 +219,7 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
   // What the view fits, read when it's fitted (the map's own events fit it too, long after this render).
   const view = useRef({ option, focus, me, aboard, progress, catching })
   view.current = { option, focus, me, aboard, progress, catching }
-  // The last few stops of a ride: the view closes in on what's left of it.
-  const near = !!progress && progress.total - progress.passed <= LAST_STOPS
-  const viewKey = (focus?.join(',') ?? '') + (near ? '|near' : '')
+  const viewKey = focus?.join(',') ?? ''
 
   // The vehicle that belongs in the view: the one you'll catch first, or the one you're waiting for (it may still be
   // on its way to your stop). Not the one you're on: you're on the map yourself.
@@ -204,19 +234,11 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
   const viewBounds = (): maplibregl.LngLatBounds | null => {
     if (!routeBounds.current) return null
     const copy = (x: maplibregl.LngLatBounds) => new maplibregl.LngLatBounds(x.getSouthWest(), x.getNorthEast())
-    const { focus: legs, me: you, progress: ride } = view.current
+    const { focus: legs, me: you } = view.current
     const parts = (legs ?? []).map((i) => legBounds.current[i]).filter((x) => x !== undefined)
     if (parts.length === 0) return copy(routeBounds.current)
-    let b = copy(parts[0])
+    const b = copy(parts[0])
     for (const p of parts.slice(1)) b.extend(p)
-    // With a few stops to go, only what's left of the ride: from the last stop behind you to yours.
-    const line = ride && ride.total - ride.passed <= LAST_STOPS ? legLines.current[ride.leg] : undefined
-    if (ride && line && line.length > 1) {
-      const ahead = splitAt(line, ride.frac)[1]
-      b = ahead.reduce((x, c) => x.extend(c), new maplibregl.LngLatBounds(ahead[0], ahead[0]))
-      const behind = legStops.current[ride.leg]?.[ride.passed - 1]
-      if (behind) b.extend(behind)
-    }
     if (you && nearRoute(b, [you.lon, you.lat])) b.extend([you.lon, you.lat])
     return b
   }
@@ -255,11 +277,21 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
     const locate = new maplibregl.GeolocateControl({ trackUserLocation: true })
     m.addControl(locate, 'top-right')
+    const recentre = new RecentreControl(() => {
+      userMoved.current = false
+      recentre.show(false)
+      frame(m, true)
+    })
+    m.addControl(recentre, 'top-right')
+    const moved = () => {
+      userMoved.current = true
+      recentre.show(true)
+    }
     // Gestures and the zoom buttons carry the event that caused them; programmatic framing doesn't.
     m.on('movestart', (e) => {
-      if (e.originalEvent) userMoved.current = true
+      if (e.originalEvent) moved()
     })
-    locate.on('trackuserlocationstart', () => (userMoved.current = true))
+    locate.on('trackuserlocationstart', moved)
     m.on('error', (e) => {
       const msg = String(e.error?.message ?? '')
       if (msg.includes('404')) setError("The map hasn't been installed on the server yet. Routes and vehicles still show.")
@@ -406,7 +438,6 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
       bounds.extend(destination)
       const perLeg: (maplibregl.LngLatBounds | undefined)[] = []
       const lines: ([number, number][] | undefined)[] = []
-      const stopsOf: ([number, number][] | undefined)[] = []
       const platforms: ([number, number][] | undefined)[] = []
       const legAlong = (i: number, coords: [number, number][]) => {
         perLeg[i] = coords.reduce((x, c) => x.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]))
@@ -441,7 +472,6 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
         }
         legAlong(i, coords)
         lines[i] = coords
-        stopsOf[i] = via
         // Each stop knows its ride and its place on it (`seq`: 0 where you get on, then in order, the last where you
         // get off), so the ones behind you can go quiet.
         features.push({ type: 'Feature', properties: { kind: 'ride', color }, geometry: { type: 'LineString', coordinates: coords } })
@@ -455,7 +485,6 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
       routeBounds.current = bounds
       legBounds.current = perLeg
       legLines.current = lines
-      legStops.current = stopsOf
       legPlatforms.current = platforms
       drawCatching(m)
       drawProgress(m)

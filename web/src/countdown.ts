@@ -4,9 +4,6 @@
 import { onLine, type LonLat } from './progress.ts'
 import type { Call } from './types.ts'
 
-/** With this many stops to go or fewer, a ride's step opens by itself and the map closes in on what's left of it. */
-export const LAST_STOPS = 3
-
 /** How far through a ride you are, in stops. */
 export interface RideProgress {
   leg: number // the ride's place in the option's legs

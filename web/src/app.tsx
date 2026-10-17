@@ -163,7 +163,7 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
               setRestarts((n) => n + 1)
             }}
           >
-            <img src="/icon.svg" alt="" width={28} height={28} />
+            <img class="app-icon" src="/icon.svg" alt="" width={28} height={28} />
             Gym Router
           </button>
         </h1>

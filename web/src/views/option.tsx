@@ -1,6 +1,6 @@
 import { boardText, clock, delay, placeName, platform, riskLabel, spare } from '../format.ts'
 import type { ComponentChildren } from 'preact'
-import { LAST_STOPS, stopsToGo, type RideProgress } from '../countdown.ts'
+import { stopsToGo, type RideProgress } from '../countdown.ts'
 import type { PlaceRef } from '../settings.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
 import { position, rows, type Row } from '../options.ts'
@@ -24,7 +24,7 @@ export interface Tracking {
   at?: { row: number; frac: number } | null // where your location puts you on the steps (else the clock decides)
   riding?: boolean // on a vehicle: you're drawn as it on its step (else on foot: walking, or waiting at the stop)
   ride?: RideProgress | null // the ride you're on, counted in stops (when its stops are known)
-  opened: Record<string, boolean> // rides whose stops you've opened or closed yourself (rideKey): your tap wins
+  opened: Record<string, boolean> // rides whose stops you've opened (rideKey); the rest are closed
   onOpen: (ride: string, open: boolean) => void
 }
 
@@ -52,8 +52,7 @@ export function Timeline({
 }) {
   const rs = rows(o, true)
   const me = track.at ?? position(rs, track.now)
-  // A ride's stops: opened or closed by a tap on its stops line, or by themselves for the last few stops of the ride
-  // you're on.
+  // A ride's stops: closed until a tap on its stops line opens them, and only ever opened or closed that way.
   const { opened, onOpen: setOpen } = track
   const rail = (r: Row, k: number) => (
     <Rail
@@ -94,7 +93,7 @@ export function Timeline({
           const boarding = me.row < k || (me.row === k && !track.riding && me.frac < 0.5)
           return (
             <RideRow leg={r.leg} me={me.row === k ? me.frac : undefined} riding={!!track.riding && me.row === k} ride={ride} boarding={boarding}
-              open={known && (opened[key] ?? (!!ride && ride.total - ride.passed <= LAST_STOPS))}
+              open={known && !!opened[key]}
               onOpen={known ? (open) => setOpen(key, open) : undefined} />
           )
         }
@@ -175,9 +174,8 @@ function LegRow({ leg, last, destination, rail }: {
 }
 
 /**
- * A ride. Closed, it's one step: where it's from and to, and how many stops. Open (a tap on the stops line, or by
- * itself for the last few stops of the ride you're on), it runs on into a row for each stop still ahead, the last
- * yours. On the ride you're on (`ride`), the stops behind you fold into a count and the line behind you is dimmed.
+ * A ride. Closed, it's one step: where it's from and to, and how many stops. Open (a tap on the stops line), it runs
+ * on into a row for each stop still ahead, the last yours. On the ride you're on (`ride`), the stops behind you fold into a count and the line behind you is dimmed.
  */
 function RideRow({ leg, me, riding, ride, boarding, open, onOpen }: {
   leg: Leg

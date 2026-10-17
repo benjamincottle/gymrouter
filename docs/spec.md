@@ -984,3 +984,21 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   read before you get there. It goes once you're on board, as before; the map's platform and spot are unchanged.
   It's quieter there: the train across 80% of the column, and the runner (16px) and "Board the 4th carriage from
   the front." in the step's 14px pencil.
+- 2026-10-17: **A trip under way is one screen: the map, with the trip in a panel under it.** Start trip goes straight
+  there; the summary screen (the arrive hero, Now, Then, the steps, and "Show on map" to reach the map) is gone. The
+  map screen had become the one in use: the map, what to do now and the steps fit one screen. The panel under the map
+  holds the arrive line (with the countdown and the Live tag), the warning with its "Switch to this" when there is
+  one, what to do now (with the platform it leaves from and the time to spare to the stop), the status line when
+  something's off, and the steps; the handle still pulls the map down over the steps. End trip is in its header,
+  where "Back to trip" was. Dropped: the leave time before you set off (the steps' first row says it) and Then, the
+  next change (the steps show it, with its risk); and with the hero, "3 min later than planned". On desktop the same
+  panel is the left pane beside the map. The planning screen's map sheet is unchanged, minus what it had for trips.
+- 2026-10-17: **A ride's stops open only when asked** (supersedes, from 2026-10-11, the ride you're on opening by
+  itself for its last three stops, and "your tap wins"). Every ride's step starts closed and stays as you leave it;
+  open, its stops look as before. The app doesn't decide when you want to see them. Nor does the map close in on what's
+  left of a ride for its last three stops any more: it fits the step you're on, whole, to its end.
+- 2026-10-17: Around the one trip screen: its header has the app's icon before the title; End trip's question lies
+  over the map rather than pushing it down; the map's frame (the rules above and below it, and the handle) is a 2px
+  pencil line rather than heavy ink; the line under what to do now names the platform ("T9 leaves 13:27 from platform
+  1 (in 15 min)"). The map, once moved by hand, used to fit itself again only when it was next opened; now that it's
+  always open, a re-centre control (shown only while the map isn't following) hands the view back to the trip.
