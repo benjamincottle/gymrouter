@@ -1038,3 +1038,22 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - 2026-10-17: **The map's locate button is gone.** MapLibre's own control drew a second blue dot of its own and
   followed it; during a trip the app already draws you (what you're doing, from the same location), and the
   re-centre control hands the view back to the trip. Before a trip, where you are isn't part of planning one.
+- 2026-10-17: **The planning map sheet's header matches a trip's**: the app's icon and the title, with Back a quiet
+  link at the right (where a trip has End trip), instead of an outlined "‹ Back" button leading it.
+- 2026-10-17: **A trip under way has no header**: the map runs to the top of the screen, so it feels like the whole
+  screen with the trip pulled up from the bottom. The icon and the trip's title go (the map's ends and the steps say
+  where it goes). End trip becomes a chip over the map's top left, drawn like the map's own controls and in line with
+  the zoom buttons; its confirm takes its place over the map. Chosen over a link at the end of the steps (hidden
+  while the map is pulled down) and one on the arrive line (crowding the countdown and the Live tag). On desktop the
+  chip sits over the map pane and the panel starts at the top of the page.
+- 2026-10-17: **The trip's panel is a sheet pulled up over the map**: the rule between them goes, the panel's top
+  corners are rounded (16px, a new radius, `--r-sheet`) with the map running on behind them, and the handle stays.
+- 2026-10-17: **The dark map is coloured as Google Maps' night style** (slate-navy land, deep navy water, slate roads
+  with amber-brown motorways, teal parks, warm place names), over Protomaps' dark flavour, which is near black and
+  hardly parts water from land. Tried first and rejected: the dark flavour lifted evenly toward white (by 8 to 24%),
+  and the light map in either theme (bright against the dark panel). The app's own dark greys stay neutral for now.
+- 2026-10-17: **The trip's panel drags to any height, over a map that stays put** (supersedes its two positions,
+  2026-10-11). The map fills the screen and never moves or resizes as the panel does; the panel follows the handle to
+  wherever it's let go, settling only at its foot (what to do now, no steps) when let go near it. A tap still takes it
+  down, or back up as it opened. The map fits the trip above the panel as tall as it is when the map fits (a new
+  step, Back to the trip), not while it's dragged. The attribution moves under End trip, out of the panel's way.

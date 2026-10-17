@@ -31,6 +31,35 @@ function registerTiles(token: string): string {
   return `pmtiles://${url}`
 }
 
+/**
+ * The dark map in the colours of Google Maps' night style, over Protomaps' dark flavour (which is near black): slate
+ * navy land, deep navy water, slate roads with warm highways, and warm place names.
+ */
+const NIGHT: Partial<ReturnType<typeof namedFlavor>> = {
+  background: '#17263c', water: '#17263c', ocean_label: '#515c6d',
+  earth: '#242f3e', buildings: '#2b3748', pedestrian: '#2b3646', pier: '#2f3948', runway: '#38414e',
+  park_a: '#263c3f', park_b: '#263c3f', wood_a: '#24383a', wood_b: '#24383a', scrub_a: '#263a3c', scrub_b: '#263a3c',
+  zoo: '#263c3f', hospital: '#2a3446', school: '#2a3446', industrial: '#283445', military: '#283445', aerodrome: '#283445',
+  beach: '#2c3646', sand: '#2c3646', glacier: '#2e3a4c',
+  other: '#2f3948', minor_service: '#2f3948', minor_a: '#38414e', minor_b: '#38414e', link: '#38414e', major: '#45505f',
+  highway: '#746855',
+  minor_service_casing: '#212a37', minor_casing: '#212a37', link_casing: '#212a37', major_casing_early: '#212a37',
+  major_casing_late: '#212a37', highway_casing_early: '#1f2835', highway_casing_late: '#1f2835',
+  tunnel_other: '#2c3542', tunnel_minor: '#2c3542', tunnel_link: '#2c3542', tunnel_major: '#2c3542', tunnel_highway: '#4a4538',
+  tunnel_other_casing: '#1f2835', tunnel_minor_casing: '#1f2835', tunnel_link_casing: '#1f2835', tunnel_major_casing: '#1f2835',
+  tunnel_highway_casing: '#1f2835',
+  bridges_other: '#2f3948', bridges_minor: '#38414e', bridges_link: '#38414e', bridges_major: '#45505f', bridges_highway: '#746855',
+  bridges_other_casing: '#212a37', bridges_minor_casing: '#212a37', bridges_link_casing: '#212a37', bridges_major_casing: '#212a37',
+  bridges_highway_casing: '#1f2835',
+  railway: '#3b4658', boundaries: '#4b6878',
+  roads_label_minor: '#9ca5b3', roads_label_minor_halo: '#212a37', roads_label_major: '#9ca5b3', roads_label_major_halo: '#212a37',
+  subplace_label: '#d59563', subplace_label_halo: '#242f3e', city_label: '#d59563', city_label_halo: '#242f3e',
+  state_label: '#746855', state_label_halo: '#242f3e', country_label: '#9ca5b3', address_label: '#746855', address_label_halo: '#242f3e',
+  landcover: {
+    grassland: '#263c3f', barren: '#2a3446', urban_area: '#283445', farmland: '#263a3c', glacier: '#2e3a4c', scrub: '#263a3c', forest: '#24383a',
+  },
+}
+
 function style(token: string, dark: boolean): StyleSpecification {
   const flavor = dark ? 'dark' : 'light'
   return {
@@ -44,7 +73,7 @@ function style(token: string, dark: boolean): StyleSpecification {
         attribution: '<a href="https://openstreetmap.org/copyright">© OpenStreetMap</a>',
       },
     },
-    layers: layers('protomaps', namedFlavor(flavor), { lang: 'en' }),
+    layers: layers('protomaps', dark ? { ...namedFlavor('dark'), ...NIGHT } : namedFlavor(flavor), { lang: 'en' }),
   }
 }
 
@@ -230,6 +259,7 @@ export interface MapViewProps {
   serviceDate?: string
   places?: MapPlace[] // the home and the gym at the trip's ends, or your home and gyms before one is chosen
   onPlace?: (id: string) => void // a gym tapped on the map
+  coveredBelow?: () => number // how much of the map's foot something lies over (the phone's trip panel), read when it fits
   me?: { lat: number; lon: number; accuracy: number } | null // where you are, during a trip
   doing?: Doing // and what you're doing: you're drawn as a walker, or as the vehicle you're on
   aboard?: string // the trip you're riding: with you on the map, its vehicle isn't drawn as well
@@ -243,12 +273,14 @@ export interface MapViewProps {
  * they're near your part of the trip, you, and the home and gym at its ends. The view fits the whole trip, or during
  * one the step you're on (`focus`). Without an option it draws the places alone, and fits them.
  */
-export function MapView({ token, option, serviceDate, places = [], onPlace, me, doing = 'walk', aboard, focus, progress, catching }: MapViewProps) {
+export function MapView({ token, option, serviceDate, places = [], onPlace, coveredBelow, me, doing = 'walk', aboard, focus, progress, catching }: MapViewProps) {
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const [error, setError] = useState('')
   const onPlaceRef = useRef(onPlace)
   onPlaceRef.current = onPlace
+  const coveredBelowRef = useRef(coveredBelow)
+  coveredBelowRef.current = coveredBelow
   const placesKey = JSON.stringify(places)
   const routeBounds = useRef<maplibregl.LngLatBounds | null>(null)
   const legBounds = useRef<(maplibregl.LngLatBounds | undefined)[]>([]) // each leg's own, by its place in the option
@@ -295,8 +327,9 @@ export function MapView({ token, option, serviceDate, places = [], onPlace, me, 
       b.extend(v)
       vehicleFramed.current = viewKeyRef.current
     }
-    // The trip fills the map: just enough room for the zoom buttons on the right.
-    m.fitBounds(b, { padding: { top: 36, bottom: 36, left: 28, right: 64 }, maxZoom: 16, duration: animate ? 600 : 0 })
+    // The trip fills the map: just enough room for the zoom buttons on the right, and above whatever lies over its foot.
+    const below = Math.min(coveredBelowRef.current?.() ?? 0, m.getContainer().clientHeight * 0.75)
+    m.fitBounds(b, { padding: { top: 36, bottom: 36 + below, left: 28, right: 64 }, maxZoom: 16, duration: animate ? 600 : 0 })
   }
   // The rides, as the vehicles endpoint wants them: <trip>|<board stop>|<alight stop>.
   const rides = (option?.legs ?? [])

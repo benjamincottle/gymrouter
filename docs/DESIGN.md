@@ -50,6 +50,10 @@ raw colour, size or spacing value in a component. Use a token, or add one here f
 Line colours come from the feed. Text on a line colour is ink or white, whichever contrasts better; it is computed, never
 taken from the feed's `text_color`. A line without a colour uses one fallback grey, `#5e6670`, everywhere.
 
+The basemap is Protomaps' light flavour, and on a dark page its dark flavour recoloured as Google Maps' night style
+(`NIGHT` in `mapview.tsx`): slate-navy land `#242f3e`, deep navy water `#17263c`, slate roads `#38414e` (main roads
+`#45505f`) with amber-brown motorways `#746855`, muted teal parks, place names in warm tan `#d59563` and street names
+in cool grey `#9ca5b3`. Protomaps' own dark is near black, and its water hardly parts from its land.
 The map's own paint (casing, walk lines, stop dots) and the MapLibre controls (zoom, attribution) use these
 tokens too, in both themes. Controls are square, 44px, edge-outlined, and have no shadow. The attribution is a
 `--panel` box with the same outline and `--r-control` corners, never a pill. Ride lines are the line colour only, with
@@ -122,14 +126,14 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   - `--r-mark` 2px for tape, chips, badges and risk marks;
   - `--r-control` 4px for buttons, fields and segmented controls;
   - 50% for dots and discs;
+  - `--r-sheet` 16px for the top corners of the panel pulled up over a trip's map;
   - the app icon keeps its own 7px corner.
   - Nothing else.
 - **Lines:**
   - `--hair` (1px rule) separates rows and starts a section (Settings, its editors). The hero on the trip screen
     has no rule of its own: it sits between two hairlines, the one under the gym's row and the one above
     Earlier/Later.
-  - `--frame` (2px `--pencil`) is the rule above and below a map: the trip screen's header and panel, the planning
-    map sheet's bar and footer. Quieter than ink, so the map, not its frame, is what you see.
+  - `--frame` (2px `--pencil`) is the rule above and below the planning map sheet's map: its bar and its footer. Quieter than ink, so the map, not its frame, is what you see.
   - `--heavy` (3px ink) is left for the dialog sheet's top.
   - `--bar` (4px) is the side bar of a callout and of the selected row.
   - Control outlines are 1.5px `--edge` (fields) or 1.5px ink (buttons and segmented controls).
@@ -152,7 +156,8 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   left is `--pane-w` (460px) and scrolls with the page; the map (`.map-pane`, fixed) fills the rest and always shows the
   selected option. Before there's one (no gym chosen yet, or no trip found) it shows your home and your gyms, each gym
   a shoe with its name beside it; a click on a gym chooses it. There's no "Show on map" button on desktop.
-  - A trip under way uses the same split: the trip's panel on the left, the map on the right (see A trip under way).
+  - A trip under way uses the same split, with no header: the trip's panel on the left, the map on the right (see A
+    trip under way).
   - Settings and the editors use a single readable column, max 40rem, centred. So does the trip screen until there
     is a home and a gym (the "Get started" empty state): there's nothing for a map to show yet.
 - **The commit action lives in the action bar.** The screen's main action ("Start trip", "Save gym") sits in a bar
@@ -498,14 +503,22 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
 - **Dialog sheet:** a scrim at 45%, then a sheet on the wall colour with a heavy top rule. It rises from the bottom on
   phones and is centred on desktop. A title says what will happen; the body lists exactly what is lost; actions are
   Cancel, then the danger action.
-- **Map sheet (phone, while planning):** a full-screen dialog. The header leads with "‹ Back", then the title. Under
+- **Map sheet (phone, while planning):** a full-screen dialog. Its header is a trip's: the app's icon, the title,
+  and Back at the right, a quiet text action where a trip has End trip. Under
   the map: the leave time (24px) and the arrive time, the option's tape, and Start trip.
 - **A trip under way** (`InTrip`): one screen, the map with the trip in a panel under it. Started trips go straight
   to it; there's no separate summary screen and no "Show on map".
-  - The header: the app's icon (28px, as in the trip screen's header), the trip's title, then End trip at the
-    right (see Destructive actions), under a 2px `--pencil` rule.
-  - The map fills what the panel leaves. The panel starts with a 2px `--pencil` rule (the map's frame is pencil,
-    quieter than an ink rule) and holds, in order:
+  - **No header**: the map runs to the top of the screen (its controls clear of the phone's status bar), so it feels
+    like the whole screen, with the trip pulled up from the bottom. No icon, no title: the map's ends and the steps
+    say where it goes.
+  - **End trip** is a map chip at the map's top left, in line with the zoom buttons at its right: a text action drawn
+    as the map's controls are (44px, `--panel` fill, 1.5px `--edge` outline, `--r-control` corners, 600 ink). Its
+    confirm takes its place there, over the map (see Destructive actions). On desktop it's over the map pane's top
+    left.
+  - The map fills the screen and stays put. The panel is pulled up over it: no rule, its top corners rounded
+    (`--r-sheet`), at most the screen less 72px (the map's top and End trip stay in sight). The map's attribution
+    sits under End trip, where the panel can't cover it. When the map fits the trip it fits it above the panel, as
+    tall as the panel is then; moving the panel never moves the map. It holds, in order:
     - **the arrive line**: "Arrive 14:28" (24px narrow numerals; "Arrived" once you're there) on the left; on the
       right, in 14px pencil, the countdown to it ("in 52 min") and the Live tag;
     - **a warning**, when there is one (see In-trip warnings);
@@ -521,13 +534,13 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
       clock's guess).
   - Not shown: the leave time before you set off (the steps' first row has it), and the next change ("Then": the
     steps show it with its risk).
-  - **The handle** (phone): a 40 × 3px `--pencil` bar, `--r-mark`, centred just under the rule between the map and
-    the panel, with a 44px hit area that reaches up over the map's bottom edge (and stops short of the attribution
-    in the corner). Dragged down 24px or more, the map takes the steps' room; dragged back up, they return; a tap
-    does either. Two positions, nothing in between. It's a button ("Show more of the map" / "Show the trip's
-    steps"). The rest of the panel stays. It stays as you left it for the rest of the trip.
-  - **Desktop:** the panel is the left pane, under the header, and the map the right; no handle, and the steps
-    scroll with the page.
+  - **The handle** (phone): a 40 × 3px `--pencil` bar, `--r-mark`, centred at the top of the panel, with a 44px hit
+    area. Dragged, the panel follows to any height, over the map; let go within 48px of its foot (what to do now
+    showing, and no steps), it settles there. No other position is held for it: where it's let go, it stays. A tap
+    takes it down to its foot, or back up as it opened (the steps at most 38% of the screen). It's a button ("Show
+    more of the map" / "Show the trip's steps"). The panel stays as you left it for the rest of the trip.
+  - **Desktop:** the panel is the left pane, from the top of the page (no header there either), and the map the
+    right; no handle, and the steps scroll with the page.
 
 ## UX conventions
 
@@ -556,10 +569,10 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
 - **One item** (a home, a gym) gets an **inline confirm**: the row's bin is ink; tapped, the row turns into the
   question, with a `--panel` fill and a 4px `--missed` bar. "Delete 9 Degrees Chatswood?" sits on line 1, what goes with it on line 2,
   then [Keep] [Delete].
-- **End trip** gets an **inline confirm bar** under the trip header: "End this trip? Live tracking and re-checks stop."
-  then [Keep going] [End trip].
-  - End trip is a quiet text action on the right of the trip's header. Its confirm bar lies over what's under the
-    header (the map; on desktop the panel), so nothing moves. It never looks like a way back.
+- **End trip** gets an **inline confirm bar**: "End this trip? Live tracking and re-checks stop." then [Keep going]
+  [End trip].
+  - End trip is a chip over the map's top left (see A trip under way). Its confirm bar takes the chip's place, across
+    the top of the map, so nothing moves.
 - **Whole-device actions** get a **dialog sheet**. These are: Reset this device, Import backup, and a link that would
   replace saved settings or change the access token.
 
