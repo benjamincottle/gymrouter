@@ -185,7 +185,7 @@ function dot(diameter: number, [r, g, b]: [number, number, number]) {
 
 /**
  * Hands the view back to the trip once you've moved the map yourself: a map control (square, like the zoom and
- * locate buttons) that shows only while the map isn't following the trip.
+ * zoom buttons) that shows only while the map isn't following the trip.
  */
 class RecentreControl implements maplibregl.IControl {
   private el = document.createElement('div')
@@ -295,7 +295,7 @@ export function MapView({ token, option, serviceDate, places = [], onPlace, me, 
       b.extend(v)
       vehicleFramed.current = viewKeyRef.current
     }
-    // The trip fills the map: just enough room for the zoom and locate buttons on the right.
+    // The trip fills the map: just enough room for the zoom buttons on the right.
     m.fitBounds(b, { padding: { top: 36, bottom: 36, left: 28, right: 64 }, maxZoom: 16, duration: animate ? 600 : 0 })
   }
   // The rides, as the vehicles endpoint wants them: <trip>|<board stop>|<alight stop>.
@@ -318,8 +318,6 @@ export function MapView({ token, option, serviceDate, places = [], onPlace, me, 
       maxBounds: [149.9, -34.6, 152.0, -33.0],
     })
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
-    const locate = new maplibregl.GeolocateControl({ trackUserLocation: true })
-    m.addControl(locate, 'top-right')
     const recentre = new RecentreControl(() => {
       userMoved.current = false
       recentre.show(false)
@@ -334,7 +332,6 @@ export function MapView({ token, option, serviceDate, places = [], onPlace, me, 
     m.on('movestart', (e) => {
       if (e.originalEvent) moved()
     })
-    locate.on('trackuserlocationstart', moved)
     m.on('error', (e) => {
       const msg = String(e.error?.message ?? '')
       if (msg.includes('404')) setError("The map hasn't been installed on the server yet. Routes and vehicles still show.")

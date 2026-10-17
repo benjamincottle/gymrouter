@@ -1035,3 +1035,6 @@ no predictions (other timetable versions) and are ignored; run-number matching c
     guess before it, which could be the end of the trip).
   Not taken up: a new bus drawing (bus and train are near alike at small sizes), reordering or folding Settings'
   sections, the grey tape on the gym rows.
+- 2026-10-17: **The map's locate button is gone.** MapLibre's own control drew a second blue dot of its own and
+  followed it; during a trip the app already draws you (what you're doing, from the same location), and the
+  re-centre control hands the view back to the trip. Before a trip, where you are isn't part of planning one.

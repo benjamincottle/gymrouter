@@ -50,7 +50,7 @@ raw colour, size or spacing value in a component. Use a token, or add one here f
 Line colours come from the feed. Text on a line colour is ink or white, whichever contrasts better; it is computed, never
 taken from the feed's `text_color`. A line without a colour uses one fallback grey, `#5e6670`, everywhere.
 
-The map's own paint (casing, walk lines, stop dots) and the MapLibre controls (zoom, locate, attribution) use these
+The map's own paint (casing, walk lines, stop dots) and the MapLibre controls (zoom, attribution) use these
 tokens too, in both themes. Controls are square, 44px, edge-outlined, and have no shadow. The attribution is a
 `--panel` box with the same outline and `--r-control` corners, never a pill. Ride lines are the line colour only, with
 no casing. Walks are round 4.5px ink dots every 8px along the street route (a dot
@@ -82,14 +82,14 @@ phone's location on a platform is out by about a carriage, so anything that reac
 you're on board.
 
 **What the map fits.** The whole trip, with the vehicle you'll catch first once it's near. During a trip, once you've
-set off (the "you" marker has left the trip's first step: by your location, or by the leave time without one), it
-fits the step you're on instead, whole, with you in it: the walk, the ride from where you get on to where you get off,
-the change. At the stop waiting, that's the ride you're waiting for, with its vehicle once it's near. The view moves
-on to each new step by itself, and stays on the whole step to its end (it doesn't close in on a ride's last stops).
-Once you've zoomed or moved the map yourself (or set it following your location) it's left alone, by all of this and
-by live updates alike, and a **re-centre** control appears under the locate button: the same square control, holding
-four corners of a frame around a dot, drawn in ink ("Back to the trip"). A tap fits the view again and hands it back
-to the trip; the control goes until you next move the map.
+set off (the "you" marker has left the trip's first step: by your location, or by the leave time without one), it fits
+the step you're on instead, whole, with you in it: the walk, the ride from where you get on to where you get off, the
+change. At the stop waiting, that's the ride you're waiting for, with its vehicle once it's near. The view moves on to
+each new step by itself, and stays on the whole step to its end (it doesn't close in on a ride's last stops). Once
+you've zoomed or moved the map yourself it's left alone, by all of this and by live updates alike, and a **re-centre**
+control appears under the zoom buttons: the same square control, holding four corners of a frame around a dot, drawn
+in ink ("Back to the trip"). A tap fits the view again and hands it back to the trip; the control goes until you next
+move the map.
 
 ### Type
 
