@@ -45,7 +45,6 @@ export interface PlaceRef {
   name: string
   lat: number
   lon: number
-  brand?: string // a built-in gym's brand, for its logo on the map
 }
 
 export interface Settings {

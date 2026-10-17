@@ -1057,8 +1057,9 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   wherever it's let go, settling only at its foot (what to do now, no steps) when let go near it. A tap still takes it
   down, or back up as it opened. The map fits the trip above the panel as tall as it is when the map fits (a new
   step, Back to the trip), not while it's dragged. The attribution moves under End trip, out of the panel's way.
-- 2026-10-17: **Gyms on the map are their logos**, as in the lists (the shoe for one without), and the desktop's map
-  before a gym is chosen takes in the area the app covers, Blaxland to Manly, rather than fitting the gyms tightly.
+- 2026-10-17: **The desktop's map before a gym is chosen takes in the area the app covers**, Blaxland to Manly,
+  rather than fitting the gyms tightly. (Gyms drawn as their logos was tried and dropped: the shoe reads better on the
+  map.)
   The three findings parked from the codebase review are fixed: the map's vehicle errors are worded by `problem()`;
   an open map is made afresh when the page turns light or dark; and importing a backup with another access token says
   so ("…, and its access token").

@@ -184,49 +184,6 @@ export interface MapPlace {
   lat: number
   id?: string // a gym that can be chosen from the map (onPlace)
   name?: string // shown beside it
-  brand?: string // a gym's brand: its logo stands for it (else the shoe), as in the lists
-}
-
-const BRAND_PX = 36 // a gym's logo on the map: a disc a little larger than the shoe's, the logo 24px inside it
-const BRAND_LOGO = 24
-
-/** The image name for a gym's logo on the map, once it's loaded (see brandIcon). */
-const brandImage = (brand: string) => `place-brand-${brand}`
-
-/**
- * Loads a gym brand's logo (web/public/brands) and adds it to the map as its marker: the logo, 24px and whole, on the
- * wall's colour inside an ink ring, as the house and the shoe are. Resolves false if there's no such logo.
- */
-async function brandIcon(m: maplibregl.Map, brand: string, ink: string, wall: string): Promise<boolean> {
-  const name = brandImage(brand)
-  if (m.hasImage(name)) return true
-  if (!/^[a-z0-9-]+$/.test(brand)) return false
-  const img = new Image()
-  img.src = `/brands/${brand}.png`
-  try {
-    await img.decode()
-  } catch {
-    return false
-  }
-  if (m.hasImage(name)) return true // another draw got there first
-  const ratio = window.devicePixelRatio || 1
-  const c = document.createElement('canvas')
-  c.width = c.height = Math.round(BRAND_PX * ratio)
-  const g = c.getContext('2d')!
-  g.scale(ratio, ratio)
-  g.beginPath()
-  g.arc(BRAND_PX / 2, BRAND_PX / 2, BRAND_PX / 2 - 1.5, 0, 2 * Math.PI)
-  g.fillStyle = wall
-  g.fill()
-  g.lineWidth = 2
-  g.strokeStyle = ink
-  g.stroke()
-  const k = BRAND_LOGO / Math.max(img.naturalWidth, img.naturalHeight)
-  const w = img.naturalWidth * k
-  const h = img.naturalHeight * k
-  g.drawImage(img, (BRAND_PX - w) / 2, (BRAND_PX - h) / 2, w, h)
-  m.addImage(name, g.getImageData(0, 0, c.width, c.height), { pixelRatio: ratio })
-  return true
 }
 
 /** How strong the marker for where to wait is, against your own. */
@@ -477,7 +434,7 @@ export function MapView({ token, option, serviceDate, places = [], onPlace, cove
         layout: {
           'icon-image': ['get', 'icon'], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
           'text-field': ['get', 'name'], 'text-font': ['Noto Sans Medium'], 'text-size': 13, 'text-anchor': 'left',
-          'text-offset': [1.6, 0], 'text-optional': true,
+          'text-offset': [1.4, 0], 'text-optional': true,
         },
         paint: { 'text-color': col.ink, 'text-halo-color': col.wall, 'text-halo-width': 1.5 },
       })
@@ -624,18 +581,11 @@ export function MapView({ token, option, serviceDate, places = [], onPlace, cove
         features.push({ type: 'Feature', properties: { kind: 'stop', color, leg: i, seq: 0 }, geometry: { type: 'Point', coordinates: coords[0] } })
         features.push({ type: 'Feature', properties: { kind: 'stop', color, leg: i, seq: via.length + 1 }, geometry: { type: 'Point', coordinates: coords[coords.length - 1] } })
       }
-      // A gym with a brand is its logo, as in the lists; one without (or whose logo won't load) is the shoe.
-      const col = mapColours()
-      const logos = new Set<string>()
-      for (const b of new Set(places.map((p) => p.brand).filter((b): b is string => !!b))) {
-        if (await brandIcon(m, b, col.ink, col.wall)) logos.add(b)
-      }
       if (!live) return
       ;(m.getSource('route') as GeoJSONSource | undefined)?.setData(fc(features))
       ;(m.getSource('places') as GeoJSONSource | undefined)?.setData(
         fc(places.map((p) => ({
-          type: 'Feature',
-          properties: { icon: p.brand && logos.has(p.brand) ? brandImage(p.brand) : `place-${p.kind}`, name: p.name ?? '', id: p.id ?? '' },
+          type: 'Feature', properties: { icon: `place-${p.kind}`, name: p.name ?? '', id: p.id ?? '' },
           geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
         }))),
       )

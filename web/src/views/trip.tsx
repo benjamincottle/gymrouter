@@ -120,8 +120,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
 
   const gym = settings.gyms.find((g) => g.id === gymId)
   const brandRef = (g: Gym) => server?.gyms.find((k) => k.id === g.ref)?.brand
-  const gymEnd = gym && { ...placeRef('gym', gym), brand: brandRef(gym) } // the map draws its logo
-  const ends = gym && home && gymEnd && (direction === 'to-gym' ? { start: placeRef('home', home), end: gymEnd } : { start: gymEnd, end: placeRef('home', home) })
+  const ends = gym && home && (direction === 'to-gym' ? { start: placeRef('home', home), end: placeRef('gym', gym) } : { start: placeRef('gym', gym), end: placeRef('home', home) })
   const title = gym && home && (direction === 'to-gym' ? `${home.name} to ${gym.name}` : `${gym.name} to ${home.name}`)
   const start = (o: Option) => {
     if (!server || !gym || !home || !request || !ends || !title || !plan.data) return // a gym is chosen whenever there are options
@@ -149,7 +148,7 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
 
   // The map's places: the trip's two ends; before a gym is chosen, your home and every gym (tap one to choose it).
   const homePlace: MapPlace | null = home ? { kind: 'home', lon: home.lon, lat: home.lat } : null
-  const gymPlace = (g: Gym): MapPlace => ({ kind: 'gym', lon: g.lon, lat: g.lat, id: g.id, name: g.name, brand: brandRef(g) })
+  const gymPlace = (g: Gym): MapPlace => ({ kind: 'gym', lon: g.lon, lat: g.lat, id: g.id, name: g.name })
   const tripPlaces = homePlace && gym ? (direction === 'to-gym' ? [homePlace, gymPlace(gym)] : [gymPlace(gym), homePlace]) : null
 
   if (!server) return serverError ? null : <GymsSkeleton />
