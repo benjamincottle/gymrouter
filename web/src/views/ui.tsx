@@ -261,11 +261,12 @@ export function useDialog(ref: MutableRef<HTMLElement | null>, onClose: () => vo
     const el = ref.current
     if (!el) return
     const opener = document.activeElement as HTMLElement | null
-    // Everything else on the page, from the dialog up: inert while it's open.
+    // Everything else on the page, from the dialog up: inert while it's open (but for a tool that stays on top of
+    // everything, marked data-over-dialogs: the simulator's panel).
     const others: HTMLElement[] = []
     for (let n: HTMLElement | null = el; n && n !== document.body; n = n.parentElement) {
       for (const sib of n.parentElement?.children ?? []) {
-        if (sib !== n && sib instanceof HTMLElement && !sib.inert) {
+        if (sib !== n && sib instanceof HTMLElement && !sib.inert && !sib.hasAttribute('data-over-dialogs')) {
           sib.inert = true
           others.push(sib)
         }

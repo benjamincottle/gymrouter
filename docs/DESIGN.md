@@ -451,11 +451,13 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
 - **Simulator** (temporary, for testing: only with `?sim` in the address; spec, 2026-10-16). It's a tool, not part of
   the app, so it's plain and stays out of the way:
   - On the trip screen, a neutral callout under the header: "Simulator on: trips you start are simulated."
-  - During a simulated trip, a panel (`SimPanel`): on desktop over the map's bottom left, `--s3` in from its edges,
-    20rem wide; on a phone across the bottom of the screen. A `--panel` fill under a `--heavy` rule, padded `--s3`,
-    no shadow. Its first line: "Simulation" (600), the simulated time (narrow numerals; the one clock with seconds,
-    `17:42:10`, with the day before it when it isn't today), and Hide (Show when hidden), a quiet text action. Hidden,
-    that line is all there is.
+  - During a simulated trip, a panel (`SimPanel`): on desktop over the map's bottom left, `--s3` in from its
+    edges, 20rem wide; on a phone across the bottom of the screen. A `--panel` fill at 65%, so what's under it
+    shows through, under a `--hair` rule, padded `--s3`, no shadow. It stays live over the phone's map sheet
+    (it's outside the sheet, so the sheet's dialog leaves it out of what it makes inert: `data-over-dialogs`). Its
+    first line: "Simulation" (600) and the simulated time (narrow numerals; the one clock with seconds,
+    `17:42:10`, with the day before it when it isn't today) together in the middle, and Hide (Show when hidden), a
+    quiet text action, at the right. Hidden, that line is all there is, padded only `--s1` top and bottom.
   - Then: the speed (Segmented: Pause, 1×, 5×, 20×, 60×); "+1 min", "+5 min" and "Next step", quiet text actions;
     what the simulated you is doing, in 14px pencil; then rows between hairlines, a name on the left and its control
     on the right, as Number settings: Walking pace (Select, 50% to 150%), Stay where you are (tick box), Location

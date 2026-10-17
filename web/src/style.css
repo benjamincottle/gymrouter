@@ -2712,22 +2712,28 @@ details > summary {
   max-height: 70vh;
   overflow-y: auto;
   padding: var(--s3) var(--s3) calc(var(--s3) + env(safe-area-inset-bottom));
-  border-top: var(--heavy);
-  background: var(--panel);
+  border-top: var(--hair);
+  background: color-mix(in srgb, var(--panel) 65%, transparent); /* the map and the trip show through */
 }
 
+/* "Simulation" and the time in the middle, Hide (or Show) at the right */
 .sim-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto auto 1fr;
   align-items: center;
   gap: var(--s3);
 }
 
 .sim-head strong {
+  grid-column: 2;
   font-weight: 600;
 }
 
+.sim-head .text-btn {
+  justify-self: end;
+}
+
 .sim-head .num {
-  flex: 1;
   font-size: var(--fs-strong);
   font-weight: 700;
   font-stretch: var(--narrow);
@@ -2765,4 +2771,14 @@ details > summary {
     width: 20rem;
     padding-bottom: var(--s3);
   }
+}
+
+/* hidden, it's only its first line: as little padding as keeps it clear of the rule */
+.sim-panel.hidden {
+  padding-top: var(--s1);
+  padding-bottom: calc(var(--s1) + env(safe-area-inset-bottom));
+}
+
+.sim-panel.hidden .sim-head {
+  line-height: 1.15;
 }
