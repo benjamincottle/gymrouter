@@ -118,7 +118,7 @@ export function SettingsView({ backRef, settings, setSettings, server, onAuthErr
     // Settings' sections start with their titles and the space between them, no rules.
     <div class="stack settings unruled">
       {/* Where everything on this screen is kept, said once, before any of it. */}
-      <p class="meta">All your settings are stored only on this device. The server uses them to plan your trips and doesn't keep them.</p>
+      <p class="meta">All settings are stored on this device only.</p>
       <Section title="Homes" icon={<IconHome />}>
         <ul class="rows">
           {settings.homes.map((h) =>
