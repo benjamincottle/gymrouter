@@ -145,6 +145,11 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
 - **Control height:** `--control` is 44px for every button, field and segmented control. Every tap target is at least
   44px, including text actions, which get an invisible hit area instead of padding.
 
+**The installed app's own colours** (`manifest.webmanifest`) are the dark wall, `#1b1e21`, for both `background_color`
+and `theme_color`. A manifest has no dark-mode variant, and Android draws the installed app's navigation bar and
+launch screen in them whatever the theme: a dark bar under the light theme looks natural, a near-white one under the
+dark theme glares. The page's own `theme-color` meta tags still follow the theme.
+
 ## Layout
 
 - **Phone (below 1024px):** one column, at most 34rem wide, with `--s4` gutters. The header is sticky, with no rule.
