@@ -2032,7 +2032,8 @@ details > summary {
   min-width: 0;
 }
 
-.sheet-summary p {
+/* the leave or arrive line (only it: not the lines of the steps under it) */
+.sheet-summary > div > p {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
