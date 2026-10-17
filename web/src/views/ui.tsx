@@ -228,7 +228,7 @@ export function Confirm({ question, detail, confirm, keep = 'Keep', onConfirm, o
   as?: 'div' | 'li'
 }) {
   const keepRef = useRef<HTMLButtonElement>(null)
-  useEffect(() => keepRef.current?.focus(), [])
+  useEffect(() => focusQuietly(keepRef.current), [])
   const El = as
   return (
     <El class="confirm" role="group" aria-label={typeof question === 'string' ? question : undefined} onKeyDown={(e: KeyboardEvent) => {
@@ -251,6 +251,15 @@ export function Confirm({ question, detail, confirm, keep = 'Keep', onConfirm, o
     </El>
   )
 }
+
+/**
+ * Whether the last thing done was with a pointer (a tap, a click) rather than the keyboard. Focus moved by the app
+ * (into a dialog, onto Keep) shows its ring only after the keyboard, as a tap on a control doesn't show one either.
+ */
+let pointing = false
+document.addEventListener('pointerdown', () => (pointing = true), true)
+document.addEventListener('keydown', () => (pointing = false), true)
+export const focusQuietly = (el: HTMLElement | null | undefined) => el?.focus({ focusVisible: !pointing } as FocusOptions)
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
@@ -276,7 +285,7 @@ export function useDialog(ref: MutableRef<HTMLElement | null>, onClose: () => vo
         }
       }
     }
-    ;(first?.current ?? el.querySelector<HTMLElement>(FOCUSABLE) ?? el).focus()
+    focusQuietly(first?.current ?? el.querySelector<HTMLElement>(FOCUSABLE) ?? el)
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
@@ -298,7 +307,7 @@ export function useDialog(ref: MutableRef<HTMLElement | null>, onClose: () => vo
     return () => {
       el.removeEventListener('keydown', onKey)
       for (const o of others) o.inert = false
-      opener?.focus?.()
+      if (opener) focusQuietly(opener)
     }
   }, [])
 }

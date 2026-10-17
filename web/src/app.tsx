@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'preact/hooks'
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import { api, AuthError, problem } from './api.ts'
 import { applyFragment, importQuestion, importTitle, save, type FragmentData, type Settings } from './settings.ts'
 import type { DefaultsResponse } from './types.ts'
@@ -9,7 +9,7 @@ import { IconSettings } from './views/icons.tsx'
 import { InTrip, TRIP_KEY, type ActiveTrip } from './views/intrip.tsx'
 import { ServerStatusLine } from './views/serverstatus.tsx'
 import { applyTheme } from './theme.ts'
-import { Button, Callout, ConfirmSheet, IconButton } from './views/ui.tsx'
+import { Button, Callout, ConfirmSheet, IconButton, TextButton } from './views/ui.tsx'
 import { SimPanel } from './views/simpanel.tsx'
 import * as sim from './sim.ts'
 
@@ -74,6 +74,9 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
   )
 
   const onAuthError = useCallback(() => setAuthFailed(true), [])
+  // Settings' Back closes an editor open in it first (as its Cancel would), else goes back to trips.
+  const settingsBack = useRef<(() => boolean) | null>(null)
+  const firstRun = settings.homes.length === 0 || settings.gyms.length === 0
 
   useEffect(() => applyTheme(settings.theme), [settings.theme])
 
@@ -152,31 +155,44 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
 
   return (
     // Settings, and the trip screen before there's anything to plan (no map beside it yet), use one centred column.
-    <div class={view === 'settings' || settings.homes.length === 0 || settings.gyms.length === 0 ? 'app wide-column' : 'app'}>
+    <div class={view === 'settings' || firstRun ? 'app wide-column' : 'app'}>
+      {/* One header: the icon and where you are on the left ("Gym Router", or "Settings"), what to do on the right
+          (Settings, or Back from it). Setting up: the icon and the name, and nowhere else to go yet. */}
       <header class="topbar">
         <h1>
-          <button
-            class="home-link"
-            aria-current={view === 'trip' ? 'page' : undefined}
-            onClick={() => {
-              setView('trip')
-              setRestarts((n) => n + 1)
-            }}
-          >
-            <img class="app-icon" src="/icon.svg" alt="" width={28} height={28} />
-            Gym Router
-          </button>
+          {view === 'settings' && !firstRun ? (
+            <span class="home-link">
+              <img class="app-icon" src="/icon.svg" alt="" width={28} height={28} />
+              Settings
+            </span>
+          ) : (
+            <button
+              class="home-link"
+              aria-current={view === 'trip' ? 'page' : undefined}
+              onClick={() => {
+                setView('trip')
+                setRestarts((n) => n + 1)
+              }}
+            >
+              <img class="app-icon" src="/icon.svg" alt="" width={28} height={28} />
+              Gym Router
+            </button>
+          )}
         </h1>
-        <nav>
-          <IconButton
-            label="Settings"
-            class={view === 'settings' ? 'active' : undefined}
-            aria-current={view === 'settings' ? 'page' : undefined}
-            onClick={() => setView('settings')}
-          >
-            <IconSettings />
-          </IconButton>
-        </nav>
+        {!firstRun && (
+          <nav>
+            {view === 'trip' ? (
+              <IconButton label="Settings" onClick={() => setView('settings')}>
+                <IconSettings />
+              </IconButton>
+            ) : (
+              // A quiet text action, as End trip is in a trip's header.
+              <TextButton quiet onClick={() => settingsBack.current?.() || setView('trip')}>
+                Back
+              </TextButton>
+            )}
+          </nav>
+        )}
       </header>
       {notice && (
         <Callout role="status" onDismiss={() => setNotice('')}>
@@ -212,6 +228,7 @@ export function App({ initial, imported, pending: pendingLink, storage }: AppPro
           />
         ) : (
           <SettingsView
+            backRef={settingsBack}
             settings={settings}
             setSettings={setSettings}
             server={server}

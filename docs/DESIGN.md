@@ -57,6 +57,10 @@ no casing. Walks are round 4.5px ink dots every 8px along the street route (a do
 image placed along the line, never a dashed line, which MapLibre stretches between zoom levels). A ride's stops (where you get on and
 off, and those passed on the way) sit on the line's centre (the server places them on the shape): white dots with a
 1.5px ink outline, 10px across, so they stand a little proud of the 6px line.
+The home and the gym at the trip's ends are drawn as on the rail: the house or the shoe (18px, in ink; the shoe's
+sole the dark part in either theme) in a 30px `--wall` disc inside a 2px ink ring, a gym with its name beside it in
+13px ink haloed in the wall. Before there's a trip to draw (desktop), your home and all your gyms, a gym chosen with a
+click.
 Vehicles are discs in the line's colour, 20px inside a 2.5px ink outline, with the mode's glyph from the rail (train, bus
 or ferry) in ink or white: all one size whatever the line is called, since the colour and the trip say which line it is.
 You are a `--you` disc, 22px inside a 3px white border (28px across, as on the trip's rail) with a soft dark edge so
@@ -121,9 +125,12 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   - the app icon keeps its own 7px corner.
   - Nothing else.
 - **Lines:**
-  - `--heavy` (3px ink) starts a section: Settings sections, a trip's panel, sheet bars. The hero on the trip screen has no rule
-    of its own: it sits between two hairlines, the one under the gym's row and the one above Earlier/Later.
-  - `--hair` (1px rule) separates rows.
+  - `--hair` (1px rule) separates rows and starts a section (Settings, its editors). The hero on the trip screen
+    has no rule of its own: it sits between two hairlines, the one under the gym's row and the one above
+    Earlier/Later.
+  - `--frame` (2px `--pencil`) is the rule above and below a map: the trip screen's header and panel, the planning
+    map sheet's bar and footer. Quieter than ink, so the map, not its frame, is what you see.
+  - `--heavy` (3px ink) is left for the dialog sheet's top.
   - `--bar` (4px) is the side bar of a callout and of the selected row.
   - Control outlines are 1.5px `--edge` (fields) or 1.5px ink (buttons and segmented controls).
 - **Shadows:** none. The only exceptions are the "you" marker's soft edge and pulse (on the rail and the map) and the
@@ -134,14 +141,18 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
 ## Layout
 
 - **Phone (below 1024px):** one column, at most 34rem wide, with `--s4` gutters. The header is sticky, with no rule.
-  Nothing in it is underlined: the Settings icon is ink while you're on Settings and pencil otherwise, and "Gym
-  Router" is always ink.
+- **The header** says where you are, three ways:
+  - planning trips: the app's icon and "Gym Router" (together, a button back to the trip screen's start) on the left,
+    the Settings cog (pencil) on the right;
+  - on Settings and the screens opened from it: the same header, "Settings" in place of "Gym Router" (not a button),
+    and Back where the cog is, a quiet text action like End trip in a trip's header. Back closes an editor if one is open (as its Cancel), else
+    goes back to trips;
+  - setting up for the first time: the icon and "Gym Router", nothing else (nowhere else to go yet).
 - **Desktop (1024px and up):** the header spans the page (fixed, `--header-h`) over two panes. The trip pane on the
   left is `--pane-w` (460px) and scrolls with the page; the map (`.map-pane`, fixed) fills the rest and always shows the
-  selected option, or says what will appear there before there is one. There's no "Show on map" button on desktop.
+  selected option. Before there's one (no gym chosen yet, or no trip found) it shows your home and your gyms, each gym
+  a shoe with its name beside it; a click on a gym chooses it. There's no "Show on map" button on desktop.
   - A trip under way uses the same split: the trip's panel on the left, the map on the right (see A trip under way).
-  - The map's own note ("Your services appear here…") sits at the bottom left, only as wide as its text; on the phone's
-    map sheet it spans the sheet.
   - Settings and the editors use a single readable column, max 40rem, centred. So does the trip screen until there
     is a home and a gym (the "Get started" empty state): there's nothing for a map to show yet.
 - **The commit action lives in the action bar.** The screen's main action ("Start trip", "Save gym") sits in a bar
@@ -193,17 +204,19 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     (`Chevron`), and says which with `aria-expanded`. A ride's stops line is the one that does.
 - **Icon button:** 44×44, no outline, `--panel` on hover, ink. Always has an `aria-label`. A row's bin is ink like
   its pencil: red arrives with the question (see Destructive actions), not before.
-- **Segmented control:** one size (16px/600, 44px), a radio group (one tab stop, arrow keys). The chosen option has
-  a 4px ink bar along its bottom (inset), the same ink as the control's outline so it reads as part of the frame;
-  the others stay ink, never greyed (grey means disabled).
+- **Segmented control:** one size (16px/600, 44px), a radio group (one tab stop, arrow keys). The chosen option is
+  marked as the chosen row of the options board is: a `--panel` fill, and a 4px ink bar along its bottom (inset), the
+  same ink as the control's outline so it reads as part of the frame. The others stay ink, never greyed (grey means
+  disabled).
 - **Field:** a label (600) above, then a 44px input in `--panel` with a 1.5px `--edge` outline that turns ink on focus,
   then an optional hint (14px pencil, 400).
   - **A choice from a list** is the system's picker drawn as a field (`Select`): no system arrow, the app's 16px
     chevron at its end. **A tick box** is drawn as a field too: 22px, edge outline on panel, `--r-control`; ticked,
     it fills with ink and its tick is `--wall`.
   - **Number settings** are one line each, rows between hairlines (`NumberField` in Settings): the name on the left,
-    a short field (5.5rem, its number right-aligned) on the right. An empty field means "use the default" and shows
-    the default as its placeholder; nothing under it says so. A second line under the name, in 14px pencil, only when
+    a short field (7.5rem) on the right holding the number, right-aligned, and its unit after it in pencil ("5.5
+    km/h", "1 min", "1000 m"); the unit is never in the name. An empty field means "use the default" and shows the
+    default as its placeholder; nothing under it says so. A second line under the name, in 14px pencil, only when
     there's something to say: what the setting is for when its name doesn't ("Extra time to get out the door: shoes,
     keys."), "Use the default (3)" once it's changed, and "Saved." for two seconds after a change.
 - **Callout:** a `--panel` fill with a 4px left bar. Tones:
@@ -215,8 +228,13 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
   - A callout that suggests a trip shows it under its text as a row from the options board (`TripRow`: leave, tape,
     arrive, risk mark, compact duration), and its text leaves out what the row says.
   - Panels with their own job (the pace test) are sections, not callouts.
-- **Section:** a heavy top rule (except the first section on Settings and the screens opened from it, right under the header), then a title (20px/800/semi) with an optional 24px icon (ink lines, one part filled).
-  An intro line in 14px pencil may follow.
+- **Section:** a hairline on top (except the first section on Settings and the screens opened from it, right under the
+  header), then a title (20px/800/semi) with an optional 24px icon (ink lines, one part filled). An intro line in 14px
+  pencil may follow. Settings' own sections have no rule at all: each starts with its title and the space above it
+  (the editors opened from it keep their hairlines). Its lists end without a closing hairline too: hairlines
+  part the rows, and the space parts the sections.
+- **A home's or gym's name in a list** (the trip screen's gym rows, Settings, the gym chooser): 18px/800/semi, its
+  details (address, lines) under it in 14px pencil. A name is set the same wherever it's listed.
 - **Pick rows:** a search result is a whole-row button with a `›` at the end, not a link.
 - **Rows:** a hairline-separated list, min 56px tall. The main text sits on line 1 and details on a second 14px pencil
   line. **Never join details with middle dots.** Actions (icon buttons) go on the right.
@@ -286,18 +304,21 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
   tag can't. "Planning…" (or "Finding the fastest trip…") while the first plan loads, before there's a countdown;
   "Walks are rough estimates until the server has prepared the street map." while it's true; "Updating…" when a newer
   plan is on its way and there are no options, so no countdown to say it beside.
-- **Hero** (trip screen): "Leave in" (with the tag at the row's end) and the countdown, the arrive time, then "for the M1 at 15:20 from Epping
-  Station (on time)", then **how sure the chosen trip is**: its risk badge and why, in the steps' words. "At risk
-  change at North Ryde Station, 22 s spare"; with several changes, the tightest: "Tight tightest change at Central
-  Station, 1 min spare"; with none, "Safe no changes". The word sits beside the number it qualifies, and teaches what
-  the squares in the rows mean.
+- **Hero** (trip screen, leaving now only): "Leave in" (with the tag at the row's end), the countdown, and the arrive
+  time. Nothing else: the chosen row says the rest. With "Leave at" or "Arrive by" there's no hero: the chosen row's
+  leave time is the number, and it's already there.
 - **Earlier/Later** (trip screen, between the hero and the options): "Earlier trips" on the left and "Later trips"
   on the right, quiet text actions in 14px, under a hairline that parts the countdown's block from the options
-  (`--s4` above the line, `--s3` under it). With no options there's no countdown above them, and no line.
+  (`--s4` above the line, `--s3` under it). With no countdown above them (no options, or a set time) there's no line.
 - **Options board:** one row per option: leave, tape strip, arrive, risk mark, compact duration.
   - The selected row gets a `--panel` fill and an inset 4px ink bar. Its content doesn't move.
-  - Under the selected row, inside its fill and bar, one 14px pencil line starting where the tape starts: "1 h 3 min door to door, 2
-    changes, 12 stops". There's no summary under the board, and nothing says an option is an alternative route.
+  - Under the selected row, inside its fill and bar, starting where the tape starts, two 14px pencil lines: where its
+    first ride leaves from and when, with how it runs ("271 at 14:49 from Clarence St After Market St, 4 min late";
+    "timetabled" without live times), then **how sure the trip is**: its risk badge and why, in the steps' words, and
+    its stops ("At risk change at North Ryde Station, 22 s spare, 12 stops"; with several changes the tightest:
+    "Tight tightest change at Central Station, 1 min spare"; with none, "Safe no changes, 2 stops"). The badge
+    teaches what the rows' squares mean. Door to door isn't repeated: it's the row's last column. There's no summary
+    under the board, and nothing says an option is an alternative route.
   - The rows share their columns: the times and the duration are as wide as their widest entry, the duration is
     right-aligned, and the risk mark sits evenly between the arrive time and the duration (`--s3` either side).
   - **The tape** fills its row on the trip's own scale; there is no time axis shared between rows (the times either
@@ -496,7 +517,8 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
       its two labels take that line's place;
     - **the status line**, only when something is off;
     - **the steps** (Timeline), scrolling on their own (at most 38% of the screen's height), the step you're on
-      scrolled into view.
+      scrolled into view (again once your location first places you: until then it's the
+      clock's guess).
   - Not shown: the leave time before you set off (the steps' first row has it), and the next change ("Then": the
     steps show it with its risk).
   - **The handle** (phone): a 40 × 3px `--pencil` bar, `--r-mark`, centred just under the rule between the map and
@@ -558,6 +580,12 @@ the destructive choice, the safe choice focused by default, and Escape cancellin
 - **First run** is two steps, each a question: "Where do you start from?" with "Step 1 of 2. Next: the gyms you climb
   at." under it, then "Which gyms do you climb at?" with "Step 2 of 2." leading its intro. Neither has Cancel: there's
   nothing to go back to.
+- **Editing a home or a built-in gym:** its name as the title and its address under it, as plain text: they stay as
+  they were set (a built-in gym's are the app's; a home that moves is deleted and added again). Only its stops, and
+  a gym's lines, can be changed. Adding a home, and a gym you added yourself, have the Name and Address fields. A
+  home keeps the address it was found by, on the device only.
+- **A gym without lines from your home** (Settings' list): "13 lines, none from Home yet". Its pencil is right beside
+  it.
 - **Stops for a place** (the home and gym editors) are closed until asked for: "Using every stop within a 1 km walk."
   then "Choose stops", a text action with a chevron that opens the list. A place with stops already ticked opens with
   the list showing.
@@ -585,6 +613,9 @@ the person who mapped a path knows there's something new to fetch.
 ### Keyboard and focus
 
 - Every interactive element shows the 3px `--focus` ring with a 2px offset.
+- Focus the app moves itself (into a dialog, onto Keep in a confirm, back to what opened a dialog) shows its ring only
+  when the last thing done was with the keyboard (`focusQuietly`): after a tap there's no ring, as a tapped control has
+  none.
 - Dialogs (map sheet, dialog sheet) use `useDialog`, which does all of this:
   - move focus into the dialog on open;
   - keep focus inside;

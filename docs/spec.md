@@ -1002,3 +1002,36 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   pencil line rather than heavy ink; the line under what to do now names the platform ("T9 leaves 13:27 from platform
   1 (in 15 min)"). The map, once moved by hand, used to fit itself again only when it was next opened; now that it's
   always open, a re-centre control (shown only while the map isn't following) hands the view back to the trip.
+- 2026-10-17: **A design review of the whole app, and what came of it.** Every screen was captured from the running
+  app (phone and desktop, light and dark) and judged as it is, not only against DESIGN.md. Taken up:
+  - **The trip screen says the chosen trip once.** The hero is the countdown and the arrive time only, and only
+    leaving now (with a set time the row's leave time is the number). The chosen row's note says where the first ride
+    leaves from and when (how late it runs), then the risk badge, why, and the stops; "24 min door to door" went, as
+    the row's last column says it. Before, the hero, the row and its note said the trip three times.
+  - **The map draws the home and the gym** at the trip's ends, the house and the shoe as on the rail. A trip's line
+    began and ended in the streets.
+  - **Desktop shows a map before there's a trip**: your home and your gyms, a gym chosen with a click, where the pane
+    was a blank wall with a sentence.
+  - **Settings says where you are, and how back**: its header reads "Settings" where it says "Gym Router", with
+    Back where the cog is, a quiet text link like End trip (it closes an open editor first). The trip
+    screen's header keeps the icon and the name, with the cog; setting up shows the icon and the name, and no cog.
+    Settings was left by tapping the app's name.
+  - **Both maps have one frame**, a 2px pencil rule above and below (`--frame`); the planning sheet's were heavy ink.
+  - **Names are set one way** in every list (18px/800/semi): Settings and the gym chooser had them at regular weight.
+  - **A segmented control's chosen option has the panel fill** of the board's chosen row, as well as its bar.
+  - **Focus the app moves shows its ring only after the keyboard**: a tap that opened the map sheet or a confirm
+    left a blue ring on Back or Keep.
+  - **Settings' sections have no rules**: each starts with its title and the space above it, and its lists end
+    without a closing hairline (there were seven heavy rules down a screen seldom visited). The editors opened from
+    it start their sections with a hairline.
+  - **Number settings carry their unit in the field** ("5.5 km/h"), not in the name.
+  - **"Your services appear here once they're a few stops away" is gone** from the map: it covered the trip's end,
+    and the map shows vehicles as they come.
+  - **Copy**: "none from Home yet" (was "none near Home yet"); the Gyms section loses its intro.
+  - **Editing a home or a built-in gym** shows its name and address as text; only its stops (and a gym's lines)
+    change. A home that moves is deleted and added again. Homes now keep the address they were found by (on the
+    device, as their coordinates already were).
+  - **The trip's steps scroll to your step again once your location first places you** (they went by the clock's
+    guess before it, which could be the end of the trip).
+  Not taken up: a new bus drawing (bus and train are near alike at small sizes), reordering or folding Settings'
+  sections, the grey tape on the gym rows.

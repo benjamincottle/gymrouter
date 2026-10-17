@@ -340,20 +340,22 @@ export function InTrip({ trip, token, onUpdate, onEnd, onAuthError }: {
   const spareS = nextRide ? spareToBoard(nextRide, here, now, trip.walkSpeedMps, leftS) : null
   const lostLocation = locState === 'on' && !here && !!pos // there was a fix, and now there isn't
 
-  // The steps open with the step you're on in view (and again when they come back from under the map).
+  // The steps open with the step you're on in view, again once your location first places you (until then it's the
+  // clock's guess), and when they come back from under the map.
   const stepsRef = useRef<HTMLDivElement>(null)
+  const located = here !== null
   useEffect(() => {
     // Only the steps scroll for it: scrollIntoView would scroll the panel too, and the handle with it.
     const box = stepsRef.current
     const you = box?.querySelector('.you')
     if (box && you) box.scrollTop += you.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientHeight / 2
-  }, [trip.mapTall])
+  }, [trip.mapTall, located])
   const handle = usePullHandle(stepsRef, !!trip.mapTall, (tall) => onUpdate({ ...tripRef.current, mapTall: tall }))
   const tall = !wide && !!trip.mapTall // the phone's map pulled down over the steps
 
   const map = {
-    serviceDate: trip.serviceDate, token, me: where, doing, aboard: riding, origin: trip.origin,
-    destination: trip.destination, option: o, focus, progress: ride, catching,
+    serviceDate: trip.serviceDate, token, me: where, doing, aboard: riding, option: o, focus, progress: ride, catching,
+    places: [trip.ends.start, trip.ends.end].map((p) => ({ kind: p.key.startsWith('home:') ? ('home' as const) : ('gym' as const), lon: p.lon, lat: p.lat })),
   }
 
   return (

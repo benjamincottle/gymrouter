@@ -55,6 +55,7 @@
   --control: 44px;
   --hair: 1px solid var(--rule);
   --heavy: 3px solid var(--ink);
+  --frame: 2px solid var(--pencil); /* the rules above and below a map: quieter than an ink rule */
   --bar: 4px;
 
   /* desktop */
@@ -404,8 +405,10 @@ select {
   border-left: 1.5px solid var(--ink);
 }
 
-/* the chosen option: a bar along its bottom in the control's own ink, part of its frame */
+/* the chosen option, as the chosen row on the options board: a --panel fill, and a bar along its bottom in the
+   control's own ink, part of its frame */
 .segmented button[aria-checked='true'] {
+  background: var(--panel);
   box-shadow: inset 0 calc(-1 * var(--bar)) 0 var(--ink);
 }
 
@@ -628,9 +631,21 @@ details > summary {
 
 /* ---- sections and rows ---- */
 
+/* a hairline starts a section: Settings is long, and seven heavy rules down it were loud for a screen seldom visited */
 .section {
-  padding-top: var(--s3);
-  border-top: var(--heavy);
+  padding-top: var(--s4);
+  border-top: var(--hair);
+}
+
+/* Settings' own sections start with their titles and the space above them, no rule (its editors keep theirs) */
+.unruled > .section {
+  border-top: 0;
+}
+
+/* and its lists end without a closing hairline: hairlines part the rows, and the space parts the sections */
+.unruled .setting-rows > .setting:last-child,
+.unruled .rows > li:last-child {
+  border-bottom: 0;
 }
 
 /* the top of Settings and its editors needs no rule: the header is right above it */
@@ -756,7 +771,7 @@ details > summary {
 
 .setting {
   display: grid;
-  grid-template-columns: 1fr 5.5rem;
+  grid-template-columns: 1fr 7.5rem;
   align-items: center;
   column-gap: var(--s3);
   min-height: 56px;
@@ -769,8 +784,35 @@ details > summary {
   display: block;
 }
 
-.setting input {
+/* the field holds the number and its unit after it ("5.5 km/h"); the unit is pencil, the number ink */
+.unit-field {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  min-height: var(--control);
+  padding: 0 var(--s3);
+  border: 1.5px solid var(--edge);
+  border-radius: var(--r-control);
+  background: var(--panel);
+}
+
+.unit-field:focus-within {
+  border-color: var(--ink);
+}
+
+.setting .unit-field input[type='number'] {
+  flex: 1;
+  min-width: 0;
+  min-height: calc(var(--control) - 3px);
+  padding: 0;
+  border: 0;
+  background: none;
   text-align: right;
+}
+
+.unit-field .unit {
+  flex: none;
+  color: var(--pencil);
 }
 
 .setting-rows > .pace {
@@ -936,18 +978,13 @@ details > summary {
   border-radius: 7px; /* the icon's own corner, kept crisp at this size */
 }
 
+span.home-link {
+  cursor: default;
+}
+
 .topbar .icon-btn {
   border-radius: 0;
   color: var(--pencil);
-}
-
-/* the screen you're on: its icon is ink, with no underline */
-.topbar .icon-btn.active {
-  color: var(--ink);
-}
-
-.topbar .icon-btn.active:hover {
-  background: none;
 }
 
 .app > .callout {
@@ -1205,7 +1242,9 @@ details > summary {
   grid-column: 3;
 }
 
-.gym-name {
+/* a home's or gym's name, wherever it's listed: the trip screen, Settings, the gym chooser */
+.gym-name,
+.place-name {
   font-size: var(--fs-strong);
   font-weight: 800;
   font-stretch: var(--semi);
@@ -1292,16 +1331,6 @@ details > summary {
   display: block;
   font-size: var(--fs-num);
   color: var(--ink);
-}
-
-.hero-sub {
-  grid-column: 1 / -1;
-  margin-top: var(--s2);
-}
-
-/* how sure the chosen trip is: its badge, then why */
-.hero-sub.hero-risk {
-  margin-top: var(--s1);
 }
 
 .shift {
@@ -1437,6 +1466,17 @@ details > summary {
 
 .strip-note > span {
   grid-column: 2 / -1;
+}
+
+.strip-note .note-line {
+  display: block;
+}
+
+/* without a countdown above them (leaving at a set time), Earlier and Later sit straight under the gym's row */
+.board > .shift:first-child {
+  margin-top: var(--s2);
+  padding-top: 0;
+  border-top: 0;
 }
 
 /* ---- the trip's steps ---- */
@@ -1978,7 +2018,7 @@ details > summary {
   gap: var(--s3);
   min-height: 56px;
   padding: env(safe-area-inset-top) var(--s3) 0;
-  border-bottom: var(--heavy);
+  border-bottom: var(--frame);
 }
 
 .sheet-bar .btn {
@@ -2030,7 +2070,7 @@ details > summary {
   align-items: center;
   column-gap: var(--s4);
   padding: var(--s3) var(--s4) calc(var(--s3) + env(safe-area-inset-bottom));
-  border-top: var(--heavy);
+  border-top: var(--frame);
 }
 
 .sheet-summary > div {
@@ -2132,7 +2172,7 @@ details > summary {
   gap: var(--s3);
   min-height: 56px;
   padding: env(safe-area-inset-top) var(--s4) 0;
-  border-bottom: 2px solid var(--pencil); /* the map's frame, in pencil: quieter than an ink rule */
+  border-bottom: var(--frame);
 }
 
 .trip-bar .sheet-title {
@@ -2154,7 +2194,7 @@ details > summary {
 
 .trip-panel {
   min-height: 0;
-  border-top: 2px solid var(--pencil);
+  border-top: var(--frame);
 }
 
 /* all of the panel but its handle: it scrolls when there's more than fits */
@@ -2529,6 +2569,7 @@ details > summary {
 
   .map-pane {
     position: fixed;
+    margin: 0; /* never a stack's gap: it's fixed beside the trip */
     top: var(--header-h);
     left: var(--pane-w);
     right: 0;
@@ -2549,13 +2590,6 @@ details > summary {
   .map-pane .map-wrap > .callout.subtle {
     right: auto;
     max-width: calc(100% - 2 * var(--s3));
-  }
-
-  .map-pane > .empty-map {
-    place-self: center;
-    max-width: 22rem;
-    text-align: center;
-    color: var(--pencil);
   }
 
   .action-bar {

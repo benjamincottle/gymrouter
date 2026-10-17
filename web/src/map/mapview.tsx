@@ -15,7 +15,7 @@ import { isDark } from '../theme.ts'
 import type { Leg, Option, Vehicle } from '../types.ts'
 import { INK, lineColour, textOn, token, WHITE } from '../colour.ts'
 import { Callout } from '../views/ui.tsx'
-import { HURRY, VEHICLE_PATHS, vehicleOf, WALKER, type Doing } from '../views/icons.tsx'
+import { HOUSE, HURRY, SHOE_OUTLINE, SHOE_SOLE, SHOE_STRAPS, SHOE_UPPER, VEHICLE_PATHS, vehicleOf, WALKER, type Doing } from '../views/icons.tsx'
 
 maplibregl.setWorkerUrl(workerUrl)
 
@@ -57,7 +57,7 @@ const rgb = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16))
  */
 const mapColours = () => {
   const ink = token('--ink') || INK
-  return { walk: rgb(ink), ink, stop: WHITE, you: token('--you') || '#2457d6', stopInk: token('--stop-ink') || INK }
+  return { walk: rgb(ink), ink, stop: WHITE, you: token('--you') || '#2457d6', stopInk: token('--stop-ink') || INK, wall: token('--wall') || WHITE }
 }
 
 /**
@@ -109,6 +109,52 @@ function glyph(d: string, colour: string, px = GLYPH, width = 2.6, head?: { cx: 
     g.stroke(new Path2D(fine))
   }
   return g.getImageData(0, 0, c.width, c.height)
+}
+
+const PLACE_PX = 30 // a home or gym on the map: a disc as big as you are, nearly
+
+/**
+ * A home or a gym as the map draws it, as on the trip's rail: the house or the shoe, in ink on the wall's colour inside
+ * an ink ring. The shoe's sole is the dark part in either theme, as everywhere (on a dark page the upper is filled).
+ */
+function placeIcon(kind: 'home' | 'gym', ink: string, wall: string, dark: boolean): ImageData {
+  const c = document.createElement('canvas')
+  const ratio = window.devicePixelRatio || 1
+  c.width = c.height = Math.round(PLACE_PX * ratio)
+  const g = c.getContext('2d')!
+  g.scale(ratio, ratio)
+  g.beginPath()
+  g.arc(PLACE_PX / 2, PLACE_PX / 2, PLACE_PX / 2 - 1.5, 0, 2 * Math.PI)
+  g.fillStyle = wall
+  g.fill()
+  g.lineWidth = 2
+  g.strokeStyle = ink
+  g.stroke()
+  const box = 18 // the drawing, in its 24 box, centred
+  g.translate((PLACE_PX - box) / 2, (PLACE_PX - box) / 2)
+  g.scale(box / 24, box / 24)
+  g.lineCap = g.lineJoin = 'round'
+  g.strokeStyle = g.fillStyle = ink
+  if (kind === 'home') {
+    g.lineWidth = 2.2
+    g.stroke(new Path2D(HOUSE))
+  } else {
+    g.lineWidth = 1.5
+    g.fill(new Path2D(dark ? SHOE_UPPER : SHOE_SOLE))
+    g.stroke(new Path2D(SHOE_OUTLINE))
+    g.strokeStyle = dark ? wall : ink
+    g.stroke(new Path2D(SHOE_STRAPS))
+  }
+  return g.getImageData(0, 0, c.width, c.height)
+}
+
+/** A home or a gym to draw: the ends of a trip, or (before one is chosen) your home and your gyms, a gym to tap. */
+export interface MapPlace {
+  kind: 'home' | 'gym'
+  lon: number
+  lat: number
+  id?: string // a gym that can be chosen from the map (onPlace)
+  name?: string // shown beside it
 }
 
 /** How strong the marker for where to wait is, against your own. */
@@ -180,10 +226,10 @@ const VEHICLES_UNHEARD_MS = 10_000 // while that word can't be heard
 
 export interface MapViewProps {
   token: string
-  option: Option
-  serviceDate: string
-  origin: [number, number] // [lon, lat] of where the trip starts (home or gym)
-  destination: [number, number]
+  option?: Option // the trip to draw (without one, just the places)
+  serviceDate?: string
+  places?: MapPlace[] // the home and the gym at the trip's ends, or your home and gyms before one is chosen
+  onPlace?: (id: string) => void // a gym tapped on the map
   me?: { lat: number; lon: number; accuracy: number } | null // where you are, during a trip
   doing?: Doing // and what you're doing: you're drawn as a walker, or as the vehicle you're on
   aboard?: string // the trip you're riding: with you on the map, its vehicle isn't drawn as well
@@ -194,20 +240,16 @@ export interface MapViewProps {
 
 /**
  * Draws the option's legs (only the parts ridden, with the stops passed), the vehicles running them while
- * they're near your part of the trip, and you. The view fits the whole trip, or during one the step you're on (`focus`).
+ * they're near your part of the trip, you, and the home and gym at its ends. The view fits the whole trip, or during
+ * one the step you're on (`focus`). Without an option it draws the places alone, and fits them.
  */
-export function MapView({ token, option, serviceDate, origin, destination, me, doing = 'walk', aboard, focus, progress, catching }: MapViewProps) {
+export function MapView({ token, option, serviceDate, places = [], onPlace, me, doing = 'walk', aboard, focus, progress, catching }: MapViewProps) {
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const [error, setError] = useState('')
-  const [vehicleCount, setVehicleCount] = useState<number | null>(null)
-  // The note about vehicles goes by itself after a few seconds (or when dismissed); it only needs saying once.
-  const [noteGone, setNoteGone] = useState(false)
-  useEffect(() => {
-    if (vehicleCount !== 0) return
-    const id = setTimeout(() => setNoteGone(true), 5000)
-    return () => clearTimeout(id)
-  }, [vehicleCount === 0])
+  const onPlaceRef = useRef(onPlace)
+  onPlaceRef.current = onPlace
+  const placesKey = JSON.stringify(places)
   const routeBounds = useRef<maplibregl.LngLatBounds | null>(null)
   const legBounds = useRef<(maplibregl.LngLatBounds | undefined)[]>([]) // each leg's own, by its place in the option
   const legLines = useRef<([number, number][] | undefined)[]>([]) // each ride's line
@@ -225,6 +267,7 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
   // on its way to your stop). Not the one you're on: you're on the map yourself.
   const vehicleInView = (b: maplibregl.LngLatBounds): [number, number] | null => {
     const { option: o, focus: legs, aboard: on } = view.current
+    if (!o) return null
     const ride = legs ? (legs.length === 1 ? o.legs[legs[0]] : undefined) : o.legs.find((l) => l.kind === 'ride')
     if (ride?.kind !== 'ride' || !ride.trip_id || ride.trip_id === on) return null
     const v = vehicles.current.find((x) => x.trip_id === ride.trip_id)
@@ -256,7 +299,7 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
     m.fitBounds(b, { padding: { top: 36, bottom: 36, left: 28, right: 64 }, maxZoom: 16, duration: animate ? 600 : 0 })
   }
   // The rides, as the vehicles endpoint wants them: <trip>|<board stop>|<alight stop>.
-  const rides = option.legs
+  const rides = (option?.legs ?? [])
     .filter((l) => l.kind === 'ride' && l.trip_id && l.from && l.to)
     .map((l) => `${l.trip_id}|${l.from!.id}|${l.to!.id}`)
   const ridesKey = rides.join(',')
@@ -269,7 +312,7 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
     const m = new maplibregl.Map({
       container: el.current,
       style: style(token, dark),
-      center: origin,
+      center: places[0] ? [places[0].lon, places[0].lat] : [151.2093, -33.8688],
       zoom: 12,
       attributionControl: { compact: true },
       maxBounds: [149.9, -34.6, 152.0, -33.0],
@@ -302,6 +345,7 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
       m.addSource('vehicles', { type: 'geojson', data: fc([]) })
       m.addSource('me', { type: 'geojson', data: fc([]) })
       m.addSource('catching', { type: 'geojson', data: fc([]) })
+      m.addSource('places', { type: 'geojson', data: fc([]) })
       // The platform of the train you're heading for, in its line's colour, under everything else of the trip.
       m.addLayer({
         id: 'catching-fill', type: 'fill', source: 'catching', filter: ['==', ['geometry-type'], 'Polygon'],
@@ -351,6 +395,26 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
         id: 'route-yours-dot', type: 'circle', source: 'route', filter: NO_STOP,
         paint: { 'circle-radius': YOURS_DOT, 'circle-color': col.stopInk },
       })
+      // The home and the gym at the trip's ends (or yours, before a gym is chosen): the house and the shoe in a ring.
+      m.addImage('place-home', placeIcon('home', col.ink, col.wall, dark), { pixelRatio: window.devicePixelRatio || 1 })
+      m.addImage('place-gym', placeIcon('gym', col.ink, col.wall, dark), { pixelRatio: window.devicePixelRatio || 1 })
+      m.addLayer({
+        id: 'places', type: 'symbol', source: 'places',
+        layout: {
+          'icon-image': ['get', 'icon'], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+          'text-field': ['get', 'name'], 'text-font': ['Noto Sans Medium'], 'text-size': 13, 'text-anchor': 'left',
+          'text-offset': [1.4, 0], 'text-optional': true,
+        },
+        paint: { 'text-color': col.ink, 'text-halo-color': col.wall, 'text-halo-width': 1.5 },
+      })
+      m.on('click', 'places', (e) => {
+        const id = e.features?.[0]?.properties?.id
+        if (id && onPlaceRef.current) onPlaceRef.current(String(id))
+      })
+      m.on('mouseenter', 'places', (e) => {
+        if (onPlaceRef.current && e.features?.[0]?.properties?.id) m.getCanvas().style.cursor = 'pointer'
+      })
+      m.on('mouseleave', 'places', () => (m.getCanvas().style.cursor = ''))
       // Vehicles: a disc in the line's colour with a bus or train in it, all one size whatever the line is called
       // (which line it is shows in its colour, and the trip says).
       for (const [kind, d] of Object.entries(VEHICLE_PATHS)) {
@@ -434,8 +498,12 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
     let live = true
     const draw = async (m: maplibregl.Map) => {
       const features: Feature[] = []
-      const bounds = new maplibregl.LngLatBounds(origin, origin)
-      bounds.extend(destination)
+      // The places, and the trip's ends (the first and the last of them, when there's a trip).
+      const ends = places.map((p): [number, number] => [p.lon, p.lat])
+      const origin = ends[0]
+      const destination = ends[ends.length - 1]
+      const bounds = new maplibregl.LngLatBounds(origin ?? [151.2093, -33.8688], origin ?? [151.2093, -33.8688])
+      for (const p of ends) bounds.extend(p)
       const perLeg: (maplibregl.LngLatBounds | undefined)[] = []
       const lines: ([number, number][] | undefined)[] = []
       const platforms: ([number, number][] | undefined)[] = []
@@ -447,9 +515,10 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
         const s = l[end]
         return s ? [s.lon, s.lat] : null
       }
-      for (const [i, l] of option.legs.entries()) {
+      const legs = option?.legs ?? []
+      for (const [i, l] of legs.entries()) {
         const a = point(l, 'from') ?? (i === 0 ? origin : null)
-        const b = point(l, 'to') ?? (i === option.legs.length - 1 ? destination : null)
+        const b = point(l, 'to') ?? (i === legs.length - 1 ? destination : null)
         if (!a || !b) continue
         bounds.extend(a).extend(b)
         if (l.kind === 'walk') {
@@ -463,7 +532,7 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
         let coords: [number, number][] = [a, b]
         let via: [number, number][] = []
         try {
-          const shape = await api.shape(token, serviceDate, l.trip_id!, l.from!.id, l.to!.id)
+          const shape = await api.shape(token, serviceDate!, l.trip_id!, l.from!.id, l.to!.id)
           coords = shape.coordinates
           via = shape.stops ?? []
           platforms[i] = shape.platform
@@ -482,6 +551,12 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
       }
       if (!live) return
       ;(m.getSource('route') as GeoJSONSource | undefined)?.setData(fc(features))
+      ;(m.getSource('places') as GeoJSONSource | undefined)?.setData(
+        fc(places.map((p) => ({
+          type: 'Feature', properties: { icon: `place-${p.kind}`, name: p.name ?? '', id: p.id ?? '' },
+          geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+        }))),
+      )
       routeBounds.current = bounds
       legBounds.current = perLeg
       legLines.current = lines
@@ -494,7 +569,7 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
     return () => {
       live = false
     }
-  }, [option, serviceDate, token])
+  }, [option, serviceDate, token, placesKey])
 
   // The ride you're on: the line behind you dimmed, the stops behind you quiet, and your stop marked.
   // The train you're heading for: the platform it's boarded from, and where on it to wait.
@@ -502,7 +577,7 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
     const src = m.getSource('catching') as GeoJSONSource | undefined
     if (!src) return
     const i = view.current.catching
-    const leg = i == null ? undefined : view.current.option.legs[i]
+    const leg = i == null ? undefined : view.current.option?.legs[i]
     const features: Feature[] = []
     if (i != null && leg?.board) {
       const outline = legPlatforms.current[i]
@@ -580,10 +655,9 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
       const m = map.current
       if (!m || rides.length === 0 || (!force && document.visibilityState !== 'visible')) return
       api
-        .vehicles(token, option.lines, rides)
+        .vehicles(token, option?.lines ?? [], rides)
         .then((r) => {
           if (!live) return
-          setVehicleCount(r.vehicles.length)
           vehicles.current = r.vehicles
           drawVehicles(m)
           // The first time the view's vehicle shows up, make room for it.
@@ -630,13 +704,8 @@ export function MapView({ token, option, serviceDate, origin, destination, me, d
 
   return (
     <div class="map-wrap">
-      <div ref={el} class="map" role="region" aria-label="Map of the trip with live vehicles" data-my-vehicles={vehicleCount ?? ''} />
+      <div ref={el} class="map" role="region" aria-label={option ? 'Map of the trip with live vehicles' : 'Map of your home and gyms'} />
       {error && <Callout tone="caution">{error}</Callout>}
-      {vehicleCount === 0 && !noteGone && (
-        <Callout class="subtle" role="status" onDismiss={() => setNoteGone(true)}>
-          Your services appear here once they're a few stops away.
-        </Callout>
-      )}
     </div>
   )
 }

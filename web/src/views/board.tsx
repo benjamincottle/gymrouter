@@ -2,11 +2,11 @@
 // named and as wide as its share of the trip, the walking between as dots.
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { ComponentType } from 'preact'
-import { clock, countdown, dayOf, delay, duration, placeName, riskLabel, shortDuration } from '../format.ts'
+import { clock, countdown, dayOf, delay, placeName, riskLabel, shortDuration } from '../format.ts'
 import { useNow, useWide } from '../hooks.ts'
 import type { Leg, Option } from '../types.ts'
-import { changesAndStops, reselect, rideIsLive, riskReason, tape, tripKey } from '../options.ts'
-import type { MapViewProps } from '../map/mapview.tsx'
+import { reselect, rideIsLive, riskReason, stopCount, tape, tripKey } from '../options.ts'
+import type { MapPlace, MapViewProps } from '../map/mapview.tsx'
 import { ActionBar, Button, Callout, LiveTag, onRadioKeys, TextButton, useDialog } from './ui.tsx'
 import { lineColour, textOn } from '../colour.ts'
 
@@ -18,8 +18,7 @@ interface Props {
   updating?: boolean // a newer plan is slow to arrive: the countdown's tag says so (LiveTag)
   serviceDate: string
   token: string
-  origin: [number, number]
-  destination: [number, number]
+  places: MapPlace[] // the home and the gym at the trip's two ends, for the map
   title: string
   onStart?: (o: Option) => void
   onShift: Shift
@@ -66,7 +65,8 @@ export function Board(p: Props) {
 
   return (
     <div class="board">
-      <Hero option={sel} live={p.live} now={now} updating={p.updating} />
+      {/* Leaving now, the countdown; leaving at a set time the chosen row says it all. */}
+      {p.live && <Hero option={sel} now={now} updating={p.updating} />}
       <WindowShift shift={p.onShift} />
       <ol class="strips" role="radiogroup" aria-label="Options" onKeyDown={onRadioKeys}>
         {opts.map((o, i) => (
@@ -74,14 +74,8 @@ export function Board(p: Props) {
             <button class="strip-row" role="radio" aria-checked={i === selected} tabIndex={i === selected ? 0 : -1} onClick={() => choose(i)}>
               <TripRow option={o} />
             </button>
-            {/* The chosen option says how long and how much changing it takes, under its row. */}
-            {i === selected && (
-              <p class="strip-note">
-                <span>
-                  {duration(o.duration_s)} door to door, {changesAndStops(o)}
-                </span>
-              </p>
-            )}
+            {/* The chosen option, under its row: where it leaves from, and how sure it is. */}
+            {i === selected && <RowNote option={o} />}
           </li>
         ))}
       </ol>
@@ -129,17 +123,10 @@ function firstRide(o: Option): Leg | undefined {
   return o.legs.find((l) => l.kind === 'ride')
 }
 
-function Hero({ option: o, live, now, updating }: { option: Option; live: boolean; now: number; updating?: boolean }) {
+function Hero({ option: o, now, updating }: { option: Option; now: number; updating?: boolean }) {
   const ride = firstRide(o)
   const cd = countdown(o.leave_at, now) // "in 18 min", "now", "left 3 min ago"
-  const day = dayOf(o.leave_at, now)
-  const [label, value] = !live
-    ? [day ? `Leave ${day} at` : 'Leave at', clock(o.leave_at)]
-    : cd.startsWith('in ')
-      ? ['Leave in', cd.slice(3)]
-      : cd.startsWith('left ')
-        ? ['Left', cd.slice(5)]
-        : ['Leave', cd]
+  const [label, value] = cd.startsWith('in ') ? ['Leave in', cd.slice(3)] : cd.startsWith('left ') ? ['Left', cd.slice(5)] : ['Leave', cd]
   return (
     <section class="hero" aria-live="polite">
       <p class="label">
@@ -151,18 +138,32 @@ function Hero({ option: o, live, now, updating }: { option: Option; live: boolea
       <p class="hero-arrive">
         Arrive <span class="num">{clock(o.arrive)}</span>
       </p>
-      {ride && (
-        <p class="hero-sub">
-          for the {ride.line?.name} at {clock(ride.dep)} from {placeName(ride.from)}
-          {ride.status === 'predicted' && ride.delay_s !== undefined && ` (${delay(ride.delay_s)})`}
-        </p>
-      )}
-      {/* How sure the trip is, beside the number it qualifies: the rows' squares only show its colour. */}
-      <p class="hero-sub hero-risk">
-        <span class={`badge risk-${o.risk}`}>{riskLabel(o.risk)}</span>
-        {riskReason(o)}
-      </p>
     </section>
+  )
+}
+
+/**
+ * Under the chosen option's row: where its first ride leaves from and when (with how late it runs), then how sure the
+ * trip is, its risk badge (what the row's square means) and why, and how many stops.
+ */
+function RowNote({ option: o }: { option: Option }) {
+  const ride = firstRide(o)
+  const n = stopCount(o)
+  const status = ride && (ride.status === 'predicted' ? delay(ride.delay_s) : ride.status === 'added' ? 'extra service' : 'timetabled')
+  return (
+    <p class="strip-note">
+      <span>
+        {ride && (
+          <span class="note-line">
+            {ride.line?.name} at {clock(ride.dep)} from {placeName(ride.from)}, {status}
+          </span>
+        )}
+        <span class="note-line">
+          <span class={`badge risk-${o.risk}`}>{riskLabel(o.risk)}</span> {riskReason(o)}
+          {n > 0 && `, ${n} stop${n === 1 ? '' : 's'}`}
+        </span>
+      </span>
+    </p>
   )
 }
 
@@ -210,15 +211,7 @@ function useMapView(): { View: ComponentType<MapViewProps> | null; failed: boole
   return { View, failed }
 }
 
-export type MapProps = Pick<Props, 'token' | 'serviceDate' | 'origin' | 'destination'> & {
-  option: Option
-  me?: MapViewProps['me']
-  doing?: MapViewProps['doing']
-  aboard?: MapViewProps['aboard']
-  focus?: MapViewProps['focus']
-  progress?: MapViewProps['progress']
-  catching?: MapViewProps['catching']
-}
+export type MapProps = MapViewProps
 
 function MapBody({ View, failed, ...p }: MapProps & { View: ComponentType<MapViewProps> | null; failed: boolean }) {
   if (failed) {
