@@ -241,6 +241,8 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
   pencil may follow. Settings' own sections have no rule at all: each starts with its title and the space above it
   (the editors opened from it keep their hairlines). Its lists end without a closing hairline too: hairlines
   part the rows, and the space parts the sections.
+- **Settings opens with where your places are kept**, in 14px pencil above Homes: "Your homes and gyms are stored only
+  on this device. Each trip is planned by sending them to the server, which doesn't keep them." Said once, for both.
 - **A home's or gym's name in a list** (the trip screen's gym rows, Settings, the gym chooser): 18px/800/semi, its
   details (address, lines) under it in 14px pencil. A name is set the same wherever it's listed.
 - **Pick rows:** a search result is a whole-row button with a `›` at the end, not a link.
