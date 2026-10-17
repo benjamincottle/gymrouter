@@ -1073,3 +1073,9 @@ no predictions (other timetable versions) and are ignored; run-number matching c
 - 2026-10-17: **Settings' sections are evenly and more tightly spaced.** Without their rules the gaps had come apart
   (40 to 60 px from the end of one to the next title): the stack's gap, padding left from the rules, list margins, and
   a 56 px last row each added their part. Now it's one gap (about 28 px seen) everywhere.
+- 2026-10-17: **The installed app's manifest colours are dark** (`background_color` and `theme_color` `#1b1e21`, were
+  the light wall `#ebeeea` and the light ink). After an Android update, the installed app on a phone in dark mode had
+  a near-white bar across the bottom of every screen and a white flash at launch, which a normal Chrome tab didn't:
+  Android now draws an installed web app's navigation bar and launch screen in its manifest colours, and a manifest
+  can't vary them by theme. Dark is the better compromise (a dark bar under the light theme reads as the system's).
+  An installed app takes the change when Chrome next refreshes it, or straight away if removed and added again.
