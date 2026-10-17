@@ -649,6 +649,38 @@ details > summary {
   border-bottom: 0;
 }
 
+/* One gap between sections, whatever ends them, and tighter than elsewhere: --s4 between them, nothing added inside a
+   section's top (no rule to clear), no margin under its lists, and a list's last row only as tall as a tap needs
+   (44px, not 56). What a list's last row leaves under its words (--s3), a section ending in something else is given
+   at its foot, so every gap looks the same: the number settings (whose rows leave a little) --s1, Light/Dark and
+   Reset --s3. */
+.stack.unruled > * + * {
+  margin-top: var(--s4);
+}
+
+.unruled > .section {
+  padding-top: 0;
+}
+
+.unruled .section > .rows,
+.unruled .section > .setting-rows {
+  margin-bottom: 0;
+}
+
+.unruled .section > .rows > li:last-child,
+.unruled .section > .rows > li:last-child > .row-action {
+  min-height: var(--control);
+}
+
+.unruled > .section:has(> .setting-rows:last-child) {
+  padding-bottom: var(--s1);
+}
+
+.unruled > .section:has(> .segmented:last-child),
+.unruled > .section:has(> .btn:last-child) {
+  padding-bottom: var(--s3);
+}
+
 /* the top of Settings and its editors needs no rule: the header is right above it */
 .settings > .section:first-child {
   padding-top: 0;

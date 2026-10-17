@@ -240,7 +240,10 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
   header), then a title (20px/800/semi) with an optional 24px icon (ink lines, one part filled). An intro line in 14px
   pencil may follow. Settings' own sections have no rule at all: each starts with its title and the space above it
   (the editors opened from it keep their hairlines). Its lists end without a closing hairline too: hairlines
-  part the rows, and the space parts the sections.
+  part the rows, and the space parts the sections. That space is one size, tighter than elsewhere: `--s4` between
+  sections, no padding above a title, a list's last row only 44px tall, and a section that ends in something other
+  than a list given at its foot what a list's last row leaves under its words (number settings `--s1`, Light/Dark and
+  Reset `--s3`), so the gap from the end of one to the next title looks the same everywhere.
 - **Settings opens with where it's all kept**, in 14px pencil above Homes: "All settings are stored on this device
   only." Said once, for everything on the screen.
 - **A home's or gym's name in a list** (the trip screen's gym rows, Settings, the gym chooser): 18px/800/semi, its

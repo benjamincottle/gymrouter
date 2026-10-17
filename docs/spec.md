@@ -1070,3 +1070,6 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   risk settings, appearance, the access token) lives in the browser's storage; requests carry what a plan needs in
   their bodies, which the server neither stores nor logs; the only thing it keeps is the names of the lines requests
   have named (`lines.json`), which aren't tied to any place. Backups and setup links are copies the person makes.
+- 2026-10-17: **Settings' sections are evenly and more tightly spaced.** Without their rules the gaps had come apart
+  (40 to 60 px from the end of one to the next title): the stack's gap, padding left from the rules, list margins, and
+  a 56 px last row each added their part. Now it's one gap (about 28 px seen) everywhere.
