@@ -287,7 +287,6 @@ export function Trip({ settings, setSettings, server, onAuthError, goToSettings,
                   origin={direction === 'to-gym' ? [home.lon, home.lat] : [gym.lon, gym.lat]}
                   destination={direction === 'to-gym' ? [gym.lon, gym.lat] : [home.lon, home.lat]}
                   title={title!}
-                  ends={ends!}
                   onShift={shift}
                   onStart={start}
                 />

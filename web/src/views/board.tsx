@@ -22,7 +22,6 @@ interface Props {
   origin: [number, number]
   destination: [number, number]
   title: string
-  ends: Ends // the home or gym at each end: the ends of the description's rail
   onStart?: (o: Option) => void
   onShift: Shift
   preferLatest?: boolean // arriving by a time: the latest option that makes it is chosen first
@@ -76,14 +75,17 @@ export function Board(p: Props) {
             <button class="strip-row" role="radio" aria-checked={i === selected} tabIndex={i === selected ? 0 : -1} onClick={() => choose(i)}>
               <TripRow option={o} />
             </button>
-            {o.alternative && i === selected && <p class="alt-note">A different route, a little slower than the best.</p>}
+            {/* The chosen option says how long and how much changing it takes, under its row. */}
+            {i === selected && (
+              <p class="strip-note">
+                <span>
+                  {duration(o.duration_s)} door to door, {changesAndStops(o)}
+                </span>
+              </p>
+            )}
           </li>
         ))}
       </ol>
-      <p class="summary">
-        <strong>{duration(sel.duration_s)}</strong> door to door, {changesAndStops(sel)}
-      </p>
-      <Timeline option={sel} ends={p.ends} />
       <ActionBar>
         {!wide && (
           <Button class="phone-only" onClick={() => setMapOpen(true)}>
@@ -247,7 +249,7 @@ export function MapPane(p: MapProps) {
   )
 }
 
-type MapSheetProps = Omit<Props, 'onStart' | 'options' | 'onShift' | 'ends'> & {
+type MapSheetProps = Omit<Props, 'onStart' | 'options' | 'onShift'> & {
   option: Option
   now: number
   onClose: () => void

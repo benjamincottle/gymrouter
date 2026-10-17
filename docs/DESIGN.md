@@ -157,9 +157,9 @@ One family, Archivo Variable, self-hosted, in three widths and three weights.
   4. hero;
   5. Earlier/Later;
   6. options board;
-  7. summary;
-  8. steps;
-  9. action bar.
+  7. action bar.
+  - No steps: they're for a trip under way (Timeline), not for choosing one. The board and the map say enough to
+    choose.
 
 ## Components
 
@@ -294,6 +294,8 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
   (`--s4` above the line, `--s3` under it). With no options there's no countdown above them, and no line.
 - **Options board:** one row per option: leave, tape strip, arrive, risk mark, compact duration.
   - The selected row gets a `--panel` fill and an inset 4px ink bar. Its content doesn't move.
+  - Under the selected row, inside its fill and bar, one 14px pencil line starting where the tape starts: "1 h 3 min door to door, 2
+    changes, 12 stops". There's no summary under the board, and nothing says an option is an alternative route.
   - The rows share their columns: the times and the duration are as wide as their widest entry, the duration is
     right-aligned, and the risk mark sits evenly between the arrive time and the duration (`--s3` either side).
   - **The tape** fills its row on the trip's own scale; there is no time axis shared between rows (the times either
@@ -309,7 +311,7 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
       rather than run into the arrive time.
     - A ride running 2 min or more late has a 2px `--missed` outline.
   - The board is one tab stop; arrow keys move between options (radio group).
-- **Timeline:** time | rail | description, sharing columns through subgrid.
+- **Timeline** (the steps, during a trip only): time | rail | description, sharing columns through subgrid.
   - Rides: a thick line in the line colour that fills its row, stopping about 2px short of the rules above and below,
     with the mode disc at its top (where you get on) and a dot inside its bottom end (where you get off).
   - A ride's description: line chip, headsign and status; "from" the stop (and platform); "to" the stop at its
@@ -319,7 +321,7 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     through them all, each with its time (14px/600 pencil, narrow), a dot on the line and its name. The last is yours:
     its time and name in the step's own weights (18px/700, 800), "Get off" after the name, and on the line a larger
     white dot with the stop's dot in it (18px, `--stop-ink`). The line ends a little past it (5px). Open, the "to"
-    line goes: the last row says it. A tap on the stops line closes it again. It works while planning too.
+    line goes: the last row says it. A tap on the stops line closes it again.
     - **On the ride you're on** the stops line counts down, `10 of 19 stops to go`, and the part of the line behind
       you is dimmed (the line's colour under 62% of the wall), closed or open. Open, the stops behind you fold into
       one pencil line, `3 stops passed`, you sit in a row of your own under it, and the next stop has "Next" after its
@@ -395,7 +397,7 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
       for): short wins on a platform.
     - It sits straight under the instruction, above when the train leaves ("T1 leaves 19:27 (in 16 min), on time")
       and how much time you have, with `--s3` between.
-    - It's in Now from "Get to …" through "Wait for …", and nowhere else: not on the ride's step, not while planning,
+    - It's in Now from "Get to …" through "Wait for …", and nowhere else: not on the ride's step, not on the trip screen,
       not under the pulled-down map. It goes once you're on board.
     - It shows whenever the server says which carriage, with no test for whether it's worth it. It never aims for a
       lift. Nothing shows when the server doesn't say: a bus, a train of unknown length, a platform the street map

@@ -1350,7 +1350,8 @@ details > summary {
   cursor: pointer;
 }
 
-.strips > li.selected > .strip-row {
+/* the chosen option: its fill and bar take in the line under its row */
+.strips > li.selected {
   background: var(--panel);
   box-shadow: inset var(--bar) 0 0 var(--ink);
 }
@@ -1422,21 +1423,19 @@ details > summary {
   background-repeat: round no-repeat;
 }
 
-.alt-note {
+/* under the chosen option's row, in its fill: door to door, changes and stops */
+.strip-note {
   grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid; /* the row's own columns, padded as the row is: the line starts where the tape does */
   margin: 0;
-  padding: 0 var(--s2) var(--s2) calc(var(--s2) + var(--bar));
+  padding: 0 var(--s2) var(--s2);
   font-size: var(--fs-small);
   color: var(--pencil);
-  background: var(--panel);
 }
 
-.summary {
-  margin-top: var(--s5);
-}
-
-.summary strong {
-  font-weight: 800;
+.strip-note > span {
+  grid-column: 2 / -1;
 }
 
 /* ---- the trip's steps ---- */

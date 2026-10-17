@@ -1,6 +1,5 @@
 import { boardText, clock, delay, placeName, platform, riskLabel, spare } from '../format.ts'
 import type { ComponentChildren } from 'preact'
-import { useState } from 'preact/hooks'
 import { LAST_STOPS, stopsToGo, type RideProgress } from '../countdown.ts'
 import type { PlaceRef } from '../settings.ts'
 import type { Leg, Line, Option, StopRef, Transfer } from '../types.ts'
@@ -25,8 +24,8 @@ export interface Tracking {
   at?: { row: number; frac: number } | null // where your location puts you on the steps (else the clock decides)
   riding?: boolean // on a vehicle: you're drawn as it on its step (else on foot: walking, or waiting at the stop)
   ride?: RideProgress | null // the ride you're on, counted in stops (when its stops are known)
-  opened?: Record<string, boolean> // rides whose stops you've opened or closed yourself (rideKey): your tap wins
-  onOpen?: (ride: string, open: boolean) => void
+  opened: Record<string, boolean> // rides whose stops you've opened or closed yourself (rideKey): your tap wins
+  onOpen: (ride: string, open: boolean) => void
 }
 
 /** A ride, for remembering whether its stops are open: the vehicle and where you get on it. */
@@ -41,28 +40,26 @@ export interface Ends {
 const placeKind = (p: PlaceRef) => (p.key.startsWith('home:') ? 'home' : 'gym')
 
 /**
- * The trip's description: a line down the middle in each leg's colours, from the home or gym it starts at to the one
- * it ends at. During a trip (`track`) you're on the line.
+ * The trip's steps, during a trip: a line down the middle in each leg's colours, from the home or gym it starts at to
+ * the one it ends at, with you on it.
  */
 export function Timeline({
   option: o, ends, track,
 }: {
   option: Option
   ends: Ends
-  track?: Tracking
+  track: Tracking
 }) {
   const rs = rows(o, true)
-  const me = track && (track.at ?? position(rs, track.now))
-  // A ride's stops: opened or closed by a tap on its stops line (while planning, kept here), or by themselves for
-  // the last few stops of the ride you're on.
-  const [own, setOwn] = useState<Record<string, boolean>>({})
-  const opened = track?.opened ?? own
-  const setOpen = track?.onOpen ?? ((ride: string, open: boolean) => setOwn((cur) => ({ ...cur, [ride]: open })))
+  const me = track.at ?? position(rs, track.now)
+  // A ride's stops: opened or closed by a tap on its stops line, or by themselves for the last few stops of the ride
+  // you're on.
+  const { opened, onOpen: setOpen } = track
   const rail = (r: Row, k: number) => (
     <Rail
       kind={r.kind === 'start' || r.kind === 'arrive' ? r.kind : 'walk'}
       place={placeKind(r.kind === 'arrive' ? ends.end : ends.start)}
-      me={me && me.row === k ? me.frac : undefined}
+      me={me.row === k ? me.frac : undefined}
     />
   )
   return (
@@ -90,11 +87,11 @@ export function Timeline({
           return <TransferRow t={r.t} from={r.from} to={r.to} rail={rail(r, k)} />
         }
         if (r.leg.kind === 'ride') {
-          const ride = track?.ride?.leg === r.i ? track.ride : undefined
+          const ride = track.ride?.leg === r.i ? track.ride : undefined
           const key = rideKey(r.leg)
           const known = !!r.leg.calls?.length
           return (
-            <RideRow leg={r.leg} me={me && me.row === k ? me.frac : undefined} riding={!!track?.riding && me?.row === k} ride={ride}
+            <RideRow leg={r.leg} me={me.row === k ? me.frac : undefined} riding={!!track.riding && me.row === k} ride={ride}
               open={known && (opened[key] ?? (!!ride && ride.total - ride.passed <= LAST_STOPS))}
               onOpen={known ? (open) => setOpen(key, open) : undefined} />
           )

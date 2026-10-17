@@ -968,3 +968,12 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   `views/simpanel.tsx` and their few call sites, and the server's `sim` flag; `clock.ts` can stay. Rejected: faking
   the browser's whole clock and location from outside the app (it also speeds up the map's animations and the
   network's timeouts), and replaying recorded trips (worth adding later: it shows real GPS, which this can't).
+- 2026-10-17: **The trip screen no longer shows the chosen trip's steps** (the start of a UI overhaul aimed at
+  simplifying: keep what works, drop what doesn't earn its place). Under "1 h 3 min door to door, 2 changes, 12 stops"
+  the screen listed every step of the highlighted option, the rail and each ride's stops included. Those details
+  matter on a trip, where they stay (with you on the rail), not while choosing one: the countdown, the board's tape
+  and the map say enough to choose, and the list pushed Start trip a long way down.
+- 2026-10-17: **"Door to door" moves under the chosen option's row**, in the 14px pencil line that said "A different
+  route, a little slower than the best." for an alternative, which goes: the tape already shows a different route.
+  The summary under the board is gone with it, so Start trip follows the board. The line starts where the tape
+  does, and the chosen option's fill and ink bar now take in the line as well as the row.
