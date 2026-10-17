@@ -90,8 +90,10 @@ export function Timeline({
           const ride = track.ride?.leg === r.i ? track.ride : undefined
           const key = rideKey(r.leg)
           const known = !!r.leg.calls?.length
+          // Where to board, until you're on board: rides still ahead, and the one you're waiting for.
+          const boarding = me.row < k || (me.row === k && !track.riding && me.frac < 0.5)
           return (
-            <RideRow leg={r.leg} me={me.row === k ? me.frac : undefined} riding={!!track.riding && me.row === k} ride={ride}
+            <RideRow leg={r.leg} me={me.row === k ? me.frac : undefined} riding={!!track.riding && me.row === k} ride={ride} boarding={boarding}
               open={known && (opened[key] ?? (!!ride && ride.total - ride.passed <= LAST_STOPS))}
               onOpen={known ? (open) => setOpen(key, open) : undefined} />
           )
@@ -177,10 +179,11 @@ function LegRow({ leg, last, destination, rail }: {
  * itself for the last few stops of the ride you're on), it runs on into a row for each stop still ahead, the last
  * yours. On the ride you're on (`ride`), the stops behind you fold into a count and the line behind you is dimmed.
  */
-function RideRow({ leg, me, riding, ride, open, onOpen }: {
+function RideRow({ leg, me, riding, ride, boarding, open, onOpen }: {
   leg: Leg
   me?: number // you're on this step, this far down it
   riding?: boolean // and on the vehicle (else waiting where you get on, or just off it)
+  boarding: boolean // not on board yet: where to board shows, when the server has said
   ride?: RideProgress // how far through it you are, in stops, when they're known
   open: boolean
   onOpen?: (open: boolean) => void // its stops are known, so they can be shown
@@ -250,6 +253,7 @@ function RideRow({ leg, me, riding, ride, open, onOpen }: {
           <span class="meta">
             to {placeName(leg.to)} at {clock(leg.arr)}
           </span>
+          {boarding && <BoardStrip leg={leg} />}
           {stopsLine}
         </div>
       </li>
@@ -276,6 +280,7 @@ function RideRow({ leg, me, riding, ride, open, onOpen }: {
         )}
         <div>
           {head}
+          {boarding && <BoardStrip leg={leg} />}
           {stopsLine}
         </div>
       </li>

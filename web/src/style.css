@@ -1885,13 +1885,16 @@ details > summary {
 
 /* ---- where to board a train: each carriage an outline, yours in the line's colour, the front one with a cab ---- */
 
+/* in a ride's step, between where it goes and its stops line */
 .board-strip {
-  margin-top: var(--s3);
+  margin: var(--s2) 0;
 }
 
+/* 80% of the column, from its left: each carriage a fifth narrower than a full-width train's */
 .board-strip .carriages {
   display: flex;
   gap: var(--s1);
+  width: 80%;
   height: 22px;
   color: var(--rule);
 }
@@ -1932,24 +1935,29 @@ details > summary {
   stroke-width: 1.5;
 }
 
+/* in the step's 14px pencil, like the lines around it */
 .board-say {
   display: flex;
   align-items: center;
-  gap: var(--s2);
+  gap: var(--s1);
   margin-top: var(--s2);
+  font-size: var(--fs-small);
+  color: var(--pencil);
 }
 
 .board-say .icon {
   flex: none;
 }
 
-/* the runner beside regular text: as light as the carriages' outlines */
+/* the runner at the size of the words beside it, its lines a little heavier so they hold at 16px */
 .board-say .icon.hurry {
-  stroke-width: 1.5;
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
 }
 
 .board-say .icon.hurry .streaks {
-  stroke-width: 1.2;
+  stroke-width: 1.5;
 }
 
 /* ---- the map: a sheet on phones, a pane beside the trip on desktop ---- */
@@ -2192,11 +2200,6 @@ details > summary {
 
 .now p + p {
   margin-top: var(--s1);
-}
-
-/* when the train leaves, under where to board it */
-.now .board-strip + p {
-  margin-top: var(--s3);
 }
 
 .next {

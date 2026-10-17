@@ -977,3 +977,10 @@ no predictions (other timetable versions) and are ignored; run-number matching c
   route, a little slower than the best." for an alternative, which goes: the tape already shows a different route.
   The summary under the board is gone with it, so Start trip follows the board. The line starts where the tape
   does, and the chosen option's fill and ink bar now take in the line as well as the row.
+- 2026-10-17: **Where to board moves from Now into the ride's step** (in a trip: the steps, and the steps under the
+  phone's map), between where the ride goes and its stops line. In Now it sat between the instruction and when the
+  train leaves, two lines of graphic and text at the top of the screen for every walk to a station. In the step it's
+  read with the ride it belongs to, and every train ride not yet boarded shows its own, so a change's carriage can be
+  read before you get there. It goes once you're on board, as before; the map's platform and spot are unchanged.
+  It's quieter there: the train across 80% of the column, and the runner (16px) and "Board the 4th carriage from
+  the front." in the step's 14px pencil.

@@ -384,21 +384,21 @@ Field, Callout, Row, RowAction, ActionBar, Progress, Confirm, ConfirmSheet, plus
     - How many stops are behind you comes from where you are along the ride's line (your location, or your
       vehicle's when yours has gone quiet); with nothing to place you by, from the times it calls at them. It never
       goes back a stop.
-  - **Where to board, as a strip** (in Now while you're getting to a train or waiting for it, when the server says
-    which carriage; `BoardStrip`): the train, heading right like everything else on a trip. A piece for each
-    carriage, 22px tall with `--s1` between, each an outline only: 1.5px `--rule` with `--r-mark` corners. The front
-    carriage (the right-hand one) has a driver's cab, its top front corner swept down to the nose. Your carriage's
-    outline is the line's colour instead, at the same weight. No carriage is filled and none is numbered.
-    - Under it, the runner from the gym rows (`IconHurry`, at its own 24px) and the instruction at the body's own
-      weight, not bold: "Board the 4th carriage from the front." ("Board the front carriage.", "Board the back
-      carriage."). The strip above it is the emphasis, so the runner is lighter here than on a gym's row, to sit
-      with regular text and the carriages' outlines: drawn 1.5px, its speed lines 1.2px. On a gym's row the
-      runner starts the fastest trip; here it marks the quick way off the train. It doesn't say why (which stairs it's
-      for): short wins on a platform.
-    - It sits straight under the instruction, above when the train leaves ("T1 leaves 19:27 (in 16 min), on time")
-      and how much time you have, with `--s3` between.
-    - It's in Now from "Get to …" through "Wait for …", and nowhere else: not on the ride's step, not on the trip screen,
-      not under the pulled-down map. It goes once you're on board.
+  - **Where to board, as a strip** (in a train ride's step during a trip, when the server says which carriage;
+    `BoardStrip`): the train, heading right like everything else on a trip, across 80% of the step's column from its
+    left. A piece for each carriage, 22px tall with `--s1` between, each an outline only: 1.5px `--rule` with `--r-mark` corners. The front carriage (the
+    right-hand one) has a driver's cab, its top front corner swept down to the nose. Your carriage's outline is the
+    line's colour instead, at the same weight. No carriage is filled and none is numbered.
+    - Under it, the runner from the gym rows (`IconHurry`, at 16px, its lines 2 and its speed lines 1.5 in its 24
+      box) and the instruction in 14px pencil, like the step's other lines: "Board the 4th carriage from the
+      front." ("Board the front carriage.", "Board the back carriage."). The strip above it is the emphasis. On a
+      gym's row the runner starts the fastest trip; here it marks the quick way off the train. It doesn't say why
+      (which stairs it's for): short wins on a platform.
+    - It sits in the ride's step, under where the ride goes and above its stops line, `--s2` either side: in the
+      trip's steps and in the steps under the phone's map alike. Not in Now, not on the trip screen, not under the
+      pulled-down map.
+    - It shows on every train ride you haven't boarded yet (those ahead, and the one you're getting to or waiting
+      for), so a change's carriage can be read in advance. It goes from a ride once you're on board.
     - It shows whenever the server says which carriage, with no test for whether it's worth it. It never aims for a
       lift. Nothing shows when the server doesn't say: a bus, a train of unknown length, a platform the street map
       doesn't have, the next train at the same platform.
