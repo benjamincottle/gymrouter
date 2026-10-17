@@ -287,7 +287,7 @@ export function SettingsView({ backRef, settings, setSettings, server, onAuthErr
 
       <Backup settings={settings} setSettings={setSettings} />
 
-      <Section title="This device" icon={<IconPhone />} intro="Removes this device's access, homes and gyms. Backups and other devices keep theirs.">
+      <Section title="This device" icon={<IconPhone />} intro="Remove this device's access and stored settings. Backups and other devices are unaffected.">
         <Button variant="danger" onClick={() => setResetting(true)}>
           Reset this device
         </Button>
