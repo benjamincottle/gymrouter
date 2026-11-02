@@ -4,7 +4,7 @@
 # commit: a new Go or Node arrives as a pull request, and CI builds on it before anything is published.
 
 # --- Frontend: built once on the build platform (the output is platform-independent) ---
-FROM --platform=$BUILDPLATFORM node:26-trixie-slim@sha256:36793bcbb160a6a16cede1e62b93f84e26b78a972a8a4c0b879c1c12f22761ec AS web
+FROM --platform=$BUILDPLATFORM node:26-trixie-slim@sha256:e4db4c914bf8ad241bd24804fc25d272d89bad97e68cdc8a1414862790a02c39 AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 # --ignore-scripts: no dependency gets to run install scripts.
@@ -14,7 +14,7 @@ COPY web/ ./
 RUN npm run build
 
 # --- Server: cross-compiled from the build platform (fast on any runner) ---
-FROM --platform=$BUILDPLATFORM golang:1.27-trixie@sha256:fbb7ae40b62ff8afe31662df570d39b4f5052ac32b90dae8e60d7657a20a74f4 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-trixie@sha256:c65ecfe613b539ac74c62a4c3b2c27e8f8a6076384c8f27e8a3c0f3be17cc385 AS build
 ARG TARGETOS TARGETARCH
 # The commit being built (CI passes github.sha); the footer shows it. The context has no .git to read it from.
 ARG REVISION=""
