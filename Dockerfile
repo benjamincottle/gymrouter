@@ -4,7 +4,7 @@
 # commit: a new Go or Node arrives as a pull request, and CI builds on it before anything is published.
 
 # --- Frontend: built once on the build platform (the output is platform-independent) ---
-FROM --platform=$BUILDPLATFORM node:26-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS web
+FROM --platform=$BUILDPLATFORM node:26-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 # --ignore-scripts: no dependency gets to run install scripts.
